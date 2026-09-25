@@ -1013,9 +1013,9 @@ export function MatchDetailPanel({
 
                   {/* Main layout: pitch + suplentes sidebar */}
                   {activeFormation ? (
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                      <div className="md:col-span-3">
-                        <div className="relative mx-auto overflow-visible" style={{ aspectRatio: '3/4' }}>
+                    <div className="flex flex-col items-start gap-4 sm:flex-row">
+                      <div className="w-[220px] shrink-0">
+                        <div className="relative overflow-visible" style={{ aspectRatio: '68/105' }}>
                           <div className="absolute inset-0 bg-emerald-600/90 rounded-xl overflow-hidden">
                             <div className="absolute inset-4">
                               <div className="absolute inset-0 border-2 border-white/30 rounded" />
@@ -1050,31 +1050,38 @@ export function MatchDetailPanel({
                                   trigger={
                                     conv ? (
                                       <span className="flex flex-col items-center">
-                                        <PlayerAvatar
-                                          player={{
-                                            ...(getPlayerData(conv) || {}),
-                                            dorsal: conv.dorsal || getPlayerData(conv)?.dorsal,
-                                            posicion_principal:
-                                              getPlayerData(conv)?.posicion_principal || slot.position,
-                                          }}
-                                          size="sm"
-                                          preferDorsalFallback
-                                          className={`shadow-md ring-2 ${isOpen ? 'ring-yellow-300' : 'ring-white/40'}`}
-                                        />
-                                        <span className="block text-[9px] text-white font-medium mt-0.5 max-w-[60px] truncate drop-shadow">
+                                        <span className="relative">
+                                          <PlayerAvatar
+                                            player={{
+                                              ...(getPlayerData(conv) || {}),
+                                              dorsal: conv.dorsal || getPlayerData(conv)?.dorsal,
+                                              posicion_principal:
+                                                getPlayerData(conv)?.posicion_principal || slot.position,
+                                            }}
+                                            size="md"
+                                            preferDorsalFallback
+                                            className={`shadow-md ring-2 ${isOpen ? 'ring-yellow-300' : 'ring-white/40'}`}
+                                          />
+                                          {(conv.dorsal || getPlayerData(conv)?.dorsal) != null && (
+                                            <span className="absolute -bottom-1 left-1/2 z-10 -translate-x-1/2 rounded bg-black/80 px-1 text-[10px] font-bold leading-none text-white">
+                                              {conv.dorsal || getPlayerData(conv)?.dorsal}
+                                            </span>
+                                          )}
+                                        </span>
+                                        <span className="mt-1.5 block max-w-[84px] truncate text-xs font-semibold text-white drop-shadow">
                                           {getPlayerDisplayName(conv)}
                                         </span>
                                       </span>
                                     ) : (
                                       <span className="flex flex-col items-center">
-                                        <span className={`w-9 h-9 rounded-full border-2 border-dashed flex items-center justify-center transition-colors ${
+                                        <span className={`flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed transition-colors ${
                                           isOpen
                                             ? 'border-yellow-300 bg-white/25 ring-2 ring-yellow-300'
                                             : 'border-white/50 hover:border-white hover:bg-white/10'
                                         }`}>
-                                          <Plus className={`h-3.5 w-3.5 ${isOpen ? 'text-yellow-200' : 'text-white/70'}`} />
+                                          <Plus className={`h-4 w-4 ${isOpen ? 'text-yellow-200' : 'text-white/70'}`} />
                                         </span>
-                                        <span className="block text-[9px] text-white/60 font-medium mt-0.5">
+                                        <span className="mt-1 block text-[11px] font-medium text-white/70">
                                           {slot.label}
                                         </span>
                                       </span>
@@ -1101,7 +1108,7 @@ export function MatchDetailPanel({
                         </div>
                       </div>
 
-                      <div className="md:col-span-1">
+                      <div className="min-w-0 flex-1">
                         <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1 flex items-center gap-1.5">
                           <Shirt className="h-3.5 w-3.5" />
                           Banquillo ({suplentes.length})
