@@ -63,6 +63,7 @@ export interface ShowMeta {
   campo?: string
   localia?: string
   tramo?: string
+  jornada?: number
   intelLines?: string[]
 }
 
@@ -419,6 +420,7 @@ function portadaSlide(kind: ShowKind, meta: ShowMeta): ShowSlide {
     formatFechaHora(meta.fecha, meta.hora),
     meta.campo?.trim(),
     formatTramo(meta.tramo),
+    meta.jornada != null && Number.isFinite(meta.jornada) ? `Jornada ${meta.jornada}` : undefined,
   ].filter((line): line is string => Boolean(line))
   return {
     id: 'portada',
