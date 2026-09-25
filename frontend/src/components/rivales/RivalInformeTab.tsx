@@ -15,11 +15,15 @@ interface RivalInformeTabProps {
   rivalNombre?: string
   rivalEscudoUrl?: string
   equipoId?: string
+  fecha?: string
+  jornada?: number | null
+  localia?: 'local' | 'visitante' | 'neutral'
+  tramo?: 'ida' | 'vuelta'
 }
 
 type SaveStatus = 'idle' | 'pending' | 'saved' | 'error'
 
-export function RivalInformeTab({ rivalId, rivalNombre, rivalEscudoUrl, equipoId }: RivalInformeTabProps) {
+export function RivalInformeTab({ rivalId, rivalNombre, rivalEscudoUrl, equipoId, fecha, jornada, localia, tramo }: RivalInformeTabProps) {
   const [scout, setScout] = useState<Partial<RivalScoutData>>({})
   const [loaded, setLoaded] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
@@ -94,6 +98,10 @@ export function RivalInformeTab({ rivalId, rivalNombre, rivalEscudoUrl, equipoId
         rivalEscudoUrl={rivalEscudoUrl}
         rivalId={rivalId}
         equipoId={equipoId}
+        fecha={fecha}
+        jornada={jornada}
+        localia={localia}
+        tramo={tramo}
         onChange={setScout}
       />
     </div>

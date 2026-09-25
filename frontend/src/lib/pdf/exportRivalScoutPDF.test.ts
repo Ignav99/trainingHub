@@ -23,5 +23,8 @@ describe('informe rival PDF', () => {
     assert.match(src, /drawMatchPitch/)
     assert.match(src, /lockPage = true/)
     assert.match(src, /Jornada/)
+    assert.match(src, /phaseBlockHeight/)
+    assert.match(src, /resolveInformeMatch/)
+    assert.match(src, /ATTR_EMOJI/)
   })
 })
