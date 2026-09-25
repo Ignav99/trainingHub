@@ -290,6 +290,7 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
               jornada,
               tramo,
               rivalId,
+              equipoId,
               competicionId,
             })}
             onPresentacion={async () => {

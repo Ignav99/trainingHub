@@ -26,9 +26,10 @@ import {
   pitchDisplaySize,
 } from './planPartidoPdfLayout'
 import { resolvePizarraPng } from './capturePizarraForPdf'
-import { collectContextoPdfBlocks, collectOncePdfBlock } from './informeRivalPdfBlocks'
+import { ATTR_EMOJI, collectContextoPdfBlocks, collectOncePdfBlock, type InformePdfLine } from './informeRivalPdfBlocks'
+import { inferPlanTramo } from '@/lib/planPartidoTramos'
 import { buildOncePitchTokens } from '@/lib/oncePitch'
-import { rivalesApi } from '@/lib/api/partidos'
+import { partidosApi, rivalesApi } from '@/lib/api/partidos'
 
 const FASE_LABELS: Record<FaseRival, string> = {
   ataque_organizado: 'Ataque organizado',
@@ -69,6 +70,7 @@ export interface InformeRivalPdfMeta {
   clubLogoUrl?: string
   colorPrimario?: string
   rivalId?: string
+  equipoId?: string
   competicionId?: string
 }
 
@@ -217,10 +219,37 @@ function phaseHasContent(phase: RivalPhaseAnalysis | undefined): boolean {
   return false
 }
 
+const iconPngCache = new Map<string, string | null>()
+
+function attrIconPng(emoji: string): string | null {
+  const cached = iconPngCache.get(emoji)
+  if (cached !== undefined) return cached
+  if (typeof document === 'undefined') {
+    iconPngCache.set(emoji, null)
+    return null
+  }
+  const canvas = document.createElement('canvas')
+  canvas.width = 64
+  canvas.height = 64
+  const ctx = canvas.getContext('2d')
+  if (!ctx) {
+    iconPngCache.set(emoji, null)
+    return null
+  }
+  ctx.clearRect(0, 0, 64, 64)
+  ctx.font = '48px sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(emoji, 32, 34)
+  const url = canvas.toDataURL('image/png')
+  iconPngCache.set(emoji, url)
+  return url
+}
+
 function writePdfBlock(
   doc: jsPDF,
   title: string,
-  lines: string[],
+  lines: InformePdfLine[],
   margin: number,
   y: number,
   contentWidth: number
@@ -235,9 +264,26 @@ function writePdfBlock(
   doc.setFontSize(9)
   doc.setTextColor(51, 65, 85)
   for (const line of lines) {
-    if (!line.trim()) continue
+    if (!line.text.trim()) continue
+    const icons = line.icons ?? []
+    const iconW = icons.length ? icons.length * 4.2 : 0
     y = ensureSpace(doc, y, 8, margin)
-    y = writeWrapped(doc, line, margin, y, contentWidth)
+    let textX = margin
+    if (iconW) {
+      icons.forEach((key, index) => {
+        const png = attrIconPng(ATTR_EMOJI[key])
+        const ix = margin + index * 4.2
+        if (png) {
+          try {
+            doc.addImage(png, 'PNG', ix, y - 3.1, 3.4, 3.4)
+          } catch {
+            /* skip broken glyph */
+          }
+        }
+      })
+      textX = margin + iconW
+    }
+    y = writeWrapped(doc, line.text, textX, y, contentWidth - iconW)
     y += 1.5
   }
   return y + 4
@@ -280,10 +326,17 @@ function drawHeader(
   const club = (meta.clubNombre || '').toUpperCase()
   if (club) doc.text(club, x, 10)
 
+  const matchTitle = [
+    formatPlanFecha(meta.fecha),
+    meta.jornada != null && Number.isFinite(meta.jornada) ? `Jornada ${meta.jornada}` : '',
+    formatPlanTramo(meta.tramo),
+  ].filter(Boolean).join('  ·  ')
+
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(18)
+  doc.setFontSize(matchTitle ? 12 : 18)
   doc.setTextColor(255, 255, 255)
-  doc.text('INFORME RIVAL', x, 20)
+  const titleLines = doc.splitTextToSize(matchTitle || 'INFORME RIVAL', pageWidth - x - 36) as string[]
+  doc.text(titleLines.slice(0, 2), x, matchTitle ? 17 : 20)
 
   const rival = (meta.rivalNombre || '').trim()
   if (rival) {
@@ -302,16 +355,11 @@ function drawHeader(
     }
   }
 
-  const matchLine = [
-    formatPlanFecha(meta.fecha),
-    meta.jornada != null && Number.isFinite(meta.jornada) ? `Jornada ${meta.jornada}` : '',
-    formatPlanTramo(meta.tramo),
-    formatLocalia(meta.localia),
-  ].filter(Boolean).join('  ·  ')
+  const kicker = [matchTitle ? 'INFORME RIVAL' : '', formatLocalia(meta.localia)].filter(Boolean).join('  ·  ')
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8.5)
   doc.setTextColor(203, 213, 225)
-  if (matchLine) doc.text(matchLine, x, 28)
+  if (kicker) doc.text(kicker, x, 28)
 }
 
 function fillHex(doc: jsPDF, hex: string) {
@@ -396,6 +444,82 @@ function drawFooters(doc: jsPDF, clubNombre?: string) {
   }
 }
 
+function wrappedMm(doc: jsPDF, text: string | undefined, width: number): number {
+  const value = (text || '').trim()
+  if (!value) return 0
+  return (doc.splitTextToSize(value, width) as string[]).length * 4.4 + 3
+}
+
+function phaseBlockHeight(
+  doc: jsPDF,
+  phase: RivalPhaseAnalysis,
+  contentWidth: number,
+  imageMax: number,
+): number {
+  let h = 16
+  if (phase.formacion?.trim()) h += 5
+  h += wrappedMm(doc, phase.espacios, contentWidth)
+  if (phase.subfases) {
+    for (const sub of Object.values(phase.subfases)) {
+      if (
+        !sub?.notas?.trim() &&
+        !sub?.roles?.length &&
+        !sub?.pizarra_tactica &&
+        !diagramHasContent(sub?.pizarra_diagrama)
+      ) continue
+      h += 8
+      h += wrappedMm(doc, sub?.notas, contentWidth)
+      h += (sub?.roles?.length ?? 0) * 5
+      if (sub?.pizarra_tactica || diagramHasContent(sub?.pizarra_diagrama)) h += imageMax + 4
+    }
+  }
+  h += wrappedMm(doc, phase.vigilancias, contentWidth)
+  h += wrappedMm(doc, phase.repliegue, contentWidth)
+  h += wrappedMm(doc, phase.abp_comentarios, contentWidth)
+  h += wrappedMm(doc, phase.abp_defensa, contentWidth)
+  if (phase.roles?.length) h += phase.roles.length * 5 + 8
+  if (!phase.subfases && (phase.pizarra_tactica || diagramHasContent(phase.pizarra_diagrama))) h += imageMax + 4
+  if (phase.fortalezas?.length) h += wrappedMm(doc, phase.fortalezas.join(' · '), contentWidth) + 5
+  if (phase.debilidades?.length) h += wrappedMm(doc, phase.debilidades.join(' · '), contentWidth) + 5
+  if (phase.clips?.length) {
+    h += 6
+    for (const clip of phase.clips) h += wrappedMm(doc, clip.titulo, contentWidth)
+  }
+  return h
+}
+
+async function resolveInformeMatch(meta: InformeRivalPdfMeta): Promise<InformeRivalPdfMeta> {
+  if (meta.fecha && meta.jornada != null && meta.tramo) return meta
+  if (!meta.rivalId || !meta.equipoId) return meta
+  try {
+    const res = await partidosApi.list({
+      equipo_id: meta.equipoId,
+      rival_id: meta.rivalId,
+      limit: 50,
+      orden: 'fecha',
+      direccion: 'asc',
+    })
+    const matches = res.data || []
+    const today = new Date().toISOString().slice(0, 10)
+    const target = meta.fecha?.slice(0, 10)
+    const picked =
+      (target && matches.find((m) => (m.fecha || '').slice(0, 10) === target)) ||
+      matches.find((m) => (m.fecha || '').slice(0, 10) >= today) ||
+      matches[matches.length - 1]
+    if (!picked) return meta
+    const fecha = meta.fecha || picked.fecha
+    return {
+      ...meta,
+      fecha,
+      jornada: meta.jornada ?? picked.jornada ?? null,
+      localia: meta.localia || picked.localia,
+      tramo: meta.tramo || inferPlanTramo(matches, fecha),
+    }
+  } catch {
+    return meta
+  }
+}
+
 export async function exportRivalScoutPDF(
   data: Partial<RivalScoutData>,
   meta: InformeRivalPdfMeta = {}
@@ -412,8 +536,14 @@ export async function exportRivalScoutPDF(
     jornada: meta.jornada,
     tramo: meta.tramo,
     rivalId: meta.rivalId,
+    equipoId: meta.equipoId,
     competicionId: meta.competicionId,
   }
+  const withMatch = await resolveInformeMatch(resolved)
+  resolved.fecha = withMatch.fecha
+  resolved.jornada = withMatch.jornada
+  resolved.tramo = withMatch.tramo
+  resolved.localia = withMatch.localia
 
   const [clubLogo, rivalCrest, intel] = await Promise.all([
     loadImageDataUrl(resolved.clubLogoUrl),
@@ -446,18 +576,28 @@ export async function exportRivalScoutPDF(
     y += pitchH + 4
   }
   const onceBlock = collectOncePdfBlock(data.estrategia)
-  if (onceBlock && y < pageFloor(doc) - 12) {
-    y = writePdfBlock(doc, 'COMENTARIOS', onceBlock.lines, margin, y, contentWidth)
+  if (onceBlock) {
+    lockPage = false
+    y = writePdfBlock(doc, onceBlock.title, onceBlock.lines, margin, y, contentWidth)
   }
   lockPage = false
 
   for (const faseKey of FASE_ORDER) {
     const phase = (data.fases ?? []).find((f) => f.fase === faseKey)
-    if (!phaseHasContent(phase)) continue
+    if (!phase || !phaseHasContent(phase)) continue
 
-    doc.addPage()
+    const pageCap = pageFloor(doc) - (margin + 2)
+    let imageMax = 72
+    let need = phaseBlockHeight(doc, phase, contentWidth, imageMax)
+    while (need > pageCap && imageMax > 40) {
+      imageMax -= 8
+      need = phaseBlockHeight(doc, phase, contentWidth, imageMax)
+    }
+    if (y + need > pageFloor(doc)) {
+      doc.addPage()
+      y = margin + 2
+    }
     lockPage = true
-    let y = margin + 2
     doc.setFillColor(241, 245, 249)
     doc.roundedRect(margin, y, contentWidth, 8, 1, 1, 'F')
     doc.setTextColor(15, 23, 42)
@@ -513,7 +653,7 @@ export async function exportRivalScoutPDF(
           margin,
           y,
           contentWidth,
-          72,
+          imageMax,
         )
       }
     }
@@ -554,7 +694,7 @@ export async function exportRivalScoutPDF(
         margin,
         y,
         contentWidth,
-        90,
+        imageMax,
       )
     }
 

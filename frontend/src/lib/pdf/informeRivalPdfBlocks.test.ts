@@ -79,8 +79,35 @@ describe('informe rival PDF contexto + once', () => {
       },
     }
     const block = collectOncePdfBlock(estrategia)
-    assert.equal(block?.title, 'ONCE PROBABLE · 4-4-2')
-    assert.ok(block?.lines.some((line) => line.includes('POR') && line.includes('Portero Uno')))
-    assert.ok(block?.lines.some((line) => line.includes('Delantero') && line.includes('llega atrasado')))
+    assert.equal(block?.title, 'COMENTARIOS')
+    assert.equal(block?.lines.some((line) => line.text.includes('Portero Uno')), false)
+    assert.ok(block?.lines.some((line) => line.text.includes('Delantero') && line.text.includes('llega atrasado')))
+  })
+
+  it('keeps every comment and the attribute icons', () => {
+    const block = collectOncePdfBlock({
+      once_probable: {
+        actas_analizadas: 1,
+        jugadores: [
+          {
+            nombre: 'Rápido',
+            dorsal: 7,
+            apariciones: 1,
+            comentario: 'Ataca el espacio una y otra vez sin recortar este texto largo',
+            atributos: { correcaminos: true, bombilla: true },
+          },
+          {
+            nombre: 'Cierre',
+            dorsal: 4,
+            apariciones: 1,
+            atributos: { muro: true },
+          },
+        ],
+      },
+    })
+    assert.equal(block?.lines.length, 2)
+    assert.match(block?.lines[0]?.text || '', /Ataca el espacio una y otra vez/)
+    assert.deepEqual(block?.lines[0]?.icons, ['correcaminos', 'bombilla'])
+    assert.deepEqual(block?.lines[1]?.icons, ['muro'])
   })
 })

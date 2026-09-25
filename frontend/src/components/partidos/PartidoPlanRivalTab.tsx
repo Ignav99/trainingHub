@@ -45,6 +45,9 @@ export function PartidoPlanRivalTab({ partido, equipoId }: PartidoPlanRivalTabPr
         rivalNombre={rivalNombre}
         rivalEscudoUrl={partido.rival?.escudo_url}
         equipoId={equipoId}
+        fecha={partido.fecha}
+        jornada={partido.jornada}
+        localia={partido.localia}
       />
     </div>
   )
