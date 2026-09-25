@@ -63,6 +63,7 @@ export interface ShowMeta {
   campo?: string
   localia?: string
   tramo?: string
+  intelLines?: string[]
 }
 
 export type ShowSlide =
@@ -162,7 +163,7 @@ export function playableClips(clips?: ClipRival[]): ClipRival[] {
 
 export function buildInformeShow(data: Partial<RivalScoutData> | undefined, meta: ShowMeta = {}): DossierShow {
   const slides: ShowSlide[] = [portadaSlide('informe', meta)]
-  const contexto = contextoSlide(data?.estrategia)
+  const contexto = contextoSlide(data?.estrategia, meta.intelLines)
   const once = onceSlide(data?.estrategia)
   if (contexto) slides.push(contexto)
   if (once) slides.push(once)
@@ -608,12 +609,12 @@ function boardLoops(data?: TareaPizarraData | null): boolean {
   return (kept.length > 0 ? kept : frames).length >= 2
 }
 
-function contextoSlide(estrategia?: RivalScoutStrategy): ShowSlide | null {
-  if (!estrategia) return null
+function contextoSlide(estrategia?: RivalScoutStrategy, intelLines?: string[]): ShowSlide | null {
   const bullets: string[] = []
-  pushLine(bullets, estrategia.notas)
-  pushLine(bullets, formatCampo(estrategia.dimensiones_campo))
-  pushLine(bullets, estrategia.actitud_estilo)
+  for (const line of intelLines ?? []) pushLine(bullets, line)
+  pushLine(bullets, estrategia?.notas)
+  pushLine(bullets, formatCampo(estrategia?.dimensiones_campo))
+  pushLine(bullets, estrategia?.actitud_estilo)
   const clipped = finalizeBullets(bullets)
   if (clipped.length === 0) return null
   return {

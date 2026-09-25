@@ -20,5 +20,8 @@ describe('informe rival PDF', () => {
     assert.match(src, /collectContextoPdfBlocks/)
     assert.match(src, /collectOncePdfBlock/)
     assert.match(src, /getIntel/)
+    assert.match(src, /drawOncePitch/)
+    assert.match(src, /lockPage = true/)
+    assert.match(src, /Contexto y once probable/)
   })
 })

@@ -4,6 +4,8 @@ import {
   type RevisionSession,
 } from '@/lib/api/revision'
 import { rivalesApi } from '@/lib/api/partidos'
+import { api } from '@/lib/api/client'
+import { collectIntelPdfLines } from '@/lib/pdf/informeRivalPdfBlocks'
 import {
   attachRevisionPack,
   concatCharlaShow,
@@ -11,6 +13,22 @@ import {
 } from '@/lib/dossierShow'
 import { pickPlanForCharla, type PlanTramo } from '@/lib/planPartidoTramos'
 import type { PlanPartidoData, RivalScoutData } from '@/types'
+
+export async function loadContextoIntelLines(equipoId?: string, rivalId?: string): Promise<string[]> {
+  if (!equipoId || !rivalId) return []
+  try {
+    const res = await api.get<{ data: Array<{ id: string; mi_equipo_nombre?: string | null }> }>(
+      '/rfef/competiciones',
+      { params: { equipo_id: equipoId } },
+    )
+    const competicionId = res.data?.find((item) => item.mi_equipo_nombre)?.id
+    if (!competicionId) return []
+    const intel = await rivalesApi.getIntel(rivalId, competicionId)
+    return collectIntelPdfLines(intel)
+  } catch {
+    return []
+  }
+}
 
 export async function prepareDossierSala(params: {
   show: DossierShow
