@@ -24,11 +24,82 @@ from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
 from app.services.partido_ambito import AMBITO_COMPETICION, normalize_ambito, tarjetas_por_jugador
 from app.services.load_calculation_service import recalculate_team_load, recalculate_player_load, recalculate_all_teams
+from app.services.rpe_columnas import summarize_rpe_columns
 from app.services.jugador_tipo import incluye_tracking_carga
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _rpe_columnas_map(supabase, jugador_ids: list[str]) -> dict[str, dict]:
+    """Último RPE (sesión o partido) y medias de martes, jueves, viernes y partido."""
+    if not jugador_ids:
+        return {}
+    since = (date.today() - timedelta(days=120)).isoformat()
+    by_player: dict[str, list[dict]] = defaultdict(list)
+    try:
+        rows = (
+            supabase.table("registros_rpe")
+            .select("jugador_id, fecha, rpe, duracion_percibida, tipo, sesion_id, partido_id")
+            .in_("jugador_id", jugador_ids)
+            .gte("fecha", since)
+            .execute()
+        )
+        for row in rows.data or []:
+            kind = "partido" if row.get("tipo") == "partido" or row.get("partido_id") else "sesion"
+            if kind == "sesion" and not row.get("sesion_id") and row.get("tipo") == "manual":
+                continue
+            by_player[row["jugador_id"]].append({
+                "fecha": row.get("fecha"),
+                "rpe": row.get("rpe"),
+                "minutos": row.get("duracion_percibida"),
+                "kind": kind,
+            })
+    except Exception as e:
+        logger.warning(f"Error fetching RPE columns: {e}")
+
+    seen_match = {
+        (jid, str(ev.get("fecha"))[:10])
+        for jid, events in by_player.items()
+        for ev in events
+        if ev.get("kind") == "partido"
+    }
+
+    try:
+        convs = (
+            supabase.table("convocatorias")
+            .select("jugador_id, rpe, minutos_jugados, partido_id")
+            .in_("jugador_id", jugador_ids)
+            .execute()
+        )
+        partido_ids = list({c["partido_id"] for c in (convs.data or []) if c.get("partido_id") and c.get("rpe")})
+        fechas: dict[str, str] = {}
+        if partido_ids:
+            partidos = (
+                supabase.table("partidos")
+                .select("id, fecha")
+                .in_("id", partido_ids)
+                .gte("fecha", since)
+                .execute()
+            )
+            fechas = {p["id"]: p["fecha"] for p in (partidos.data or [])}
+        for conv in convs.data or []:
+            fecha = fechas.get(conv.get("partido_id"))
+            if not fecha or conv.get("rpe") is None:
+                continue
+            if (conv["jugador_id"], str(fecha)[:10]) in seen_match:
+                continue
+            by_player[conv["jugador_id"]].append({
+                "fecha": fecha,
+                "rpe": conv.get("rpe"),
+                "minutos": conv.get("minutos_jugados"),
+                "kind": "partido",
+            })
+    except Exception as e:
+        logger.warning(f"Error fetching match RPE columns: {e}")
+
+    return {jid: summarize_rpe_columns(events) for jid, events in by_player.items()}
 
 
 @router.get("/equipo/{equipo_id}", response_model=CargaEquipoResponse)
@@ -86,6 +157,8 @@ async def get_carga_equipo(
     except Exception as e:
         logger.warning(f"Error fetching tarjetas for team {eid}: {e}")
 
+    rpe_map = _rpe_columnas_map(supabase, jugador_ids)
+
     data = []
     total_carga = 0
     jugadores_riesgo = 0
@@ -122,6 +195,7 @@ async def get_carga_equipo(
             tipo_jugador=j.get("tipo_jugador"),
             tarjetas_amarillas=tarjetas.get("amarillas", 0),
             tarjetas_rojas=tarjetas.get("rojas", 0),
+            **rpe_map.get(j["id"], {}),
         )
         data.append(item)
 

@@ -46,6 +46,16 @@ class CargaJugadorResponse(BaseModel):
     tarjetas_amarillas: int = 0
     tarjetas_rojas: int = 0
 
+    rpe_ultimo: Optional[float] = None
+    rpe_ultimo_tipo: Optional[str] = None
+    rpe_ultimo_fecha: Optional[date] = None
+    minutos_ultimo: Optional[float] = None
+    carga_ua_ultimo: Optional[float] = None
+    rpe_media_martes: Optional[float] = None
+    rpe_media_jueves: Optional[float] = None
+    rpe_media_viernes: Optional[float] = None
+    rpe_media_partido: Optional[float] = None
+
     class Config:
         from_attributes = True
 

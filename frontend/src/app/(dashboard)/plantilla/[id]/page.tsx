@@ -28,6 +28,7 @@ import {
 import { toast } from 'sonner'
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
 import { PageHeader } from '@/components/ui/page-header'
+import { PlayerRpeCharts } from '@/components/rpe/PlayerRpeCharts'
 import { ExportarInformeButton } from '@/components/informes/ExportarInformeButton'
 import { AmbitoToggle } from '@/components/estadisticas/AmbitoToggle'
 import { Button } from '@/components/ui/button'
@@ -1342,6 +1343,8 @@ function PlayerLoadTab({ jugadorId, equipoId }: { jugadorId: string; equipoId: s
           </Card>
         </>
       )}
+
+      <PlayerRpeCharts jugadorId={jugadorId} />
 
       {loadData.length === 0 && (
         <Card>
