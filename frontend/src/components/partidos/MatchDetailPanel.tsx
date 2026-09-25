@@ -1058,7 +1058,7 @@ export function MatchDetailPanel({
                                               posicion_principal:
                                                 getPlayerData(conv)?.posicion_principal || slot.position,
                                             }}
-                                            size="2xl"
+                                            size="lg"
                                             preferDorsalFallback
                                             className={`shadow-md ring-2 ${isOpen ? 'ring-yellow-300' : 'ring-white/40'}`}
                                           />
@@ -1074,12 +1074,12 @@ export function MatchDetailPanel({
                                       </span>
                                     ) : (
                                       <span className="flex flex-col items-center">
-                                        <span className={`flex h-24 w-24 items-center justify-center rounded-full border-2 border-dashed transition-colors ${
+                                        <span className={`flex h-12 w-12 items-center justify-center rounded-full border-2 border-dashed transition-colors ${
                                           isOpen
                                             ? 'border-yellow-300 bg-white/25 ring-2 ring-yellow-300'
                                             : 'border-white/50 hover:border-white hover:bg-white/10'
                                         }`}>
-                                          <Plus className={`h-7 w-7 ${isOpen ? 'text-yellow-200' : 'text-white/70'}`} />
+                                          <Plus className={`h-5 w-5 ${isOpen ? 'text-yellow-200' : 'text-white/70'}`} />
                                         </span>
                                         <span className="mt-2 block text-sm font-medium text-white/80">
                                           {slot.label}
@@ -1132,11 +1132,11 @@ export function MatchDetailPanel({
                                     dorsal: conv.dorsal || player?.dorsal,
                                     posicion_principal: pos || player?.posicion_principal,
                                   }}
-                                  size="xs"
+                                  size="sm"
                                   preferDorsalFallback
                                 />
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-medium truncate flex items-center gap-1">
+                                  <p className="text-sm font-medium truncate flex items-center gap-1">
                                     {getPlayerDisplayName(conv)}
                                     {(() => { const fullJ = jugadores.find((j) => j.id === conv.jugador_id); return fullJ ? <PlayerStatusBadges estado={fullJ.estado} disponibilidad={fullJ.disponibilidad} /> : null })()}
                                   </p>
