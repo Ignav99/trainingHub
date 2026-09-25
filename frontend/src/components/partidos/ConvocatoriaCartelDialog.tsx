@@ -91,6 +91,7 @@ export function ConvocatoriaCartelDialog({
   const [horaCitacion, setHoraCitacion] = useState('')
   const [lugarCitacion, setLugarCitacion] = useState('')
   const [kitCombo, setKitCombo] = useState<KitCombo>(uniformKitCombo('local'))
+  const [kitPorteroSide, setKitPorteroSide] = useState<'local' | 'visitante'>('local')
   const [saving, setSaving] = useState(false)
   const [exporting, setExporting] = useState<'jpeg' | 'pdf' | null>(null)
 
@@ -107,7 +108,13 @@ export function ConvocatoriaCartelDialog({
         arbitro: partido.arbitro,
       }),
     )
-    setKitCombo(parseKitCombo(partido.kit_convocatoria, partido.localia))
+    const combo = parseKitCombo(partido.kit_convocatoria, partido.localia)
+    setKitCombo(combo)
+    setKitPorteroSide(
+      partido.kit_portero === 'local' || partido.kit_portero === 'visitante'
+        ? partido.kit_portero
+        : combo.camiseta,
+    )
   }, [
     open,
     partido.id,
@@ -115,6 +122,7 @@ export function ConvocatoriaCartelDialog({
     partido.hora_citacion,
     partido.lugar_citacion,
     partido.kit_convocatoria,
+    partido.kit_portero,
     partido.localia,
     partido.ubicacion,
     partido.arbitro,
@@ -129,6 +137,7 @@ export function ConvocatoriaCartelDialog({
     return map
   }, [clubKits])
   const kit = kitPiecesFromCombo(kitsByTipo, kitCombo)
+  const kitPortero = kitsByTipo[kitPorteroSide === 'visitante' ? 'portero_visitante' : 'portero_local'] ?? null
   const uniformSide = isUniformKit(kitCombo)
   const filenameBase = slugCartelFilename(partido.rival?.nombre || 'rival', partido.fecha)
   const clubNombre = club.organizacion?.nombre || equipoNombre || 'Equipo'
@@ -145,6 +154,7 @@ export function ConvocatoriaCartelDialog({
           hora_citacion: horaCitacion.trim() || null,
           lugar_citacion: cleanEstadioNombre(lugarCitacion) || null,
           kit_convocatoria: serializeKitCombo(kitCombo),
+          kit_portero: kitPorteroSide,
         })
         await mutate(apiKey(`/partidos/${partido.id}`))
         if (!opts?.silent) toast.success('Citación guardada')
@@ -155,7 +165,7 @@ export function ConvocatoriaCartelDialog({
         setSaving(false)
       }
     },
-    [partido.id, horaCitacion, lugarCitacion, kitCombo],
+    [partido.id, horaCitacion, lugarCitacion, kitCombo, kitPorteroSide],
   )
 
   const handleSave = async () => {
@@ -323,6 +333,37 @@ export function ConvocatoriaCartelDialog({
                 </div>
               ))}
             </div>
+            <div className="space-y-2">
+              <Label>Ropa de portero</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {(['local', 'visitante'] as const).map((side) => {
+                  const gk = kitsByTipo[side === 'visitante' ? 'portero_visitante' : 'portero_local']
+                  const selected = kitPorteroSide === side
+                  return (
+                    <button
+                      key={`portero-${side}`}
+                      type="button"
+                      onClick={() => setKitPorteroSide(side)}
+                      className={`rounded-lg border px-2 py-2 text-center text-sm transition-colors ${
+                        selected
+                          ? 'border-primary bg-primary/10 font-semibold'
+                          : 'border-border hover:bg-muted/40'
+                      }`}
+                      aria-pressed={selected}
+                    >
+                      {gk ? (
+                        <KitFullPreview kit={gk} size={56} labels={false} escudoUrl={clubLogoUrl} />
+                      ) : (
+                        <span className="block py-3 text-xs text-muted-foreground">Sin kit</span>
+                      )}
+                      <span className="mt-1 block text-xs">
+                        {side === 'local' ? 'Portero local' : 'Portero visitante'}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
             <div className="flex flex-col gap-2 pt-2">
               <Button type="button" variant="outline" className="gap-2" onClick={handleSave} disabled={saving}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
@@ -364,6 +405,7 @@ export function ConvocatoriaCartelDialog({
                 horaCitacion={horaCitacion}
                 lugarCitacion={lugarCitacion}
                 kit={kit}
+                kitPortero={kitPortero}
                 players={players}
               />
             </div>

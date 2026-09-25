@@ -7,7 +7,7 @@ export type PatronCamiseta =
   | 'mangas_diferentes'
   | 'degradado'
 
-export type TipoEquipacion = 'local' | 'visitante'
+export type TipoEquipacion = 'local' | 'visitante' | 'portero_local' | 'portero_visitante'
 
 export interface Equipacion {
   id: string

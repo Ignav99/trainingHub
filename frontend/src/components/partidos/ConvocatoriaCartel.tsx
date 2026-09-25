@@ -26,6 +26,7 @@ export interface ConvocatoriaCartelProps {
   horaCitacion: string
   lugarCitacion: string
   kit: CartelKit | null
+  kitPortero?: CartelKit | null
   players: CartelPlayer[]
   posterRef?: Ref<HTMLDivElement>
 }
@@ -46,6 +47,7 @@ export function ConvocatoriaCartel({
   horaCitacion,
   lugarCitacion,
   kit,
+  kitPortero,
   players,
   posterRef,
 }: ConvocatoriaCartelProps) {
@@ -160,29 +162,52 @@ export function ConvocatoriaCartel({
             <Meta label="Árbitro" value={arbitro || '—'} />
           </div>
         </div>
-        {kit ? (
+        {kit || kitPortero ? (
           <div
             style={{
-              width: 118,
               flexShrink: 0,
               border: '1.5px solid #D4E54E',
               background: 'transparent',
-              padding: '6px 6px 8px',
+              padding: '6px 8px 8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
             }}
           >
-            <div
-              style={{
-                fontSize: 8,
-                letterSpacing: '0.16em',
-                color: '#D4E54E',
-                fontWeight: 700,
-                textAlign: 'center',
-                marginBottom: 4,
-              }}
-            >
-              VESTIREMOS CON…
-            </div>
-            <KitFullPreview kit={kit} size={102} labels={false} escudoUrl={clubLogoUrl} />
+            {kit ? (
+              <div style={{ width: 102 }}>
+                <div
+                  style={{
+                    fontSize: 8,
+                    letterSpacing: '0.16em',
+                    color: '#D4E54E',
+                    fontWeight: 700,
+                    textAlign: 'center',
+                    marginBottom: 4,
+                  }}
+                >
+                  VESTIREMOS CON…
+                </div>
+                <KitFullPreview kit={kit} size={102} labels={false} escudoUrl={clubLogoUrl} />
+              </div>
+            ) : null}
+            {kitPortero ? (
+              <div style={{ width: 68 }}>
+                <div
+                  style={{
+                    fontSize: 7,
+                    letterSpacing: '0.12em',
+                    color: '#D4E54E',
+                    fontWeight: 700,
+                    textAlign: 'center',
+                    marginBottom: 4,
+                  }}
+                >
+                  PORTERO
+                </div>
+                <KitFullPreview kit={kitPortero} size={68} labels={false} escudoUrl={clubLogoUrl} />
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>

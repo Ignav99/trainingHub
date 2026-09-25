@@ -10,7 +10,7 @@ from uuid import UUID
 from datetime import datetime
 
 PatronCamiseta = Literal["solido", "rayas_verticales", "franjas_horizontales", "mangas_diferentes", "degradado"]
-TipoEquipacion = Literal["local", "visitante"]
+TipoEquipacion = Literal["local", "visitante", "portero_local", "portero_visitante"]
 
 
 class EquipacionBase(BaseModel):

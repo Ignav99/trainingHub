@@ -9,13 +9,13 @@ logger = logging.getLogger(__name__)
 
 MISSING_COL_RE = re.compile(r"Could not find the '([^']+)' column", re.I)
 
-OPTIONAL_PARTIDO_COLS = ("arbitro",)
+OPTIONAL_PARTIDO_COLS = ("arbitro", "kit_portero")
 
 PARTIDOS_LIST_SELECT = (
     "id,equipo_id,rival_id,fecha,hora,localia,competicion,jornada,ubicacion,arbitro,"
     "goles_favor,goles_contra,resultado,created_at,updated_at,auto_creado,"
     "rfef_competicion_id,video_url,informe_url,"
-    "hora_citacion,lugar_citacion,kit_convocatoria,"
+    "hora_citacion,lugar_citacion,kit_convocatoria,kit_portero,"
     "rivales(id,organizacion_id,nombre,nombre_corto,escudo_url,estadio,ciudad,created_at,updated_at)"
 )
 
@@ -23,7 +23,7 @@ PARTIDOS_GET_SELECT = (
     "id,equipo_id,rival_id,fecha,hora,localia,competicion,jornada,ubicacion,arbitro,"
     "goles_favor,goles_contra,resultado,notas_pre,notas_post,video_url,informe_url,"
     "rfef_competicion_id,auto_creado,created_at,updated_at,"
-    "hora_citacion,lugar_citacion,kit_convocatoria,"
+    "hora_citacion,lugar_citacion,kit_convocatoria,kit_portero,"
     "rivales(id,organizacion_id,nombre,nombre_corto,escudo_url,estadio,ciudad,created_at,updated_at)"
 )
 

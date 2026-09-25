@@ -357,7 +357,7 @@ export default function ConfiguracionPage() {
             <CardHeader>
               <CardTitle className="text-lg">Equipacion del club</CardTitle>
               <CardDescription>
-                Local y visitante. El escudo que subes arriba va en el pecho izquierdo.
+                Local y visitante, y la ropa de portero de las dos equipaciones. El escudo que subes arriba va en el pecho izquierdo.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -384,6 +384,26 @@ export default function ConfiguracionPage() {
                       tipo="visitante"
                       initial={equipacionesClub.find((e) => e.tipo === 'visitante')}
                       onSave={(data) => handleSaveEquipacionClub('visitante', data)}
+                      escudoUrl={theme.logoUrl || organizacion?.logo_url}
+                    />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold mb-2">Portero local</h3>
+                    <KitEditor
+                      key={equipacionesClub.find((e) => e.tipo === 'portero_local')?.id || 'portero_local'}
+                      tipo="portero_local"
+                      initial={equipacionesClub.find((e) => e.tipo === 'portero_local')}
+                      onSave={(data) => handleSaveEquipacionClub('portero_local', data)}
+                      escudoUrl={theme.logoUrl || organizacion?.logo_url}
+                    />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold mb-2">Portero visitante</h3>
+                    <KitEditor
+                      key={equipacionesClub.find((e) => e.tipo === 'portero_visitante')?.id || 'portero_visitante'}
+                      tipo="portero_visitante"
+                      initial={equipacionesClub.find((e) => e.tipo === 'portero_visitante')}
+                      onSave={(data) => handleSaveEquipacionClub('portero_visitante', data)}
                       escudoUrl={theme.logoUrl || organizacion?.logo_url}
                     />
                   </div>
