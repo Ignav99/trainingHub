@@ -1014,13 +1014,13 @@ export function MatchDetailPanel({
                   {/* Main layout: pitch + suplentes sidebar */}
                   {activeFormation ? (
                     <div className="flex flex-col items-start gap-4 sm:flex-row">
-                      <div className="w-[220px] shrink-0">
+                      <div className="w-full max-w-[520px] shrink-0">
                         <div className="relative overflow-visible" style={{ aspectRatio: '68/105' }}>
                           <div className="absolute inset-0 bg-emerald-600/90 rounded-xl overflow-hidden">
-                            <div className="absolute inset-4">
+                            <div className="absolute inset-[6%]">
                               <div className="absolute inset-0 border-2 border-white/30 rounded" />
                               <div className="absolute top-1/2 left-0 right-0 border-t-2 border-white/30" />
-                              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 border-2 border-white/30 rounded-full" />
+                              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[28%] aspect-square border-2 border-white/30 rounded-full" />
                               <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-[18%] border-2 border-t-0 border-white/30" />
                               <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2/3 h-[18%] border-2 border-b-0 border-white/30" />
                             </div>
@@ -1058,30 +1058,30 @@ export function MatchDetailPanel({
                                               posicion_principal:
                                                 getPlayerData(conv)?.posicion_principal || slot.position,
                                             }}
-                                            size="md"
+                                            size="2xl"
                                             preferDorsalFallback
                                             className={`shadow-md ring-2 ${isOpen ? 'ring-yellow-300' : 'ring-white/40'}`}
                                           />
                                           {(conv.dorsal || getPlayerData(conv)?.dorsal) != null && (
-                                            <span className="absolute -bottom-1 left-1/2 z-10 -translate-x-1/2 rounded bg-black/80 px-1 text-[10px] font-bold leading-none text-white">
+                                            <span className="absolute -bottom-1 left-1/2 z-10 -translate-x-1/2 rounded bg-black/80 px-1.5 py-0.5 text-xs font-bold leading-none text-white">
                                               {conv.dorsal || getPlayerData(conv)?.dorsal}
                                             </span>
                                           )}
                                         </span>
-                                        <span className="mt-1.5 block max-w-[84px] truncate text-xs font-semibold text-white drop-shadow">
+                                        <span className="mt-2 block max-w-[120px] truncate text-sm font-semibold text-white drop-shadow">
                                           {getPlayerDisplayName(conv)}
                                         </span>
                                       </span>
                                     ) : (
                                       <span className="flex flex-col items-center">
-                                        <span className={`flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed transition-colors ${
+                                        <span className={`flex h-24 w-24 items-center justify-center rounded-full border-2 border-dashed transition-colors ${
                                           isOpen
                                             ? 'border-yellow-300 bg-white/25 ring-2 ring-yellow-300'
                                             : 'border-white/50 hover:border-white hover:bg-white/10'
                                         }`}>
-                                          <Plus className={`h-4 w-4 ${isOpen ? 'text-yellow-200' : 'text-white/70'}`} />
+                                          <Plus className={`h-7 w-7 ${isOpen ? 'text-yellow-200' : 'text-white/70'}`} />
                                         </span>
-                                        <span className="mt-1 block text-[11px] font-medium text-white/70">
+                                        <span className="mt-2 block text-sm font-medium text-white/80">
                                           {slot.label}
                                         </span>
                                       </span>
