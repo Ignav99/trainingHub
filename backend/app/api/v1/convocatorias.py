@@ -428,8 +428,11 @@ async def batch_update_convocatorias(
         "tarjeta_amarilla",
         "tarjeta_roja",
         "rpe",
+        "titular",
+        "posicion_asignada",
     }
     results = []
+    load_ids: set[str] = set()
 
     for item in updates:
         conv_id = item.get("id")
@@ -460,19 +463,23 @@ async def batch_update_convocatorias(
 
         if response.data:
             results.append(response.data[0])
+            if {"rpe", "minutos_jugados"} & set(update_data):
+                load_ids.add(str(conv_id))
 
     from app.services.rpe_sync import sync_convocatoria_rpe
 
-    # Trigger load recalculation in background for players with updated minutes/RPE
+    # Recalcular carga solo si cambian minutos o RPE. El once (titular/puesto)
+    # no debe lanzar un recálculo por jugador: eso satura Supabase y el
+    # guardado acaba en 403.
     seen: set[str] = set()
     for item in results:
         jid = item.get("jugador_id")
-        if item.get("rpe") is not None or "rpe" in (item or {}):
+        if str(item.get("id")) in load_ids and (item.get("rpe") is not None or "rpe" in (item or {})):
             try:
                 sync_convocatoria_rpe(supabase, item)
             except Exception as e:
                 logger.warning("sync RPE partido %s: %s", jid, e)
-        if jid and jid not in seen:
+        if jid and jid not in seen and str(item.get("id")) in load_ids:
             seen.add(jid)
             bg.add_task(_recalc_jugador, supabase, jid)
 
@@ -524,7 +531,7 @@ async def update_convocatoria(
             sync_convocatoria_rpe(supabase, row)
         except Exception as e:
             logger.warning("sync RPE partido: %s", e)
-    if row.get("jugador_id"):
+    if row.get("jugador_id") and {"rpe", "minutos_jugados"} & set(update_data):
         bg.add_task(_recalc_jugador, supabase, row["jugador_id"])
 
     return ConvocatoriaResponse(**row)

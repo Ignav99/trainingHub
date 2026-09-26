@@ -553,12 +553,10 @@ export function MatchDetailPanel({
         const convId = slotAssignments[slot.id]
         if (convId) assignedByConv.set(convId, slot.id)
       }
-      await Promise.all(convocados.map((conv) => {
+      await convocatoriasApi.batchUpdateStats(convocados.map((conv) => {
         const pos = assignedByConv.get(conv.id)
-        if (pos) {
-          return convocatoriasApi.update(conv.id, { posicion_asignada: pos, titular: true })
-        }
-        return convocatoriasApi.update(conv.id, { titular: false })
+        if (pos) return { id: conv.id, posicion_asignada: pos, titular: true }
+        return { id: conv.id, titular: false }
       }))
 
       const merged = mergeLineupIntoNotasPre(latestNotas, selectedFormation, slotAssignments)
