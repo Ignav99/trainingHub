@@ -20,7 +20,25 @@ from app.security.permissions import (
     CLUB_ROLE_PERMISSIONS,
 )
 
-logger = logging.getLogger(__name__)
+def _team_role_rows(supabase, user_id: str, equipo_id: Optional[str]):
+    """Role rows for this user. One retry: a dropped Supabase connection must not become a 403."""
+    last_error = None
+    for _ in range(2):
+        try:
+            query = (
+                supabase.table("usuarios_equipos")
+                .select("rol_en_equipo, equipo_id")
+                .eq("usuario_id", user_id)
+            )
+            if equipo_id:
+                query = query.eq("equipo_id", equipo_id)
+            else:
+                query = query.limit(1)
+            return query.execute()
+        except Exception as exc:
+            last_error = exc
+    logger.warning("usuarios_equipos lookup failed for %s: %s", user_id, last_error)
+    return None
 
 security = HTTPBearer()
 
@@ -318,35 +336,16 @@ def require_permission(
         # 5. Get team role
         rol_en_equipo = None
         if equipo_id:
-            try:
-                ue_result = (
-                    supabase.table("usuarios_equipos")
-                    .select("rol_en_equipo")
-                    .eq("usuario_id", user_id)
-                    .eq("equipo_id", equipo_id)
-                    .maybe_single()
-                    .execute()
-                )
-                if ue_result.data:
-                    rol_en_equipo = ue_result.data["rol_en_equipo"]
-            except Exception:
-                pass
+            ue_result = _team_role_rows(supabase, user_id, equipo_id)
+            if ue_result and ue_result.data:
+                rol_en_equipo = ue_result.data[0]["rol_en_equipo"] if isinstance(ue_result.data, list) else ue_result.data["rol_en_equipo"]
 
         # If no specific team, try to get role from any team
         if not rol_en_equipo and not equipo_id:
-            try:
-                ue_result = (
-                    supabase.table("usuarios_equipos")
-                    .select("rol_en_equipo, equipo_id")
-                    .eq("usuario_id", user_id)
-                    .limit(1)
-                    .execute()
-                )
-                if ue_result.data:
-                    rol_en_equipo = ue_result.data[0]["rol_en_equipo"]
-                    equipo_id = ue_result.data[0]["equipo_id"]
-            except Exception:
-                pass
+            ue_result = _team_role_rows(supabase, user_id, None)
+            if ue_result and ue_result.data:
+                rol_en_equipo = ue_result.data[0]["rol_en_equipo"]
+                equipo_id = ue_result.data[0]["equipo_id"]
 
         # 6. Get default permissions for the role
         effective_permissions: set[Permission] = set()

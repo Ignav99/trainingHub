@@ -117,6 +117,7 @@ describe('partidos workspace and dossier export', () => {
     assert.match(panel, /size="lg"/)
     assert.match(panel, /text-sm font-medium truncate flex items-center gap-1/)
     assert.equal(panel.includes("aspectRatio: '3/4'"), false)
+    assert.match(panel, /batchUpdateStats/)
     assert.match(rivalPage, /searchParams.get\('tab'\)/)
   })
 })
