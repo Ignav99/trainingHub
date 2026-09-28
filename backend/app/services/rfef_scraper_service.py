@@ -1753,6 +1753,40 @@ class RFAFScraper:
         from app.services.rfef_acta_utils import parse_acta_minuto
         return parse_acta_minuto(text, allow_bare=allow_bare)
 
+    def _visible_fa_number(self, node) -> Optional[int]:
+        """Real digit from visible fa-N icons. Hidden decoys are ignored."""
+        digits: list[str] = []
+        for elem in node.find_all(["i", "span"]):
+            style = (elem.get("style") or "").lower().replace(" ", "")
+            if "display:none" in style:
+                continue
+            for cls in elem.get("class") or []:
+                m = re.match(r"fa-(\d)", str(cls))
+                if m:
+                    digits.append(m.group(1))
+                    break
+        if not digits:
+            return None
+        return int("".join(digits))
+
+    def _parcial_from_node(self, node) -> tuple[Optional[int], Optional[int]]:
+        """Partial score. Visible fa-N beats the decoy text RFAF prints."""
+        ntype_spans = node.find_all(
+            "span", class_=lambda c: c and "ntype" in str(c)
+        )
+        fa_nums = []
+        for span in ntype_spans:
+            number = self._visible_fa_number(span)
+            if number is not None:
+                fa_nums.append(number)
+        if len(fa_nums) >= 2:
+            return fa_nums[0], fa_nums[1]
+        text = node.get_text(" ", strip=True)
+        pm = re.search(r"(\d+)\s*-\s*(\d+)", text)
+        if pm:
+            return int(pm.group(1)), int(pm.group(2))
+        return None, None
+
     def _parse_acta_goles_semantic(self, goles_section) -> list[dict]:
         """Parse goals from the semantic 'Goles' dashboard section."""
         goles = []
@@ -1782,10 +1816,10 @@ class RFAFScraper:
                         ).strip()
                         if name and len(name) > 2:
                             jugador = name
-                    pm = re.match(r"(\d+)\s*-\s*(\d+)", cell_text)
-                    if pm:
-                        parcial_local = int(pm.group(1))
-                        parcial_visitante = int(pm.group(2))
+                    pl, pv = self._parcial_from_node(cell)
+                    if pl is not None and pv is not None:
+                        parcial_local = pl
+                        parcial_visitante = pv
 
                 if not jugador:
                     name = re.sub(
@@ -1997,10 +2031,18 @@ class RFAFScraper:
             parcial_local = None
             parcial_visitante = None
 
+            row_pl, row_pv = self._parcial_from_node(row)
+            if row_pl is not None and row_pv is not None:
+                parcial_local, parcial_visitante = row_pl, row_pv
+
             for text in texts:
-                # Partial score: "1 - 0"
+                if parcial_local is not None:
+                    pm = re.match(r"(\d+)\s*-\s*(\d+)", text)
+                    if pm:
+                        continue
+                # Partial score: "1 - 0" when the row has no fa-N digits
                 pm = re.match(r"(\d+)\s*-\s*(\d+)", text)
-                if pm:
+                if pm and parcial_local is None:
                     parcial_local = int(pm.group(1))
                     parcial_visitante = int(pm.group(2))
                     continue

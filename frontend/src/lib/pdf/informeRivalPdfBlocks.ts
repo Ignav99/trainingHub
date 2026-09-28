@@ -110,6 +110,15 @@ export function collectIntelPdfLines(intel: PreMatchIntel): string[] {
       `Mitades: 1ª ${ctx.mitades.marcados_1t}-${ctx.mitades.encajados_1t} · 2ª ${ctx.mitades.marcados_2t}-${ctx.mitades.encajados_2t}`
     )
   }
+  const detalle = ctx?.goles_detalle ?? []
+  if (detalle.length) {
+    const shown = detalle.slice(0, 12).map((g) => {
+      const who = g.jugador ? ` ${g.jugador}` : ''
+      const side = g.marcado ? 'favor' : 'contra'
+      return `${g.minuto}'${who} (${side})`
+    })
+    lines.push(`Goles con minuto: ${shown.join(' · ')}`)
+  }
 
   const goleadores = (intel.goleadores_rival ?? []).slice(0, 5)
   if (goleadores.length) {

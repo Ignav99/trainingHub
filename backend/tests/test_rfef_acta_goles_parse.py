@@ -28,6 +28,30 @@ def test_semantic_goles_minute_without_requiring_player():
     assert goles[1]["parcial_visitante"] == 1
 
 
+def test_semantic_goles_prefer_visible_fa_digits_over_decoy_text():
+    html = """
+    <div class="dashboard-stat">
+      <table>
+        <tr>
+          <td><span class="font-blue">(8')</span> CASTILLEJO REDONDO, JOSE</td>
+          <td>
+            <span class="ntype"><i class="fa-4" style="display:none"></i><i class="fa-1"></i></span>
+            -
+            <span class="ntype"><i class="fa-9" style="display:none"></i><i class="fa-0"></i></span>
+            4 - 1
+          </td>
+        </tr>
+      </table>
+    </div>
+    """
+    section = BeautifulSoup(html, "html.parser")
+    goles = RFAFScraper()._parse_acta_goles_semantic(section)
+    assert goles[0]["minuto"] == 8
+    assert goles[0]["jugador"] == "CASTILLEJO REDONDO, JOSE"
+    assert goles[0]["parcial_local"] == 1
+    assert goles[0]["parcial_visitante"] == 0
+
+
 def test_legacy_goles_quote_minute():
     html = """
     <table>

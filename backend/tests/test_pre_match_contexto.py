@@ -10,6 +10,7 @@ from app.services.pre_match_service import (
     _jornada_resultados_rival,
     _match_rival_name,
     _merge_historico_temporadas,
+    _query_actas,
     _split_actas_by_temporada,
     _strict_liga_goals,
     _team_is_local,
@@ -548,6 +549,148 @@ def test_contexto_calavera_away_win_then_home_draw():
         (False, 3, 1),
         (True, 0, 0),
     ]
+
+
+def _motilla_players(side: str) -> list[dict]:
+    home = ["CASTILLEJO REDONDO, JOSE", "GRANADOS VELASCO, MARIANO", "BORRUECO SANCHEZ, MARIO"]
+    away = ["DE LA ROSA BARRIOS, PABLO", "VARELA MARTINEZ, RAUL DANIEL"]
+    names = home if side == "motilla" else away
+    return [{"nombre": n} for n in names]
+
+
+def test_motilla_corrupt_parcials_still_count_away_goals_against():
+    """Calendar is the marcador. Acta digits are ntype noise.
+
+    J1 away 0-0, J2 home 3-0, J3 away 2-0 loss. Stored parcials do not
+    add up, and two actas have empty team names. Roster + calendar must
+    produce casa 3-0, fuera 0-2, liga 3-2, and the five goal minutes.
+    """
+    draw = {
+        "local_nombre": "C.D. UTRERA",
+        "visitante_nombre": "LA MOTILLA F.C.",
+        "goles_local": 0,
+        "goles_visitante": 0,
+        "jornada_numero": 1,
+        "cod_acta": "j1",
+        "fecha": "2026-09-12",
+        "titulares_local": [{"nombre": "Portero Utrera"}],
+        "titulares_visitante": _motilla_players("motilla"),
+        "suplentes_local": [],
+        "suplentes_visitante": [],
+        "goles": [],
+    }
+    home = {
+        "local_nombre": "",
+        "visitante_nombre": "",
+        "goles_local": 1,
+        "goles_visitante": 1,
+        "jornada_numero": 2,
+        "cod_acta": "j2",
+        "fecha": "2026-09-20",
+        "titulares_local": _motilla_players("motilla"),
+        "titulares_visitante": _motilla_players("other"),
+        "suplentes_local": [],
+        "suplentes_visitante": [],
+        "goles": [
+            {"minuto": 8, "jugador": "CASTILLEJO REDONDO, JOSE", "parcial_local": 4, "parcial_visitante": 1},
+            {"minuto": 69, "jugador": "GRANADOS VELASCO, MARIANO", "parcial_local": 3, "parcial_visitante": 2},
+            {"minuto": 83, "jugador": "BORRUECO SANCHEZ, MARIO", "parcial_local": 3, "parcial_visitante": 3},
+        ],
+    }
+    away = {
+        "local_nombre": "",
+        "visitante_nombre": "",
+        "goles_local": 1,
+        "goles_visitante": 2,
+        "jornada_numero": 3,
+        "cod_acta": "j3",
+        "fecha": "2026-09-27",
+        "titulares_local": _motilla_players("other"),
+        "titulares_visitante": _motilla_players("motilla"),
+        "suplentes_local": [],
+        "suplentes_visitante": [],
+        "goles": [
+            {"minuto": 6, "jugador": "DE LA ROSA BARRIOS, PABLO", "parcial_local": 5, "parcial_visitante": 1},
+            {"minuto": 85, "jugador": "VARELA MARTINEZ, RAUL DANIEL", "parcial_local": 0, "parcial_visitante": 3},
+        ],
+    }
+    jornadas = [
+        {"numero": 1, "partidos": [{
+            "local": "C.D. UTRERA", "visitante": "LA MOTILLA F.C.",
+            "cod_acta": "j1", "goles_local": 0, "goles_visitante": 0,
+        }]},
+        {"numero": 2, "partidos": [{
+            "local": "LA MOTILLA F.C.", "visitante": "C.D. DE FUTBOL HERRERA",
+            "cod_acta": "j2", "goles_local": 3, "goles_visitante": 0,
+        }]},
+        {"numero": 3, "partidos": [{
+            "local": "ESTRELLA SAN AGUSTIN", "visitante": "LA MOTILLA F.C.",
+            "cod_acta": "j3", "goles_local": 2, "goles_visitante": 0,
+        }]},
+    ]
+    clasificacion = {
+        "gf": 3, "gc": 2, "pj": 3,
+        "pg_casa": 1, "pe_casa": 0, "pp_casa": 0,
+        "pg_fuera": 0, "pe_fuera": 1, "pp_fuera": 1,
+        "ultimos_5": ["E", "V", "D"],
+    }
+    supabase = _FakeSupabase([draw, home, away], jornadas=jornadas)
+    ctx = _compute_contexto_stats(
+        supabase, "comp-1", "LA MOTILLA F.C.",
+        clasificacion=clasificacion,
+        mi_equipo="CLUB ATLETICO CENTRAL",
+        temporada_code="22",
+    )
+    assert ctx is not None
+    assert ctx["casa"]["pj"] == 1
+    assert ctx["casa"]["gf"] == 3
+    assert ctx["casa"]["gc"] == 0
+    assert ctx["fuera"]["pj"] == 2
+    assert ctx["fuera"]["gf"] == 0
+    assert ctx["fuera"]["gc"] == 2
+    assert ctx["fuera"]["pe"] == 1
+    assert ctx["fuera"]["pp"] == 1
+    assert ctx["liga"]["gf"] == 3
+    assert ctx["liga"]["gc"] == 2
+    assert ctx["mitades"]["marcados_1t"] == 1
+    assert ctx["mitades"]["marcados_2t"] == 2
+    assert ctx["mitades"]["encajados_1t"] == 1
+    assert ctx["mitades"]["encajados_2t"] == 1
+    assert ctx["goles_por_minuto"]["marcados"][0] == 1  # 8'
+    assert ctx["goles_por_minuto"]["marcados"][4] == 1  # 69' in 61-75
+    assert ctx["goles_por_minuto"]["marcados"][5] == 1  # 83'
+    assert ctx["goles_por_minuto"]["encajados"][0] == 1  # 6'
+    assert ctx["goles_por_minuto"]["encajados"][5] == 1  # 85'
+    tipos = [(g["minuto"], g["marcado"]) for g in ctx["goles_detalle"]]
+    assert tipos == [(8, True), (69, True), (83, True), (6, False), (85, False)]
+
+    rows = _query_actas(
+        supabase, "comp-1", "LA MOTILLA F.C.",
+        "local_nombre, visitante_nombre, goles, goles_local, goles_visitante, jornada_numero",
+        temporada_code="22",
+    )
+    assert {a["cod_acta"] for a in rows} == {"j1", "j2", "j3"}
+
+
+def test_jornada_scores_are_reread_each_time():
+    jornadas = [{
+        "numero": 3,
+        "partidos": [{
+            "local": "ESTRELLA SAN AGUSTIN",
+            "visitante": "LA MOTILLA F.C.",
+            "cod_acta": "j3",
+            "goles_local": None,
+            "goles_visitante": None,
+        }],
+    }]
+    supabase = _FakeSupabase([], jornadas=jornadas)
+    assert _jornada_resultados_rival(supabase, "comp-1", "LA MOTILLA F.C.") == []
+    jornadas[0]["partidos"][0]["goles_local"] = 2
+    jornadas[0]["partidos"][0]["goles_visitante"] = 0
+    results = _jornada_resultados_rival(supabase, "comp-1", "LA MOTILLA F.C.")
+    assert results == [{
+        "is_local": False, "gf": 0, "gc": 2, "jornada": 3, "cod_acta": "j3",
+    }]
 
 
 def test_historico_keeps_last_season_on_the_rival():

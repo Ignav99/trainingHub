@@ -1976,6 +1976,12 @@ export interface PreMatchContextoStats {
     marcados: number[]
     encajados: number[]
   }
+  goles_detalle?: Array<{
+    minuto: number
+    jugador?: string
+    marcado: boolean
+    jornada?: number | null
+  }>
 }
 
 export interface PreMatchTemporadaMeta {
