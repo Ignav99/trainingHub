@@ -318,19 +318,23 @@ def _goal_scored_by_rival(
     return None
 
 
+def _sorted_goles(goles_list: list) -> list:
+    return sorted(
+        goles_list,
+        key=lambda g: (goal_minuto(g) is None, goal_minuto(g) or 0),
+    )
+
+
 def _iter_goal_attributions(
     goles_list: list,
     is_local: bool,
     rival_players: set[str],
     opponent_players: set[str] | None,
-) -> list[tuple[int, bool]]:
-    """(minuto, scored_by_rival) from an acta, walking parcials in order."""
-    events: list[tuple[int, bool]] = []
+) -> list[tuple[int, bool, str]]:
+    """(minuto, scored_by_rival, jugador) walking parcials, then names."""
+    events: list[tuple[int, bool, str]] = []
     prev_parcial: tuple[int, int] | None = (0, 0)
-    for gol in sorted(
-        goles_list,
-        key=lambda g: (goal_minuto(g) is None, goal_minuto(g) or 0),
-    ):
+    for gol in _sorted_goles(goles_list):
         scored = _goal_scored_by_rival(
             gol, rival_players, opponent_players, is_local, prev_parcial,
         )
@@ -339,48 +343,120 @@ def _iter_goal_attributions(
         if pl is not None and pv is not None:
             prev_parcial = (int(pl), int(pv))
         minuto = goal_minuto(gol)
+        jugador = (gol.get("jugador") or "").strip()
         if minuto is None or scored is None:
             continue
-        events.append((int(minuto), scored))
+        events.append((int(minuto), scored, jugador))
     return events
 
 
-def _iter_parcial_attributions(goles_list: list, is_local: bool) -> list[tuple[int, bool]]:
+def _iter_parcial_attributions(
+    goles_list: list, is_local: bool,
+) -> list[tuple[int, bool, str]]:
     """Attribute only from scoreboard deltas, ignoring player names."""
-    events: list[tuple[int, bool]] = []
+    events: list[tuple[int, bool, str]] = []
     prev_l, prev_v = 0, 0
-    for gol in sorted(
-        goles_list,
-        key=lambda g: (goal_minuto(g) is None, goal_minuto(g) or 0),
-    ):
+    for gol in _sorted_goles(goles_list):
         pl = gol.get("parcial_local")
         pv = gol.get("parcial_visitante")
         if pl is None or pv is None:
             continue
         pl_i, pv_i = int(pl), int(pv)
         minuto = goal_minuto(gol)
+        jugador = (gol.get("jugador") or "").strip()
         d_l = pl_i - prev_l
         d_v = pv_i - prev_v
         prev_l, prev_v = pl_i, pv_i
         if minuto is None:
             continue
         if d_l > 0:
-            events.append((int(minuto), is_local))
+            events.append((int(minuto), is_local, jugador))
         if d_v > 0:
-            events.append((int(minuto), not is_local))
+            events.append((int(minuto), not is_local, jugador))
     return events
 
 
-def _events_fit_score(events: list[tuple[int, bool]], gf: int, gc: int) -> bool:
-    attr_gf = sum(1 for _, scored in events if scored)
-    attr_gc = sum(1 for _, scored in events if not scored)
+def _iter_roster_attributions(
+    goles_list: list,
+    rival_players: set[str],
+    opponent_players: set[str] | None,
+) -> list[tuple[int, bool, str]]:
+    """Minute + side from the scorer's roster, ignoring obfuscated parcials."""
+    events: list[tuple[int, bool, str]] = []
+    for gol in _sorted_goles(goles_list):
+        minuto = goal_minuto(gol)
+        jugador = (gol.get("jugador") or "").strip()
+        if minuto is None or not jugador:
+            continue
+        in_rival = _player_in_set(jugador, rival_players)
+        in_opp = bool(opponent_players) and _player_in_set(jugador, opponent_players)
+        if in_rival and not in_opp:
+            events.append((int(minuto), True, jugador))
+        elif in_opp and not in_rival:
+            events.append((int(minuto), False, jugador))
+    return events
+
+
+def _events_fit_score(events: list[tuple], gf: int, gc: int) -> bool:
+    attr_gf = sum(1 for ev in events if ev[1])
+    attr_gc = sum(1 for ev in events if not ev[1])
     return attr_gf == gf and attr_gc == gc
 
 
-def _events_within_score(events: list[tuple[int, bool]], gf: int, gc: int) -> bool:
-    attr_gf = sum(1 for _, scored in events if scored)
-    attr_gc = sum(1 for _, scored in events if not scored)
+def _events_within_score(events: list[tuple], gf: int, gc: int) -> bool:
+    attr_gf = sum(1 for ev in events if ev[1])
+    attr_gc = sum(1 for ev in events if not ev[1])
     return bool(events) and attr_gf <= gf and attr_gc <= gc
+
+
+def _marcador_orientation(
+    acta_gl: int,
+    acta_gv: int,
+    cal_gf: int,
+    cal_gc: int,
+    cal_is_local: bool,
+) -> str:
+    """How the acta score sits against the calendar.
+
+    aligned: columns match the real venue.
+    flipped: the rival is listed on the other side, but the score is the same match.
+    corrupt: decoded digits match neither (RFAF ntype noise).
+    """
+    if cal_is_local:
+        venue_l, venue_v = cal_gf, cal_gc
+    else:
+        venue_l, venue_v = cal_gc, cal_gf
+    if acta_gl == venue_l and acta_gv == venue_v:
+        return "aligned"
+    if acta_gl == venue_v and acta_gv == venue_l:
+        return "flipped"
+    return "corrupt"
+
+
+def _select_goal_events(
+    goles_list: list,
+    is_local: bool,
+    rival_players: set[str],
+    opponent_players: set[str] | None,
+    gf: int,
+    gc: int,
+) -> list[tuple[int, bool, str]]:
+    """Pick the minute list that agrees with the real GF/GC.
+
+    Obfuscated parcials often invent a running score. When they don't
+    add up to the marcador, the scorer's roster (who is on which side)
+    is the source for favor vs contra.
+    """
+    named = _iter_goal_attributions(goles_list, is_local, rival_players, opponent_players)
+    parcials = _iter_parcial_attributions(goles_list, is_local)
+    roster = _iter_roster_attributions(goles_list, rival_players, opponent_players)
+    for group in (named, parcials, roster):
+        if _events_fit_score(group, gf, gc):
+            return group
+    for group in (named, parcials, roster):
+        if _events_within_score(group, gf, gc):
+            return group
+    return []
 
 
 def _goals_matching_marcador(
@@ -391,23 +467,13 @@ def _goals_matching_marcador(
     gf: int,
     gc: int,
 ) -> list[tuple[int, bool]]:
-    """Keep minute attributions when they don't contradict the acta score.
-
-    Competition actas often have minutes + player names but missing
-    obfuscated parcials. We still dump those minutes if the roster
-    (or remaining scoreboard) can tell who scored.
-    """
-    named = _iter_goal_attributions(goles_list, is_local, rival_players, opponent_players)
-    if _events_fit_score(named, gf, gc):
-        return named
-    parcials = _iter_parcial_attributions(goles_list, is_local)
-    if _events_fit_score(parcials, gf, gc):
-        return parcials
-    if _events_within_score(named, gf, gc):
-        return named
-    if _events_within_score(parcials, gf, gc):
-        return parcials
-    return []
+    """Keep minute attributions when they don't contradict the marcador."""
+    return [
+        (minuto, scored)
+        for minuto, scored, _jugador in _select_goal_events(
+            goles_list, is_local, rival_players, opponent_players, gf, gc,
+        )
+    ]
 
 
 def _compute_racha_estado(ultimos_5: list[str]) -> dict:
@@ -541,16 +607,7 @@ def _dedupe_actas(actas: list[dict]) -> list[dict]:
 
 
 def _jornadas_partidos(supabase, comp_id: str) -> list[dict]:
-    """Flatten current-calendar fixtures. Cached per supabase client."""
-    cache = getattr(supabase, "_th_jornadas_partidos", None)
-    if not isinstance(cache, dict):
-        cache = {}
-        try:
-            supabase._th_jornadas_partidos = cache
-        except Exception:
-            cache = {}
-    if comp_id in cache:
-        return cache[comp_id]
+    """Flatten the current calendar. Read fresh: the client is process-wide."""
     rows: list[dict] = []
     try:
         res = supabase.table("rfef_jornadas").select("numero, partidos").eq(
@@ -562,8 +619,28 @@ def _jornadas_partidos(supabase, comp_id: str) -> list[dict]:
                 rows.append({**partido, "jornada_numero": numero})
     except Exception as e:
         logger.debug("Could not load jornadas for %s: %s", comp_id, e)
-    cache[comp_id] = rows
     return rows
+
+
+def _overlay_calendar_names(actas: list[dict], partidos: list[dict]) -> None:
+    """Fill acta sides from the calendar when the scrape left both names empty.
+
+    Do not overwrite a scraped name: some actas list the rival as local
+    even away, and that orientation is what the parcials were parsed in.
+    """
+    by_cod: dict[str, dict] = {}
+    for partido in partidos:
+        cod = str(partido.get("cod_acta") or "")
+        if cod:
+            by_cod[cod] = partido
+    for acta in actas:
+        if (acta.get("local_nombre") or "").strip() or (acta.get("visitante_nombre") or "").strip():
+            continue
+        partido = by_cod.get(str(acta.get("cod_acta") or ""))
+        if not partido:
+            continue
+        acta["local_nombre"] = partido.get("local") or partido.get("local_nombre") or ""
+        acta["visitante_nombre"] = partido.get("visitante") or partido.get("visitante_nombre") or ""
 
 
 def _jornada_cod_actas(supabase, comp_id: str) -> set[str]:
@@ -757,6 +834,8 @@ def _compute_contexto_stats(
         actas, _ignored = _split_actas_by_temporada(actas, temporada_code, calendar)
 
     actas = _dedupe_actas(actas or [])
+    if supabase is not None and comp_id:
+        _overlay_calendar_names(actas, _jornadas_partidos(supabase, comp_id))
     jornada_resultados = (
         _jornada_resultados_rival(supabase, comp_id, rival_nombre, mi_equipo)
         if supabase is not None
@@ -797,22 +876,34 @@ def _compute_contexto_stats(
             _apply_side_result(side_stats, gf, gc)
             actas_resultado += 1
 
-    # Minutes stay on the acta POV (parcials / roster). Do not flip
-    # is_local from the calendar or own-goals get inverted.
-    jornada_cods = {
-        str(m["cod_acta"]) for m in jornada_resultados if m.get("cod_acta")
+    # Minutes: calendar GF/GC is the marcador. Acta parcials are used
+    # only when they reproduce that score. A flipped acta (rival listed
+    # as local) keeps its own side. A corrupt decoded score falls back
+    # to which roster the scorer belongs to.
+    calendar_by_cod = {
+        str(m["cod_acta"]): m for m in jornada_resultados if m.get("cod_acta")
     }
+    goles_detalle: list[dict] = []
     for acta in actas_rival:
-        if jornada_cods:
-            cod = str(acta.get("cod_acta") or "")
-            if cod and cod not in jornada_cods:
-                continue
+        cod = str(acta.get("cod_acta") or "")
+        if calendar_by_cod and cod and cod not in calendar_by_cod:
+            continue
         is_local = _is_rival_local(acta, rival_nombre, mi_equipo)
         gl = _int_score(acta.get("goles_local"))
         gv = _int_score(acta.get("goles_visitante"))
-        if is_local is None or gl is None or gv is None:
-            continue
-        gf, gc = (gl, gv) if is_local else (gv, gl)
+        cal = calendar_by_cod.get(cod) if cod else None
+        if cal:
+            gf, gc = cal["gf"], cal["gc"]
+            if is_local is None:
+                is_local = cal["is_local"]
+            elif gl is not None and gv is not None:
+                orient = _marcador_orientation(gl, gv, gf, gc, cal["is_local"])
+                if orient == "aligned":
+                    is_local = cal["is_local"]
+        else:
+            if is_local is None or gl is None or gv is None:
+                continue
+            gf, gc = (gl, gv) if is_local else (gv, gl)
 
         goles_list = acta.get("goles") or []
         if not goles_list:
@@ -820,14 +911,17 @@ def _compute_contexto_stats(
         actas_detalle += 1
 
         rival_players, opponent_players = _roster_names(acta, rival_nombre, mi_equipo)
-        events = _goals_matching_marcador(
-            goles_list, is_local, rival_players, opponent_players, gf, gc,
+        events = _select_goal_events(
+            goles_list, bool(is_local), rival_players, opponent_players, gf, gc,
         )
         if not events:
             continue
 
         actas_con_goles_minuto += 1
-        for minuto, scored in events:
+        jornada_num = acta.get("jornada_numero")
+        if cal and cal.get("jornada") is not None:
+            jornada_num = cal.get("jornada")
+        for minuto, scored, jugador in events:
             bucket = _minute_bucket(minuto)
             half = "1t" if minuto <= 45 else "2t"
             if scored:
@@ -836,6 +930,12 @@ def _compute_contexto_stats(
             else:
                 buckets_encajados[bucket] += 1
                 mitad_encajados[half] += 1
+            goles_detalle.append({
+                "minuto": int(minuto),
+                "jugador": jugador,
+                "marcado": bool(scored),
+                "jornada": jornada_num,
+            })
 
     ultimos_5 = (clasificacion or {}).get("ultimos_5") or []
     racha = _compute_racha_estado(ultimos_5)
@@ -884,6 +984,10 @@ def _compute_contexto_stats(
             "marcados": [buckets_marcados[label] for label, _, _ in MINUTE_BUCKETS],
             "encajados": [buckets_encajados[label] for label, _, _ in MINUTE_BUCKETS],
         },
+        "goles_detalle": sorted(
+            goles_detalle,
+            key=lambda g: (g.get("jornada") or 0, g["minuto"]),
+        ),
     }
 
 
@@ -978,10 +1082,11 @@ def _query_actas(
     mi_equipo: str | None = None,
     temporada_code: str | None = None,
 ) -> list[dict]:
-    """Query rfef_actas with multiple fallbacks:
-    1. ilike on local_nombre/visitante_nombre with full rfef_nombre
-    2. ilike with core name (stripped prefixes)
-    3. Lookup cod_actas from rfef_jornadas (works even if acta names are empty)
+    """Query rfef_actas for this rival.
+
+    Name search and the calendar cod_acta list are merged. A rival acta
+    whose header names failed to scrape must still be included, or away
+    goals never reach the contexto.
 
     When temporada_code is set, leftover last-season rows on the same
     competicion_id are dropped so current contexto is not mixed.
@@ -994,41 +1099,39 @@ def _query_actas(
     if core.lower() != rival_nombre.lower().strip():
         search_names.append(core)
 
-    sql_limit = None if temporada_code else limit
+    found: list[dict] = []
+    seen: set[str] = set()
 
-    # Strategy 1 & 2: direct name search on actas
+    def _add(rows: list[dict]) -> None:
+        for acta in rows:
+            key = str(acta.get("cod_acta") or "") or f"id-{id(acta)}"
+            if key in seen:
+                continue
+            seen.add(key)
+            found.append(acta)
+
     for name in search_names:
         query = supabase.table("rfef_actas").select(columns).eq(
             "competicion_id", comp_id
         ).or_(
             f"local_nombre.ilike.%{name}%,visitante_nombre.ilike.%{name}%"
         ).order("jornada_numero", desc=desc)
-        if sql_limit:
-            query = query.limit(sql_limit)
         res = query.execute()
-        actas = res.data or []
         matched = [
-            a for a in actas if _is_rival_local(a, rival_nombre, mi_equipo) is not None
+            a for a in (res.data or [])
+            if _is_rival_local(a, rival_nombre, mi_equipo) is not None
         ]
         if matched:
-            matched = _filter_actas_temporada(supabase, comp_id, matched, temporada_code)
-            if limit:
-                matched = matched[:limit]
-            if matched:
-                logger.info(
-                    "Actas for '%s': %d rows (name search='%s', temporada=%s)",
-                    rival_nombre, len(matched), name, temporada_code or "-",
-                )
-                return matched
+            _add(matched)
+            break
 
-    # Strategy 3: find cod_actas via jornadas (jornadas always have correct team names)
     try:
         jornadas_res = supabase.table("rfef_jornadas").select(
             "numero, partidos"
         ).eq("competicion_id", comp_id).order("numero", desc=desc).execute()
 
-        cod_actas = []
-        cod_acta_names: dict[str, dict[str, str]] = {}  # cod_acta -> {local, visitante}
+        cod_actas: list = []
+        cod_acta_names: dict[str, dict[str, str]] = {}
         for jornada in jornadas_res.data or []:
             for partido in jornada.get("partidos", []):
                 local = partido.get("local") or ""
@@ -1045,48 +1148,37 @@ def _query_actas(
                         "visitante": partido.get("visitante", ""),
                     }
 
-        if cod_actas:
-            if limit and not temporada_code:
-                cod_actas = cod_actas[:limit]
+        missing = [c for c in cod_actas if str(c) not in seen]
+        if missing:
             query_cols = columns
             if "cod_acta" not in columns:
                 query_cols = f"cod_acta, {columns}"
-            actas_query = supabase.table("rfef_actas").select(query_cols).in_(
-                "cod_acta", cod_actas
-            ).order("jornada_numero", desc=desc)
-            res = actas_query.execute()
-            actas = res.data or []
-            if actas:
-                # Fill EMPTY names from the calendar only. Never overwrite
-                # scraped names: actas often list the rival as local with
-                # parcials from that POV even when they played away.
-                # Overlaying venue names would invert minute attribution.
-                for acta in actas:
-                    if not acta.get("local_nombre") and not acta.get("visitante_nombre"):
-                        names = cod_acta_names.get(str(acta.get("cod_acta", "")), {})
-                        if names:
-                            acta["local_nombre"] = names.get("local", "")
-                            acta["visitante_nombre"] = names.get("visitante", "")
-                matched = [
-                    a for a in actas if _is_rival_local(a, rival_nombre, mi_equipo) is not None
-                ]
-                if matched:
-                    actas = matched
-                actas = _filter_actas_temporada(supabase, comp_id, actas, temporada_code)
-                if limit:
-                    actas = actas[:limit]
-                if actas:
-                    logger.info(
-                        "Actas for '%s': %d rows (jornadas fallback, %d cod_actas matched)",
-                        rival_nombre, len(actas), len(cod_actas),
-                    )
-                    return actas
-
-        logger.warning("No actas found for '%s' (tried names + jornadas fallback)", rival_nombre)
+            res = supabase.table("rfef_actas").select(query_cols).in_(
+                "cod_acta", missing
+            ).order("jornada_numero", desc=desc).execute()
+            for acta in res.data or []:
+                if not acta.get("local_nombre") and not acta.get("visitante_nombre"):
+                    names = cod_acta_names.get(str(acta.get("cod_acta", "")), {})
+                    if names:
+                        acta["local_nombre"] = names.get("local", "")
+                        acta["visitante_nombre"] = names.get("visitante", "")
+            _add([
+                a for a in (res.data or [])
+                if _is_rival_local(a, rival_nombre, mi_equipo) is not None
+            ])
     except Exception as e:
-        logger.warning("Jornadas fallback failed for '%s': %s", rival_nombre, e)
+        logger.warning("Jornadas acta merge failed for '%s': %s", rival_nombre, e)
 
-    return []
+    found = _filter_actas_temporada(supabase, comp_id, found, temporada_code)
+    found.sort(key=lambda a: a.get("jornada_numero") or 0, reverse=desc)
+    if limit:
+        found = found[:limit]
+    if found:
+        logger.info(
+            "Actas for '%s': %d rows (temporada=%s)",
+            rival_nombre, len(found), temporada_code or "-",
+        )
+    return found
 
 
 def _is_rival_local(

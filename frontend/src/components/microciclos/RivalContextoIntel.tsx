@@ -576,7 +576,7 @@ export function RivalContextoIntel({ rivalId, competicionId, rivalNombre }: Riva
               encajados1t={ctx.mitades.encajados_1t}
               encajados2t={ctx.mitades.encajados_2t}
             />
-            {(ctx.casa.gf > 0 || ctx.fuera.gf > 0) && (
+            {(ctx.casa.gf > 0 || ctx.casa.gc > 0 || ctx.fuera.gf > 0 || ctx.fuera.gc > 0) && (
               <>
                 <div className="border-t pt-3">
                   <p className="text-xs font-semibold mb-3">Goles casa vs fuera</p>
@@ -628,6 +628,26 @@ export function RivalContextoIntel({ rivalId, competicionId, rivalNombre }: Riva
                   marcados={ctx.goles_por_minuto.marcados}
                   encajados={ctx.goles_por_minuto.encajados}
                 />
+
+                {(ctx.goles_detalle?.length ?? 0) > 0 && (
+                  <div className="border-t pt-3 space-y-1.5">
+                    <p className="text-xs font-semibold">Goles con minuto</p>
+                    <ul className="space-y-1">
+                      {(ctx.goles_detalle ?? []).map((gol, i) => (
+                        <li key={`${gol.jornada ?? 'j'}-${gol.minuto}-${i}`} className="flex items-baseline gap-2 text-xs">
+                          <span className="w-10 shrink-0 font-semibold tabular-nums">{gol.minuto}&apos;</span>
+                          <span className="min-w-0 flex-1 truncate">{gol.jugador || 'Sin goleador'}</span>
+                          <span className={gol.marcado ? 'text-emerald-600 shrink-0' : 'text-red-500 shrink-0'}>
+                            {gol.marcado ? 'A favor' : 'En contra'}
+                          </span>
+                          {gol.jornada != null && (
+                            <span className="text-[10px] text-muted-foreground shrink-0">J{gol.jornada}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </>
             ) : (
               <div className="rounded-lg border border-dashed bg-muted/30 p-4 space-y-2 text-xs text-muted-foreground">
