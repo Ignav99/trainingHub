@@ -15,6 +15,7 @@ import AnimationPlayer, { AnimationState } from './AnimationPlayer'
 import ExportDialog from './ExportDialog'
 import ElementEditPanel, { BoardEditorExtrasContext, type BoardRoleMode } from './ElementEditPanel'
 import GeometryPanel from './GeometryPanel'
+import ABPCampoRolesPanel from '@/components/abp/ABPCampoRolesPanel'
 import BoardArrow from './BoardArrow'
 import { BoardDefs, ElementSymbol, ELEMENT_TOOLS, ROTATABLE_ELEMENTS } from './BoardSymbols'
 import { RESIZE_HANDLES, HANDLE_CURSORS, type ResizeHandle } from './types'
@@ -1086,8 +1087,11 @@ export default function TacticalBoardEditor({
         onExport={() => setShowExport(true)}
       />
 
-      {/* Pitch */}
-      {boardCanvas}
+      {/* Pitch + roles de ABP a la derecha */}
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+        {boardCanvas}
+        {roleMode === 'abp' && !isPlaying ? <ABPCampoRolesPanel /> : null}
+      </div>
 
       {/* Animation controls (only in animated mode) */}
       {isAnimated && (

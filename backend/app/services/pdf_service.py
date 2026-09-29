@@ -240,20 +240,20 @@ def _generate_formation_svg(sistema_juego: str, jugadores: list) -> str:
             stroke_width = "2" if sancionado else "1"
 
             svg_parts.append(
-                f'<circle cx="{cx}" cy="{cy}" r="12" fill="{circle_fill}" '
+                f'<circle cx="{cx}" cy="{cy}" r="16" fill="{circle_fill}" '
                 f'stroke="{circle_stroke}" stroke-width="{stroke_width}"/>'
             )
             # Dorsal number
             if dorsal:
                 svg_parts.append(
-                    f'<text x="{cx}" y="{cy + 4}" text-anchor="middle" '
-                    f'font-family="Barlow Condensed,Arial" font-size="11" font-weight="700" '
+                    f'<text x="{cx}" y="{cy + 5}" text-anchor="middle" '
+                    f'font-family="Barlow Condensed,Arial" font-size="15" font-weight="700" '
                     f'fill="#1a1a2e">{dorsal}</text>'
                 )
             # Player name below
             svg_parts.append(
-                f'<text x="{cx}" y="{cy + 22}" text-anchor="middle" '
-                f'font-family="Barlow Condensed,Arial" font-size="8" font-weight="600" '
+                f'<text x="{cx}" y="{cy + 28}" text-anchor="middle" '
+                f'font-family="Barlow Condensed,Arial" font-size="10" font-weight="600" '
                 f'fill="white">{short_name}</text>'
             )
             # Sancionado indicator
@@ -1608,6 +1608,13 @@ async def generate_abp_playbook_pdf(
         j["rendered_fases"] = rendered_fases
         j["play_directrices"] = list(dict.fromkeys(all_directrices))
         j["resolved_asignaciones"] = all_asignaciones
+        from app.services.svg_renderer import roles_campo_from_diagram
+        j["roles_campo"] = []
+        for fase in fases:
+            found = roles_campo_from_diagram((fase or {}).get("diagram"))
+            if found:
+                j["roles_campo"] = found
+                break
         grouped[tipo].append(j)
         toc.append({
             "nombre": j.get("nombre") or "",
@@ -1680,6 +1687,10 @@ async def generate_abp_partido_pdf(
         else:
             jugada["main_svg"] = ""
             diagram_elements = []
+            diagram = {}
+
+        from app.services.svg_renderer import roles_campo_from_diagram
+        jugada["roles_campo"] = roles_campo_from_diagram(diagram if fases else None)
 
         element_labels = {str(el.get("id", "")): str(el.get("label", "")) for el in diagram_elements}
         resolved = []

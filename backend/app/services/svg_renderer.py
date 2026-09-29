@@ -583,6 +583,25 @@ ABP_ROLE_ABBREV = {
 }
 
 
+def roles_campo_from_diagram(diagram: Optional[dict]) -> list:
+    """Roles de ABP guardados junto al diagrama: dorsales del campo + texto."""
+    if not isinstance(diagram, dict):
+        return []
+    out = []
+    for raw in diagram.get("roles") or []:
+        if not isinstance(raw, dict):
+            continue
+        dorsales = []
+        for dorsal in raw.get("dorsales") or []:
+            text = str(dorsal).strip()
+            if text and text not in dorsales:
+                dorsales.append(text)
+        texto = str(raw.get("texto") or "").strip()
+        if dorsales or texto:
+            out.append({"dorsales": dorsales, "texto": texto})
+    return out
+
+
 def _abp_role_abbrev(rol: Optional[str]) -> Optional[str]:
     if not rol:
         return None
@@ -618,10 +637,10 @@ def render_element_svg(element: dict) -> str:
             caption = name or (str(element.get("rol") or "") if not label else "")
             if name and label and str(label) not in name:
                 caption = name
-        font_size = 11 if circle_text and len(str(circle_text)) > 2 else 14
+        font_size = 15 if circle_text and len(str(circle_text)) > 2 else 20
         svg = f'<g transform="translate({x},{y})"{opacity}>'
         svg += (
-            f'<circle cx="0" cy="0" r="16" fill="{peto["body"]}" '
+            f'<circle cx="0" cy="0" r="22" fill="{peto["body"]}" '
             f'stroke="{peto["stroke"]}" stroke-width="2.5"/>'
         )
         if circle_text:
@@ -630,11 +649,11 @@ def render_element_svg(element: dict) -> str:
                 f'font-family="Barlow Condensed,Arial,sans-serif" font-size="{font_size}" '
                 f'fill="{peto["label"]}" font-weight="800">{_escape_xml(str(circle_text))}</text>'
             )
-        caption_y = 26
+        caption_y = 34
         if caption:
             svg += (
                 f'<text x="0" y="{caption_y}" text-anchor="middle" '
-                f'font-family="Barlow Condensed,Arial,sans-serif" font-size="9" '
+                f'font-family="Barlow Condensed,Arial,sans-serif" font-size="12" '
                 f'fill="#FFFFFF" font-weight="700" '
                 f'stroke="#111" stroke-width="2.4" paint-order="stroke">'
                 f'{_escape_xml(str(caption))}</text>'

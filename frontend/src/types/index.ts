@@ -2225,6 +2225,8 @@ export interface ABPFase {
     tipo?: 'static' | 'animated'
     frames?: any[]
     preview?: string
+    /** Roles editables: dorsales del campo y el texto que los describe. */
+    roles?: { id: string; dorsales: string[]; texto: string }[]
   }
 }
 

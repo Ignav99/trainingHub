@@ -1,5 +1,6 @@
 import type { ABPAsignacion, ABPJugada, TipoABP } from '@/types'
 import type { DiagramElement } from '@/components/tarea-editor/types'
+import { normalizeCampoRoles } from '@/lib/abpCampoRoles'
 import { isPlayerToken, generateId } from '@/components/tarea-editor/types'
 import type { Keyframe, TareaPizarraData } from '@/components/tactical-board/types'
 import { compactKeyframes } from '@/components/tactical-board/interpolate'
@@ -89,6 +90,7 @@ export function jugadaToBoardData(
     tipo,
     ...(frames.length > 0 ? { frames } : {}),
     ...(diagram?.preview ? { preview: diagram.preview } : {}),
+    campoRoles: normalizeCampoRoles(diagram?.roles),
   }
 }
 

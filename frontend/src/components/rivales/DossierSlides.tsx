@@ -200,13 +200,19 @@ export function OnceSlide({ slide }: { slide: Extract<ShowSlide, { kind: 'once' 
               >
                 <div
                   className="mx-auto flex items-center justify-center rounded-full text-white shadow-md"
-                  style={{ background: token.color, width: 'clamp(2.35rem, 5.2vh, 3.35rem)', height: 'clamp(2.35rem, 5.2vh, 3.35rem)' }}
+                  style={{ background: token.color, width: 'clamp(3rem, 6.6vh, 4.25rem)', height: 'clamp(3rem, 6.6vh, 4.25rem)' }}
                   aria-hidden
                 >
-                  <svg viewBox="0 0 24 24" className="h-[62%] w-[62%]" fill="currentColor">
-                    <circle cx="12" cy="7" r="3.1" />
-                    <path d="M5.2 19.2c.7-3.3 3.3-5.2 6.8-5.2s6.1 1.9 6.8 5.2c.2.8-.4 1.5-1.2 1.5H6.4c-.8 0-1.4-.7-1.2-1.5z" />
-                  </svg>
+                  {token.dorsal ? (
+                    <span className="font-extrabold tabular-nums leading-none" style={{ fontSize: 'clamp(16px, 2.4vh, 28px)' }}>
+                      {token.dorsal}
+                    </span>
+                  ) : (
+                    <svg viewBox="0 0 24 24" className="h-[62%] w-[62%]" fill="currentColor">
+                      <circle cx="12" cy="7" r="3.1" />
+                      <path d="M5.2 19.2c.7-3.3 3.3-5.2 6.8-5.2s6.1 1.9 6.8 5.2c.2.8-.4 1.5-1.2 1.5H6.4c-.8 0-1.4-.7-1.2-1.5z" />
+                    </svg>
+                  )}
                 </div>
                 <span className="mt-0.5 block max-w-[7.5rem] whitespace-normal text-center font-semibold leading-tight text-white drop-shadow" style={{ fontSize: 'clamp(11px, 1.35vh, 15px)' }}>
                   {token.nombre || token.label}

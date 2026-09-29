@@ -17,6 +17,7 @@ import {
 import { compactKeyframes } from '@/components/tactical-board/interpolate'
 import { FORMATIONS } from '@/lib/formations'
 import { metersToUnits } from '@/lib/tacticalMetrics'
+import { normalizeCampoRoles, type ABPRolCampo } from '@/lib/abpCampoRoles'
 
 function cloneJson<T>(v: T): T {
   return JSON.parse(JSON.stringify(v))
@@ -164,6 +165,8 @@ interface TacticalBoardState {
   elements: DiagramElement[]
   arrows: DiagramArrow[]
   zones: DiagramZone[]
+  /** Roles de balón parado: dorsales del campo + texto. Viajan en el diagrama. */
+  campoRoles: ABPRolCampo[]
 
   // Keyframes (animated mode)
   keyframes: Keyframe[]
@@ -263,6 +266,7 @@ interface TacticalBoardState {
   saveCurrentToKeyframe: () => void
 
   // Actions: board lifecycle
+  setCampoRoles: (roles: ABPRolCampo[]) => void
   loadBoard: (board: any) => void
   getSnapshot: () => { elements: DiagramElement[]; arrows: DiagramArrow[]; zones: DiagramZone[] }
   reset: () => void
@@ -278,6 +282,7 @@ const initialState = {
   elements: [] as DiagramElement[],
   arrows: [] as DiagramArrow[],
   zones: [] as DiagramZone[],
+  campoRoles: [] as ABPRolCampo[],
   keyframes: [] as Keyframe[],
   activeKeyframeIndex: 0,
   isPlaying: false,
@@ -954,6 +959,8 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
     set({ keyframes: updated, isDirty: true })
   },
 
+  setCampoRoles: (roles) => set({ campoRoles: roles, isDirty: true }),
+
   // Board lifecycle
   loadBoard: (board) => {
     // Convert server frames to keyframes
@@ -988,6 +995,7 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
       elements,
       arrows,
       zones,
+      campoRoles: normalizeCampoRoles(board.campoRoles),
       keyframes,
       activeKeyframeIndex: 0,
       isPlaying: false,

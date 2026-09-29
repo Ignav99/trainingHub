@@ -127,10 +127,10 @@ export const TEAM_COLORS = {
 // Un jugador ocupa ~1,6 m de diametro: a escala real del campo los iconos
 // tienen que ser pequenos, si no tapan el dibujo.
 export const ELEMENT_SIZES = {
-  player: 16,
-  player_gk: 16,
-  opponent: 16,
-  player_joker: 16,
+  player: 22,
+  player_gk: 22,
+  opponent: 22,
+  player_joker: 22,
   cone: 11,
   ball: 9,
   mini_goal: 30,

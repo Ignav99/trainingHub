@@ -412,18 +412,18 @@ function drawMatchPitch(
     const cx = ix + (token.leftPct / 100) * iw
     const cy = iy + (token.topPct / 100) * ih
     fillHex(doc, token.color)
-    doc.circle(cx, cy, 3.4, 'F')
+    doc.circle(cx, cy, 4.8, 'F')
     doc.setDrawColor(255, 255, 255)
-    doc.setLineWidth(0.3)
-    doc.circle(cx, cy, 3.4, 'S')
+    doc.setLineWidth(0.35)
+    doc.circle(cx, cy, 4.8, 'S')
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(7)
+    doc.setFontSize(9)
     doc.setTextColor(255, 255, 255)
-    doc.text(token.dorsal || token.label.slice(0, 3), cx, cy + 1.1, { align: 'center' })
+    doc.text(token.dorsal || token.label.slice(0, 3), cx, cy + 1.5, { align: 'center' })
     if (token.nombre) {
       doc.setFont('helvetica', 'normal')
-      doc.setFontSize(6.5)
-      doc.text(token.nombre, cx, cy + 6.2, { align: 'center' })
+      doc.setFontSize(7.5)
+      doc.text(token.nombre, cx, cy + 8, { align: 'center' })
     }
   }
 }

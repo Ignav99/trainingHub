@@ -474,7 +474,7 @@ export default function TareaGraphicEditor({
               textAnchor="middle"
               dominantBaseline="middle"
               fill={type === 'player_joker' || color === '#EAB308' || color === '#FFFF00' ? '#111827' : '#FFFFFF'}
-              fontSize={type === 'player_gk' ? 8 : 10}
+              fontSize={type === 'player_gk' ? 12 : 14}
               fontWeight="bold"
               fontFamily="Arial"
             >

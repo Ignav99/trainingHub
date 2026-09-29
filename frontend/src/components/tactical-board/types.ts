@@ -86,6 +86,8 @@ export interface TareaPizarraData {
   preview?: string
   /** SIATE persistido junto a la pizarra (funciona aunque falten columnas GO/PES). */
   siate?: { go?: number; pes?: number }
+  /** Roles de ABP (dorsales + texto) guardados en el diagrama. */
+  campoRoles?: { id: string; dorsales: string[]; texto: string }[]
 }
 
 export const emptyTareaPizarra: TareaPizarraData = {
