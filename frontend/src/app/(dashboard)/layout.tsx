@@ -29,6 +29,8 @@ import {
   FileStack,
   Watch,
 } from 'lucide-react'
+import { OpenVideoTabLink } from '@/components/video-analyzer/OpenVideoTabLink'
+import { usePersistHydrated } from '@/hooks/usePersistHydrated'
 import { preload } from 'swr'
 import { apiFetcher } from '@/lib/swr'
 import { apiKey } from '@/lib/swr'
@@ -118,6 +120,9 @@ export default function DashboardLayout({
   const { user, logout, isLoading, isAuthenticated } = useAuthStore()
   const { equipos, equipoActivo, loadEquipos, setEquipoActivo } = useEquipoStore()
   const { theme, isOnboardingComplete } = useClubStore()
+  const authHydrated = usePersistHydrated(useAuthStore.persist)
+  const clubHydrated = usePersistHydrated(useClubStore.persist)
+  const equipoHydrated = usePersistHydrated(useEquipoStore.persist)
   const { collapsed, toggle: toggleSidebar } = useSidebarStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [dataReady, setDataReady] = useState(false)
@@ -126,11 +131,11 @@ export default function DashboardLayout({
   const isRevisionSala = pathname.startsWith('/revision/')
 
   useEffect(() => {
-    if (isRevisionSala) return
+    if (!authHydrated || isRevisionSala) return
     if (!isLoading && !isAuthenticated) {
       router.push('/login')
     }
-  }, [isLoading, isAuthenticated, router, isRevisionSala])
+  }, [authHydrated, isLoading, isAuthenticated, router, isRevisionSala])
 
   useEffect(() => {
     // Platform superadmin has no club — never show it the regular club
@@ -155,16 +160,18 @@ export default function DashboardLayout({
   const isClubOnlyRole = isSuperadminRole(user?.rol) || isClubAdminRole(user?.rol)
 
   useEffect(() => {
+    if (!equipoHydrated) return
     if (isAuthenticated && !isClubOnlyRole) {
       loadEquipos()
     }
-  }, [isAuthenticated, user, loadEquipos])
+  }, [equipoHydrated, isAuthenticated, isClubOnlyRole, loadEquipos])
 
   useEffect(() => {
+    if (!authHydrated || !clubHydrated) return
     if (isAuthenticated && !isOnboardingComplete && pathname !== '/onboarding') {
       router.push('/onboarding')
     }
-  }, [isAuthenticated, isOnboardingComplete, pathname, router])
+  }, [authHydrated, clubHydrated, isAuthenticated, isOnboardingComplete, pathname, router])
 
   useEffect(() => {
     // Club-admin/superadmin manage the whole club from /gestion, not a single
@@ -273,7 +280,7 @@ export default function DashboardLayout({
     )
   }
 
-  if (!isAuthenticated || !dataReady || (!isClubOnlyRole && !activeTeam)) {
+  if (!authHydrated || !clubHydrated || !isAuthenticated || !dataReady || (!isClubOnlyRole && (!equipoHydrated || !activeTeam))) {
     return <SplashScreen />
   }
 
@@ -591,7 +598,16 @@ const SidebarContent = memo(function SidebarContent({
             <ul role="list" className="space-y-0.5">
               {toolsNavigation.map((item) => (
                 <li key={item.name}>
-                  <NavLink item={item} pathname={pathname} collapsed={collapsed} onClose={onClose} />
+                  {item.href === '/video-analisis' ? (
+                    <div className={cn('flex items-center', collapsed ? 'flex-col gap-0.5' : 'gap-0.5')}>
+                      <div className="min-w-0 flex-1">
+                        <NavLink item={item} pathname={pathname} collapsed={collapsed} onClose={onClose} />
+                      </div>
+                      <OpenVideoTabLink />
+                    </div>
+                  ) : (
+                    <NavLink item={item} pathname={pathname} collapsed={collapsed} onClose={onClose} />
+                  )}
                 </li>
               ))}
             </ul>

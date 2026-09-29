@@ -5,21 +5,26 @@ import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/authStore'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { Toaster } from '@/components/ui/toast'
+import { usePersistHydrated } from '@/hooks/usePersistHydrated'
 
 export default function AnotadorLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const { isLoading, isAuthenticated } = useAuthStore()
   const loadEquipos = useEquipoStore((s) => s.loadEquipos)
+  const authHydrated = usePersistHydrated(useAuthStore.persist)
+  const equipoHydrated = usePersistHydrated(useEquipoStore.persist)
 
   useEffect(() => {
+    if (!authHydrated) return
     if (!isLoading && !isAuthenticated) router.replace('/login')
-  }, [isLoading, isAuthenticated, router])
+  }, [authHydrated, isLoading, isAuthenticated, router])
 
   useEffect(() => {
-    if (isAuthenticated) loadEquipos()
-  }, [isAuthenticated, loadEquipos])
+    if (!equipoHydrated || !isAuthenticated) return
+    loadEquipos()
+  }, [equipoHydrated, isAuthenticated, loadEquipos])
 
-  if (isLoading || !isAuthenticated) {
+  if (!authHydrated || isLoading || !isAuthenticated) {
     return <div className="min-h-[100dvh] bg-[#0c1410]" />
   }
 

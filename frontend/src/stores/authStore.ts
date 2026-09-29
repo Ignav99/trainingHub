@@ -3,6 +3,11 @@ import { persist } from 'zustand/middleware'
 import type { Subscription } from '@supabase/supabase-js'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { api } from '@/lib/api/client'
+import {
+  localSupabaseSessionPresent,
+  readPersistedAuth,
+  shouldClearSharedAuthOnSignedOut,
+} from '@/lib/authSession'
 import { Usuario } from '@/types'
 
 interface AuthState {
@@ -28,6 +33,9 @@ interface RegisterData {
 
 // Module-level reference for cleanup between hot-reloads in dev
 let _authListenerUnsub: Subscription['unsubscribe'] | null = null
+// Set only while this tab calls logout(). A SIGNED_OUT broadcast from
+// another tab must not wipe the shared localStorage session.
+let explicitLogout = false
 
 function mapAuthError(message: string): string {
   const m = message.toLowerCase()
@@ -64,16 +72,19 @@ export const useAuthStore = create<AuthState>()(
         // Register auth listener FIRST so we never miss a token refresh.
         // Store the unsubscribe function to prevent listener leaks.
         const { data: { subscription } } = getSupabaseClient().auth.onAuthStateChange(
-          async (event, session) => {
+          (event, session) => {
             if (event === 'SIGNED_OUT') {
+              const sessionStillStored = typeof window !== 'undefined'
+                && localSupabaseSessionPresent(window.localStorage)
+              if (!shouldClearSharedAuthOnSignedOut(explicitLogout, sessionStillStored)) return
               set({
                 user: null,
                 accessToken: null,
                 isAuthenticated: false,
               })
             } else if (session?.access_token && (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN')) {
-              // Only update token — user data is set by login/register flows
-              set({ accessToken: session.access_token })
+              // Keep the shared login. User data stays from login/register or the persisted blob.
+              set({ accessToken: session.access_token, isAuthenticated: true })
             }
           }
         )
@@ -99,9 +110,36 @@ export const useAuthStore = create<AuthState>()(
             }
           }
 
+          const persisted = typeof window !== 'undefined'
+            ? readPersistedAuth(window.localStorage)
+            : null
+          if (persisted?.isAuthenticated && persisted.accessToken) {
+            const current = get()
+            set({
+              user: current.user ?? (persisted.user as Usuario | null),
+              accessToken: persisted.accessToken,
+              isAuthenticated: true,
+              isLoading: false,
+            })
+            return
+          }
+
           set({ isLoading: false })
         } catch (error) {
           console.error('Error initializing auth:', error)
+          const persisted = typeof window !== 'undefined'
+            ? readPersistedAuth(window.localStorage)
+            : null
+          if (persisted?.isAuthenticated && persisted.accessToken) {
+            const current = get()
+            set({
+              user: current.user ?? (persisted.user as Usuario | null),
+              accessToken: persisted.accessToken,
+              isAuthenticated: true,
+              isLoading: false,
+            })
+            return
+          }
           set({ isLoading: false })
         }
       },
@@ -213,18 +251,23 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: async () => {
-        await getSupabaseClient().auth.signOut()
-        set({
-          user: null,
-          accessToken: null,
-          isAuthenticated: false,
-        })
-        // Clear other persisted stores keyed to the previous account —
-        // otherwise the next login in this browser (e.g. superadmin, or a
-        // different club's admin) reuses the last selected club/team.
-        if (typeof window !== 'undefined') {
-          window.localStorage.removeItem('equipo-storage')
-          window.localStorage.removeItem('traininghub-club')
+        explicitLogout = true
+        try {
+          await getSupabaseClient().auth.signOut()
+        } finally {
+          set({
+            user: null,
+            accessToken: null,
+            isAuthenticated: false,
+          })
+          // Clear other persisted stores keyed to the previous account —
+          // otherwise the next login in this browser (e.g. superadmin, or a
+          // different club's admin) reuses the last selected club/team.
+          if (typeof window !== 'undefined') {
+            window.localStorage.removeItem('equipo-storage')
+            window.localStorage.removeItem('traininghub-club')
+          }
+          explicitLogout = false
         }
       },
 

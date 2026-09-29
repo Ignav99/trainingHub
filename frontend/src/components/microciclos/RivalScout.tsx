@@ -34,6 +34,7 @@ import { loadContextoIntelLines, loadPlanDataForCharla, prepareCharlaSala, prepa
 import type { RevisionSession } from '@/lib/api/revision'
 import { useClubStore } from '@/stores/clubStore'
 import { OrganizedPhaseStack, organizedSubfases } from './OrganizedPhaseStack'
+import { OpenVideoTabLink } from '@/components/video-analyzer/OpenVideoTabLink'
 import { RivalStrategy } from './RivalStrategy'
 import { RivalContextoIntel } from './RivalContextoIntel'
 import { RevisionLibrary } from '@/components/revision/RevisionLibrary'
@@ -202,12 +203,14 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
   return (
     <Card className="w-full">
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <div>
             <CardTitle className="text-base">Informe Rival</CardTitle>
             {rivalNombre && <p className="text-sm text-muted-foreground font-medium">{rivalNombre}</p>}
           </div>
-          <ExportDossierMenu
+          <div className="flex items-center gap-2 shrink-0">
+            <OpenVideoTabLink variant="text" />
+            <ExportDossierMenu
             exporting={exportingDeck}
             presenting={presenting}
             presentingTodo={presentingTodo}
@@ -299,6 +302,7 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
               }
             }}
           />
+          </div>
         </div>
       </CardHeader>
 

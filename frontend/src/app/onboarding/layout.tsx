@@ -5,25 +5,30 @@ import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/authStore'
 import { useClubStore } from '@/stores/clubStore'
 import { Spinner } from '@/components/ui/spinner'
+import { usePersistHydrated } from '@/hooks/usePersistHydrated'
 
 export default function OnboardingLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const { isAuthenticated, isLoading } = useAuthStore()
   const { isOnboardingComplete } = useClubStore()
+  const authHydrated = usePersistHydrated(useAuthStore.persist)
+  const clubHydrated = usePersistHydrated(useClubStore.persist)
 
   useEffect(() => {
+    if (!authHydrated) return
     if (!isLoading && !isAuthenticated) {
       router.push('/login')
     }
-  }, [isLoading, isAuthenticated, router])
+  }, [authHydrated, isLoading, isAuthenticated, router])
 
   useEffect(() => {
+    if (!authHydrated || !clubHydrated) return
     if (isAuthenticated && isOnboardingComplete) {
       router.push('/')
     }
-  }, [isAuthenticated, isOnboardingComplete, router])
+  }, [authHydrated, clubHydrated, isAuthenticated, isOnboardingComplete, router])
 
-  if (isLoading) {
+  if (isLoading || !authHydrated || !clubHydrated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Spinner size="lg" />
