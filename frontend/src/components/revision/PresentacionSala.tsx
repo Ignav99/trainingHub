@@ -19,6 +19,7 @@ import { useSalaVideoShare } from '@/components/revision/useSalaVideoShare'
 import { useSalaLink } from '@/hooks/useSalaLink'
 import { salaLinkLabel } from '@/lib/salaLink'
 import {
+  buildDirectoShow,
   chapterIndexForSlide,
   showChapters,
   showPresenterLabel,
@@ -37,27 +38,33 @@ import {
 } from '@/lib/videoZoom'
 
 interface PresentacionSalaProps {
-  code: string
+  code?: string
   role: 'host' | 'tablet'
   initialSession?: RevisionSession | null
   initialShow?: DossierShow | null
+  /** Vídeo local: el mismo visor de la sala, sin tele ni código. */
+  localVideo?: { src: string; title: string } | null
   onClose?: () => void
 }
 
 export function PresentacionSala({
-  code,
+  code = '',
   role,
   initialSession,
   initialShow,
+  localVideo,
   onClose,
 }: PresentacionSalaProps) {
-  const isHost = role === 'host'
+  const localAnnotator = Boolean(localVideo?.src)
+  const isHost = role === 'host' && !localAnnotator
   const equipoActivo = useEquipoStore((s) => s.equipoActivo)
   const accessToken = useAuthStore((s) => s.accessToken)
 
   const [session, setSession] = useState<RevisionSession | null>(initialSession || null)
-  const [show, setShow] = useState<DossierShow | null>(initialShow || null)
-  const [loading, setLoading] = useState(!initialSession)
+  const [show, setShow] = useState<DossierShow | null>(
+    localVideo?.src ? buildDirectoShow(localVideo.title, localVideo.src) : (initialShow || null),
+  )
+  const [loading, setLoading] = useState(!initialSession && !localVideo?.src)
   const [index, setIndex] = useState(0)
   const [peerReady, setPeerReady] = useState(!isHost)
   const [mounted, setMounted] = useState(false)
@@ -111,20 +118,27 @@ export function PresentacionSala({
   }, [])
 
   useEffect(() => {
-    if (initialSession) return
+    if (initialSession || localAnnotator || !code) return
     let cancelled = false
     revisionApi.getSession(code)
       .then((s) => { if (!cancelled) setSession(s) })
       .catch(() => { if (!cancelled) toast.error('Sala no encontrada') })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [code, initialSession])
+  }, [code, initialSession, localAnnotator])
+
+  useEffect(() => {
+    if (!localVideo?.src) return
+    setShow(buildDirectoShow(localVideo.title, localVideo.src))
+    setIndex(0)
+  }, [localVideo?.src, localVideo?.title])
 
   const { send, requestSync, status, wsOk } = useSalaLink({
     code,
-    role,
+    role: localAnnotator ? 'tablet' : role,
     accessToken,
     equipoId: equipoActivo?.id,
+    disabled: localAnnotator,
     onMessage: (msg) => remoteHandlerRef.current(msg),
     onPeerJoined: () => {
       setPeerReady(true)
@@ -412,7 +426,7 @@ export function PresentacionSala({
     )
   }
 
-  if (!session) {
+  if (!session && !localAnnotator) {
     return createPortal(
       <div className="fixed inset-0 z-[100] flex items-center justify-center text-zinc-400" style={{ background: '#08110F' }}>
         No hay sala con el código {code}.
@@ -431,7 +445,7 @@ export function PresentacionSala({
       ref={rootRef}
       role="dialog"
       aria-modal="true"
-      aria-label={showPresenterLabel(show?.kind ?? 'informe')}
+      aria-label={localAnnotator ? 'Anotador de vídeo en directo' : showPresenterLabel(show?.kind ?? 'informe')}
       data-testid="presentacion-sala"
       tabIndex={-1}
       className="fixed inset-0 z-[100] flex flex-col outline-none"
@@ -461,9 +475,11 @@ export function PresentacionSala({
         >
           {slide?.kicker || 'Presentación'}
         </p>
-        <span className={`text-[10px] ${wsOk ? 'text-emerald-400' : 'text-amber-400'}`}>
-          {salaLinkLabel(status)}
-        </span>
+        {!localAnnotator && (
+          <span className={`text-[10px] ${wsOk ? 'text-emerald-400' : 'text-amber-400'}`}>
+            {salaLinkLabel(status)}
+          </span>
+        )}
         <div className="h-px flex-1" style={{ background: '#2A3A34' }} />
         {total > 0 && (
           <p className="tabular-nums text-xs" style={{ color: '#9AA59B' }}>
@@ -500,7 +516,7 @@ export function PresentacionSala({
         )}
       </header>
 
-      {!isHost && (
+      {!isHost && !localAnnotator && (
         <div className="px-4 py-1 text-[11px] flex items-center gap-1" style={{ color: '#9AA59B' }}>
           <VolumeX className="h-3 w-3" /> Audio en el PC · mute aquí también lo corta allí
         </div>
@@ -547,9 +563,9 @@ export function PresentacionSala({
                       key={playSrc}
                       ref={playerRef}
                       src={playSrc}
-                      standalonePreview={isHost}
+                      standalonePreview={isHost || localAnnotator}
                       presenterEmbed
-                      playbackMuted={!isHost}
+                      playbackMuted={!isHost && !localAnnotator}
                       muted={audioMuted}
                       onMutedChange={(next) => handleMutedChange(next, { clip_id: clipId, slide: indexRef.current })}
                       isFullscreen={videoFullscreen}
@@ -564,7 +580,7 @@ export function PresentacionSala({
                       Clip no disponible
                     </div>
                   )}
-                  {playSrc && !isHost && (
+                  {playSrc && (!isHost || localAnnotator) && (
                     <div className="absolute left-2 top-16 z-[70] flex flex-col gap-1">
                       <button type="button" className="h-10 rounded-md bg-black/70 px-2 text-[11px] font-bold text-white" onClick={() => stepFrame(-1)}>1 fot</button>
                       <button type="button" className="h-10 rounded-md bg-black/70 px-2 text-[11px] font-bold text-white" onClick={() => jogBy(-0.5)}>0,5 s</button>
@@ -643,6 +659,7 @@ export function PresentacionSala({
         )}
       </div>
 
+      {!localAnnotator && (
       <footer className="shrink-0 px-3 pb-3 pt-1 sm:px-5">
         <div
           className="flex items-center gap-1 overflow-x-auto pb-1"
@@ -679,17 +696,18 @@ export function PresentacionSala({
           </span>
         </div>
       </footer>
+      )}
 
-      {isHost && !peerReady && (
+      {isHost && !peerReady && !localAnnotator && (
         <div className="absolute inset-0 z-[90] flex items-center justify-center p-6" style={{ background: 'rgba(8,17,15,0.92)' }}>
           <div className="max-w-sm w-full text-center space-y-4">
             <p className="text-sm" style={{ color: '#C5CDC7' }}>
               Escanea el QR con la tablet. En cuanto entre, las dos pantallas muestran la misma diapositiva. Si el 5G va justo, se abre un enlace directo entre tablet y televisor: pasar diapositiva no tiene que salir a internet.
             </p>
-            <p className="text-4xl font-mono tracking-[0.3em] font-semibold">{session.code}</p>
+            <p className="text-4xl font-mono tracking-[0.3em] font-semibold">{session?.code}</p>
             {qrSrc ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={qrSrc} alt={`QR sala ${session.code}`} width={240} height={240} className="mx-auto rounded-md bg-white p-2" />
+              <img src={qrSrc} alt={`QR sala ${session?.code ?? ''}`} width={240} height={240} className="mx-auto rounded-md bg-white p-2" />
             ) : null}
             <p className={`text-xs ${wsOk ? 'text-emerald-400' : 'text-amber-400'}`}>
               {wsOk ? 'Esperando a la tablet…' : 'Reconectando la sala…'}

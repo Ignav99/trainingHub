@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, lazy, Suspense } from 'react'
+import { useEffect, useState, useRef, lazy, Suspense } from 'react'
 import useSWR from 'swr'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { useClubStore } from '@/stores/clubStore'
@@ -22,6 +22,7 @@ import {
   Trash2,
   Film,
   Clapperboard,
+  PenLine,
 } from 'lucide-react'
 import { formatTime } from '@/components/video-analyzer/utils'
 import { readLocalVideoFingerprint } from '@/components/video-analyzer/extractClip'
@@ -37,6 +38,9 @@ import {
 const VideoAnalyzer = lazy(() =>
   import('@/components/video-analyzer/VideoAnalyzer').then((m) => ({ default: m.VideoAnalyzer }))
 )
+const PresentacionSala = lazy(() =>
+  import('@/components/revision/PresentacionSala').then((m) => ({ default: m.PresentacionSala }))
+)
 
 export default function VideoAnalisisPage() {
   const equipoActivo = useEquipoStore((s) => s.equipoActivo)
@@ -48,7 +52,14 @@ export default function VideoAnalisisPage() {
   const [watchMode, setWatchMode] = useState<VideoWatchMode | null>(null)
   const [watchedOpponent, setWatchedOpponent] = useState('')
   const [analyzerFile, setAnalyzerFile] = useState<File | null>(null)
+  const [directo, setDirecto] = useState<{ src: string; title: string } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const directoRef = useRef<HTMLInputElement>(null)
+  const directoSrcRef = useRef<string | null>(null)
+
+  useEffect(() => () => {
+    if (directoSrcRef.current) URL.revokeObjectURL(directoSrcRef.current)
+  }, [])
 
   const { data: partidosData } = useSWR(
     equipoId ? `/partidos?equipo_id=${equipoId}&limit=80&orden=fecha&direccion=desc` : null,
@@ -70,6 +81,25 @@ export default function VideoAnalisisPage() {
 
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [localVideoId, setLocalVideoId] = useState<string | null>(null)
+
+  const replaceDirecto = (next: { src: string; title: string } | null) => {
+    setDirecto((current) => {
+      if (current && current.src !== next?.src) URL.revokeObjectURL(current.src)
+      directoSrcRef.current = next?.src ?? null
+      return next
+    })
+  }
+
+  const handleDirectoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!file.type.startsWith('video/')) {
+      toast.error('Solo se permiten archivos de video')
+      return
+    }
+    replaceDirecto({ src: URL.createObjectURL(file), title: file.name })
+  }
 
   const handleFileSelect = () => {
     if (!source) {
@@ -148,6 +178,13 @@ export default function VideoAnalisisPage() {
         className="hidden"
         onChange={handleFileChange}
       />
+      <input
+        ref={directoRef}
+        type="file"
+        accept="video/*"
+        className="hidden"
+        onChange={handleDirectoChange}
+      />
 
       <div className="space-y-6">
         <Card className="p-4">
@@ -210,6 +247,22 @@ export default function VideoAnalisisPage() {
             </div>
           ) : null}
         </Card>
+
+        <button
+          type="button"
+          onClick={() => directoRef.current?.click()}
+          className="flex w-full items-center gap-4 rounded-lg border p-4 text-left transition-colors hover:bg-muted/60"
+        >
+          <span className="grid h-12 w-12 place-items-center rounded-md border bg-background">
+            <PenLine className="h-5 w-5" />
+          </span>
+          <span>
+            <span className="block font-medium">Anotador de vídeo en directo</span>
+            <span className="block text-sm text-muted-foreground">
+              El visor de la tablet sobre cualquier vídeo: dibuja, salta fotogramas y haz zoom. El archivo se queda en este dispositivo.
+            </span>
+          </span>
+        </button>
 
         <button
           type="button"
@@ -293,6 +346,16 @@ export default function VideoAnalisisPage() {
           </div>
         ) : null}
       </div>
+
+      {directo ? (
+        <Suspense fallback={null}>
+          <PresentacionSala
+            role="host"
+            localVideo={directo}
+            onClose={() => replaceDirecto(null)}
+          />
+        </Suspense>
+      ) : null}
 
       {analyzerFile && source ? (
         <Suspense fallback={null}>
