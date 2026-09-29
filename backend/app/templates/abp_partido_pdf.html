@@ -358,6 +358,15 @@
             max-height: 340px;
         }
 
+        .roles-campo { margin: 4px 0 8px; }
+        .rol-row { display: flex; gap: 8px; align-items: flex-start; margin: 3px 0; font-size: 12px; }
+        .rol-nums { display: flex; flex-wrap: wrap; gap: 4px; min-width: 64px; }
+        .rol-num {
+            display: inline-block; min-width: 16px; padding: 1px 5px; border-radius: 99px;
+            background: #1a1a2e; color: white; font-weight: 800; font-size: 11px; text-align: center;
+        }
+        .rol-texto { flex: 1; line-height: 1.35; }
+
         .asignaciones {
             margin-top: 10px;
             padding: 10px 12px;
@@ -561,6 +570,17 @@
         <div class="diagram-container">{{ play.main_svg }}</div>
         {% endif %}
 
+        {% if play.roles_campo %}
+        <div class="roles-campo">
+            {% for rol in play.roles_campo %}
+            <div class="rol-row">
+                <span class="rol-nums">{% for d in rol.dorsales %}<span class="rol-num">{{ d }}</span>{% endfor %}</span>
+                <span class="rol-texto">{{ rol.texto }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
         {% if jp.resolved_asignaciones %}
         <div class="asignaciones">
             <h4>Asignaciones</h4>
@@ -605,6 +625,17 @@
 
         {% if play.main_svg %}
         <div class="diagram-container">{{ play.main_svg }}</div>
+        {% endif %}
+
+        {% if play.roles_campo %}
+        <div class="roles-campo">
+            {% for rol in play.roles_campo %}
+            <div class="rol-row">
+                <span class="rol-nums">{% for d in rol.dorsales %}<span class="rol-num">{{ d }}</span>{% endfor %}</span>
+                <span class="rol-texto">{{ rol.texto }}</span>
+            </div>
+            {% endfor %}
+        </div>
         {% endif %}
 
         {% if jp.resolved_asignaciones %}

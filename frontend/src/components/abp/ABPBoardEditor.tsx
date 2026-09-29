@@ -107,6 +107,7 @@ export default function ABPBoardEditor({
       arrows: data.arrows,
       zones: data.zones,
       frames: data.frames || [],
+      campoRoles: data.campoRoles,
     })
     setTipoAnim('animated')
     if (useTacticalBoardStore.getState().keyframes.length === 0) {
@@ -163,6 +164,7 @@ export default function ABPBoardEditor({
       pitchType: state.pitchType,
       tipo: 'animated' as const,
       frames,
+      roles: state.campoRoles,
       ...(preview ? { preview } : {}),
     }
     const fase: ABPFase = {

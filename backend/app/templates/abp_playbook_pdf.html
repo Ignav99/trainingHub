@@ -174,6 +174,28 @@
             margin-bottom: 4px;
         }
 
+        .roles-campo { margin: 6px 0 10px; }
+        .rol-row {
+            display: flex;
+            gap: 8px;
+            align-items: flex-start;
+            margin: 4px 0;
+            font-size: 13px;
+        }
+        .rol-nums { display: flex; flex-wrap: wrap; gap: 4px; min-width: 72px; }
+        .rol-num {
+            display: inline-block;
+            min-width: 18px;
+            padding: 1px 5px;
+            border-radius: 99px;
+            background: #1a1a2e;
+            color: white;
+            font-weight: 800;
+            font-size: 12px;
+            text-align: center;
+        }
+        .rol-texto { flex: 1; line-height: 1.35; }
+
         .asignaciones, .directrices {
             margin-top: 10px;
             padding: 10px 12px;
@@ -283,6 +305,16 @@
             {% endif %}
             {% if fase.svg %}
             <div class="diagram-container">{{ fase.svg }}</div>
+            {% endif %}
+            {% if loop.first and play.roles_campo %}
+            <div class="roles-campo">
+                {% for rol in play.roles_campo %}
+                <div class="rol-row">
+                    <span class="rol-nums">{% for d in rol.dorsales %}<span class="rol-num">{{ d }}</span>{% endfor %}</span>
+                    <span class="rol-texto">{{ rol.texto }}</span>
+                </div>
+                {% endfor %}
+            </div>
             {% endif %}
         </div>
         {% endfor %}

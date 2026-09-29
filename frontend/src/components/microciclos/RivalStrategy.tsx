@@ -440,12 +440,12 @@ export function RivalStrategy({ data, rivalId, competicionId, onChange }: RivalS
                     title={`${jugador.nombre} — click para cambiar`}
                   >
                     <div
-                      className="w-8 h-8 rounded-full font-bold text-[10px] flex items-center justify-center shadow-md text-white"
+                      className="w-11 h-11 rounded-full font-bold text-sm flex items-center justify-center shadow-md text-white"
                       style={{ backgroundColor: bgColor }}
                     >
                       {jugador.dorsal ?? '?'}
                     </div>
-                    <span className="block text-[8px] text-white font-medium mt-0.5 max-w-[56px] truncate drop-shadow mx-auto">
+                    <span className="block text-xs text-white font-medium mt-0.5 max-w-[72px] truncate drop-shadow mx-auto">
                       {jugador.nombre.split(',')[0]}
                     </span>
                     {totalActas > 0 && (
@@ -481,7 +481,7 @@ export function RivalStrategy({ data, rivalId, competicionId, onChange }: RivalS
                   title={`Añadir jugador: ${slot.label}`}
                 >
                   <div
-                    className={`w-8 h-8 rounded-full border-2 border-dashed flex items-center justify-center transition-colors ${
+                    className={`w-11 h-11 rounded-full border-2 border-dashed flex items-center justify-center transition-colors ${
                       isPicking ? 'border-yellow-300 bg-yellow-300/20' : 'border-white/50 hover:border-white hover:bg-white/10'
                     }`}
                   >

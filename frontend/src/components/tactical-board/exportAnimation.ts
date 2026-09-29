@@ -85,6 +85,7 @@ export async function exportBoardWebM(
         animate: false,
         showPlayBadge: false,
         autoplay: false,
+        playerScale: 1.38,
       }),
     )
     await waitPaint()

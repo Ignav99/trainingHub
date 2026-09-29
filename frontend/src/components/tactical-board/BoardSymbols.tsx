@@ -125,7 +125,7 @@ function PlayerSymbol({ element, selected, uid }: { element: DiagramElement; sel
         <text
           x="0" y={r + 8}
           textAnchor="middle"
-          fill="#FFFFFF" fontSize="7" fontFamily="Arial"
+          fill="#FFFFFF" fontSize="10" fontFamily="Arial"
           fontWeight="bold"
           style={{ pointerEvents: 'none', paintOrder: 'stroke', stroke: '#111827', strokeWidth: 2.4 }}
         >

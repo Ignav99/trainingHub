@@ -96,6 +96,7 @@ export async function captureDiagramForPdf(
           animate: false,
           showPlayBadge: false,
           autoplay: false,
+          playerScale: 1.38,
         }),
       )
     })

@@ -631,7 +631,7 @@ export function TacticalBoard({
         return (
           <g {...commonProps} transform={`translate(${position.x}, ${position.y})`}>
             <circle cx="0" cy="0" r={size / 2} fill={color} stroke={isSelected ? '#FFFF00' : '#FFFFFF'} strokeWidth={isSelected ? 3 : 2} />
-            <text x="0" y="1" textAnchor="middle" dominantBaseline="middle" fill={type === 'player_joker' || color === '#EAB308' ? '#111827' : '#FFFFFF'} fontSize="10" fontWeight="bold" fontFamily="Arial">
+            <text x="0" y="1" textAnchor="middle" dominantBaseline="middle" fill={type === 'player_joker' || color === '#EAB308' ? '#111827' : '#FFFFFF'} fontSize="14" fontWeight="bold" fontFamily="Arial">
               {label || ''}
             </text>
             {(jugador || roleText) && (
