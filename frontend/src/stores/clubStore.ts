@@ -33,15 +33,20 @@ export const useClubStore = create<ClubState>()(
       isOnboardingComplete: false,
 
       setOrganizacion: (org: Organizacion) => {
-        set({
+        set((state) => ({
           organizacion: org,
           theme: {
             colorPrimario: org.color_primario || DEFAULT_THEME.colorPrimario,
             colorSecundario: org.color_secundario || DEFAULT_THEME.colorSecundario,
             logoUrl: org.logo_url || null,
           },
-          isOnboardingComplete: !!(org.config?.onboarding_complete),
-        })
+          // A second tab must not bounce into onboarding when the user payload
+          // omits the flag that this browser already stored as complete.
+          isOnboardingComplete:
+            org.config && 'onboarding_complete' in org.config
+              ? !!org.config.onboarding_complete
+              : state.isOnboardingComplete,
+        }))
       },
 
       updateTheme: (partial) =>

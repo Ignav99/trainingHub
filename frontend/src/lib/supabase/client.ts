@@ -18,7 +18,13 @@ function createSingletonClient(): SupabaseClient {
       auth: { persistSession: false },
     })
   }
-  return createClient(url, anonKey)
+  return createClient(url, anonKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+  })
 }
 
 export function getSupabaseClient(): SupabaseClient {

@@ -21,6 +21,7 @@ import {
   FileStack,
   X,
 } from 'lucide-react'
+import { OpenVideoTabLink } from '@/components/video-analyzer/OpenVideoTabLink'
 
 const mainTabs = [
   { name: 'Inicio', href: '/', icon: LayoutDashboard },
@@ -63,19 +64,21 @@ export function MobileBottomNav() {
             </div>
             <div className="grid grid-cols-3 gap-2 p-3 max-h-[50vh] overflow-y-auto">
               {moreTabs.map((tab) => (
-                <Link
-                  key={tab.href}
-                  href={tab.href}
-                  onClick={() => setMoreOpen(false)}
-                  className={`flex flex-col items-center gap-1.5 p-3 rounded-xl text-xs min-h-[64px] justify-center transition-colors ${
-                    isActive(tab.href)
-                      ? 'bg-primary/10 text-primary font-medium'
-                      : 'text-muted-foreground hover:bg-muted'
-                  }`}
-                >
-                  <tab.icon className="h-6 w-6" />
-                  {tab.name}
-                </Link>
+                <div key={tab.href} className="flex flex-col items-center gap-1">
+                  <Link
+                    href={tab.href}
+                    onClick={() => setMoreOpen(false)}
+                    className={`flex w-full flex-col items-center gap-1.5 p-3 rounded-xl text-xs min-h-[64px] justify-center transition-colors ${
+                      isActive(tab.href)
+                        ? 'bg-primary/10 text-primary font-medium'
+                        : 'text-muted-foreground hover:bg-muted'
+                    }`}
+                  >
+                    <tab.icon className="h-6 w-6" />
+                    {tab.name}
+                  </Link>
+                  {tab.href === '/video-analisis' ? <OpenVideoTabLink variant="text" /> : null}
+                </div>
               ))}
             </div>
           </div>
