@@ -1632,7 +1632,86 @@ def _get_sanciones_oficiales(supabase, comp_id: str, rival_nombre: str) -> list[
         return []
 
 
-def _get_ultimos_resultados(supabase, comp_id: str, rival_nombre: str) -> list[dict]:
+def _normalize_escudo_url(src: str | None) -> str | None:
+    if not src or not str(src).strip():
+        return None
+    src = str(src).strip()
+    if src.startswith("http://") or src.startswith("https://"):
+        return src
+    if src.startswith("/"):
+        return "https://www.rfaf.es" + src
+    return "https://www.rfaf.es/" + src.lstrip("/")
+
+
+def _escudo_for_side(name: str, rival_nombre: str, rival_escudo_url: str | None, acta_url: str | None) -> str | None:
+    url = _normalize_escudo_url(acta_url)
+    if url:
+        return url
+    if rival_escudo_url and _match_rival_name(rival_nombre, name or ""):
+        return rival_escudo_url
+    return None
+
+
+def _attach_resultado_escudos(
+    supabase,
+    comp_id: str,
+    rival_nombre: str,
+    results: list[dict],
+    rival_escudo_url: str | None = None,
+) -> list[dict]:
+    """Fill home/away crests from rfef_actas, then the report rival's own crest."""
+    if not results:
+        return results
+    actas: list[dict] = []
+    try:
+        res = supabase.table("rfef_actas").select(
+            "jornada_numero, local_nombre, visitante_nombre, local_escudo_url, visitante_escudo_url"
+        ).eq("competicion_id", comp_id).execute()
+        actas = res.data or []
+    except Exception as e:
+        logger.debug("Error fetching acta crests: %s", e)
+
+    def _acta_for(row: dict) -> dict | None:
+        local = row.get("local") or ""
+        visitante = row.get("visitante") or ""
+        jornada = row.get("jornada")
+        named = [
+            acta for acta in actas
+            if _match_rival_name(local, acta.get("local_nombre") or "")
+            and _match_rival_name(visitante, acta.get("visitante_nombre") or "")
+        ]
+        for acta in named:
+            if jornada is not None and acta.get("jornada_numero") == jornada:
+                return acta
+        return named[0] if named else None
+
+    for row in results:
+        acta = _acta_for(row)
+        local_url = _escudo_for_side(
+            row.get("local") or "",
+            rival_nombre,
+            rival_escudo_url,
+            acta.get("local_escudo_url") if acta else None,
+        )
+        visitante_url = _escudo_for_side(
+            row.get("visitante") or "",
+            rival_nombre,
+            rival_escudo_url,
+            acta.get("visitante_escudo_url") if acta else None,
+        )
+        if local_url:
+            row["local_escudo_url"] = local_url
+        if visitante_url:
+            row["visitante_escudo_url"] = visitante_url
+    return results
+
+
+def _get_ultimos_resultados(
+    supabase,
+    comp_id: str,
+    rival_nombre: str,
+    rival_escudo_url: str | None = None,
+) -> list[dict]:
     """Get last 5 results for the rival from rfef_jornadas."""
     jornadas_res = supabase.table("rfef_jornadas").select("numero, partidos").eq(
         "competicion_id", comp_id
@@ -1659,7 +1738,9 @@ def _get_ultimos_resultados(supabase, comp_id: str, rival_nombre: str) -> list[d
         if len(results) >= 5:
             break
 
-    return results
+    return _attach_resultado_escudos(
+        supabase, comp_id, rival_nombre, results, rival_escudo_url,
+    )
 
 
 def _get_head_to_head(supabase, rival_id: str) -> list[dict]:
@@ -1763,7 +1844,9 @@ def gather_rival_intel_standalone(
 
     # Ultimos resultados
     try:
-        resultados = _get_ultimos_resultados(supabase, comp_id, rival_nombre)
+        resultados = _get_ultimos_resultados(
+            supabase, comp_id, rival_nombre, rival.get("escudo_url"),
+        )
         if resultados:
             intel["ultimos_resultados"] = resultados
     except Exception as e:

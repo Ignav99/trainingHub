@@ -22,6 +22,7 @@ const SLOT_COLORS: Record<string, string> = {
 export interface OncePitchPlayer {
   nombre?: string | null
   dorsal?: number | null
+  atributos?: { muro?: boolean; correcaminos?: boolean; bombilla?: boolean }
 }
 
 export interface OncePitchToken {
@@ -32,6 +33,7 @@ export interface OncePitchToken {
   nombre?: string
   dorsal?: string
   color: string
+  icons?: Array<'muro' | 'correcaminos' | 'bombilla'>
 }
 
 export function toHorizontalPos(top: string, left: string): { topPct: number; leftPct: number } {
@@ -71,6 +73,7 @@ export function buildOncePitchTokens(
     const jugador = rawName ? byName.get(rawName) : undefined
     const dorsal =
       jugador?.dorsal != null && Number.isFinite(jugador.dorsal) ? String(jugador.dorsal) : undefined
+    const icons = (['muro', 'correcaminos', 'bombilla'] as const).filter((key) => !!jugador?.atributos?.[key])
     return {
       id: slot.id,
       label: slot.label,
@@ -78,6 +81,7 @@ export function buildOncePitchTokens(
       leftPct: pos.leftPct,
       nombre: rawName ? shortPlayerName(rawName) : undefined,
       dorsal,
+      icons: icons.length > 0 ? [...icons] : undefined,
       color: SLOT_COLORS[slot.position] || '#9CA3AF',
     }
   })

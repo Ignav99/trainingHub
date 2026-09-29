@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { rivalesApi } from '@/lib/api/partidos'
 import { apiKey } from '@/lib/swr'
+import { ResultadoPills } from '@/components/rivales/DossierSlides'
 import type { PreMatchIntel, PreMatchRachaEstado } from '@/types'
 
 interface RivalContextoIntelProps {
@@ -769,25 +770,23 @@ export function RivalContextoIntel({ rivalId, competicionId, rivalNombre }: Riva
         )}
       </div>
 
-      {/* Ultimos resultados */}
-      {intel.ultimos_resultados && intel.ultimos_resultados.length > 0 && rivalNombre && (
+      {intel.ultimos_resultados && intel.ultimos_resultados.length > 0 && (
         <Card>
           <CardContent className="p-4 space-y-2">
             <p className="text-xs font-semibold">Últimos partidos</p>
-            {intel.ultimos_resultados.map((r, i) => {
-              const rivalLower = rivalNombre.toLowerCase()
-              const isLocal = r.local.toLowerCase().includes(rivalLower) || rivalLower.includes(r.local.toLowerCase())
-              const gf = isLocal ? r.goles_local : r.goles_visitante
-              const gc = isLocal ? r.goles_visitante : r.goles_local
-              const res = gf > gc ? 'V' : gf < gc ? 'D' : 'E'
-              return (
-                <div key={i} className="flex items-center gap-2 text-[11px] py-1 border-b last:border-0">
-                  <span className="text-muted-foreground w-6">J{r.jornada}</span>
-                  <ResultChip result={res} />
-                  <span className="truncate flex-1">{r.local} {r.goles_local}-{r.goles_visitante} {r.visitante}</span>
-                </div>
-              )
-            })}
+            <ResultadoPills
+              tone="light"
+              rivalNombre={rivalNombre || intel.rival_nombre}
+              rivalEscudoUrl={intel.rival_escudo_url}
+              resultados={intel.ultimos_resultados.slice(0, 5).map((row) => ({
+                local: row.local,
+                visitante: row.visitante,
+                golesLocal: row.goles_local,
+                golesVisitante: row.goles_visitante,
+                localEscudo: row.local_escudo_url,
+                visitanteEscudo: row.visitante_escudo_url,
+              }))}
+            />
           </CardContent>
         </Card>
       )}

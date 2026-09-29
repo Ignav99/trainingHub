@@ -19,6 +19,7 @@ export default function ABPRivalPlays({ rivalId, lado }: ABPRivalPlaysProps) {
   // null = editor is blank, ready for a new play
   const [editingJugada, setEditingJugada] = useState<ABPRivalJugada | null>(null)
   const [boardOpen, setBoardOpen] = useState(false)
+  const [boardFull, setBoardFull] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const swrKey = apiKey(`/abp/rival/${rivalId}`, lado ? { lado } : undefined)
@@ -86,18 +87,29 @@ export default function ABPRivalPlays({ rivalId, lado }: ABPRivalPlaysProps) {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs font-semibold text-muted-foreground">Pizarra táctica</p>
-        <button
-          type="button"
-          aria-expanded={boardOpen}
-          onClick={() => (boardOpen ? setBoardOpen(false) : openBoard(editingJugada))}
-          className="rounded-md border px-2.5 py-1 text-xs font-medium hover:bg-muted"
-        >
-          {boardOpen ? 'Cerrar pizarra' : 'Abrir pizarra táctica'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            aria-expanded={boardOpen}
+            onClick={() => (boardOpen ? setBoardOpen(false) : openBoard(editingJugada))}
+            className="rounded-md border px-2.5 py-1 text-xs font-medium hover:bg-muted"
+          >
+            {boardOpen ? 'Cerrar pizarra' : 'Abrir pizarra táctica'}
+          </button>
+          {boardOpen && (
+            <button
+              type="button"
+              onClick={() => setBoardFull(true)}
+              className="rounded-md border px-2.5 py-1 text-xs font-medium hover:bg-muted"
+            >
+              Pantalla completa
+            </button>
+          )}
+        </div>
       </div>
       {boardOpen && (
         <>
-          <div className="rounded-lg border overflow-hidden" style={{ height: 640 }}>
+          <div className="rounded-lg border overflow-hidden" style={{ height: 'min(78vh, 920px)' }}>
             <ABPEditor
               key={editingJugada?.id ?? 'new'}
               jugada={editingJugada ? ({ ...editingJugada } as Partial<ABPJugada>) : undefined}
@@ -107,6 +119,33 @@ export default function ABPRivalPlays({ rivalId, lado }: ABPRivalPlaysProps) {
               saving={saving}
             />
           </div>
+          {boardFull && (
+            <div className="fixed inset-0 z-[80] flex flex-col bg-background">
+              <div className="flex items-center justify-between border-b px-4 py-2">
+                <p className="text-sm font-semibold">Pizarra táctica</p>
+                <button
+                  type="button"
+                  onClick={() => setBoardFull(false)}
+                  className="rounded-md border px-2.5 py-1 text-xs font-medium hover:bg-muted"
+                >
+                  Cerrar pantalla completa
+                </button>
+              </div>
+              <div className="min-h-0 flex-1">
+                <ABPEditor
+                  key={`${editingJugada?.id ?? 'new'}-full`}
+                  jugada={editingJugada ? ({ ...editingJugada } as Partial<ABPJugada>) : undefined}
+                  lockLado={lado}
+                  onSave={async (jugada) => {
+                    await handleSave(jugada)
+                    setBoardFull(false)
+                  }}
+                  onCancel={() => setBoardFull(false)}
+                  saving={saving}
+                />
+              </div>
+            </div>
+          )}
           <p className="text-[10px] text-muted-foreground">
             Dibuja la jugada, añade fases para animarla y pulsa Guardar. Puedes descargar el vídeo desde Exportar.
           </p>

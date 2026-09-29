@@ -4,6 +4,7 @@ from app.services.pre_match_service import (
     _compute_contexto_stats,
     _get_clasificacion,
     _get_goleadores_rival,
+    _get_ultimos_resultados,
     _goal_scored_by_rival,
     _goals_matching_marcador,
     _is_rival_local,
@@ -691,6 +692,46 @@ def test_jornada_scores_are_reread_each_time():
     assert results == [{
         "is_local": False, "gf": 0, "gc": 2, "jornada": 3, "cod_acta": "j3",
     }]
+
+
+def test_ultimos_resultados_include_crests():
+    jornadas = [{
+        "numero": 8,
+        "partidos": [{
+            "local": "C.D. Rival",
+            "visitante": "U.D. Otro",
+            "goles_local": 2,
+            "goles_visitante": 1,
+        }],
+    }]
+    actas = [{
+        "jornada_numero": 8,
+        "local_nombre": "C.D. Rival",
+        "visitante_nombre": "U.D. Otro",
+        "local_escudo_url": "/pnfg/pimg/Clubes/rival.png",
+        "visitante_escudo_url": "https://cdn.example/otro.png",
+    }]
+    rows = _get_ultimos_resultados(
+        _FakeSupabase(actas, jornadas), "comp-1", "C.D. Rival", "https://cdn.example/saved.png",
+    )
+    assert rows[0]["goles_local"] == 2
+    assert rows[0]["local_escudo_url"].endswith("/pnfg/pimg/Clubes/rival.png")
+    assert rows[0]["visitante_escudo_url"] == "https://cdn.example/otro.png"
+
+    away = [{
+        "numero": 9,
+        "partidos": [{
+            "local": "U.D. Otro",
+            "visitante": "C.D. Rival",
+            "goles_local": 0,
+            "goles_visitante": 1,
+        }],
+    }]
+    filled = _get_ultimos_resultados(
+        _FakeSupabase([], away), "comp-1", "C.D. Rival", "https://cdn.example/saved.png",
+    )
+    assert filled[0].get("local_escudo_url") is None
+    assert filled[0]["visitante_escudo_url"] == "https://cdn.example/saved.png"
 
 
 def test_historico_keeps_last_season_on_the_rival():

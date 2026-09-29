@@ -1,10 +1,13 @@
 import type { TareaPizarraData } from '../components/tactical-board/types'
 import { diagramHasContent } from './planPartidoDiagramRoles'
+import type { IntelVisual } from './pdf/informeRivalPdfBlocks'
 import type {
   ClipRival,
   FasePlanPartido,
   PlanPartidoData,
   PlanPartidoPhase,
+  RivalAtributoEmoji,
+  RivalJugadorAtributos,
   RivalPhaseAnalysis,
   RivalScoutData,
   RivalScoutStrategy,
@@ -65,6 +68,7 @@ export interface ShowMeta {
   tramo?: string
   jornada?: number
   intelLines?: string[]
+  intelVisual?: IntelVisual
 }
 
 export type ShowSlide =
@@ -85,6 +89,7 @@ export type ShowSlide =
       kicker: string
       title: string
       bullets: string[]
+      visual?: IntelVisual
     }
   | {
       id: string
@@ -95,7 +100,12 @@ export type ShowSlide =
       bullets: string[]
       sistema?: string
       colocacion?: Record<string, string>
-      jugadores?: Array<{ nombre: string; dorsal?: number | null; comentario?: string }>
+      jugadores?: Array<{
+        nombre: string
+        dorsal?: number | null
+        comentario?: string
+        atributos?: RivalJugadorAtributos
+      }>
     }
   | {
       id: string
@@ -105,6 +115,8 @@ export type ShowSlide =
       kicker: string
       title: string
       bullets: string[]
+      fortalezas?: string[]
+      debilidades?: string[]
       board?: TareaPizarraData
       boardSrc?: string
     }
@@ -164,9 +176,8 @@ export function playableClips(clips?: ClipRival[]): ClipRival[] {
 
 export function buildInformeShow(data: Partial<RivalScoutData> | undefined, meta: ShowMeta = {}): DossierShow {
   const slides: ShowSlide[] = [portadaSlide('informe', meta)]
-  const contexto = contextoSlide(data?.estrategia, meta.intelLines)
+  slides.push(...contextoSlides(data?.estrategia, meta))
   const once = onceSlide(data?.estrategia)
-  if (contexto) slides.push(contexto)
   if (once) slides.push(once)
   const fases = data?.fases ?? []
   for (const fase of SHOW_FASE_ORDER) {
@@ -342,13 +353,20 @@ export function showChapters(slides: ShowSlide[]): ShowChapter[] {
       let videoCount = 0
       while (j < slides.length) {
         const next = slides[j]
-        if (next.kind !== 'video' || next.fase !== slide.fase) break
         if (next.section && slide.section && next.section !== slide.section) break
-        videoCount += 1
-        j += 1
+        if (next.kind === 'video' && next.fase === slide.fase) {
+          videoCount += 1
+          j += 1
+          continue
+        }
+        if (next.kind === 'fase' && next.fase === slide.fase) {
+          j += 1
+          continue
+        }
+        break
       }
       chapters.push({
-        id: slide.id,
+        id: parentChapterId(slide),
         label: chapterLabel(slide),
         startIndex: i,
         slideCount: j - i,
@@ -387,9 +405,10 @@ function chapterLabel(slide: ShowSlide): string {
     return 'Inicio'
   }
   if (slide.kind === 'fase') {
-    if (slide.section === 'informe') return `Rival · ${slide.title}`
-    if (slide.section === 'plan') return `Plan · ${slide.title}`
-    return slide.title
+    const title = SHOW_FASE_LABELS[slide.fase]
+    if (slide.section === 'informe') return `Rival · ${title}`
+    if (slide.section === 'plan') return `Plan · ${title}`
+    return title
   }
   if (slide.kind === 'contexto' || slide.kind === 'once') return slide.title
   if (slide.section === 'informe') return `Rival · ${slide.kicker || 'Vídeo'}`
@@ -407,6 +426,11 @@ export function chapterIndexForSlide(chapters: ShowChapter[], slideIndex: number
     if (slideIndex >= chapter.startIndex) current = i
   }
   return current
+}
+
+function parentChapterId(slide: Extract<ShowSlide, { kind: 'fase' }>): string {
+  const base = `fase:${slide.fase}`
+  return slide.section ? `${slide.section}:${base}` : base
 }
 
 function portadaSlide(kind: ShowKind, meta: ShowMeta): ShowSlide {
@@ -480,18 +504,15 @@ function organizedPhaseSlides(
 
   const parentBullets: string[] = []
   pushLine(parentBullets, general)
-  if (!anySubTags && 'fortalezas' in phase) {
-    pushAll(parentBullets, phase.fortalezas)
-    pushAll(parentBullets, phase.debilidades)
-  }
   if ('formacion' in phase) {
     pushLine(parentBullets, phase.formacion)
     pushLine(parentBullets, phase.espacios)
   }
+  const parentTags = !anySubTags ? tagLists(phase) : { fortalezas: [], debilidades: [] }
 
   const slides: ShowSlide[] = []
   const parent = finalizeBullets(parentBullets)
-  if (parent.length > 0) {
+  if (parent.length > 0 || parentTags.fortalezas.length > 0 || parentTags.debilidades.length > 0) {
     slides.push({
       id: `fase:${fase}`,
       kind: 'fase',
@@ -499,6 +520,8 @@ function organizedPhaseSlides(
       kicker: 'Fase',
       title: SHOW_FASE_LABELS[fase],
       bullets: parent,
+      fortalezas: parentTags.fortalezas,
+      debilidades: parentTags.debilidades,
     })
   }
 
@@ -509,8 +532,6 @@ function organizedPhaseSlides(
     pushLine(bullets, sub?.notas)
     const sistema = sub && 'sistema' in sub ? sub.sistema : undefined
     if (sistema?.trim() && sistema.trim() !== sub?.notas?.trim()) pushLine(bullets, sistema)
-    for (const item of sub?.fortalezas ?? []) pushLine(bullets, `Fortaleza: ${item}`)
-    for (const item of sub?.debilidades ?? []) pushLine(bullets, `Debilidad: ${item}`)
     const board =
       sub?.pizarra_diagrama &&
       (boardLoops(sub.pizarra_diagrama) || diagramHasContent(sub.pizarra_diagrama))
@@ -523,6 +544,8 @@ function organizedPhaseSlides(
       kicker: SHOW_FASE_LABELS[fase],
       title: SUBFASE_LABELS[key] ?? key,
       bullets: finalizeBullets(bullets),
+      fortalezas: cleanTags(sub?.fortalezas),
+      debilidades: cleanTags(sub?.debilidades),
       board,
     })
   }
@@ -540,14 +563,22 @@ function phaseBlock(
   const board = organized ? undefined : pickBoard(phase)
   const slides: ShowSlide[] = organized ? [...organized] : []
   if (!organized) {
-    if (bullets.length === 0 && !board && clips.length === 0) return []
+    const tags = tagLists(phase)
+    const notes = bullets.filter(
+      (line) => !tags.fortalezas.includes(line) && !tags.debilidades.includes(line)
+    )
+    if (notes.length === 0 && tags.fortalezas.length === 0 && tags.debilidades.length === 0 && !board && clips.length === 0) {
+      return []
+    }
     slides.push({
       id: `fase:${fase}`,
       kind: 'fase',
       fase,
       kicker: 'Fase',
       title: SHOW_FASE_LABELS[fase],
-      bullets,
+      bullets: notes,
+      fortalezas: tags.fortalezas,
+      debilidades: tags.debilidades,
       board,
     })
   } else if (slides.length === 0 && clips.length === 0) {
@@ -636,11 +667,24 @@ function insertOnceVideos(slides: ShowSlide[], videos: Extract<ShowSlide, { kind
   slides.splice(last + 1, 0, ...videos)
 }
 
+function cleanTags(values?: string[]): string[] {
+  return (values ?? []).map((value) => value.trim()).filter(Boolean)
+}
+
+function tagLists(phase: RivalPhaseAnalysis | PlanPartidoPhase | undefined): {
+  fortalezas: string[]
+  debilidades: string[]
+} {
+  if (!phase || !('fortalezas' in phase)) return { fortalezas: [], debilidades: [] }
+  return {
+    fortalezas: cleanTags(phase.fortalezas),
+    debilidades: cleanTags(phase.debilidades),
+  }
+}
+
 function bulletsFromInforme(phase: RivalPhaseAnalysis | undefined): string[] {
   if (!phase) return []
   const out: string[] = []
-  pushAll(out, phase.fortalezas)
-  pushAll(out, phase.debilidades)
   pushLine(out, phase.formacion)
   pushLine(out, phase.espacios)
   pushLine(out, phase.vigilancias)
@@ -712,21 +756,41 @@ function boardLoops(data?: TareaPizarraData | null): boolean {
   return (kept.length > 0 ? kept : frames).length >= 2
 }
 
-function contextoSlide(estrategia?: RivalScoutStrategy, intelLines?: string[]): ShowSlide | null {
-  const bullets: string[] = []
-  for (const line of intelLines ?? []) pushLine(bullets, line)
-  pushLine(bullets, estrategia?.notas)
-  pushLine(bullets, formatCampo(estrategia?.dimensiones_campo))
-  pushLine(bullets, estrategia?.actitud_estilo)
-  const clipped = finalizeBullets(bullets)
-  if (clipped.length === 0) return null
-  return {
-    id: 'contexto',
-    kind: 'contexto',
-    kicker: 'Contexto',
-    title: 'Contexto',
-    bullets: clipped,
+function contextoSlides(estrategia: RivalScoutStrategy | undefined, meta: ShowMeta): ShowSlide[] {
+  const slides: ShowSlide[] = []
+  const visual = meta.intelVisual
+  const hasVisual = Boolean(
+    visual && (visual.charts.length > 0 || visual.resultados.length > 0 || visual.goleadores.length > 0 || visual.posicion)
+  )
+  if (hasVisual && visual) {
+    slides.push({
+      id: 'contexto',
+      kind: 'contexto',
+      kicker: 'Contexto',
+      title: 'Contexto',
+      bullets: [],
+      visual,
+    })
   }
+
+  const notes: string[] = []
+  if (!hasVisual) {
+    for (const line of meta.intelLines ?? []) pushLine(notes, line)
+  }
+  pushLine(notes, estrategia?.notas)
+  pushLine(notes, formatCampo(estrategia?.dimensiones_campo))
+  pushLine(notes, estrategia?.actitud_estilo)
+  const clipped = finalizeBullets(notes)
+  if (clipped.length > 0) {
+    slides.push({
+      id: hasVisual ? 'contexto-comentario' : 'contexto',
+      kind: 'contexto',
+      kicker: 'Contexto',
+      title: hasVisual ? 'Comentario del rival' : 'Contexto',
+      bullets: clipped,
+    })
+  }
+  return slides
 }
 
 function onceSlide(estrategia?: RivalScoutStrategy): ShowSlide | null {
@@ -738,52 +802,32 @@ function onceSlide(estrategia?: RivalScoutStrategy): ShowSlide | null {
     .map((j) => ({
       nombre: j.nombre.trim(),
       dorsal: j.dorsal,
-      comentario: j.comentario,
+      atributos: j.atributos,
     }))
   const placed = Object.values(colocacion).some((name) => (name || '').trim())
-  const bullets: string[] = []
-  const commented = jugadores.filter((j) => (j.comentario || '').trim())
-  for (const jugador of commented) {
-    pushLine(bullets, oncePlayerLine(jugador))
-  }
-  const clipped = finalizeBullets(bullets)
-  if (!sistema && !placed && clipped.length === 0) return null
+  const hasIcons = jugadores.some((j) => activeIcons(j.atributos).length > 0)
+  if (!sistema && !placed && !hasIcons) return null
   return {
     id: 'once',
     kind: 'once',
     kicker: 'Once probable',
     title: 'Once probable',
-    bullets: clipped,
+    bullets: [],
     sistema: sistema || undefined,
     colocacion: placed ? colocacion : undefined,
     jugadores: jugadores.length > 0 ? jugadores : undefined,
   }
 }
 
-function oncePlayerLine(jugador: {
-  nombre?: string
-  dorsal?: number | null
-  rol?: string
-  posicion?: string
-  comentario?: string
-}): string {
-  const dorsal = jugador.dorsal != null && Number.isFinite(jugador.dorsal) ? String(jugador.dorsal) : ''
-  const name = [dorsal, (jugador.nombre || '').trim()].filter(Boolean).join(' ')
-  const role = (jugador.rol || jugador.posicion || '').trim()
-  const comment = clipText(jugador.comentario, 80)
-  const head = [name, role].filter(Boolean).join(' · ')
-  if (head && comment) return `${head} — ${comment}`
-  return comment || head
+function activeIcons(atributos?: RivalJugadorAtributos): RivalAtributoEmoji[] {
+  if (!atributos) return []
+  return (['muro', 'correcaminos', 'bombilla'] as const).filter((key) => !!atributos[key])
 }
 
 function formatCampo(value?: string): string | undefined {
   const text = (value || '').replace(/\s+/g, ' ').trim()
   if (!text) return undefined
   return `Campo ${text}`
-}
-
-function pushAll(out: string[], values?: string[]) {
-  for (const value of values ?? []) pushLine(out, value)
 }
 
 function pushLine(out: string[], value?: string) {

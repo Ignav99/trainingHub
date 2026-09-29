@@ -135,7 +135,6 @@ export function collectIntelPdfLines(intel: PreMatchIntel): string[] {
 
 export function collectContextoPdfBlocks(
   estrategia?: RivalScoutStrategy,
-  intel?: PreMatchIntel | null
 ): InformePdfBlock[] {
   const blocks: InformePdfBlock[] = []
   const comments: string[] = []
@@ -145,9 +144,82 @@ export function collectContextoPdfBlocks(
   if (estrategia?.actitud_estilo?.trim()) comments.push(estrategia.actitud_estilo.trim())
   if (comments.length) blocks.push({ title: 'CONTEXTO', lines: comments.map((text) => ({ text })) })
 
-  if (intel) {
-    const intelLines = collectIntelPdfLines(intel)
-    if (intelLines.length) blocks.push({ title: 'CONTEXTO RFEF', lines: intelLines.map((text) => ({ text })) })
-  }
   return blocks
+}
+
+export interface IntelChart {
+  label: string
+  gf: number
+  gc: number
+}
+
+export interface IntelResultadoVisual {
+  local: string
+  visitante: string
+  golesLocal: number
+  golesVisitante: number
+  localEscudo?: string
+  visitanteEscudo?: string
+}
+
+export interface IntelVisual {
+  posicion?: number
+  puntos?: number
+  charts: IntelChart[]
+  resultados: IntelResultadoVisual[]
+  goleadores: { nombre: string; goles: number }[]
+  sancionados: string[]
+  apercibidos: string[]
+}
+
+export function collectIntelVisual(intel: PreMatchIntel): IntelVisual {
+  const ctx = intel.contexto_stats
+  const charts: IntelChart[] = []
+  if (ctx?.casa && (ctx.casa.gf || ctx.casa.gc)) {
+    charts.push({ label: 'Casa', gf: ctx.casa.gf, gc: ctx.casa.gc })
+  }
+  if (ctx?.fuera && (ctx.fuera.gf || ctx.fuera.gc)) {
+    charts.push({ label: 'Fuera', gf: ctx.fuera.gf, gc: ctx.fuera.gc })
+  }
+  if (ctx?.mitades) {
+    charts.push({
+      label: '1ª parte',
+      gf: ctx.mitades.marcados_1t,
+      gc: ctx.mitades.encajados_1t,
+    })
+    charts.push({
+      label: '2ª parte',
+      gf: ctx.mitades.marcados_2t,
+      gc: ctx.mitades.encajados_2t,
+    })
+  }
+  const tarjetas = intel.tarjetas?.jugadores ?? []
+  const rivalName = (intel.rival_nombre || '').trim().toLowerCase()
+  const crestFor = (team: string, own?: string) => {
+    if (own) return own
+    const name = team.trim().toLowerCase()
+    if (rivalName && name && (name.includes(rivalName) || rivalName.includes(name))) {
+      return intel.rival_escudo_url
+    }
+    return undefined
+  }
+  return {
+    posicion: intel.clasificacion?.posicion,
+    puntos: intel.clasificacion?.puntos,
+    charts,
+    resultados: (intel.ultimos_resultados ?? []).slice(0, 5).map((row) => ({
+      local: row.local,
+      visitante: row.visitante,
+      golesLocal: row.goles_local,
+      golesVisitante: row.goles_visitante,
+      localEscudo: crestFor(row.local, row.local_escudo_url),
+      visitanteEscudo: crestFor(row.visitante, row.visitante_escudo_url),
+    })),
+    goleadores: (intel.goleadores_rival ?? []).slice(0, 5).map((row) => ({
+      nombre: row.jugador,
+      goles: row.goles,
+    })),
+    sancionados: tarjetas.filter((row) => row.estado === 'Sancionado').map((row) => row.nombre).filter(Boolean),
+    apercibidos: tarjetas.filter((row) => row.estado === 'Apercibido').map((row) => row.nombre).filter(Boolean),
+  }
 }

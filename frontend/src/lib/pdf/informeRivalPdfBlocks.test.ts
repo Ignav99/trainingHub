@@ -4,6 +4,7 @@ import type { PreMatchIntel, RivalScoutStrategy } from '@/types'
 import {
   collectContextoPdfBlocks,
   collectIntelPdfLines,
+  collectIntelVisual,
   collectOncePdfBlock,
   formatCampoLine,
 } from './informeRivalPdfBlocks.ts'
@@ -18,9 +19,9 @@ describe('informe rival PDF contexto + once', () => {
     })
     assert.equal(blocks[0]?.title, 'CONTEXTO')
     assert.deepEqual(blocks[0]?.lines, [
-      'Presiona alto y corta por dentro',
-      'Campo 105 x 68',
-      'Directo',
+      { text: 'Presiona alto y corta por dentro' },
+      { text: 'Campo 105 x 68' },
+      { text: 'Directo' },
     ])
   })
 
@@ -47,6 +48,10 @@ describe('informe rival PDF contexto + once', () => {
         mitades: { marcados_1t: 6, marcados_2t: 12, encajados_1t: 4, encajados_2t: 5 },
         goles_por_minuto: { buckets: [], marcados: [], encajados: [] },
       },
+      rival_escudo_url: 'https://cdn.example/atletico.png',
+      ultimos_resultados: [
+        { jornada: 8, local: 'Atlético', visitante: 'Racing', goles_local: 2, goles_visitante: 0, visitante_escudo_url: 'https://cdn.example/racing.png' },
+      ],
       goleadores_rival: [{ jugador: 'García', goles: 7 }],
       tarjetas: {
         total_actas: 6,
@@ -61,9 +66,17 @@ describe('informe rival PDF contexto + once', () => {
     assert.match(lines.join(' | '), /Clasificación: 5º/)
     assert.match(lines.join(' | '), /Racha caliente/)
     assert.match(lines.join(' | '), /Sancionados: López/)
-    const blocks = collectContextoPdfBlocks({ notas: 'Olfato' }, intel)
-    assert.equal(blocks.length, 2)
-    assert.equal(blocks[1]?.title, 'CONTEXTO RFEF')
+    const blocks = collectContextoPdfBlocks({ notas: 'Olfato' })
+    assert.equal(blocks.length, 1)
+    assert.equal(blocks[0]?.title, 'CONTEXTO')
+    const visual = collectIntelVisual(intel)
+    assert.deepEqual(visual.charts.map((chart) => chart.label), ['Casa', 'Fuera', '1ª parte', '2ª parte'])
+    assert.equal(visual.resultados[0]?.localEscudo, 'https://cdn.example/atletico.png')
+    assert.equal(visual.resultados[0]?.visitanteEscudo, 'https://cdn.example/racing.png')
+    assert.equal(visual.resultados[0]?.golesLocal, 2)
+    assert.deepEqual(visual.goleadores, [{ nombre: 'García', goles: 7 }])
+    assert.deepEqual(visual.sancionados, ['López'])
+    assert.deepEqual(visual.apercibidos, ['Ruiz'])
   })
 
   it('lists the placed XI with slot labels', () => {
