@@ -1,4 +1,5 @@
 import type { RivalJugadorEvaluacion, RivalScoutData, RivalScoutStrategy } from '@/types'
+import { preferText } from '@/lib/durableDraft'
 
 /**
  * Perfil persistente del rival (`rivales.scout_manual`).
@@ -53,8 +54,7 @@ export function extractWeeklyContext(scout: Partial<RivalScoutData>): Partial<Ri
 }
 
 function pickText(saved: string | undefined, weekly: string | undefined): string {
-  if (typeof saved === 'string') return saved
-  return weekly || ''
+  return preferText(saved, weekly)
 }
 
 /** Combina perfil persistente del rival con contexto semanal del microciclo. */

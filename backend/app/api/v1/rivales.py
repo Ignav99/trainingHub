@@ -24,6 +24,7 @@ from app.models import (
     EquipacionUpsert,
 )
 from app.database import get_supabase
+from app.services.staff_text_guard import merge_staff_document, public_staff_document
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
 from app.services.pre_match_service import (
@@ -101,7 +102,7 @@ async def get_scout_manual(
     """Perfil manual persistente del rival (fases, clips, análisis). Compartido con microciclos."""
     supabase = get_supabase()
     rival = _verify_rival_access(supabase, rival_id, auth.organizacion_id)
-    return rival.get("scout_manual") or {}
+    return public_staff_document(rival.get("scout_manual") or {})
 
 
 @router.put("/{rival_id}/scout-manual")
@@ -112,11 +113,12 @@ async def put_scout_manual(
 ):
     """Guarda el perfil manual del rival. Se sincroniza desde Informe Rival y Sala del Lunes."""
     supabase = get_supabase()
-    _verify_rival_access(supabase, rival_id, auth.organizacion_id)
+    rival = _verify_rival_access(supabase, rival_id, auth.organizacion_id)
+    merged = merge_staff_document(rival.get("scout_manual") or {}, body)
     supabase.table("rivales").update({
-        "scout_manual": body,
+        "scout_manual": merged,
     }).eq("id", str(rival_id)).eq("organizacion_id", str(auth.organizacion_id)).execute()
-    return body
+    return public_staff_document(merged)
 
 
 @router.get("/{rival_id}/plan-partido-manual")
@@ -127,7 +129,7 @@ async def get_plan_partido_manual(
     """Plan de partido persistente del rival. Compartido con microciclos."""
     supabase = get_supabase()
     rival = _verify_rival_access(supabase, rival_id, auth.organizacion_id)
-    return rival.get("plan_partido_manual") or {}
+    return public_staff_document(rival.get("plan_partido_manual") or {})
 
 
 @router.put("/{rival_id}/plan-partido-manual")
@@ -138,11 +140,12 @@ async def put_plan_partido_manual(
 ):
     """Guarda el plan de partido del rival. Sync desde ficha rival y Sala del Lunes."""
     supabase = get_supabase()
-    _verify_rival_access(supabase, rival_id, auth.organizacion_id)
+    rival = _verify_rival_access(supabase, rival_id, auth.organizacion_id)
+    merged = merge_staff_document(rival.get("plan_partido_manual") or {}, body)
     supabase.table("rivales").update({
-        "plan_partido_manual": body,
+        "plan_partido_manual": merged,
     }).eq("id", str(rival_id)).eq("organizacion_id", str(auth.organizacion_id)).execute()
-    return body
+    return public_staff_document(merged)
 
 
 @router.post("/{rival_id}/clips")

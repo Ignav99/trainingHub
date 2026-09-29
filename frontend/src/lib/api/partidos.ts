@@ -85,6 +85,10 @@ export const rivalesApi = {
     return api.put<Partial<RivalScoutData>>(`/rivales/${rivalId}/scout-manual`, data)
   },
 
+  putScoutManualKeepalive(rivalId: string, data: Partial<RivalScoutData>): void {
+    api.putKeepalive(`/rivales/${rivalId}/scout-manual`, data)
+  },
+
   async getPlanPartidoManual(rivalId: string): Promise<PlanPartidoManualRaw> {
     return api.get<PlanPartidoManualRaw>(`/rivales/${rivalId}/plan-partido-manual`)
   },
@@ -94,6 +98,10 @@ export const rivalesApi = {
     data: PlanPartidoManualRaw
   ): Promise<PlanPartidoManualRaw> {
     return api.put<PlanPartidoManualRaw>(`/rivales/${rivalId}/plan-partido-manual`, data)
+  },
+
+  putPlanPartidoManualKeepalive(rivalId: string, data: PlanPartidoManualRaw): void {
+    api.putKeepalive(`/rivales/${rivalId}/plan-partido-manual`, data)
   },
 
   async uploadRivalClip(

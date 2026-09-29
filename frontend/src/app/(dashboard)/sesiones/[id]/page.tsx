@@ -215,6 +215,22 @@ function useAutoSave(sesionId: string, delay = 800) {
     [delay, flush]
   )
 
+  useEffect(() => {
+    const onHide = () => {
+      void flush()
+    }
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') onHide()
+    }
+    window.addEventListener('pagehide', onHide)
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      window.removeEventListener('pagehide', onHide)
+      document.removeEventListener('visibilitychange', onVis)
+      void flush()
+    }
+  }, [flush])
+
   return { save, flush, saving, dirtyRef }
 }
 

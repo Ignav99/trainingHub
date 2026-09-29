@@ -345,12 +345,36 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
     void persist({ silent: true }).catch(() => undefined)
   }
 
+  const leavingAnotadorRef = useRef(false)
+
   useEffect(() => {
     if (!ready) return
     if (!snap.started && snap.events.length === 0) return
     const t = window.setTimeout(() => persistSilentRef.current(), 12_000)
-    return () => window.clearTimeout(t)
+    return () => {
+      window.clearTimeout(t)
+      if (leavingAnotadorRef.current) persistSilentRef.current()
+    }
   }, [snap.events, snap.slots, snap.half, snap.form, snap.teamStats, snap.periods, snap.foulMap, snap.closed, snap.rivalDorsals, ready])
+
+  useEffect(() => {
+    return () => {
+      leavingAnotadorRef.current = true
+    }
+  }, [])
+
+  useEffect(() => {
+    const flush = () => persistSilentRef.current()
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') flush()
+    }
+    window.addEventListener('pagehide', flush)
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      window.removeEventListener('pagehide', flush)
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [])
 
   useEffect(() => {
     if (!snap.running) return

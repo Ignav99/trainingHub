@@ -48,6 +48,9 @@ def estado_desde_fechas(fecha_inicio: Any, fecha_fin: Any, hoy: Optional[date] =
 def aplicar_estado(row: dict, hoy: Optional[date] = None) -> dict:
     out = dict(row)
     out["estado"] = estado_desde_fechas(out.get("fecha_inicio"), out.get("fecha_fin"), hoy)
+    plan = out.get("plan_ct")
+    if isinstance(plan, dict) and "_historial" in plan:
+        out["plan_ct"] = {k: v for k, v in plan.items() if k != "_historial"}
     return out
 
 

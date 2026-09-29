@@ -59,6 +59,10 @@ export const microciclosApi = {
     return api.put<Microciclo>(`/microciclos/${id}`, { plan_ct })
   },
 
+  putPlanCTKeepalive(id: string, plan_ct: PlanCT): void {
+    api.putKeepalive(`/microciclos/${id}`, { plan_ct })
+  },
+
   async linkSesiones(id: string): Promise<{ linked: number }> {
     return api.post<{ linked: number }>(`/microciclos/${id}/link-sesiones`, {})
   },

@@ -58,6 +58,7 @@ export function PlanesEspecialesSemana({
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'ok' | 'error'>('idle')
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSyncedContentRef = useRef('')
+  const leavingRef = useRef(false)
 
   const contentFingerprint = entries
     .map((e) => `${e.id}|${e.jugador_id}|${e.descripcion}|${e.notas ?? ''}`)
@@ -117,8 +118,24 @@ export function PlanesEspecialesSemana({
 
     return () => {
       if (syncTimerRef.current) clearTimeout(syncTimerRef.current)
+      if (!leavingRef.current) return
+      const pending = entries.filter((e) => e.jugador_id && e.descripcion.trim())
+      if (pending.length === 0) return
+      void syncAllPlanesEspeciales(
+        equipoId,
+        microcicloId,
+        fechaInicio.slice(0, 10),
+        fechaFin.slice(0, 10),
+        pending
+      )
     }
   }, [contentFingerprint, entries, data, onChange, equipoId, microcicloId, fechaInicio, fechaFin])
+
+  useEffect(() => {
+    return () => {
+      leavingRef.current = true
+    }
+  }, [])
 
   const usedIds = new Set(entries.map((e) => e.jugador_id).filter(Boolean))
 
