@@ -599,7 +599,7 @@ function PhaseEditor({
         </div>
       )}
 
-      {fase === 'abp_defensiva' && (
+      {(fase === 'abp_ofensiva' || fase === 'abp_defensiva') && (
         <div className="grid grid-cols-2 gap-3">
           <TagBox
             title="Fortalezas"
