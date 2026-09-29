@@ -133,11 +133,11 @@ describe('Comentarios Rival persist on the rival profile', () => {
     assert.equal(merged.estrategia?.notas, 'Olfato histórico en el microciclo')
   })
 
-  it('keeps an explicit empty profile comment instead of restoring weekly notes', () => {
+  it('a blank profile comment does not hide notes that still exist on the week', () => {
     const merged = mergeScoutOnLoad(
       { estrategia: { notas: '' } },
       { estrategia: { notas: 'Notas viejas del microciclo' } }
     )
-    assert.equal(merged.estrategia?.notas, '')
+    assert.equal(merged.estrategia?.notas, 'Notas viejas del microciclo')
   })
 })

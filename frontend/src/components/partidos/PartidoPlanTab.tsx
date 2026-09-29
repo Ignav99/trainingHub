@@ -11,7 +11,12 @@ import {
   savePartidoPlan,
   type PartidoPlanContext,
 } from '@/lib/partidoPlanContext'
-import { PLAN_TRAMO_LABEL } from '@/lib/planPartidoTramos'
+import { PLAN_TRAMO_LABEL, wrapPlanTramos } from '@/lib/planPartidoTramos'
+import { extractPersistentPlanPartido, mergePlanPartidoOnLoad } from '@/lib/rivalPlanPartidoSync'
+import { readDraft } from '@/lib/durableDraft'
+import { useDurableAutosave } from '@/hooks/useDurableAutosave'
+import { microciclosApi } from '@/lib/api/microciclos'
+import { rivalesApi } from '@/lib/api/partidos'
 
 interface PartidoPlanTabProps {
   partido: Partido
@@ -25,20 +30,18 @@ export function PartidoPlanTab({ partido, equipoId }: PartidoPlanTabProps) {
   const [context, setContext] = useState<PartidoPlanContext>({ microcicloId: null, source: 'empty', tramo: 'ida' })
   const [loading, setLoading] = useState(true)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const contextRef = useRef(context)
-  const isMountedRef = useRef(false)
   contextRef.current = context
+  const draftKey = `th-draft:v1:partido-plan:${partido.id}`
 
   useEffect(() => {
-    isMountedRef.current = false
     let cancelled = false
     setLoading(true)
     loadPartidoPlan(partido.id, equipoId, partido.rival_id, partido.fecha)
       .then(({ plan: loaded, context: ctx }) => {
         if (cancelled) return
-        setPlan(loaded)
+        const draft = readDraft<Partial<PlanPartidoData>>(draftKey)
+        setPlan(mergePlanPartidoOnLoad(loaded, draft))
         setContext(ctx)
       })
       .catch((err) => {
@@ -54,32 +57,31 @@ export function PartidoPlanTab({ partido, equipoId }: PartidoPlanTabProps) {
     }
   }, [partido.id, partido.rival_id, equipoId])
 
-  useEffect(() => {
-    if (loading) return
-    if (!isMountedRef.current) {
-      isMountedRef.current = true
-      return
-    }
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
-
-    setSaveStatus('pending')
-    saveTimerRef.current = setTimeout(async () => {
-      try {
-        await savePartidoPlan(plan, contextRef.current, partido.rival_id)
-        setSaveStatus('saved')
-        idleTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000)
-      } catch (err) {
-        setSaveStatus('error')
-        toast.error(err instanceof Error ? err.message : 'Error al guardar plan de partido')
+  useDurableAutosave({
+    enabled: !loading,
+    storageKey: draftKey,
+    value: plan,
+    save: async (next) => {
+      await savePartidoPlan(next, contextRef.current, partido.rival_id)
+    },
+    keepaliveSave: (next) => {
+      const ctx = contextRef.current
+      const persistent = extractPersistentPlanPartido(next)
+      if (ctx.microcicloId) {
+        microciclosApi.putPlanCTKeepalive(ctx.microcicloId, { plan_partido: next })
       }
-    }, 1500)
-
-    return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-      if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
-    }
-  }, [plan, loading, partido.rival_id])
+      if (partido.rival_id) {
+        rivalesApi.putPlanPartidoManualKeepalive(
+          partido.rival_id,
+          wrapPlanTramos({
+            ida: ctx.tramo === 'ida' ? persistent : {},
+            vuelta: ctx.tramo === 'vuelta' ? persistent : {},
+          })
+        )
+      }
+    },
+    onStatus: setSaveStatus,
+  })
 
   if (loading) {
     return (

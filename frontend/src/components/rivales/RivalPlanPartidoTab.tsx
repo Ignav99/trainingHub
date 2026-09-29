@@ -1,13 +1,14 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { toast } from 'sonner'
+import { useState, useEffect } from 'react'
 import { PlanPartido } from '@/components/microciclos/PlanPartido'
 import { PlanTramoToggle } from '@/components/rivales/PlanTramoToggle'
 import { rivalesApi, partidosApi } from '@/lib/api/partidos'
 import { useEquipoStore } from '@/stores/equipoStore'
 import type { PlanPartidoData } from '@/types'
-import { extractPersistentPlanPartido } from '@/lib/rivalPlanPartidoSync'
+import { extractPersistentPlanPartido, mergePlanPartidoOnLoad } from '@/lib/rivalPlanPartidoSync'
+import { readDraft } from '@/lib/durableDraft'
+import { useDurableAutosave } from '@/hooks/useDurableAutosave'
 import {
   inferPlanTramo,
   unwrapPlanTramos,
@@ -34,10 +35,7 @@ export function RivalPlanPartidoTab({ rivalId, rivalNombre, rivalEscudoUrl, esta
   })
   const [loaded, setLoaded] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const isMountedRef = useRef(false)
-  const plansRef = useRef(plans)
-  plansRef.current = plans
+  const draftKey = `th-draft:v1:rival-plan:${rivalId}`
 
   useEffect(() => {
     let cancelled = false
@@ -56,7 +54,11 @@ export function RivalPlanPartidoTab({ rivalId, rivalNombre, rivalEscudoUrl, esta
       .then(([raw, partidos]) => {
         if (cancelled) return
         const store = unwrapPlanTramos(raw)
-        setPlans(store)
+        const draftStore = unwrapPlanTramos(readDraft(draftKey))
+        setPlans({
+          ida: mergePlanPartidoOnLoad(store.ida, draftStore.ida),
+          vuelta: mergePlanPartidoOnLoad(store.vuelta, draftStore.vuelta),
+        })
         setTramo(inferPlanTramo(partidos.data || []))
         setLoaded(true)
       })
@@ -68,35 +70,23 @@ export function RivalPlanPartidoTab({ rivalId, rivalNombre, rivalEscudoUrl, esta
     }
   }, [rivalId, equipoActivo?.id])
 
-  useEffect(() => {
-    if (!loaded || !isMountedRef.current) {
-      isMountedRef.current = true
-      return
-    }
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    setSaveStatus('pending')
+  const planPayload = wrapPlanTramos({
+    ida: extractPersistentPlanPartido(plans.ida),
+    vuelta: extractPersistentPlanPartido(plans.vuelta),
+  })
 
-    saveTimerRef.current = setTimeout(async () => {
-      try {
-        await rivalesApi.putPlanPartidoManual(
-          rivalId,
-          wrapPlanTramos({
-            ida: extractPersistentPlanPartido(plansRef.current.ida),
-            vuelta: extractPersistentPlanPartido(plansRef.current.vuelta),
-          })
-        )
-        setSaveStatus('saved')
-        setTimeout(() => setSaveStatus('idle'), 2000)
-      } catch (err: unknown) {
-        setSaveStatus('error')
-        toast.error(err instanceof Error ? err.message : 'Error al guardar plan de partido')
-      }
-    }, 1500)
-
-    return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    }
-  }, [plans, rivalId, loaded])
+  useDurableAutosave({
+    enabled: loaded,
+    storageKey: draftKey,
+    value: planPayload,
+    save: async (body) => {
+      await rivalesApi.putPlanPartidoManual(rivalId, body)
+    },
+    keepaliveSave: (body) => {
+      rivalesApi.putPlanPartidoManualKeepalive(rivalId, body)
+    },
+    onStatus: setSaveStatus,
+  })
 
   if (!loaded) {
     return <p className="text-sm text-muted-foreground py-8 text-center">Cargando plan de partido...</p>

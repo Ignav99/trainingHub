@@ -241,6 +241,25 @@ class ApiClient {
     return response.json()
   }
 
+  /** Envío que sobrevive a cerrar la pestaña. No espera respuesta. */
+  putKeepalive(path: string, data?: unknown): void {
+    if (typeof window === 'undefined') return
+    const token = getPersistedToken()
+    try {
+      void fetch(this.buildUrl(path), {
+        method: 'PUT',
+        keepalive: true,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: data ? JSON.stringify(data) : undefined,
+      })
+    } catch {
+      // El borrador local cubre el caso en que el navegador rechaza el envío.
+    }
+  }
+
   async patch<T>(path: string, data?: unknown, options?: FetchOptions): Promise<T> {
     const url = this.buildUrl(path, options?.params)
     const authHeaders = await this.getAuthHeaders()

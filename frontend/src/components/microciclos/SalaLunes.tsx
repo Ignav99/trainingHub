@@ -29,6 +29,8 @@ import {
   type PlanTramo,
 } from '@/lib/planPartidoTramos'
 import { toast } from 'sonner'
+import { preferText, readDraft } from '@/lib/durableDraft'
+import { useDurableAutosave } from '@/hooks/useDurableAutosave'
 import type { VistaCompletaMicrociclo, PlanCT, TipoMicrociclo, Jugador, MatchDay, PlanPartidoData } from '@/types'
 
 import { RivalScout } from './RivalScout'
@@ -180,9 +182,6 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
   const [planCT, setPlanCT] = useState<PlanCT>(data.microciclo.plan_ct ?? {})
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [planTramo, setPlanTramo] = useState<PlanTramo>('ida')
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const isMountedRef = useRef(false)
   const planStoreRef = useRef<Record<PlanTramo, Partial<PlanPartidoData>>>({ ida: {}, vuelta: {} })
   const planTramoRef = useRef<PlanTramo>('ida')
   planTramoRef.current = planTramo
@@ -237,43 +236,57 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
       .catch((err) => console.error('Error cargando perfil del rival:', err))
   }, [micro.rival_id, micro.equipo_id, micro.partidos?.fecha])
 
-  // Auto-save
+  const salaDraftKey = `th-draft:v1:sala:${microcicloId}`
+  const draftAppliedRef = useRef(false)
   useEffect(() => {
-    if (!isMountedRef.current) {
-      isMountedRef.current = true
-      return
-    }
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
+    if (draftAppliedRef.current) return
+    draftAppliedRef.current = true
+    const draft = readDraft<PlanCT>(salaDraftKey)
+    if (!draft) return
+    setPlanCT((prev) => ({
+      ...prev,
+      ...draft,
+      olfato_ct: preferText(prev.olfato_ct, draft.olfato_ct),
+      observaciones_ct: preferText(prev.observaciones_ct, draft.observaciones_ct),
+      rival_scout: mergeScoutOnLoad(prev.rival_scout, draft.rival_scout),
+      plan_partido: mergePlanPartidoOnLoad(prev.plan_partido, draft.plan_partido),
+    }))
+  }, [salaDraftKey])
 
-    setSaveStatus('pending')
+  const rivalIdRef = useRef(micro.rival_id)
+  rivalIdRef.current = micro.rival_id
 
-    saveTimerRef.current = setTimeout(async () => {
-      try {
-        await microciclosApi.patchPlanCT(microcicloId, planCT)
-        if (micro.rival_id && planCT.rival_scout) {
-          await rivalesApi.putScoutManual(micro.rival_id, extractPersistentScout(planCT.rival_scout))
-        }
-        if (micro.rival_id && planCT.plan_partido) {
-          const store = { ...planStoreRef.current }
-          store[planTramoRef.current] = extractPersistentPlanPartido(planCT.plan_partido)
-          planStoreRef.current = store
-          await rivalesApi.putPlanPartidoManual(micro.rival_id, wrapPlanTramos(store))
-        }
-        setSaveStatus('saved')
-        idleTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000)
-      } catch (err: any) {
-        setSaveStatus('error')
-        toast.error(err?.message || 'Error al guardar la Sala del Lunes')
-        console.error('Error guardando plan_ct:', err)
+  useDurableAutosave({
+    enabled: true,
+    storageKey: salaDraftKey,
+    value: planCT,
+    save: async (next) => {
+      await microciclosApi.patchPlanCT(microcicloId, next)
+      const rivalId = rivalIdRef.current
+      if (rivalId && next.rival_scout) {
+        await rivalesApi.putScoutManual(rivalId, extractPersistentScout(next.rival_scout))
       }
-    }, 1500)
-
-    return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-      if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
-    }
-  }, [planCT, microcicloId])
+      if (rivalId && next.plan_partido) {
+        const store = { ...planStoreRef.current }
+        store[planTramoRef.current] = extractPersistentPlanPartido(next.plan_partido)
+        planStoreRef.current = store
+        await rivalesApi.putPlanPartidoManual(rivalId, wrapPlanTramos(store))
+      }
+    },
+    keepaliveSave: (next) => {
+      microciclosApi.putPlanCTKeepalive(microcicloId, next)
+      const rivalId = rivalIdRef.current
+      if (rivalId && next.rival_scout) {
+        rivalesApi.putScoutManualKeepalive(rivalId, extractPersistentScout(next.rival_scout))
+      }
+      if (rivalId && next.plan_partido) {
+        const store = { ...planStoreRef.current }
+        store[planTramoRef.current] = extractPersistentPlanPartido(next.plan_partido)
+        rivalesApi.putPlanPartidoManualKeepalive(rivalId, wrapPlanTramos(store))
+      }
+    },
+    onStatus: setSaveStatus,
+  })
 
   const updatePlanCT = (patch: Partial<PlanCT>) => setPlanCT((prev) => ({ ...prev, ...patch }))
 

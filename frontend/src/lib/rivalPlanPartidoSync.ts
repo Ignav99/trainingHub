@@ -6,6 +6,7 @@ import type {
   RivalSubfaseAtaque,
   RivalSubfaseDefensa,
 } from '@/types'
+import { preferText } from '@/lib/durableDraft'
 
 const FASE_ORDER: FasePlanPartido[] = [
   'ataque_organizado',
@@ -78,8 +79,8 @@ function mergeSubfases(
     const s = saved?.[key]
     const l = local?.[key]
     merged[key] = {
-      sistema: s?.sistema ?? l?.sistema ?? '',
-      notas: s?.notas ?? l?.notas ?? '',
+      sistema: preferText(s?.sistema, l?.sistema),
+      notas: preferText(s?.notas, l?.notas),
       roles: s?.roles?.length ? s.roles : l?.roles ?? [],
       pizarra_tactica: s?.pizarra_tactica ?? l?.pizarra_tactica,
       pizarra_diagrama: s?.pizarra_diagrama ?? l?.pizarra_diagrama,
@@ -102,8 +103,8 @@ export function mergePlanPartidoOnLoad(
     const l = localByFase.get(fase)
     return {
       fase,
-      texto: s?.texto ?? l?.texto ?? '',
-      sistema: s?.sistema ?? l?.sistema ?? '',
+      texto: preferText(s?.texto, l?.texto),
+      sistema: preferText(s?.sistema, l?.sistema),
       subfases: mergeSubfases(s?.subfases, l?.subfases),
       jugadas_abp: s?.jugadas_abp?.length ? s.jugadas_abp : l?.jugadas_abp ?? [],
       roles: s?.roles?.length ? s.roles : l?.roles ?? [],

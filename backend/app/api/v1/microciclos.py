@@ -35,6 +35,7 @@ from app.services.microciclo_estado import (
     persist_estado,
 )
 from app.services.microciclo_partido import apply_auto_link_partido
+from app.services.staff_text_guard import merge_staff_document
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -526,6 +527,12 @@ async def update_microciclo(
     for fk in ("partido_id", "rival_id", "game_model_id"):
         if fk in update_data:
             update_data[fk] = str(update_data[fk]) if update_data[fk] else None
+
+    if isinstance(update_data.get("plan_ct"), dict):
+        update_data["plan_ct"] = merge_staff_document(
+            existing.data.get("plan_ct") or {},
+            update_data["plan_ct"],
+        )
 
     response = supabase.table("microciclos").update(update_data).eq(
         "id", str(microciclo_id)

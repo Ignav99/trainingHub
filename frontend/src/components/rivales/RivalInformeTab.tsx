@@ -1,14 +1,15 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import useSWR from 'swr'
-import { toast } from 'sonner'
 import { RivalScout } from '@/components/microciclos/RivalScout'
 import { rivalesApi } from '@/lib/api/partidos'
 import { apiKey } from '@/lib/swr'
 import type { RFEFCompeticion } from '@/lib/api/rfef'
 import type { RivalScoutData } from '@/types'
-import { extractPersistentScout } from '@/lib/rivalScoutSync'
+import { extractPersistentScout, mergeScoutOnLoad } from '@/lib/rivalScoutSync'
+import { readDraft } from '@/lib/durableDraft'
+import { useDurableAutosave } from '@/hooks/useDurableAutosave'
 
 interface RivalInformeTabProps {
   rivalId: string
@@ -27,8 +28,7 @@ export function RivalInformeTab({ rivalId, rivalNombre, rivalEscudoUrl, equipoId
   const [scout, setScout] = useState<Partial<RivalScoutData>>({})
   const [loaded, setLoaded] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const isMountedRef = useRef(false)
+  const draftKey = `th-draft:v1:rival-scout:${rivalId}`
 
   const { data: rfefRes } = useSWR<{ data: RFEFCompeticion[] }>(
     equipoId ? apiKey('/rfef/competiciones', { equipo_id: equipoId }) : null
@@ -41,7 +41,8 @@ export function RivalInformeTab({ rivalId, rivalNombre, rivalEscudoUrl, equipoId
       .getScoutManual(rivalId)
       .then((data) => {
         if (!cancelled) {
-          setScout(data ?? {})
+          const draft = readDraft<Partial<RivalScoutData>>(draftKey)
+          setScout(mergeScoutOnLoad(data ?? {}, draft))
           setLoaded(true)
         }
       })
@@ -53,29 +54,20 @@ export function RivalInformeTab({ rivalId, rivalNombre, rivalEscudoUrl, equipoId
     }
   }, [rivalId])
 
-  useEffect(() => {
-    if (!loaded || !isMountedRef.current) {
-      isMountedRef.current = true
-      return
-    }
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    setSaveStatus('pending')
+  const scoutPayload = extractPersistentScout(scout)
 
-    saveTimerRef.current = setTimeout(async () => {
-      try {
-        await rivalesApi.putScoutManual(rivalId, extractPersistentScout(scout))
-        setSaveStatus('saved')
-        setTimeout(() => setSaveStatus('idle'), 2000)
-      } catch (err: unknown) {
-        setSaveStatus('error')
-        toast.error(err instanceof Error ? err.message : 'Error al guardar informe rival')
-      }
-    }, 1500)
-
-    return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    }
-  }, [scout, rivalId, loaded])
+  useDurableAutosave({
+    enabled: loaded,
+    storageKey: draftKey,
+    value: scoutPayload,
+    save: async (body) => {
+      await rivalesApi.putScoutManual(rivalId, body)
+    },
+    keepaliveSave: (body) => {
+      rivalesApi.putScoutManualKeepalive(rivalId, body)
+    },
+    onStatus: setSaveStatus,
+  })
 
   if (!loaded) {
     return <p className="text-sm text-muted-foreground py-8 text-center">Cargando informe rival...</p>
