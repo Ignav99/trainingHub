@@ -117,6 +117,7 @@ export interface RevisionClipUploadMeta {
   equipo_id: string
   titulo: string
   frase?: string
+  nota?: string
   folder_id?: string
   fase?: string
   duration_ms?: number
@@ -288,6 +289,7 @@ export const revisionApi = {
       size_bytes: file.size,
       mime_type: prepared.mime_type || file.type || 'video/webm',
       frase: meta.frase,
+      nota: meta.nota,
       folder_id: meta.folder_id,
       fase: meta.fase,
       duration_ms: meta.duration_ms,

@@ -5,9 +5,11 @@ export type PickerPartido = {
   jornada?: number
 }
 
+export type VideoWatchMode = 'revision' | 'informe_rival'
+
 export type VideoSourceChoice =
   | { kind: 'loose' }
-  | { kind: 'match'; partidoId: string }
+  | { kind: 'match'; partidoId: string; mode: VideoWatchMode }
 
 export interface PartidoMonthGroup<T extends PickerPartido = PickerPartido> {
   key: string
@@ -37,4 +39,35 @@ export function groupPartidosByMonth<T extends PickerPartido>(partidos: T[]): Pa
 
 export function localiaLabel(localia: string): string {
   return localia === 'local' ? 'Casa · ida' : 'Fuera · vuelta'
+}
+
+export function watchModeLabel(mode: VideoWatchMode): string {
+  return mode === 'informe_rival' ? 'Informe del rival' : 'Revisión del partido'
+}
+
+/**
+ * Informe del rival: el vídeo es de ese rival contra otro equipo.
+ * Los recortes van a su informe y no a la revisión del partido que vais a jugar.
+ */
+export function revisionLinkForMode(mode: VideoWatchMode): {
+  lockAmbito: 'rival' | null
+  attachUpcomingMatch: boolean
+} {
+  if (mode === 'informe_rival') {
+    return { lockAmbito: 'rival', attachUpcomingMatch: false }
+  }
+  return { lockAmbito: null, attachUpcomingMatch: true }
+}
+
+/** Etiqueta del partido visto (el rival contra otro equipo), p. ej. "vs Herrera". */
+export function watchedMatchNote(opponent: string): string | undefined {
+  const name = opponent.trim().replace(/^vs\.?\s+/i, '')
+  if (!name) return undefined
+  return `vs ${name}`
+}
+
+export function canLoadMatchVideo(mode: VideoWatchMode | null, watchedOpponent: string): boolean {
+  if (!mode) return false
+  if (mode === 'informe_rival') return Boolean(watchedMatchNote(watchedOpponent))
+  return true
 }

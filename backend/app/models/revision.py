@@ -62,6 +62,7 @@ class ClipConfirmRequest(BaseModel):
     size_bytes: int
     mime_type: Optional[str] = None
     frase: Optional[str] = None
+    nota: Optional[str] = None
     folder_id: Optional[UUID] = None
     fase: Optional[str] = None
     duration_ms: Optional[int] = None
