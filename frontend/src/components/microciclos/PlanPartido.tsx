@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type {
   ClipRival,
@@ -29,6 +28,7 @@ import { buildPlanShow, buildInformeShow, type DossierShow } from '@/lib/dossier
 import { loadContextoIntelLines, loadInformeDataForCharla, prepareCharlaSala, prepareDossierSala } from '@/lib/dossierPresentar'
 import type { RevisionSession } from '@/lib/api/revision'
 import { useClubStore } from '@/stores/clubStore'
+import { OrganizedPhaseStack, organizedSubfases } from './OrganizedPhaseStack'
 import { PlanPartidoABPSection } from './PlanPartidoABPSection'
 import { RevisionLibrary } from '@/components/revision/RevisionLibrary'
 import { api } from '@/lib/api/client'
@@ -62,22 +62,6 @@ const FASES: { fase: FasePlanPartido; label: string; color: string }[] = [
   { fase: 'abp_ofensiva', label: 'ABP Ofensiva', color: 'text-purple-600' },
   { fase: 'abp_defensiva', label: 'ABP Defensiva', color: 'text-amber-600' },
 ]
-
-const SUBFASES_ATAQUE: { key: RivalSubfaseAtaque; label: string }[] = [
-  { key: 'creacion', label: 'Creación' },
-  { key: 'progresion', label: 'Progresión' },
-  { key: 'finalizacion', label: 'Finalización' },
-]
-
-const SUBFASES_DEFENSA: { key: RivalSubfaseDefensa; label: string }[] = [
-  { key: 'bloque_alto', label: 'Bloque alto' },
-  { key: 'bloque_medio', label: 'Bloque medio' },
-  { key: 'bloque_bajo', label: 'Bloque bajo' },
-]
-
-function isSubfasePhase(fase: FasePlanPartido) {
-  return fase === 'ataque_organizado' || fase === 'defensa_organizada'
-}
 
 function isTransitionPhase(fase: FasePlanPartido) {
   return fase === 'transicion_ofensiva' || fase === 'transicion_defensiva'
@@ -308,59 +292,32 @@ export function PlanPartido({
 
           {FASES.map((section) => {
             const phase = getPhase(section.fase)
-            const subfaseList =
-              section.fase === 'ataque_organizado'
-                ? SUBFASES_ATAQUE
-                : section.fase === 'defensa_organizada'
-                  ? SUBFASES_DEFENSA
-                  : null
+            const subfases = organizedSubfases(section.fase)
 
             return (
               <TabsContent key={section.fase} value={section.fase} className="space-y-4 mt-4">
                 <p className={`text-xs font-semibold ${section.color}`}>{section.label}</p>
 
-                {isSubfasePhase(section.fase) && subfaseList && (
-                  <Tabs defaultValue={subfaseList[0].key}>
-                    <TabsList className="flex flex-wrap h-auto gap-1">
-                      {subfaseList.map((s) => (
-                        <TabsTrigger key={s.key} value={s.key} className="text-[10px] px-2 py-1">
-                          {s.label}
-                        </TabsTrigger>
-                      ))}
-                    </TabsList>
-                    {subfaseList.map((s) => {
+                {subfases && (
+                  <OrganizedPhaseStack
+                    idPrefix={section.fase}
+                    general={phase.comentario_general ?? ''}
+                    onGeneral={(comentario_general) => updatePhase(section.fase, { comentario_general })}
+                    items={subfases.map((s) => {
                       const sub = phase.subfases?.[s.key] ?? { notas: '' }
-                      return (
-                        <TabsContent key={s.key} value={s.key} className="space-y-3 mt-3">
-                          <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Sistema a utilizar</Label>
-                            <Input
-                              value={sub.sistema ?? ''}
-                              onChange={(e) =>
-                                updateSubfase(section.fase, s.key, { sistema: e.target.value })
-                              }
-                              placeholder="Ej: 4-3-3, 3-2-5, rombo en salida..."
-                              className="h-8 text-xs"
-                            />
-                          </div>
-                          <Textarea
-                            rows={3}
-                            value={sub.notas}
-                            onChange={(e) =>
-                              updateSubfase(section.fase, s.key, { notas: e.target.value })
-                            }
-                            placeholder={`Plan táctico en ${s.label.toLowerCase()}...`}
-                            className="text-sm resize-none"
-                          />
-                          <DossierTacticalBoard
-                            value={sub.pizarra_diagrama}
-                            title={`Pizarra · ${s.label}`}
-                            onChange={(patch) => updateSubfase(section.fase, s.key, patch)}
-                          />
-                        </TabsContent>
-                      )
+                      return {
+                        key: s.key,
+                        label: s.label,
+                        notas: sub.notas ?? '',
+                        diagrama: sub.pizarra_diagrama,
+                        fortalezas: sub.fortalezas ?? [],
+                        debilidades: sub.debilidades ?? [],
+                      }
                     })}
-                  </Tabs>
+                    onChange={(key, patch) =>
+                      updateSubfase(section.fase, key as RivalSubfaseAtaque | RivalSubfaseDefensa, patch)
+                    }
+                  />
                 )}
 
                 {section.fase === 'ataque_organizado' && (

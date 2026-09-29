@@ -433,27 +433,128 @@ function portadaSlide(kind: ShowKind, meta: ShowMeta): ShowSlide {
   }
 }
 
+const ORGANIZED_KEYS = {
+  ataque_organizado: ['creacion', 'progresion', 'finalizacion'],
+  defensa_organizada: ['bloque_alto', 'bloque_medio', 'bloque_bajo'],
+} as const
+
+function isOrganizedFase(
+  fase: FasePlanPartido
+): fase is 'ataque_organizado' | 'defensa_organizada' {
+  return fase === 'ataque_organizado' || fase === 'defensa_organizada'
+}
+
+function subfaseHasOwnContent(sub: {
+  notas?: string
+  fortalezas?: string[]
+  debilidades?: string[]
+  pizarra_tactica?: string
+  pizarra_diagrama?: TareaPizarraData
+} | undefined): boolean {
+  if (!sub) return false
+  return Boolean(
+    sub.notas?.trim() ||
+      (sub.fortalezas?.length ?? 0) > 0 ||
+      (sub.debilidades?.length ?? 0) > 0 ||
+      sub.pizarra_tactica ||
+      boardLoops(sub.pizarra_diagrama) ||
+      diagramHasContent(sub.pizarra_diagrama)
+  )
+}
+
+function organizedPhaseSlides(
+  fase: 'ataque_organizado' | 'defensa_organizada',
+  phase: RivalPhaseAnalysis | PlanPartidoPhase | undefined
+): ShowSlide[] | null {
+  if (!phase) return null
+  const keys = ORGANIZED_KEYS[fase]
+  const subs = phase.subfases
+  const hasSub = keys.some((key) => subfaseHasOwnContent(subs?.[key]))
+  const general = (phase.comentario_general || '').trim()
+  if (!hasSub && !general) return null
+
+  const anySubTags = keys.some((key) => {
+    const sub = subs?.[key]
+    return (sub?.fortalezas?.length ?? 0) > 0 || (sub?.debilidades?.length ?? 0) > 0
+  })
+
+  const parentBullets: string[] = []
+  pushLine(parentBullets, general)
+  if (!anySubTags && 'fortalezas' in phase) {
+    pushAll(parentBullets, phase.fortalezas)
+    pushAll(parentBullets, phase.debilidades)
+  }
+  if ('formacion' in phase) {
+    pushLine(parentBullets, phase.formacion)
+    pushLine(parentBullets, phase.espacios)
+  }
+
+  const slides: ShowSlide[] = []
+  const parent = finalizeBullets(parentBullets)
+  if (parent.length > 0) {
+    slides.push({
+      id: `fase:${fase}`,
+      kind: 'fase',
+      fase,
+      kicker: 'Fase',
+      title: SHOW_FASE_LABELS[fase],
+      bullets: parent,
+    })
+  }
+
+  for (const key of keys) {
+    const sub = subs?.[key]
+    if (!subfaseHasOwnContent(sub)) continue
+    const bullets: string[] = []
+    pushLine(bullets, sub?.notas)
+    const sistema = sub && 'sistema' in sub ? sub.sistema : undefined
+    if (sistema?.trim() && sistema.trim() !== sub?.notas?.trim()) pushLine(bullets, sistema)
+    for (const item of sub?.fortalezas ?? []) pushLine(bullets, `Fortaleza: ${item}`)
+    for (const item of sub?.debilidades ?? []) pushLine(bullets, `Debilidad: ${item}`)
+    const board =
+      sub?.pizarra_diagrama &&
+      (boardLoops(sub.pizarra_diagrama) || diagramHasContent(sub.pizarra_diagrama))
+        ? sub.pizarra_diagrama
+        : undefined
+    slides.push({
+      id: `fase:${fase}:${key}`,
+      kind: 'fase',
+      fase,
+      kicker: SHOW_FASE_LABELS[fase],
+      title: SUBFASE_LABELS[key] ?? key,
+      bullets: finalizeBullets(bullets),
+      board,
+    })
+  }
+
+  return slides.length > 0 ? slides : null
+}
+
 function phaseBlock(
   fase: FasePlanPartido,
   phase: RivalPhaseAnalysis | PlanPartidoPhase | undefined,
   bullets: string[]
 ): ShowSlide[] {
+  const organized = isOrganizedFase(fase) ? organizedPhaseSlides(fase, phase) : null
   const clips = playableClips(phase && 'clips' in phase ? phase.clips : undefined)
-  const board = pickBoard(phase)
-  if (bullets.length === 0 && !board && clips.length === 0) return []
-
-  const title = SHOW_FASE_LABELS[fase]
-  const slides: ShowSlide[] = [
-    {
+  const board = organized ? undefined : pickBoard(phase)
+  const slides: ShowSlide[] = organized ? [...organized] : []
+  if (!organized) {
+    if (bullets.length === 0 && !board && clips.length === 0) return []
+    slides.push({
       id: `fase:${fase}`,
       kind: 'fase',
       fase,
       kicker: 'Fase',
-      title,
+      title: SHOW_FASE_LABELS[fase],
       bullets,
       board,
-    },
-  ]
+    })
+  } else if (slides.length === 0 && clips.length === 0) {
+    return []
+  }
+
+  const title = SHOW_FASE_LABELS[fase]
   clips.forEach((clip, index) => {
     const src = playableClipUrl(clip.url)
     if (!src) return

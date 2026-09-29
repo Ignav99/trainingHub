@@ -172,6 +172,8 @@ def _fase_bullets(block: Any) -> list[str]:
         if tags:
             label = "Ellos" if key == "fortalezas" else "Atacar"
             out.append(f"{label}: {', '.join(tags[:3])}")
+    if block.get("comentario_general"):
+        out.append(str(block["comentario_general"]))
     if block.get("idea"):
         out.append(str(block["idea"]))
     for key in ("formacion", "espacios", "repliegue", "abp_comentarios"):
