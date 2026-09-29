@@ -977,9 +977,17 @@ export default function TacticalBoardEditor({
     )
   }
 
+  const abpRolesOpen = roleMode === 'abp' && !isPlaying
+  const pitchAspect = pitchType === 'half' ? '680 / 525' : isHorizontal ? '1050 / 680' : '680 / 1050'
+
   const boardCanvas = (
     <div
-      className="flex-1 min-h-0 bg-green-900 overflow-hidden relative"
+      className={
+        abpRolesOpen
+          ? 'abp-pitch-fit relative min-h-0 overflow-hidden bg-green-900'
+          : 'relative min-h-0 flex-1 overflow-hidden bg-green-900'
+      }
+      style={abpRolesOpen ? ({ '--abp-aspect': pitchAspect } as React.CSSProperties) : undefined}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={resetInteractions}
@@ -1087,10 +1095,31 @@ export default function TacticalBoardEditor({
         onExport={() => setShowExport(true)}
       />
 
-      {/* Pitch + roles de ABP a la derecha */}
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+      {/* Pitch + roles de ABP a la derecha. El campo ocupa solo su proporción;
+          el verde sobrante de los laterales pasa al recuadro de roles. */}
+      {abpRolesOpen ? (
+        <style>{`
+          .abp-pitch-fit {
+            flex: 1 1 auto;
+            width: 100%;
+            min-height: 0;
+          }
+          @media (min-width: 768px) {
+            .abp-pitch-fit {
+              flex: 0 1 auto;
+              align-self: center;
+              height: 100%;
+              width: auto;
+              max-width: calc(100% - 22rem);
+              aspect-ratio: var(--abp-aspect);
+              background: transparent;
+            }
+          }
+        `}</style>
+      ) : null}
+      <div className={`flex min-h-0 flex-1 flex-col md:flex-row ${abpRolesOpen ? 'abp-pitch-row' : ''}`}>
         {boardCanvas}
-        {roleMode === 'abp' && !isPlaying ? <ABPCampoRolesPanel /> : null}
+        {abpRolesOpen ? <ABPCampoRolesPanel /> : null}
       </div>
 
       {/* Animation controls (only in animated mode) */}

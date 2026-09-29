@@ -22,7 +22,7 @@ export default function ABPCampoRolesPanel() {
   }
 
   return (
-    <aside className="flex w-full shrink-0 flex-col border-t bg-white md:w-80 md:border-l md:border-t-0">
+    <aside className="flex max-h-[42%] min-h-0 w-full shrink-0 flex-col border-t bg-white md:max-h-none md:min-w-[22rem] md:flex-1 md:border-l md:border-t-0">
       <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
         <p className="text-xs font-semibold text-gray-700">Roles del campo</p>
         <button
@@ -43,8 +43,8 @@ export default function ABPCampoRolesPanel() {
         {roles.map((rol) => {
           const chips = Array.from(new Set([...onPitch, ...rol.dorsales]))
           return (
-            <div key={rol.id} className="flex items-start gap-2 rounded-md border border-gray-200 p-2">
-              <div className="flex min-w-0 flex-1 flex-wrap gap-1">
+            <div key={rol.id} className="flex items-stretch gap-2 rounded-md border border-gray-200 p-2">
+              <div className="flex w-[7.5rem] shrink-0 flex-wrap content-start gap-1 sm:w-36">
                 {chips.length === 0 ? (
                   <span className="text-[11px] text-gray-400">Pon dorsales en el campo</span>
                 ) : (
@@ -73,8 +73,8 @@ export default function ABPCampoRolesPanel() {
                 value={rol.texto}
                 onChange={(e) => update(rol.id, { texto: e.target.value })}
                 placeholder="Qué hace en la jugada"
-                rows={3}
-                className="h-20 w-36 shrink-0 resize-none rounded-md border border-gray-300 px-2 py-1 text-xs leading-snug"
+                rows={4}
+                className="min-h-24 w-full flex-1 resize-y rounded-md border border-gray-300 px-2 py-1.5 text-sm leading-snug"
               />
               <button
                 type="button"
