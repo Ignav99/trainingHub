@@ -5,7 +5,7 @@ import {
 } from '@/lib/api/revision'
 import { rivalesApi } from '@/lib/api/partidos'
 import { api } from '@/lib/api/client'
-import { collectIntelPdfLines } from '@/lib/pdf/informeRivalPdfBlocks'
+import { collectIntelVisual, type IntelVisual } from '@/lib/pdf/informeRivalPdfBlocks'
 import {
   attachRevisionPack,
   concatCharlaShow,
@@ -14,19 +14,19 @@ import {
 import { pickPlanForCharla, type PlanTramo } from '@/lib/planPartidoTramos'
 import type { PlanPartidoData, RivalScoutData } from '@/types'
 
-export async function loadContextoIntelLines(equipoId?: string, rivalId?: string): Promise<string[]> {
-  if (!equipoId || !rivalId) return []
+export async function loadShowIntel(equipoId?: string, rivalId?: string): Promise<IntelVisual | undefined> {
+  if (!equipoId || !rivalId) return undefined
   try {
     const res = await api.get<{ data: Array<{ id: string; mi_equipo_nombre?: string | null }> }>(
       '/rfef/competiciones',
       { params: { equipo_id: equipoId } },
     )
     const competicionId = res.data?.find((item) => item.mi_equipo_nombre)?.id
-    if (!competicionId) return []
+    if (!competicionId) return undefined
     const intel = await rivalesApi.getIntel(rivalId, competicionId)
-    return collectIntelPdfLines(intel)
+    return collectIntelVisual(intel)
   } catch {
-    return []
+    return undefined
   }
 }
 

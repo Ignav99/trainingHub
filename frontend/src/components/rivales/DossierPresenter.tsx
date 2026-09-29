@@ -7,6 +7,7 @@ import { VideoPlayer, type VideoPlayerHandle } from '@/components/video-analyzer
 import {
   ClubCrest,
   DISPLAY_FONT,
+  FitSlideStage,
   StaticSlideBody,
 } from '@/components/rivales/DossierSlides'
 import {
@@ -183,8 +184,12 @@ export function DossierPresenter({ show, onClose }: DossierPresenterProps) {
       </header>
 
       <div className="relative min-h-0 flex-1">
-        <div className="dossier-slide flex h-full min-h-0 flex-col px-6 pb-2 sm:px-12">
-          <StaticSlideBody slide={slide} />
+        <div className="dossier-slide flex h-full min-h-0 flex-col overflow-hidden px-3 pb-1 sm:px-6">
+          {slide.kind !== 'video' ? (
+            <FitSlideStage>
+              <StaticSlideBody slide={slide} rivalNombre={show.rivalNombre} rivalEscudoUrl={show.rivalEscudoUrl} />
+            </FitSlideStage>
+          ) : null}
           {slide.kind === 'video' && (
             <VideoSlide
               key={slide.id}

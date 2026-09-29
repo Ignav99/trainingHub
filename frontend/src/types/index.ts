@@ -2042,6 +2042,8 @@ export interface PreMatchResultado {
   goles_local: number
   goles_visitante: number
   fecha?: string
+  local_escudo_url?: string
+  visitante_escudo_url?: string
 }
 
 export interface PreMatchH2H {

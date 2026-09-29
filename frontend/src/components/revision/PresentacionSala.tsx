@@ -12,7 +12,7 @@ import { DrawingOverlay } from '@/components/video-analyzer/DrawingOverlay'
 import { useDrawingEngine } from '@/components/video-analyzer/useDrawingEngine'
 import { useUndoRedo } from '@/components/video-analyzer/useUndoRedo'
 import type { DrawingTool } from '@/components/video-analyzer/types'
-import { ClubCrest, DISPLAY_FONT, StaticSlideBody } from '@/components/rivales/DossierSlides'
+import { ClubCrest, DISPLAY_FONT, FitSlideStage, StaticSlideBody } from '@/components/rivales/DossierSlides'
 import { SalaFloatingChrome, SalaReviewBar, WhiteboardBar } from '@/components/revision/salaChrome'
 import { SalaZoomCatcher } from '@/components/revision/SalaZoomCatcher'
 import { useSalaVideoShare } from '@/components/revision/useSalaVideoShare'
@@ -512,8 +512,16 @@ export function PresentacionSala({
             Esperando al presentador…
           </div>
         ) : (
-          <div className="dossier-slide flex h-full min-h-0 flex-col px-6 pb-2 sm:px-12">
-            {slide && slide.kind !== 'video' && <StaticSlideBody slide={slide} />}
+          <div className="dossier-slide flex h-full min-h-0 flex-col overflow-hidden px-3 pb-1 sm:px-6">
+            {slide && slide.kind !== 'video' && (
+              <FitSlideStage>
+                <StaticSlideBody
+                  slide={slide}
+                  rivalNombre={show.rivalNombre}
+                  rivalEscudoUrl={show.rivalEscudoUrl}
+                />
+              </FitSlideStage>
+            )}
             {slide?.kind === 'video' && (
               <div data-testid="dossier-slide-video" className="flex h-full min-h-0 flex-col">
                 <div className="mb-2 flex items-end justify-between gap-3">
@@ -554,6 +562,14 @@ export function PresentacionSala({
                   ) : (
                     <div className="flex h-full items-center justify-center text-sm" style={{ color: '#9AA59B' }}>
                       Clip no disponible
+                    </div>
+                  )}
+                  {playSrc && !isHost && (
+                    <div className="absolute left-2 top-16 z-[70] flex flex-col gap-1">
+                      <button type="button" className="h-10 rounded-md bg-black/70 px-2 text-[11px] font-bold text-white" onClick={() => stepFrame(-1)}>1 fot</button>
+                      <button type="button" className="h-10 rounded-md bg-black/70 px-2 text-[11px] font-bold text-white" onClick={() => jogBy(-0.5)}>0,5 s</button>
+                      <button type="button" className="h-10 rounded-md bg-black/70 px-2 text-[11px] font-bold text-white" onClick={() => jogBy(-1)}>1 s</button>
+                      <button type="button" className="h-10 rounded-md bg-black/70 px-2 text-[11px] font-bold text-white" onClick={() => jogBy(-5)}>5 s</button>
                     </div>
                   )}
                   {playSrc && (

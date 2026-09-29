@@ -38,14 +38,15 @@ describe('dossier live show builder', () => {
       { rivalNombre: 'Racing' }
     )
     const fase = full.slides.find((slide) => slide.kind === 'fase')
-    assert.equal(fase && 'bullets' in fase && fase.bullets[0], long)
+    assert.equal(fase && fase.kind === 'fase' && fase.fortalezas?.[0], long)
+    assert.equal(fase && fase.kind === 'fase' && fase.bullets.includes(long), false)
     const many = Array.from({ length: 8 }, (_, i) => `Idea ${i + 1} del informe`)
     const all = buildInformeShow(
       { fases: [{ fase: 'ataque_organizado', fortalezas: many, debilidades: [], clips: [] }] },
       { rivalNombre: 'Racing' }
     )
     const allFase = all.slides.find((slide) => slide.kind === 'fase')
-    assert.deepEqual(allFase && 'bullets' in allFase ? allFase.bullets : [], many)
+    assert.deepEqual(allFase && allFase.kind === 'fase' ? allFase.fortalezas : [], many)
 
     assert.equal(show.slides[0].kind, 'portada')
     assert.equal(show.slides[0].title, 'Racing')
@@ -106,8 +107,9 @@ describe('dossier live show builder', () => {
     assert.equal(fases[0].kind === 'fase' && fases[0].board, undefined)
     assert.equal(fases[0].kind === 'fase' && fases[0].bullets.includes('Idea vieja de la fase'), false)
     assert.equal(fases[1].kind === 'fase' && fases[1].bullets[0], 'Portero más dos')
-    assert.equal(fases[1].kind === 'fase' && fases[1].bullets.includes('Fortaleza: Amplitud'), true)
-    assert.equal(fases[1].kind === 'fase' && fases[1].bullets.includes('Debilidad: Lento'), true)
+    assert.deepEqual(fases[1].kind === 'fase' ? fases[1].fortalezas : [], ['Amplitud'])
+    assert.deepEqual(fases[1].kind === 'fase' ? fases[1].debilidades : [], ['Lento'])
+    assert.equal(fases[0].kind === 'fase' && (fases[0].fortalezas?.length ?? 0), 0)
     assert.equal(fases[1].kind === 'fase' && fases[1].board, creacion)
     assert.equal(fases[2].kind === 'fase' && fases[2].board, progresion)
     assert.equal(fases[3].kind === 'fase' && fases[3].board, finalizacion)
@@ -144,8 +146,14 @@ describe('dossier live show builder', () => {
       defensa.map((slide) => slide.title),
       ['Defensa organizada', 'Bloque alto', 'Bloque medio', 'Bloque bajo']
     )
-    assert.equal(defensa[3].kind === 'fase' && defensa[3].bullets.includes('Fortaleza: Cierre de área'), true)
-    assert.equal(defensa[3].kind === 'fase' && defensa[3].bullets.includes('Debilidad: Espalda del lateral'), true)
+    assert.deepEqual(defensa[3].kind === 'fase' ? defensa[3].fortalezas : [], ['Cierre de área'])
+    assert.deepEqual(defensa[3].kind === 'fase' ? defensa[3].debilidades : [], ['Espalda del lateral'])
+    const chapters = showChapters(show.slides)
+    const ataque = chapters.find((chapter) => chapter.id === 'fase:ataque_organizado')
+    assert.equal(ataque?.label, 'Ataque organizado')
+    assert.equal(ataque?.slideCount, 5)
+    assert.equal(ataque?.videoCount, 1)
+    assert.equal(chapters.some((chapter) => chapter.label.includes('Finalización') || chapter.label.includes('Creación')), false)
   })
 
   it('skips empty phases and still shows a title slide when a phase only has video', () => {
@@ -219,7 +227,7 @@ describe('dossier live show builder', () => {
         once_probable: {
           actas_analizadas: 4,
           jugadores: [
-            { nombre: 'García', dorsal: 10, apariciones: 8, rol: 'interior', comentario: 'llega tarde' },
+            { nombre: 'García', dorsal: 10, apariciones: 8, rol: 'interior', comentario: 'llega tarde', atributos: { bombilla: true } },
             { nombre: 'López', dorsal: 9, apariciones: 8, comentario: '' },
           ],
           colocacion: { st: 'López' },
@@ -243,13 +251,45 @@ describe('dossier live show builder', () => {
     assert.equal(withIntel.slides[2]?.kind, 'once')
     assert.equal(show.slides[2].kind === 'once' && show.slides[2].sistema, '4-3-3')
     assert.equal(
-      show.slides[2].kind === 'once' && show.slides[2].bullets.some((b) => b.includes('García') && b.includes('llega tarde')),
+      show.slides[2].kind === 'once' && show.slides[2].bullets.some((b) => b.includes('llega tarde')),
+      false
+    )
+    assert.equal(
+      show.slides[2].kind === 'once' && show.slides[2].jugadores?.some((j) => j.nombre === 'García' && j.atributos?.bombilla),
       true
     )
     assert.equal(
       show.slides[2].kind === 'once' && show.slides[2].bullets.some((b) => b.includes('López')),
       false
     )
+  })
+
+  it('splits charts from the rival comment when intel is visual', () => {
+    const show = buildInformeShow(
+      { estrategia: { notas: 'Presiona alto', dimensiones_campo: '105 x 68' } },
+      {
+        intelVisual: {
+          posicion: 3,
+          puntos: 21,
+          charts: [{ label: 'Casa', gf: 10, gc: 2 }],
+          resultados: [{ local: 'Racing', visitante: 'Otro', golesLocal: 2, golesVisitante: 1 }],
+          goleadores: [{ nombre: 'García', goles: 4 }],
+          sancionados: [],
+          apercibidos: [],
+        },
+      },
+    )
+    assert.deepEqual(
+      show.slides.map((slide) => (slide.kind === 'contexto' ? slide.title : slide.kind)),
+      ['portada', 'Contexto', 'Comentario del rival'],
+    )
+    assert.equal(show.slides[1].kind === 'contexto' && show.slides[1].bullets.length, 0)
+    assert.equal(show.slides[1].kind === 'contexto' && show.slides[1].visual?.charts[0]?.label, 'Casa')
+    assert.equal(show.slides[1].kind === 'contexto' && show.slides[1].visual?.resultados[0]?.golesLocal, 2)
+    assert.equal(show.slides[2].kind === 'contexto' && show.slides[2].bullets[0], 'Presiona alto')
+    assert.equal(show.slides[2].kind === 'contexto' && show.slides[2].bullets.includes('Campo 105 x 68'), true)
+    const chapters = showChapters(show.slides)
+    assert.deepEqual(chapters.map((chapter) => chapter.label), ['Inicio', 'Contexto', 'Comentario del rival'])
   })
 
   it('puts the once on a pitch with the formation and placed names', () => {

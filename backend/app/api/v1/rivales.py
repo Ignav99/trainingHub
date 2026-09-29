@@ -881,7 +881,7 @@ async def get_rival_perfil_competicion(
             )
 
         last_5_results = _get_ultimos_resultados(
-            supabase, str(competicion_id), rival_nombre,
+            supabase, str(competicion_id), rival_nombre, rival.get("escudo_url"),
         )
 
     # Head-to-head: partidos from our DB against this rival

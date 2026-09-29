@@ -30,7 +30,7 @@ import { DossierTacticalBoard } from '@/components/rivales/DossierTacticalBoard'
 import { PresentacionSala } from '@/components/revision/PresentacionSala'
 import { exportPresentacionDossier } from '@/lib/api/presentaciones'
 import { buildInformeShow, buildPlanShow, type DossierShow } from '@/lib/dossierShow'
-import { loadContextoIntelLines, loadPlanDataForCharla, prepareCharlaSala, prepareDossierSala } from '@/lib/dossierPresentar'
+import { loadShowIntel, loadPlanDataForCharla, prepareCharlaSala, prepareDossierSala } from '@/lib/dossierPresentar'
 import type { RevisionSession } from '@/lib/api/revision'
 import { useClubStore } from '@/stores/clubStore'
 import { OrganizedPhaseStack, organizedSubfases } from './OrganizedPhaseStack'
@@ -217,7 +217,7 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
             onPresentar={async () => {
               setPresenting(true)
               try {
-                const intelLines = await loadContextoIntelLines(equipoId, rivalId)
+                const intelVisual = await loadShowIntel(equipoId, rivalId)
                 const built = buildInformeShow(dataRef.current, {
                   rivalNombre,
                   clubNombre,
@@ -227,7 +227,7 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
                   fecha,
                   jornada: jornada ?? undefined,
                   tramo,
-                  intelLines,
+                  intelVisual,
                 })
                 const ready = await prepareDossierSala({
                   show: built,
@@ -257,7 +257,7 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
                 }
                 const informe = buildInformeShow(dataRef.current, {
                   ...meta,
-                  intelLines: await loadContextoIntelLines(equipoId, rivalId),
+                  intelVisual: await loadShowIntel(equipoId, rivalId),
                 })
                 const planData = await loadPlanDataForCharla(getPlanForCharla?.() ?? null, rivalId)
                 const plan = buildPlanShow(planData, meta)

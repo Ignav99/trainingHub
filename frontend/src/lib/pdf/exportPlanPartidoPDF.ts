@@ -421,10 +421,10 @@ function writePlanTagList(
   if (!items?.length) return y
   y = ensureSpace(doc, y, 10, margin)
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
+  doc.setFontSize(8)
   doc.setTextColor(color[0], color[1], color[2])
   doc.text(label, margin, y)
-  y += 4.5
+  y += 4
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(51, 65, 85)
   y = writeWrapped(doc, items.join(' · '), margin, y, contentWidth)
@@ -540,12 +540,12 @@ export async function exportPlanPartidoPDF(
     lockPage = true
     const accent = FASE_COLORS[faseKey]
     doc.setFillColor(accent[0], accent[1], accent[2])
-    doc.roundedRect(margin, y, contentWidth, 8, 1.2, 1.2, 'F')
+    doc.roundedRect(margin, y, contentWidth, 10, 1.2, 1.2, 'F')
     doc.setTextColor(255, 255, 255)
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(11)
-    doc.text(FASE_LABELS[faseKey], margin + 3, y + 5.6)
-    y += 12
+    doc.setFontSize(13)
+    doc.text(FASE_LABELS[faseKey], margin + 3, y + 6.8)
+    y += 14
 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(9.5)
@@ -568,10 +568,10 @@ export async function exportPlanPartidoPDF(
         if (!planSubHasContent(sub)) continue
         y = ensureSpace(doc, y, 16, margin)
         doc.setFont('helvetica', 'bold')
-        doc.setFontSize(10)
-        doc.setTextColor(accent[0], accent[1], accent[2])
+        doc.setFontSize(11.5)
+        doc.setTextColor(146, 64, 14)
         doc.text(SUBFASE_LABELS[key] ?? key, margin, y)
-        y += 5.5
+        y += 6.2
         doc.setFont('helvetica', 'normal')
         doc.setFontSize(9.5)
         doc.setTextColor(51, 65, 85)

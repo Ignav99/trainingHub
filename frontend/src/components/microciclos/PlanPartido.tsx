@@ -25,7 +25,7 @@ import { DossierTacticalBoard } from '@/components/rivales/DossierTacticalBoard'
 import { PresentacionSala } from '@/components/revision/PresentacionSala'
 import { exportPresentacionDossier } from '@/lib/api/presentaciones'
 import { buildPlanShow, buildInformeShow, type DossierShow } from '@/lib/dossierShow'
-import { loadContextoIntelLines, loadInformeDataForCharla, prepareCharlaSala, prepareDossierSala } from '@/lib/dossierPresentar'
+import { loadShowIntel, loadInformeDataForCharla, prepareCharlaSala, prepareDossierSala } from '@/lib/dossierPresentar'
 import type { RevisionSession } from '@/lib/api/revision'
 import { useClubStore } from '@/stores/clubStore'
 import { OrganizedPhaseStack, organizedSubfases } from './OrganizedPhaseStack'
@@ -211,7 +211,7 @@ export function PlanPartido({
                 const informeData = await loadInformeDataForCharla(getInformeForCharla?.() ?? null, rivalId)
                 const informe = buildInformeShow(informeData, {
                   ...meta,
-                  intelLines: await loadContextoIntelLines(equipoId, rivalId),
+                  intelVisual: await loadShowIntel(equipoId, rivalId),
                 })
                 const ready = await prepareCharlaSala({
                   informe,
