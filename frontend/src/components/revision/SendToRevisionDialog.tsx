@@ -31,6 +31,8 @@ interface SendToRevisionDialogProps {
   clips?: { title: string; startTime: number; endTime: number }[]
   sourceVideoId?: string
   preferredFase?: string
+  lockedAmbito?: RevisionAmbito
+  clipNota?: string
   onSent?: () => void
 }
 
@@ -48,14 +50,17 @@ export function SendToRevisionDialog({
   clips,
   sourceVideoId,
   preferredFase,
+  lockedAmbito,
+  clipNota,
   onSent,
 }: SendToRevisionDialogProps) {
-  const [ambito, setAmbito] = useState<RevisionAmbito>(partidoId ? 'partido_post' : 'rival')
+  const startingAmbito: RevisionAmbito = lockedAmbito || (partidoId ? 'partido_post' : 'rival')
+  const [ambito, setAmbito] = useState<RevisionAmbito>(startingAmbito)
   const initialPack = peekRevisionFolders({
     equipo_id: equipoId,
-    ambito: partidoId ? 'partido_post' : 'rival',
-    partido_id: partidoId,
-    rival_id: partidoId ? undefined : rivalId,
+    ambito: startingAmbito,
+    partido_id: startingAmbito === 'rival' ? undefined : partidoId,
+    rival_id: startingAmbito === 'rival' ? rivalId : undefined,
   })
   const [pack, setPack] = useState<RevisionPack | null>(initialPack)
   const [folderId, setFolderId] = useState<string>(initialPack ? matchRevisionFolderId(initialPack.folders, preferredFase) : '')
@@ -146,6 +151,7 @@ export function SendToRevisionDialog({
           equipo_id: equipoId,
           titulo: name,
           frase: frase.trim() || undefined,
+          nota: clipNota,
           folder_id: folderId,
           duration_ms: Math.round((item.endTime - item.startTime) * 1000),
           start_ms: Math.round(item.startTime * 1000),
@@ -175,6 +181,11 @@ export function SendToRevisionDialog({
           <p className="text-xs text-muted-foreground">
             Se recorta aquí y solo sube ese fragmento (máx. 3 min). El archivo del partido no sale de este ordenador.
           </p>
+          {lockedAmbito === 'rival' ? (
+            <p className="text-sm">
+              Va al informe del rival{clipNota ? ` · ${clipNota}` : ''}.
+            </p>
+          ) : (
           <div className="flex gap-2 flex-wrap">
             <Button
               type="button"
@@ -204,6 +215,7 @@ export function SendToRevisionDialog({
               Plan de Partido
             </Button>
           </div>
+          )}
           <div className="space-y-1">
             <Label>Carpeta / fase</Label>
             <select

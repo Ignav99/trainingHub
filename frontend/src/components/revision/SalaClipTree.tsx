@@ -133,6 +133,7 @@ function ClipButton({
       style={{ paddingLeft: 18 + depth * 10 }}
     >
       <div className="font-medium truncate">{clip.titulo}</div>
+      {clip.nota && <div className="text-[10px] text-zinc-400">{clip.nota}</div>}
       {clip.frase && <div className="text-[10px] text-zinc-400 line-clamp-2">{clip.frase}</div>}
     </button>
   )

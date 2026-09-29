@@ -6,7 +6,8 @@ import { Send, Trash2, X } from 'lucide-react'
 import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
 import { useCodeWindowStore } from './useCodeWindowStore'
 import { SendToRevisionDialog } from '@/components/revision/SendToRevisionDialog'
-import { prefetchRevisionFolders } from '@/lib/api/revision'
+import { prefetchRevisionFolders, type RevisionAmbito } from '@/lib/api/revision'
+import { revisionLinkForMode, type VideoWatchMode } from './videoAnalisisPicker'
 import { VideoDeskBotonera } from './VideoDeskBotonera'
 import { VideoDeskFolders } from './VideoDeskFolders'
 import { VideoDeskTimeline } from './VideoDeskTimeline'
@@ -33,6 +34,9 @@ interface VideoAnalyzerProps {
   equipoId: string
   videoId?: string
   rivalId?: string
+  watchMode?: VideoWatchMode
+  watchedOpponent?: string
+  rivalName?: string
   onClose: () => void
 }
 
@@ -44,6 +48,9 @@ export function VideoAnalyzer({
   equipoId,
   videoId,
   rivalId,
+  watchMode,
+  watchedOpponent,
+  rivalName,
   onClose,
 }: VideoAnalyzerProps) {
   const playerRef = useRef<VideoPlayerHandle>(null)
@@ -81,7 +88,14 @@ export function VideoAnalyzer({
     return s.events[key] || []
   })
 
-  const videoKey = partidoId || (localFile?.name ?? '_local')
+  const informeRival = watchMode === 'informe_rival'
+  const revisionPartidoId = informeRival ? undefined : partidoId
+  const lockedAmbito: RevisionAmbito | undefined = watchMode
+    ? revisionLinkForMode(watchMode).lockAmbito || undefined
+    : undefined
+  const videoKey = informeRival
+    ? `informe-rival:${rivalId || 'x'}:${watchedOpponent || localFile?.name || '_local'}`
+    : (partidoId || (localFile?.name ?? '_local'))
 
   useEffect(() => {
     setCodeVideoKey(videoKey)
@@ -111,17 +125,23 @@ export function VideoAnalyzer({
   const revisionClips = (selectedClipIds.length ? selectedClipIds : (selectedClipId ? [selectedClipId] : []))
     .map((id) => events.find((e) => e.id === id))
     .filter((e): e is CodeEvent => !!e)
-  const canSendToRevision = Boolean(partidoId || rivalId)
+  const canSendToRevision = Boolean(revisionPartidoId || rivalId)
 
   useEffect(() => {
-    if (partidoId) {
-      void prefetchRevisionFolders({ equipo_id: equipoId, ambito: 'partido_post', partido_id: partidoId }).catch(() => {})
-      void prefetchRevisionFolders({ equipo_id: equipoId, ambito: 'partido_plan', partido_id: partidoId }).catch(() => {})
+    if (informeRival) {
+      if (rivalId) {
+        void prefetchRevisionFolders({ equipo_id: equipoId, ambito: 'rival', rival_id: rivalId }).catch(() => {})
+      }
+      return
+    }
+    if (revisionPartidoId) {
+      void prefetchRevisionFolders({ equipo_id: equipoId, ambito: 'partido_post', partido_id: revisionPartidoId }).catch(() => {})
+      void prefetchRevisionFolders({ equipo_id: equipoId, ambito: 'partido_plan', partido_id: revisionPartidoId }).catch(() => {})
     }
     if (rivalId) {
       void prefetchRevisionFolders({ equipo_id: equipoId, ambito: 'rival', rival_id: rivalId }).catch(() => {})
     }
-  }, [equipoId, partidoId, rivalId])
+  }, [equipoId, informeRival, revisionPartidoId, rivalId])
 
   const seekTo = useCallback((time: number) => {
     playerRef.current?.seekTo(time)
@@ -393,7 +413,11 @@ export function VideoAnalyzer({
         </button>
         <div style={{ minWidth: 0 }}>
           <div className="vd-header-title">{title}</div>
-          <div className="vd-header-meta">{events.length} recortes · ←/→ fotograma · mantén para acelerar · ⌫ borra · el archivo se queda en el PC</div>
+          <div className="vd-header-meta">
+            {informeRival
+              ? `Informe de ${rivalName || 'rival'}${watchedOpponent ? ` · ${watchedOpponent}` : ''} · ${events.length} recortes · el archivo se queda en el PC`
+              : `${events.length} recortes · ←/→ fotograma · mantén para acelerar · ⌫ borra · el archivo se queda en el PC`}
+          </div>
         </div>
         <div className="vd-header-actions">
           <VideoDeskDownloadMenu disabled={!events.length} onPick={(kind) => void runDownload(kind)} />
@@ -521,8 +545,10 @@ export function VideoAnalyzer({
           onOpenChange={(v) => { if (!v) setSendClipId(null) }}
           onSent={() => setSelectedClipIds([])}
           equipoId={equipoId}
-          partidoId={partidoId}
+          partidoId={revisionPartidoId}
           rivalId={rivalId}
+          lockedAmbito={lockedAmbito}
+          clipNota={informeRival ? watchedOpponent : undefined}
           videoElement={playerRef.current?.getVideoElement() || null}
           sourceFile={localFile}
           clipTitle={clipDisplayTitle(sendClip, sendButton)}

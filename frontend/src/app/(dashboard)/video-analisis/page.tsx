@@ -11,6 +11,8 @@ import type { Partido, VideoAnotacion } from '@/types'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { TeamCrest } from '@/components/ui/team-crest'
 import { toast } from 'sonner'
 import {
@@ -23,7 +25,14 @@ import {
 } from 'lucide-react'
 import { formatTime } from '@/components/video-analyzer/utils'
 import { readLocalVideoFingerprint } from '@/components/video-analyzer/extractClip'
-import { groupPartidosByMonth, localiaLabel } from '@/components/video-analyzer/videoAnalisisPicker'
+import {
+  canLoadMatchVideo,
+  groupPartidosByMonth,
+  localiaLabel,
+  revisionLinkForMode,
+  watchedMatchNote,
+  type VideoWatchMode,
+} from '@/components/video-analyzer/videoAnalisisPicker'
 
 const VideoAnalyzer = lazy(() =>
   import('@/components/video-analyzer/VideoAnalyzer').then((m) => ({ default: m.VideoAnalyzer }))
@@ -36,6 +45,8 @@ export default function VideoAnalisisPage() {
   const clubCrest = useClubStore((s) => s.theme.logoUrl || s.organizacion?.logo_url)
 
   const [source, setSource] = useState<{ kind: 'loose' } | { kind: 'match'; id: string } | null>(null)
+  const [watchMode, setWatchMode] = useState<VideoWatchMode | null>(null)
+  const [watchedOpponent, setWatchedOpponent] = useState('')
   const [analyzerFile, setAnalyzerFile] = useState<File | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -46,6 +57,10 @@ export default function VideoAnalisisPage() {
   const partidos = partidosData?.data || []
   const selectedPartido = source?.kind === 'match' ? partidos.find((p) => p.id === source.id) || null : null
   const months = groupPartidosByMonth(partidos)
+  const rivalName = selectedPartido?.rival?.nombre_corto || selectedPartido?.rival?.nombre || 'el rival'
+  const link = watchMode ? revisionLinkForMode(watchMode) : null
+  const opponentNote = watchMode === 'informe_rival' ? watchedMatchNote(watchedOpponent) : undefined
+  const canLoad = source?.kind === 'loose' || (source?.kind === 'match' && canLoadMatchVideo(watchMode, watchedOpponent))
 
   const { data: anotacionesData, mutate: mutateAnotaciones } = useSWR(
     selectedPartido && equipoId ? `/video-anotaciones/partido/${selectedPartido.id}` : null,
@@ -59,6 +74,12 @@ export default function VideoAnalisisPage() {
   const handleFileSelect = () => {
     if (!source) {
       toast.error('Elige un partido o un vídeo suelto')
+      return
+    }
+    if (source.kind === 'match' && !canLoadMatchVideo(watchMode, watchedOpponent)) {
+      toast.error(watchMode === 'informe_rival'
+        ? 'Escribe contra quién juega el rival en este vídeo'
+        : 'Elige revisión del partido o informe del rival')
       return
     }
     fileRef.current?.click()
@@ -75,7 +96,7 @@ export default function VideoAnalisisPage() {
     try {
       const { fingerprint, durationMs } = await readLocalVideoFingerprint(f)
       const session = await videosApi.createLocalSession({
-        partido_id: selectedPartido?.id,
+        partido_id: link?.attachUpcomingMatch ? selectedPartido?.id : undefined,
         equipo_id: equipoId,
         filename: f.name,
         size_bytes: f.size,
@@ -117,7 +138,7 @@ export default function VideoAnalisisPage() {
     <>
       <PageHeader
         title="Video Análisis"
-        description="Elige un partido por fecha o un vídeo suelto. El archivo se queda en el ordenador; solo recortas lo que importa"
+        description="Elige el partido que vais a jugar y si el vídeo es el vuestro o del rival contra otro equipo"
       />
 
       <input
@@ -134,20 +155,69 @@ export default function VideoAnalisisPage() {
             <p className="text-sm text-muted-foreground">
               {source?.kind === 'loose'
                 ? 'Vídeo suelto — entrenamiento, charla o lo que sea, sin asociar a un partido'
-                : selectedPartido
-                  ? `${selectedPartido.rival?.nombre_corto || selectedPartido.rival?.nombre || 'Partido'} · ${localiaLabel(selectedPartido.localia)}`
-                  : 'Elige un partido (escudos, casa/fuera) o un vídeo que no va a ningún partido'}
+                : selectedPartido && watchMode === 'informe_rival'
+                  ? `Informe de ${rivalName}${opponentNote ? ` · ${opponentNote}` : ''}. Los recortes van a su informe, no a la revisión de vuestro partido.`
+                  : selectedPartido && watchMode === 'revision'
+                    ? `Revisión del partido · ${rivalName} · ${localiaLabel(selectedPartido.localia)}`
+                    : selectedPartido
+                      ? `${rivalName} · ${localiaLabel(selectedPartido.localia)}. Elige revisión del partido o informe del rival.`
+                      : 'Elige el partido que vais a jugar, o un vídeo que no va a ningún partido'}
             </p>
-            <Button onClick={handleFileSelect} disabled={!source}>
+            <Button onClick={handleFileSelect} disabled={!canLoad}>
               <Upload className="h-4 w-4 mr-2" />
               Cargar video local
             </Button>
           </div>
+          {selectedPartido ? (
+            <div className="mt-4 space-y-3">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setWatchMode('revision')}
+                  className={`rounded-lg border p-3 text-left transition-colors ${
+                    watchMode === 'revision' ? 'border-foreground bg-muted' : 'hover:bg-muted/60'
+                  }`}
+                >
+                  <span className="block text-sm font-medium">Revisión del partido</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    El vídeo es este partido, el vuestro contra {rivalName}.
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWatchMode('informe_rival')}
+                  className={`rounded-lg border p-3 text-left transition-colors ${
+                    watchMode === 'informe_rival' ? 'border-foreground bg-muted' : 'hover:bg-muted/60'
+                  }`}
+                >
+                  <span className="block text-sm font-medium">Informe del rival</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    El vídeo es de {rivalName} contra otro equipo. Los recortes se quedan en su informe.
+                  </span>
+                </button>
+              </div>
+              {watchMode === 'informe_rival' ? (
+                <div className="space-y-1 max-w-sm">
+                  <Label htmlFor="watched-opponent">Contra quién juega {rivalName} en este vídeo</Label>
+                  <Input
+                    id="watched-opponent"
+                    value={watchedOpponent}
+                    onChange={(e) => setWatchedOpponent(e.target.value)}
+                    placeholder="Ej. Herrera"
+                  />
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </Card>
 
         <button
           type="button"
-          onClick={() => setSource({ kind: 'loose' })}
+          onClick={() => {
+            setSource({ kind: 'loose' })
+            setWatchMode(null)
+            setWatchedOpponent('')
+          }}
           className={`flex w-full items-center gap-4 rounded-lg border p-4 text-left transition-colors ${
             source?.kind === 'loose' ? 'border-foreground bg-muted' : 'hover:bg-muted/60'
           }`}
@@ -176,7 +246,11 @@ export default function VideoAnalisisPage() {
                   clubName={clubName}
                   clubCrest={clubCrest}
                   selected={source?.kind === 'match' && source.id === p.id}
-                  onSelect={() => setSource({ kind: 'match', id: p.id })}
+                  onSelect={() => {
+                    setSource({ kind: 'match', id: p.id })
+                    setWatchMode(null)
+                    setWatchedOpponent('')
+                  }}
                 />
               ))}
             </div>
@@ -224,10 +298,13 @@ export default function VideoAnalisisPage() {
         <Suspense fallback={null}>
           <VideoAnalyzer
             localFile={analyzerFile}
-            partidoId={selectedPartido?.id}
+            partidoId={link?.attachUpcomingMatch ? selectedPartido?.id : undefined}
             equipoId={equipoId}
             videoId={localVideoId || undefined}
             rivalId={selectedPartido?.rival_id}
+            watchMode={watchMode || undefined}
+            watchedOpponent={opponentNote}
+            rivalName={selectedPartido ? rivalName : undefined}
             onClose={() => {
               setAnalyzerFile(null)
               setLocalVideoId(null)

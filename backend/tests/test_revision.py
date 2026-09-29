@@ -696,6 +696,23 @@ class TestFoldersOnlyPayload:
         assert "retention" not in out
 
 
+class TestWatchedOpponentNote:
+    def test_confirm_request_keeps_the_other_match(self):
+        from uuid import uuid4
+
+        from app.models.revision import ClipConfirmRequest
+
+        data = ClipConfirmRequest(
+            pack_id=uuid4(),
+            equipo_id=uuid4(),
+            storage_path="team/pack/clip.mp4",
+            titulo="Presión",
+            size_bytes=5000,
+            nota="vs Herrera",
+        )
+        assert data.nota == "vs Herrera"
+
+
 class TestSalaGuestPass:
     def test_reads_the_code_from_the_qr_token(self):
         assert sala_guest_code("sala:ab12cd") == "AB12CD"
