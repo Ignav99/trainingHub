@@ -18,21 +18,30 @@ interface ABPRivalPlaysProps {
 export default function ABPRivalPlays({ rivalId, lado }: ABPRivalPlaysProps) {
   // null = editor is blank, ready for a new play
   const [editingJugada, setEditingJugada] = useState<ABPRivalJugada | null>(null)
+  const [boardOpen, setBoardOpen] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const swrKey = apiKey(`/abp/rival/${rivalId}`, lado ? { lado } : undefined)
   const { data, mutate } = useSWR<{ data: ABPRivalJugada[] }>(swrKey, apiFetcher)
   const jugadas = data?.data || []
 
-  const handleNew = () => setEditingJugada(null)
+  const openBoard = (jugada: ABPRivalJugada | null) => {
+    setEditingJugada(jugada)
+    setBoardOpen(true)
+  }
 
-  const handleEdit = (j: ABPRivalJugada) => setEditingJugada(j)
+  const handleNew = () => openBoard(null)
+
+  const handleEdit = (j: ABPRivalJugada) => openBoard(j)
 
   const handleDelete = async (id: string) => {
     if (!confirm('¿Eliminar esta jugada del rival?')) return
     try {
       await abpApi.deleteRival(rivalId, id)
-      if (editingJugada?.id === id) setEditingJugada(null)
+      if (editingJugada?.id === id) {
+        setEditingJugada(null)
+        setBoardOpen(false)
+      }
       mutate()
     } catch (e) {
       console.error('Error deleting rival play:', e)
@@ -75,20 +84,34 @@ export default function ABPRivalPlays({ rivalId, lado }: ABPRivalPlaysProps) {
 
   return (
     <div className="space-y-4">
-      {/* Pizarra interactiva — siempre visible, dedicada a las jugadas de ABP */}
-      <div className="rounded-lg border overflow-hidden" style={{ height: 640 }}>
-        <ABPEditor
-          key={editingJugada?.id ?? 'new'}
-          jugada={editingJugada ? ({ ...editingJugada } as Partial<ABPJugada>) : undefined}
-          lockLado={lado}
-          onSave={handleSave}
-          onCancel={handleNew}
-          saving={saving}
-        />
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold text-muted-foreground">Pizarra táctica</p>
+        <button
+          type="button"
+          aria-expanded={boardOpen}
+          onClick={() => (boardOpen ? setBoardOpen(false) : openBoard(editingJugada))}
+          className="rounded-md border px-2.5 py-1 text-xs font-medium hover:bg-muted"
+        >
+          {boardOpen ? 'Cerrar pizarra' : 'Abrir pizarra táctica'}
+        </button>
       </div>
-      <p className="text-[10px] text-muted-foreground">
-        Dibuja la jugada, añade fases para animarla y pulsa Guardar. Puedes descargar el vídeo desde Exportar.
-      </p>
+      {boardOpen && (
+        <>
+          <div className="rounded-lg border overflow-hidden" style={{ height: 640 }}>
+            <ABPEditor
+              key={editingJugada?.id ?? 'new'}
+              jugada={editingJugada ? ({ ...editingJugada } as Partial<ABPJugada>) : undefined}
+              lockLado={lado}
+              onSave={handleSave}
+              onCancel={handleNew}
+              saving={saving}
+            />
+          </div>
+          <p className="text-[10px] text-muted-foreground">
+            Dibuja la jugada, añade fases para animarla y pulsa Guardar. Puedes descargar el vídeo desde Exportar.
+          </p>
+        </>
+      )}
 
       {/* Biblioteca de jugadas guardadas */}
       <div className="space-y-2">
