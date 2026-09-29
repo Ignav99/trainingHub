@@ -23,6 +23,8 @@ function mapSubfasePersistent(
   return {
     sistema: sub.sistema,
     notas: sub.notas ?? '',
+    fortalezas: sub.fortalezas ?? [],
+    debilidades: sub.debilidades ?? [],
     roles: sub.roles,
     pizarra_tactica: sub.pizarra_tactica,
     pizarra_diagrama: sub.pizarra_diagrama,
@@ -38,6 +40,7 @@ function mapPhasePersistent(f: PlanPartidoPhase): PlanPartidoPhase {
 
   return {
     fase: f.fase,
+    comentario_general: f.comentario_general,
     texto: f.texto,
     sistema: f.sistema,
     subfases,
@@ -80,6 +83,8 @@ function mergeSubfases(
     merged[key] = {
       sistema: s?.sistema ?? l?.sistema ?? '',
       notas: s?.notas ?? l?.notas ?? '',
+      fortalezas: s ? (s.fortalezas ?? []) : (l?.fortalezas ?? []),
+      debilidades: s ? (s.debilidades ?? []) : (l?.debilidades ?? []),
       roles: s?.roles?.length ? s.roles : l?.roles ?? [],
       pizarra_tactica: s?.pizarra_tactica ?? l?.pizarra_tactica,
       pizarra_diagrama: s?.pizarra_diagrama ?? l?.pizarra_diagrama,
@@ -102,6 +107,7 @@ export function mergePlanPartidoOnLoad(
     const l = localByFase.get(fase)
     return {
       fase,
+      comentario_general: s?.comentario_general ?? l?.comentario_general ?? '',
       texto: s?.texto ?? l?.texto ?? '',
       sistema: s?.sistema ?? l?.sistema ?? '',
       subfases: mergeSubfases(s?.subfases, l?.subfases),

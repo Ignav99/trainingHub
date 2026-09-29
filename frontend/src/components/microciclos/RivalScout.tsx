@@ -33,6 +33,7 @@ import { buildInformeShow, buildPlanShow, type DossierShow } from '@/lib/dossier
 import { loadContextoIntelLines, loadPlanDataForCharla, prepareCharlaSala, prepareDossierSala } from '@/lib/dossierPresentar'
 import type { RevisionSession } from '@/lib/api/revision'
 import { useClubStore } from '@/stores/clubStore'
+import { OrganizedPhaseStack, organizedSubfases } from './OrganizedPhaseStack'
 import { RivalStrategy } from './RivalStrategy'
 import { RivalContextoIntel } from './RivalContextoIntel'
 import { RevisionLibrary } from '@/components/revision/RevisionLibrary'
@@ -75,18 +76,6 @@ const FASES: FaseRival[] = [
   'transicion_defensiva',
   'abp_ofensiva',
   'abp_defensiva',
-]
-
-const SUBFASES_ATAQUE: { key: RivalSubfaseAtaque; label: string }[] = [
-  { key: 'creacion', label: 'Creación' },
-  { key: 'progresion', label: 'Progresión' },
-  { key: 'finalizacion', label: 'Finalización' },
-]
-
-const SUBFASES_DEFENSA: { key: RivalSubfaseDefensa; label: string }[] = [
-  { key: 'bloque_alto', label: 'Bloque alto' },
-  { key: 'bloque_medio', label: 'Bloque medio' },
-  { key: 'bloque_bajo', label: 'Bloque bajo' },
 ]
 
 type TabValue = 'contexto' | 'once_probable' | FaseRival
@@ -519,62 +508,34 @@ function PhaseEditor({
   onRemoveClip,
   onTagKey,
 }: PhaseEditorProps) {
-  const subfases =
-    fase === 'ataque_organizado'
-      ? SUBFASES_ATAQUE
-      : fase === 'defensa_organizada'
-        ? SUBFASES_DEFENSA
-        : null
+  const subfases = organizedSubfases(fase)
 
   return (
     <div className="space-y-4">
       <p className="text-xs font-semibold text-muted-foreground">{FASE_LABELS[fase]}</p>
 
-      {/* Subfases para ataque/defensa */}
       {subfases && (
-        <div className="space-y-3">
-          <Tabs defaultValue={subfases[0].key}>
-            <TabsList className="flex flex-wrap h-auto gap-1">
-              {subfases.map((s) => (
-                <TabsTrigger key={s.key} value={s.key} className="text-[10px] px-2 py-1">
-                  {s.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-            {subfases.map((s) => {
-              const sub = phase.subfases?.[s.key] ?? { notas: '' }
-              return (
-                <TabsContent key={s.key} value={s.key} className="space-y-3 mt-2">
-                  <Input
-                    value={sub.notas}
-                    onChange={(e) => onUpdateSubfase(fase, s.key, { notas: e.target.value })}
-                    placeholder={`Apunte sobre ${s.label.toLowerCase()}...`}
-                    className="h-8 text-xs"
-                  />
-                  <DossierTacticalBoard
-                    value={sub.pizarra_diagrama}
-                    title={`Pizarra · ${s.label}`}
-                    onChange={(patch) => onUpdateSubfase(fase, s.key, patch)}
-                  />
-                </TabsContent>
-              )
-            })}
-          </Tabs>
-        </div>
+        <OrganizedPhaseStack
+          idPrefix={fase}
+          general={phase.comentario_general ?? ''}
+          onGeneral={(comentario_general) => onUpdate(fase, { comentario_general })}
+          items={subfases.map((s) => {
+            const sub = phase.subfases?.[s.key] ?? { notas: '' }
+            return {
+              key: s.key,
+              label: s.label,
+              notas: sub.notas ?? '',
+              diagrama: sub.pizarra_diagrama,
+              fortalezas: sub.fortalezas ?? [],
+              debilidades: sub.debilidades ?? [],
+            }
+          })}
+          onChange={(key, patch) =>
+            onUpdateSubfase(fase, key as RivalSubfaseAtaque | RivalSubfaseDefensa, patch)
+          }
+        />
       )}
 
-      {/* Campo principal según fase */}
-      {(fase === 'ataque_organizado' || fase === 'defensa_organizada') && (
-        <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">Sistema / formación para esta fase</Label>
-          <Input
-            value={phase.formacion || ''}
-            onChange={(e) => onUpdate(fase, { formacion: e.target.value })}
-            placeholder="4-3-3, 4-4-2..."
-            className="h-8 text-xs w-40"
-          />
-        </div>
-      )}
       {fase === 'transicion_ofensiva' && (
         <div className="space-y-3">
           <div className="space-y-2">
@@ -638,22 +599,7 @@ function PhaseEditor({
         </div>
       )}
 
-      {/* Espacios (solo ataque/defensa) */}
-      {(fase === 'ataque_organizado' || fase === 'defensa_organizada') && (
-        <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Espacios / ocupaciones del rival</Label>
-          <Textarea
-            value={phase.espacios || ''}
-            onChange={(e) => onUpdate(fase, { espacios: e.target.value })}
-            placeholder="Zona de presión, espacios que deja, carriles..."
-            rows={2}
-            className="text-sm resize-none"
-          />
-        </div>
-      )}
-
-      {/* Fortalezas + Debilidades (ataque, defensa, abp defensiva) */}
-      {(fase === 'ataque_organizado' || fase === 'defensa_organizada' || fase === 'abp_defensiva') && (
+      {fase === 'abp_defensiva' && (
         <div className="grid grid-cols-2 gap-3">
           <TagBox
             title="Fortalezas"

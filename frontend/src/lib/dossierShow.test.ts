@@ -60,6 +60,94 @@ describe('dossier live show builder', () => {
     assert.equal(show.slides.some((slide) => slide.kind === 'video' && slide.title === 'Sin archivo'), false)
   })
 
+  it('splits organized attack into a general slide and one slide per phase', () => {
+    const creacion = { elements: [{ id: 'c' }] }
+    const progresion = { elements: [{ id: 'p' }] }
+    const finalizacion = { elements: [{ id: 'f' }] }
+    const show = buildInformeShow({
+      fases: [
+        {
+          fase: 'ataque_organizado',
+          comentario_general: 'Salen en 4-3-3 y fijan al lateral.',
+          fortalezas: ['Idea vieja de la fase'],
+          debilidades: [],
+          clips: [
+            { id: 'c1', titulo: 'Salida', url: 'https://cdn.example/salida.mp4', fase: 'ataque_organizado', notas: '' },
+          ],
+          subfases: {
+            finalizacion: {
+              notas: 'Centro al segundo palo',
+              fortalezas: ['Segundos palos'],
+              debilidades: ['Poco centro'],
+              pizarra_diagrama: finalizacion,
+            },
+            creacion: {
+              notas: 'Portero más dos',
+              fortalezas: ['Amplitud'],
+              debilidades: ['Lento'],
+              pizarra_diagrama: creacion,
+            },
+            progresion: {
+              notas: 'Interior al carril',
+              fortalezas: ['Tercer hombre'],
+              debilidades: ['Pérdida interior'],
+              pizarra_diagrama: progresion,
+            },
+          },
+        },
+      ],
+    })
+    const fases = show.slides.filter((slide) => slide.kind === 'fase')
+    assert.deepEqual(
+      fases.map((slide) => slide.title),
+      ['Ataque organizado', 'Creación', 'Progresión', 'Finalización']
+    )
+    assert.equal(fases[0].kind === 'fase' && fases[0].bullets[0], 'Salen en 4-3-3 y fijan al lateral.')
+    assert.equal(fases[0].kind === 'fase' && fases[0].board, undefined)
+    assert.equal(fases[0].kind === 'fase' && fases[0].bullets.includes('Idea vieja de la fase'), false)
+    assert.equal(fases[1].kind === 'fase' && fases[1].bullets[0], 'Portero más dos')
+    assert.equal(fases[1].kind === 'fase' && fases[1].bullets.includes('Fortaleza: Amplitud'), true)
+    assert.equal(fases[1].kind === 'fase' && fases[1].bullets.includes('Debilidad: Lento'), true)
+    assert.equal(fases[1].kind === 'fase' && fases[1].board, creacion)
+    assert.equal(fases[2].kind === 'fase' && fases[2].board, progresion)
+    assert.equal(fases[3].kind === 'fase' && fases[3].board, finalizacion)
+    assert.equal(show.slides.at(-1)?.kind, 'video')
+    assert.equal(show.slides.at(-1)?.kind === 'video' && show.slides.at(-1)?.title, 'Salida')
+
+    const plan = buildPlanShow({
+      ataque_organizado: '',
+      defensa_organizada: '',
+      transicion_ofensiva: '',
+      transicion_defensiva: '',
+      abp_ofensiva: '',
+      abp_defensiva: '',
+      fases: [
+        {
+          fase: 'defensa_organizada',
+          comentario_general: 'Bloque que bascula tarde.',
+          clips: [],
+          subfases: {
+            bloque_bajo: {
+              notas: 'Cinco atrás',
+              fortalezas: ['Cierre de área'],
+              debilidades: ['Espalda del lateral'],
+              pizarra_diagrama: { elements: [{ id: 'bajo' }] },
+            },
+            bloque_alto: { notas: 'Presionan al portero', fortalezas: [], debilidades: [] },
+            bloque_medio: { notas: 'Saltan al interior', fortalezas: [], debilidades: [] },
+          },
+        },
+      ],
+    })
+    const defensa = plan.slides.filter((slide) => slide.kind === 'fase')
+    assert.deepEqual(
+      defensa.map((slide) => slide.title),
+      ['Defensa organizada', 'Bloque alto', 'Bloque medio', 'Bloque bajo']
+    )
+    assert.equal(defensa[3].kind === 'fase' && defensa[3].bullets.includes('Fortaleza: Cierre de área'), true)
+    assert.equal(defensa[3].kind === 'fase' && defensa[3].bullets.includes('Debilidad: Espalda del lateral'), true)
+  })
+
   it('skips empty phases and still shows a title slide when a phase only has video', () => {
     const show = buildPlanShow({
       ataque_organizado: '',

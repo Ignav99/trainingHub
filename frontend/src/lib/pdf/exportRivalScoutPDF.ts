@@ -5,6 +5,7 @@ import type {
   PreMatchIntel,
   RivalPhaseAnalysis,
   RivalScoutData,
+  RivalSubfaseData,
   RivalSubfaseAtaque,
   RivalSubfaseDefensa,
 } from '@/types'
@@ -193,8 +194,52 @@ function addPizarraImage(
   }
 }
 
+function isOrganizedScout(fase: string | undefined): boolean {
+  return fase === 'ataque_organizado' || fase === 'defensa_organizada'
+}
+
+function eachScoutSubfase(phase: RivalPhaseAnalysis): Array<[string, RivalSubfaseData]> {
+  const subfases = phase.subfases
+  if (!subfases) return []
+  const preferred = isOrganizedScout(phase.fase)
+    ? phase.fase === 'ataque_organizado'
+      ? ['creacion', 'progresion', 'finalizacion']
+      : ['bloque_alto', 'bloque_medio', 'bloque_bajo']
+    : Object.keys(subfases)
+  const seen = new Set<string>()
+  const out: Array<[string, RivalSubfaseData]> = []
+  for (const key of preferred) {
+    const sub = subfases[key as keyof typeof subfases]
+    if (!sub) continue
+    seen.add(key)
+    out.push([key, sub])
+  }
+  for (const key of Object.keys(subfases)) {
+    if (seen.has(key)) continue
+    const sub = subfases[key as keyof typeof subfases]
+    if (sub) out.push([key, sub])
+  }
+  return out
+}
+
+function scoutSubHasContent(sub: { notas?: string; roles?: unknown[]; pizarra_tactica?: string; pizarra_diagrama?: RivalPhaseAnalysis['pizarra_diagrama']; fortalezas?: string[]; debilidades?: string[] } | undefined): boolean {
+  return Boolean(
+    sub?.notas?.trim() ||
+      sub?.roles?.length ||
+      sub?.pizarra_tactica ||
+      diagramHasContent(sub?.pizarra_diagrama) ||
+      sub?.fortalezas?.length ||
+      sub?.debilidades?.length
+  )
+}
+
+function subsOwnTags(phase: RivalPhaseAnalysis): boolean {
+  return eachScoutSubfase(phase).some(([, sub]) => (sub?.fortalezas?.length ?? 0) > 0 || (sub?.debilidades?.length ?? 0) > 0)
+}
+
 function phaseHasContent(phase: RivalPhaseAnalysis | undefined): boolean {
   if (!phase) return false
+  if (phase.comentario_general?.trim()) return true
   if (phase.formacion?.trim()) return true
   if (phase.espacios?.trim()) return true
   if (phase.vigilancias?.trim()) return true
@@ -207,13 +252,7 @@ function phaseHasContent(phase: RivalPhaseAnalysis | undefined): boolean {
   if (phase.clips?.length) return true
   if (
     phase.subfases &&
-    Object.values(phase.subfases).some(
-      (s) =>
-        s?.notas?.trim() ||
-        s?.roles?.length ||
-        s?.pizarra_tactica ||
-        diagramHasContent(s?.pizarra_diagrama)
-    )
+    Object.values(phase.subfases).some((s) => scoutSubHasContent(s))
   )
     return true
   return false
@@ -450,6 +489,28 @@ function wrappedMm(doc: jsPDF, text: string | undefined, width: number): number 
   return (doc.splitTextToSize(value, width) as string[]).length * 4.4 + 3
 }
 
+function writeScoutTagList(
+  doc: jsPDF,
+  label: string,
+  items: string[] | undefined,
+  color: [number, number, number],
+  margin: number,
+  y: number,
+  contentWidth: number,
+): number {
+  if (!items?.length) return y
+  y = ensureSpace(doc, y, 10, margin)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  doc.setTextColor(color[0], color[1], color[2])
+  doc.text(label, margin, y)
+  y += 4.5
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(51, 65, 85)
+  y = writeWrapped(doc, items.join(' · '), margin, y, contentWidth)
+  return y + 3
+}
+
 function phaseBlockHeight(
   doc: jsPDF,
   phase: RivalPhaseAnalysis,
@@ -457,21 +518,17 @@ function phaseBlockHeight(
   imageMax: number,
 ): number {
   let h = 16
+  if (phase.comentario_general?.trim()) h += 6 + wrappedMm(doc, phase.comentario_general, contentWidth)
   if (phase.formacion?.trim()) h += 5
   h += wrappedMm(doc, phase.espacios, contentWidth)
-  if (phase.subfases) {
-    for (const sub of Object.values(phase.subfases)) {
-      if (
-        !sub?.notas?.trim() &&
-        !sub?.roles?.length &&
-        !sub?.pizarra_tactica &&
-        !diagramHasContent(sub?.pizarra_diagrama)
-      ) continue
-      h += 8
-      h += wrappedMm(doc, sub?.notas, contentWidth)
-      h += (sub?.roles?.length ?? 0) * 5
-      if (sub?.pizarra_tactica || diagramHasContent(sub?.pizarra_diagrama)) h += imageMax + 4
-    }
+  for (const [, sub] of eachScoutSubfase(phase)) {
+    if (!scoutSubHasContent(sub)) continue
+    h += 8
+    h += wrappedMm(doc, sub?.notas, contentWidth)
+    h += (sub?.roles?.length ?? 0) * 5
+    if (sub?.pizarra_tactica || diagramHasContent(sub?.pizarra_diagrama)) h += imageMax + 4
+    if (sub?.fortalezas?.length) h += wrappedMm(doc, sub.fortalezas.join(' · '), contentWidth) + 5
+    if (sub?.debilidades?.length) h += wrappedMm(doc, sub.debilidades.join(' · '), contentWidth) + 5
   }
   h += wrappedMm(doc, phase.vigilancias, contentWidth)
   h += wrappedMm(doc, phase.repliegue, contentWidth)
@@ -479,8 +536,9 @@ function phaseBlockHeight(
   h += wrappedMm(doc, phase.abp_defensa, contentWidth)
   if (phase.roles?.length) h += phase.roles.length * 5 + 8
   if (!phase.subfases && (phase.pizarra_tactica || diagramHasContent(phase.pizarra_diagrama))) h += imageMax + 4
-  if (phase.fortalezas?.length) h += wrappedMm(doc, phase.fortalezas.join(' · '), contentWidth) + 5
-  if (phase.debilidades?.length) h += wrappedMm(doc, phase.debilidades.join(' · '), contentWidth) + 5
+  const hidePhaseTags = isOrganizedScout(phase.fase) && subsOwnTags(phase)
+  if (!hidePhaseTags && phase.fortalezas?.length) h += wrappedMm(doc, phase.fortalezas.join(' · '), contentWidth) + 5
+  if (!hidePhaseTags && phase.debilidades?.length) h += wrappedMm(doc, phase.debilidades.join(' · '), contentWidth) + 5
   if (phase.clips?.length) {
     h += 6
     for (const clip of phase.clips) h += wrappedMm(doc, clip.titulo, contentWidth)
@@ -610,6 +668,19 @@ export async function exportRivalScoutPDF(
     doc.setFontSize(9)
     doc.setTextColor(51, 65, 85)
 
+    const organized = isOrganizedScout(phase?.fase)
+    if (organized && phase?.comentario_general?.trim()) {
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(9)
+      doc.setTextColor(15, 23, 42)
+      doc.text('Comentario general', margin, y)
+      y += 4.5
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(51, 65, 85)
+      y = writeWrapped(doc, phase.comentario_general.trim(), margin, y, contentWidth)
+      y += 3
+    }
+
     if (phase?.formacion?.trim()) {
       doc.text(`Sistema: ${phase.formacion}`, margin, y)
       y += 5
@@ -619,15 +690,14 @@ export async function exportRivalScoutPDF(
       y += 3
     }
 
-    if (phase?.subfases) {
-      for (const [key, sub] of Object.entries(phase.subfases)) {
-        if (
-          !sub?.notas?.trim() &&
-          !sub?.roles?.length &&
-          !sub?.pizarra_tactica &&
-          !diagramHasContent(sub?.pizarra_diagrama)
-        )
-          continue
+    if (organized && phase && !subsOwnTags(phase)) {
+      y = writeScoutTagList(doc, 'Fortalezas', phase.fortalezas, [5, 150, 105], margin, y, contentWidth)
+      y = writeScoutTagList(doc, 'Debilidades', phase.debilidades, [220, 38, 38], margin, y, contentWidth)
+    }
+
+    if (phase) {
+      for (const [key, sub] of eachScoutSubfase(phase)) {
+        if (!scoutSubHasContent(sub)) continue
         y = ensureSpace(doc, y, 14, margin)
         doc.setFont('helvetica', 'bold')
         doc.setFontSize(9)
@@ -655,6 +725,8 @@ export async function exportRivalScoutPDF(
           contentWidth,
           imageMax,
         )
+        y = writeScoutTagList(doc, 'Fortalezas', sub.fortalezas, [5, 150, 105], margin, y, contentWidth)
+        y = writeScoutTagList(doc, 'Debilidades', sub.debilidades, [220, 38, 38], margin, y, contentWidth)
       }
     }
 
@@ -698,25 +770,9 @@ export async function exportRivalScoutPDF(
       )
     }
 
-    if (phase?.fortalezas?.length) {
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(5, 150, 105)
-      doc.text('Fortalezas', margin, y)
-      y += 4.5
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(51, 65, 85)
-      y = writeWrapped(doc, phase.fortalezas.join(' · '), margin, y, contentWidth)
-      y += 3
-    }
-    if (phase?.debilidades?.length) {
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(220, 38, 38)
-      doc.text('Debilidades', margin, y)
-      y += 4.5
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(51, 65, 85)
-      y = writeWrapped(doc, phase.debilidades.join(' · '), margin, y, contentWidth)
-      y += 3
+    if (!organized) {
+      y = writeScoutTagList(doc, 'Fortalezas', phase?.fortalezas, [5, 150, 105], margin, y, contentWidth)
+      y = writeScoutTagList(doc, 'Debilidades', phase?.debilidades, [220, 38, 38], margin, y, contentWidth)
     }
 
     if (phase?.clips?.length) {

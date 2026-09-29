@@ -1050,6 +1050,10 @@ export interface RivalScoutStrategy {
 
 export interface RivalSubfaseData {
   notas: string
+  /** Fortalezas propias de esta subfase (creación, bloque alto, …) */
+  fortalezas?: string[]
+  /** Debilidades propias de esta subfase */
+  debilidades?: string[]
   /** Derivado de pizarra_diagrama — compat PDF/sync */
   roles?: AsignacionRolTactico[]
   pizarra_tactica?: string
@@ -1058,6 +1062,8 @@ export interface RivalSubfaseData {
 
 export interface RivalPhaseAnalysis {
   fase: FaseRival
+  /** Comentario común de ataque o defensa organizada, encima de las tres fases */
+  comentario_general?: string
   fortalezas: string[]
   debilidades: string[]
   clips: ClipRival[]
@@ -1098,6 +1104,10 @@ export interface RivalScoutData {
 export interface PlanPartidoSubfaseData {
   sistema?: string
   notas: string
+  /** Fortalezas propias de esta subfase */
+  fortalezas?: string[]
+  /** Debilidades propias de esta subfase */
+  debilidades?: string[]
   /** Derivado de pizarra_diagrama — compat PDF/sync */
   roles?: AsignacionRolTactico[]
   pizarra_tactica?: string
@@ -1112,6 +1122,8 @@ export interface PlanPartidoABPItem {
 
 export interface PlanPartidoPhase {
   fase: FasePlanPartido
+  /** Comentario común de ataque o defensa organizada, encima de las tres fases */
+  comentario_general?: string
   /** Transiciones: notas generales de la fase */
   texto?: string
   /** Transiciones: sistema general */

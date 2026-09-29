@@ -3,6 +3,7 @@ import type {
   FasePlanPartido,
   PlanPartidoData,
   PlanPartidoPhase,
+  PlanPartidoSubfaseData,
   RivalSubfaseAtaque,
   RivalSubfaseDefensa,
 } from '@/types'
@@ -203,22 +204,63 @@ function addPizarraImage(
   }
 }
 
+function isOrganizedPlan(fase: string | undefined): boolean {
+  return fase === 'ataque_organizado' || fase === 'defensa_organizada'
+}
+
+function eachPlanSubfase(phase: PlanPartidoPhase): Array<[string, PlanPartidoSubfaseData]> {
+  const subfases = phase.subfases
+  if (!subfases) return []
+  const preferred = isOrganizedPlan(phase.fase)
+    ? phase.fase === 'ataque_organizado'
+      ? ['creacion', 'progresion', 'finalizacion']
+      : ['bloque_alto', 'bloque_medio', 'bloque_bajo']
+    : Object.keys(subfases)
+  const seen = new Set<string>()
+  const out: Array<[string, PlanPartidoSubfaseData]> = []
+  for (const key of preferred) {
+    const sub = subfases[key as keyof typeof subfases]
+    if (!sub) continue
+    seen.add(key)
+    out.push([key, sub])
+  }
+  for (const key of Object.keys(subfases)) {
+    if (seen.has(key)) continue
+    const sub = subfases[key as keyof typeof subfases]
+    if (sub) out.push([key, sub])
+  }
+  return out
+}
+
+function planSubHasContent(sub: {
+  notas?: string
+  sistema?: string
+  roles?: unknown[]
+  pizarra_tactica?: string
+  pizarra_diagrama?: PlanPartidoPhase['pizarra_diagrama']
+  fortalezas?: string[]
+  debilidades?: string[]
+} | undefined): boolean {
+  return Boolean(
+    sub?.notas?.trim() ||
+      sub?.sistema?.trim() ||
+      sub?.roles?.length ||
+      sub?.pizarra_tactica ||
+      diagramHasContent(sub?.pizarra_diagrama) ||
+      sub?.fortalezas?.length ||
+      sub?.debilidades?.length
+  )
+}
+
 function phaseHasContent(phase: PlanPartidoPhase | undefined): boolean {
   if (!phase) return false
+  if (phase.comentario_general?.trim()) return true
   if (phase.texto?.trim()) return true
   if (phase.sistema?.trim()) return true
   if (phase.roles?.length) return true
   if (phase.pizarra_tactica || diagramHasContent(phase.pizarra_diagrama)) return true
   if (
-    phase.subfases &&
-    Object.values(phase.subfases).some(
-      (s) =>
-        s?.notas?.trim() ||
-        s?.sistema?.trim() ||
-        s?.roles?.length ||
-        s?.pizarra_tactica ||
-        diagramHasContent(s?.pizarra_diagrama)
-    )
+    phase.subfases && Object.values(phase.subfases).some((s) => planSubHasContent(s))
   )
     return true
   if (phase.jugadas_abp?.length) return true
@@ -367,6 +409,28 @@ function wrappedMm(doc: jsPDF, text: string | undefined, width: number): number 
   return (doc.splitTextToSize(value, width) as string[]).length * 4.4 + 3
 }
 
+function writePlanTagList(
+  doc: jsPDF,
+  label: string,
+  items: string[] | undefined,
+  color: [number, number, number],
+  margin: number,
+  y: number,
+  contentWidth: number,
+): number {
+  if (!items?.length) return y
+  y = ensureSpace(doc, y, 10, margin)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  doc.setTextColor(color[0], color[1], color[2])
+  doc.text(label, margin, y)
+  y += 4.5
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(51, 65, 85)
+  y = writeWrapped(doc, items.join(' · '), margin, y, contentWidth)
+  return y + 3
+}
+
 function planPhaseHeight(
   doc: jsPDF,
   phase: PlanPartidoPhase,
@@ -375,21 +439,16 @@ function planPhaseHeight(
   jugadas: Map<string, JugadaInfo>,
 ): number {
   let h = 16
-  if (phase.subfases) {
-    for (const sub of Object.values(phase.subfases)) {
-      if (
-        !sub?.notas?.trim() &&
-        !sub?.sistema?.trim() &&
-        !sub?.roles?.length &&
-        !sub?.pizarra_tactica &&
-        !diagramHasContent(sub?.pizarra_diagrama)
-      ) continue
-      h += 10
-      if (sub?.sistema?.trim()) h += 5
-      h += wrappedMm(doc, sub?.notas, contentWidth)
-      h += (sub?.roles?.length ?? 0) * 5
-      if (sub?.pizarra_tactica || diagramHasContent(sub?.pizarra_diagrama)) h += imageMax + 6
-    }
+  if (phase.comentario_general?.trim()) h += 6 + wrappedMm(doc, phase.comentario_general, contentWidth)
+  for (const [, sub] of eachPlanSubfase(phase)) {
+    if (!planSubHasContent(sub)) continue
+    h += 10
+    if (sub?.sistema?.trim()) h += 5
+    h += wrappedMm(doc, sub?.notas, contentWidth)
+    h += (sub?.roles?.length ?? 0) * 5
+    if (sub?.pizarra_tactica || diagramHasContent(sub?.pizarra_diagrama)) h += imageMax + 6
+    if (sub?.fortalezas?.length) h += wrappedMm(doc, sub.fortalezas.join(' · '), contentWidth) + 5
+    if (sub?.debilidades?.length) h += wrappedMm(doc, sub.debilidades.join(' · '), contentWidth) + 5
   }
   if (phase.texto?.trim() && !phase.subfases) h += wrappedMm(doc, phase.texto, contentWidth)
   if (!phase.subfases) {
@@ -492,16 +551,21 @@ export async function exportPlanPartidoPDF(
     doc.setFontSize(9.5)
     doc.setTextColor(51, 65, 85)
 
-    if (phase?.subfases) {
-      for (const [key, sub] of Object.entries(phase.subfases)) {
-        if (
-          !sub?.notas?.trim() &&
-          !sub?.sistema?.trim() &&
-          !sub?.roles?.length &&
-          !sub?.pizarra_tactica &&
-          !diagramHasContent(sub?.pizarra_diagrama)
-        )
-          continue
+    if (isOrganizedPlan(phase?.fase) && phase?.comentario_general?.trim()) {
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(9.5)
+      doc.setTextColor(15, 23, 42)
+      doc.text('Comentario general', margin, y)
+      y += 4.5
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(51, 65, 85)
+      y = writeWrapped(doc, phase.comentario_general.trim(), margin, y, contentWidth)
+      y += 3
+    }
+
+    if (phase) {
+      for (const [key, sub] of eachPlanSubfase(phase)) {
+        if (!planSubHasContent(sub)) continue
         y = ensureSpace(doc, y, 16, margin)
         doc.setFont('helvetica', 'bold')
         doc.setFontSize(10)
@@ -511,15 +575,15 @@ export async function exportPlanPartidoPDF(
         doc.setFont('helvetica', 'normal')
         doc.setFontSize(9.5)
         doc.setTextColor(51, 65, 85)
+        if (sub.notas?.trim()) {
+          y = writeWrapped(doc, sub.notas.trim(), margin, y, contentWidth)
+          y += 3
+        }
         if (sub.sistema?.trim()) {
           doc.setFont('helvetica', 'bold')
           doc.text(`Sistema  ${sub.sistema}`, margin, y)
           y += 5
           doc.setFont('helvetica', 'normal')
-        }
-        if (sub.notas?.trim()) {
-          y = writeWrapped(doc, sub.notas.trim(), margin, y, contentWidth)
-          y += 3
         }
         const ctx =
           phase.fase === 'ataque_organizado' || phase.fase === 'defensa_organizada'
@@ -535,6 +599,8 @@ export async function exportPlanPartidoPDF(
           contentWidth,
           imageMax,
         )
+        y = writePlanTagList(doc, 'Fortalezas', sub.fortalezas, [5, 150, 105], margin, y, contentWidth)
+        y = writePlanTagList(doc, 'Debilidades', sub.debilidades, [220, 38, 38], margin, y, contentWidth)
       }
     }
 

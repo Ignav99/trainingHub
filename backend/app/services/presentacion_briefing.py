@@ -45,8 +45,27 @@ def _tags(values: Any, limit: int = 8) -> list[str]:
     return out
 
 
+def _subfase_line(sub: dict, *, include_sistema: bool) -> str:
+    parts: list[str] = []
+    if include_sistema and sub.get("sistema"):
+        parts.append(_clip(sub.get("sistema"), 80))
+    nota = _clip(sub.get("notas"), 220)
+    if nota:
+        parts.append(nota)
+    forts = _tags(sub.get("fortalezas"), 4)
+    debs = _tags(sub.get("debilidades"), 4)
+    if forts:
+        parts.append("Fortalezas: " + ", ".join(forts))
+    if debs:
+        parts.append("Debilidades: " + ", ".join(debs))
+    return _clip(" · ".join(parts), 280)
+
+
 def _collect_phase_informe(fase: dict) -> dict[str, Any]:
     payload: dict[str, Any] = {}
+    general = _clip(fase.get("comentario_general"), 220)
+    if general:
+        payload["comentario_general"] = general
     for key in ("fortalezas", "debilidades"):
         tags = _tags(fase.get(key))
         if tags:
@@ -61,9 +80,9 @@ def _collect_phase_informe(fase: dict) -> dict[str, Any]:
         for key, sub in subfases.items():
             if not isinstance(sub, dict):
                 continue
-            nota = _clip(sub.get("notas"), 220)
-            if nota:
-                notes[SUBFASE_LABELS.get(key, key)] = nota
+            line = _subfase_line(sub, include_sistema=False)
+            if line:
+                notes[SUBFASE_LABELS.get(key, key)] = line
         if notes:
             payload["subfases"] = notes
     return payload
@@ -71,6 +90,9 @@ def _collect_phase_informe(fase: dict) -> dict[str, Any]:
 
 def _collect_phase_plan(fase: dict) -> dict[str, Any]:
     payload: dict[str, Any] = {}
+    general = _clip(fase.get("comentario_general"), 220)
+    if general:
+        payload["comentario_general"] = general
     texto = _clip(fase.get("texto") or fase.get("sistema"), 240)
     if texto:
         payload["idea"] = texto
@@ -80,10 +102,9 @@ def _collect_phase_plan(fase: dict) -> dict[str, Any]:
         for key, sub in subfases.items():
             if not isinstance(sub, dict):
                 continue
-            bits = [sub.get("sistema"), sub.get("notas")]
-            nota = _clip(" · ".join(b for b in bits if b), 220)
-            if nota:
-                notes[SUBFASE_LABELS.get(key, key)] = nota
+            line = _subfase_line(sub, include_sistema=True)
+            if line:
+                notes[SUBFASE_LABELS.get(key, key)] = line
         if notes:
             payload["subfases"] = notes
     abp = fase.get("jugadas_abp") or []
