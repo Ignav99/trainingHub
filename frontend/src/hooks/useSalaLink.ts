@@ -27,6 +27,7 @@ interface UseSalaLinkParams {
   onMessage: (msg: Record<string, unknown>) => void
   onPeerJoined?: (peers: number) => void
   onSyncRequest?: () => void
+  disabled?: boolean
 }
 
 export function useSalaLink({
@@ -37,6 +38,7 @@ export function useSalaLink({
   onMessage,
   onPeerJoined,
   onSyncRequest,
+  disabled = false,
 }: UseSalaLinkParams) {
   const [status, setStatus] = useState<SalaLinkStatus>('offline')
   const statusRef = useRef<SalaLinkStatus>('offline')
@@ -109,6 +111,7 @@ export function useSalaLink({
     payload: Record<string, unknown>,
     opts?: { reliable?: boolean },
   ) => {
+    if (disabled) return
     const reliable = opts?.reliable === true
     const extra: Record<string, unknown> = { ...payload }
     if (reliable) {
@@ -118,11 +121,12 @@ export function useSalaLink({
     const envelope = wrapSalaEnvelope('sala_sync', codeRef.current, roleRef.current, extra)
     if (reliable) pendingRef.current = { seq: seqRef.current, envelope, tries: 0 }
     transmit(envelope)
-  }, [transmit])
+  }, [disabled, transmit])
 
   const requestSync = useCallback(() => {
+    if (disabled) return
     transmit(wrapSalaEnvelope('sala_sync_request', codeRef.current, roleRef.current, {}))
-  }, [transmit])
+  }, [disabled, transmit])
 
   const sendSignal = useCallback((signal: SignalMsg) => {
     const ws = wsRef.current
@@ -297,6 +301,7 @@ export function useSalaLink({
 
   useEffect(() => {
     unmountedRef.current = false
+    if (disabled) return
     if (!accessToken && !code) return
     if (accessToken && !equipoId) return
 
@@ -356,7 +361,7 @@ export function useSalaLink({
       try { wsRef.current?.close() } catch { /* ignore */ }
       wsRef.current = null
     }
-  }, [accessToken, equipoId, code, role, flushPending, setLinkStatus, teardownRtc])
+  }, [accessToken, equipoId, code, role, disabled, flushPending, setLinkStatus, teardownRtc])
 
   return {
     send,

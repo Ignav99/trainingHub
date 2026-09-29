@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  buildDirectoShow,
   buildInformeShow,
   buildPlanShow,
   chapterIndexForSlide,
@@ -210,6 +211,24 @@ describe('dossier live show builder', () => {
     )
     assert.equal(chapterIndexForSlide(chapters, 2), 1)
     assert.equal(chapterIndexForSlide(chapters, 3), 2)
+  })
+
+  it('builds a one-clip live annotator show', () => {
+    const show = buildDirectoShow('Motilla vs Herrera.mp4', 'blob:http://localhost/abc')
+    assert.equal(show.kind, 'informe')
+    assert.equal(show.slides.length, 1)
+    const slide = show.slides[0]
+    assert.equal(slide?.kind, 'video')
+    if (slide?.kind !== 'video') return
+    assert.equal(slide.id, 'video:directo')
+    assert.equal(slide.kicker, 'En directo')
+    assert.equal(slide.title, 'Motilla vs Herrera')
+    assert.equal(slide.src, 'blob:http://localhost/abc')
+    assert.equal(slide.clipId, 'directo')
+    assert.equal(slide.fase, 'ataque_organizado')
+    const blank = buildDirectoShow('  ', 'blob:x').slides[0]
+    assert.equal(blank?.kind, 'video')
+    if (blank?.kind === 'video') assert.equal(blank.title, 'Vídeo')
   })
 
   it('ignores blank clip urls', () => {

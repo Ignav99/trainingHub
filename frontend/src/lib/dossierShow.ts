@@ -164,6 +164,24 @@ export interface ShowChapter {
   videoCount: number
 }
 
+export function buildDirectoShow(title: string, src: string): DossierShow {
+  const name = title.replace(/\.[^.]+$/, '').trim() || 'Vídeo'
+  return {
+    kind: 'informe',
+    slides: [
+      {
+        id: 'video:directo',
+        kind: 'video',
+        fase: 'ataque_organizado',
+        kicker: 'En directo',
+        title: name,
+        src,
+        clipId: 'directo',
+      },
+    ],
+  }
+}
+
 export function playableClipUrl(url?: string): string | null {
   if (typeof url !== 'string') return null
   const trimmed = url.trim()
