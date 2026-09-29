@@ -1643,10 +1643,52 @@ def _normalize_escudo_url(src: str | None) -> str | None:
     return "https://www.rfaf.es/" + src.lstrip("/")
 
 
-def _escudo_for_side(name: str, rival_nombre: str, rival_escudo_url: str | None, acta_url: str | None) -> str | None:
-    url = _normalize_escudo_url(acta_url)
-    if url:
-        return url
+def _best_named_crest(name: str, pairs: list[tuple[str, str | None]]) -> str | None:
+    """Pick the closest league or acta crest for a team name."""
+    best_rank: int | None = None
+    best_url: str | None = None
+    for team, raw in pairs:
+        url = _normalize_escudo_url(raw)
+        if not team or not url:
+            continue
+        rank = _clasificacion_match_rank(name, team)
+        if rank is None:
+            continue
+        if best_rank is None or rank < best_rank:
+            best_rank = rank
+            best_url = url
+    return best_url
+
+
+def _league_crest_rows(supabase, comp_id: str) -> list[dict]:
+    try:
+        res = supabase.table("rfef_competiciones").select("clasificacion").eq(
+            "id", comp_id
+        ).execute()
+        data = res.data or []
+        if isinstance(data, dict):
+            data = [data]
+        if not data:
+            return []
+        return (data[0] or {}).get("clasificacion") or []
+    except Exception as e:
+        logger.debug("Error fetching league crests: %s", e)
+        return []
+
+
+def _escudo_for_side(
+    name: str,
+    rival_nombre: str,
+    rival_escudo_url: str | None,
+    league_pairs: list[tuple[str, str | None]],
+    acta_pairs: list[tuple[str, str | None]],
+) -> str | None:
+    league = _best_named_crest(name, league_pairs)
+    if league:
+        return league
+    acta = _best_named_crest(name, acta_pairs)
+    if acta:
+        return acta
     if rival_escudo_url and _match_rival_name(rival_nombre, name or ""):
         return rival_escudo_url
     return None
@@ -1658,10 +1700,17 @@ def _attach_resultado_escudos(
     rival_nombre: str,
     results: list[dict],
     rival_escudo_url: str | None = None,
+    league_rows: list[dict] | None = None,
 ) -> list[dict]:
-    """Fill home/away crests from rfef_actas, then the report rival's own crest."""
+    """Fill both crests from the league table, then actas, then the report rival."""
     if not results:
         return results
+    if league_rows is None:
+        league_rows = _league_crest_rows(supabase, comp_id)
+    league_pairs = [
+        ((row.get("equipo") or row.get("nombre") or ""), row.get("escudo_url"))
+        for row in league_rows
+    ]
     actas: list[dict] = []
     try:
         res = supabase.table("rfef_actas").select(
@@ -1671,38 +1720,32 @@ def _attach_resultado_escudos(
     except Exception as e:
         logger.debug("Error fetching acta crests: %s", e)
 
-    def _acta_for(row: dict) -> dict | None:
-        local = row.get("local") or ""
-        visitante = row.get("visitante") or ""
-        jornada = row.get("jornada")
-        named = [
-            acta for acta in actas
-            if _match_rival_name(local, acta.get("local_nombre") or "")
-            and _match_rival_name(visitante, acta.get("visitante_nombre") or "")
-        ]
-        for acta in named:
-            if jornada is not None and acta.get("jornada_numero") == jornada:
-                return acta
-        return named[0] if named else None
+    acta_pairs: list[tuple[str, str | None]] = []
+    for acta in actas:
+        acta_pairs.append((acta.get("local_nombre") or "", acta.get("local_escudo_url")))
+        acta_pairs.append((acta.get("visitante_nombre") or "", acta.get("visitante_escudo_url")))
 
     for row in results:
-        acta = _acta_for(row)
-        local_url = _escudo_for_side(
-            row.get("local") or "",
-            rival_nombre,
-            rival_escudo_url,
-            acta.get("local_escudo_url") if acta else None,
-        )
-        visitante_url = _escudo_for_side(
-            row.get("visitante") or "",
-            rival_nombre,
-            rival_escudo_url,
-            acta.get("visitante_escudo_url") if acta else None,
-        )
-        if local_url:
-            row["local_escudo_url"] = local_url
-        if visitante_url:
-            row["visitante_escudo_url"] = visitante_url
+        if not row.get("local_escudo_url"):
+            local_url = _escudo_for_side(
+                row.get("local") or "",
+                rival_nombre,
+                rival_escudo_url,
+                league_pairs,
+                acta_pairs,
+            )
+            if local_url:
+                row["local_escudo_url"] = local_url
+        if not row.get("visitante_escudo_url"):
+            visitante_url = _escudo_for_side(
+                row.get("visitante") or "",
+                rival_nombre,
+                rival_escudo_url,
+                league_pairs,
+                acta_pairs,
+            )
+            if visitante_url:
+                row["visitante_escudo_url"] = visitante_url
     return results
 
 
@@ -2068,5 +2111,16 @@ def refresh_rival_intel_contexto(
     )
     if historico:
         intel["historico_temporadas"] = historico
+
+    resultados = intel.get("ultimos_resultados") or []
+    if resultados:
+        intel["ultimos_resultados"] = _attach_resultado_escudos(
+            supabase,
+            competicion_id,
+            rival_nombre,
+            resultados,
+            rival.get("escudo_url"),
+            comp_res.data.get("clasificacion") or [],
+        )
 
     return intel

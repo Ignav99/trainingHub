@@ -319,9 +319,6 @@ export function OnceSlide({ slide }: { slide: Extract<ShowSlide, { kind: 'once' 
             {slide.sistema}
           </p>
         ) : null}
-        <p className="mt-4 max-w-xs leading-snug" style={{ color: '#9AA59B', fontSize: '18px' }}>
-          🧱 muro · 🏃 correcaminos · 💡 bombilla
-        </p>
       </div>
       {showPitch ? (
         <div className="flex min-h-0 items-center justify-center">

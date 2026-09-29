@@ -50,15 +50,18 @@ class _Chain:
 
 
 class _FakeSupabase:
-    def __init__(self, actas, jornadas=None):
+    def __init__(self, actas, jornadas=None, competiciones=None):
         self.actas = actas
         self.jornadas = jornadas or []
+        self.competiciones = competiciones or []
 
     def table(self, name):
         if name == "rfef_actas":
             return _Chain(self.actas)
         if name == "rfef_jornadas":
             return _Chain(self.jornadas)
+        if name == "rfef_competiciones":
+            return _Chain(self.competiciones)
         return _Chain([])
 
 
@@ -732,6 +735,29 @@ def test_ultimos_resultados_include_crests():
     )
     assert filled[0].get("local_escudo_url") is None
     assert filled[0]["visitante_escudo_url"] == "https://cdn.example/saved.png"
+
+
+def test_ultimos_resultados_use_league_crests_for_the_opponent():
+    jornadas = [{
+        "numero": 4,
+        "partidos": [{
+            "local": "C.D. Rival",
+            "visitante": "U.D. Otro",
+            "goles_local": 1,
+            "goles_visitante": 0,
+        }],
+    }]
+    comps = [{
+        "clasificacion": [
+            {"equipo": "C.D. Rival", "escudo_url": "/pnfg/pimg/Clubes/rival.png"},
+            {"equipo": "U.D. Otro", "escudo_url": "https://cdn.example/otro.png"},
+        ],
+    }]
+    rows = _get_ultimos_resultados(
+        _FakeSupabase([], jornadas, comps), "comp-1", "C.D. Rival", None,
+    )
+    assert rows[0]["local_escudo_url"].endswith("/pnfg/pimg/Clubes/rival.png")
+    assert rows[0]["visitante_escudo_url"] == "https://cdn.example/otro.png"
 
 
 def test_historico_keeps_last_season_on_the_rival():
