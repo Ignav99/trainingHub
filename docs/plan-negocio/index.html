@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kabin-e — Plan de negocio para socios</title>
+<meta name="description" content="Plan de negocio interno de Kabin-e. Septiembre 2026. Precios, mercado, costes e inversión." />
+<link rel="icon" href="logo.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --night: #0c1024;
+    --night-2: #161b36;
+    --violet: #4c3bd4;
+    --violet-2: #6a4dff;
+    --blue: #2f5be0;
+    --ice: #e7ecf8;
+    --paper: #f3f5fb;
+    --ink: #14182a;
+    --muted: #5c647c;
+    --line: #d5dcec;
+    --good: #1b6b45;
+    --good-bg: #e5f4ec;
+    --warn: #8a4510;
+    --warn-bg: #f8efe4;
+    --no: #8d2b32;
+    --no-bg: #f8e8e8;
+    --display: "Syne", "Arial Narrow", sans-serif;
+    --serif: "Source Serif 4", Georgia, serif;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--night);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 18px;
+    line-height: 1.45;
+  }
+  button, a { font-family: var(--display); }
+  .shell { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+  nav {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow: auto;
+    background: var(--night);
+    color: #d7dcf0;
+    padding: 22px 16px 28px;
+    border-right: 1px solid rgba(255,255,255,.08);
+  }
+  nav img { width: 72px; height: auto; display: block; background: var(--night); }
+  nav .brand {
+    font-family: var(--display);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: white;
+    margin: 8px 0 4px;
+  }
+  nav .meta { color: #8d96b5; font-size: 12px; font-family: var(--display); letter-spacing: .04em; text-transform: uppercase; margin-bottom: 18px; }
+  nav ol { list-style: none; margin: 0; padding: 0; }
+  nav a {
+    display: block;
+    color: #c5cbe2;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 7px 8px;
+    border-left: 2px solid transparent;
+  }
+  nav a[aria-current="true"] { color: white; border-left-color: var(--violet-2); background: rgba(106,77,255,.16); }
+  nav a:hover { color: white; }
+  nav a:focus-visible, button:focus-visible, .jump:focus-visible { outline: 2px solid var(--violet-2); outline-offset: 2px; }
+  main { background: var(--paper); }
+  section.slide {
+    min-height: 100vh;
+    padding: 48px 56px 72px;
+    border-bottom: 1px solid var(--line);
+    scroll-margin-top: 0;
+  }
+  section.slide.dark {
+    background: var(--night);
+    color: #eef1fb;
+  }
+  .kicker {
+    font-family: var(--display);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--violet);
+    margin: 0 0 10px;
+  }
+  .dark .kicker { color: #b7a8ff; }
+  h1, h2 {
+    font-family: var(--display);
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    line-height: .98;
+    margin: 0 0 16px;
+  }
+  h1 { font-size: clamp(48px, 6vw, 84px); max-width: 14ch; }
+  h2 { font-size: clamp(32px, 4vw, 52px); max-width: 18ch; }
+  .lead { font-size: 22px; max-width: 42rem; margin: 0 0 22px; }
+  .dark .lead { color: #c9d0ea; }
+  p { max-width: 46rem; }
+  .grid { display: grid; gap: 14px; }
+  .g2 { grid-template-columns: 1fr 1fr; }
+  .g3 { grid-template-columns: repeat(3, 1fr); }
+  .g4 { grid-template-columns: repeat(4, 1fr); }
+  .card {
+    background: white;
+    border: 1px solid var(--line);
+    padding: 16px 16px 14px;
+  }
+  .dark .card { background: var(--night-2); border-color: rgba(255,255,255,.08); color: #eef1fb; }
+  .card h3 {
+    font-family: var(--display);
+    font-size: 16px;
+    letter-spacing: -0.03em;
+    margin: 0 0 6px;
+  }
+  .card p, .card li { font-size: 15px; }
+  .num {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: 28px;
+    letter-spacing: -0.04em;
+    color: var(--violet);
+  }
+  .dark .num { color: #c4b6ff; }
+  table { width: 100%; border-collapse: collapse; background: white; font-size: 15px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-family: var(--display); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+  td.yes { background: var(--good-bg); color: var(--good); font-family: var(--display); font-weight: 700; }
+  td.no { background: var(--no-bg); color: var(--no); }
+  td.mid { background: var(--warn-bg); color: var(--warn); }
+  .note { font-size: 14px; color: var(--muted); max-width: 52rem; }
+  .dark .note { color: #9aa3c2; }
+  .price {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: 34px;
+    letter-spacing: -0.04em;
+  }
+  .price span { font-size: 14px; font-weight: 700; color: var(--muted); }
+  ul.clean { margin: 8px 0 0; padding-left: 18px; }
+  ul.clean li { margin: 4px 0; }
+  .bar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 28px; }
+  .jump, .keys button {
+    background: var(--violet);
+    color: white;
+    border: 0;
+    padding: 10px 14px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .keys { display: flex; gap: 8px; }
+  .keys button.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  .dark .keys button.ghost { color: white; border-color: rgba(255,255,255,.2); }
+  .src { font-size: 13px; color: var(--muted); }
+  .tag {
+    display: inline-block;
+    font-family: var(--display);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    padding: 3px 7px;
+    background: var(--ice);
+    color: var(--violet);
+  }
+  .cover-mark { display: flex; align-items: center; gap: 16px; margin-bottom: 28px; }
+  .cover-mark strong { font-family: var(--display); font-size: 22px; letter-spacing: -0.04em; }
+  @media (max-width: 980px) {
+    .shell { grid-template-columns: 1fr; }
+    nav { position: relative; height: auto; }
+    nav ol { display: flex; gap: 4px; overflow: auto; }
+    nav a { white-space: nowrap; border-left: 0; border-bottom: 2px solid transparent; }
+    section.slide { padding: 28px 18px 64px; min-height: auto; }
+    .g2, .g3, .g4 { grid-template-columns: 1fr; }
+    table { display: block; overflow-x: auto; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+  }
+  @media print {
+    nav, .bar, .keys { display: none !important; }
+    .shell { display: block; }
+    section.slide { min-height: 0; break-after: page; }
+    body { background: white; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav aria-label="Índice del plan">
+    <img src="logo.png" alt="" width="72" height="72" />
+    <div class="brand">Kabin-e</div>
+    <div class="meta">Plan interno · sep 2026</div>
+    <ol id="toc"></ol>
+  </nav>
+  <main id="deck">
+
+    <section class="slide dark" id="portada" data-title="Portada">
+      <div class="cover-mark">
+        <img src="logo.png" alt="Kabin-e" width="88" height="88" />
+        <div>
+          <strong>Kabin-e</strong>
+          <div class="note">Documento para socios. No es una previsión auditada.</div>
+        </div>
+      </div>
+      <p class="kicker">Plan de negocio</p>
+      <h1>La semana del partido, en una sola cabina.</h1>
+      <p class="lead">Kabin-e no compite por ser el Wyscout barato ni el Nacsport en el navegador. Vende el trabajo que el cuerpo técnico hace entre el pitido final y el siguiente partido: rival, plan, vídeo, charla y vestuario.</p>
+      <div class="grid g3">
+        <div class="card"><div class="num">49–249 €</div><h3>Precio de club, al mes</h3><p>Un club, no un asiento. El plan que queremos vender es 129 € al mes, cobrado al año en pretemporada.</p></div>
+        <div class="card"><div class="num">3ª RFEF</div><h3>Primer campo</h3><p>Clubes que ya pagan a alguien para ver al rival y hoy montan la charla en PowerPoint, WhatsApp y un programa de vídeo aparte.</p></div>
+        <div class="card"><div class="num">18 meses</div><h3>Meta sobria</h3><p>150 clubes de pago y del orden de 160.000 € de ingresos recurrentes anuales. No es una ronda de unicornio.</p></div>
+      </div>
+      <div class="bar">
+        <p class="note">Flechas del teclado para pasar. En móvil, el índice de arriba.</p>
+        <div class="keys">
+          <button type="button" class="ghost" id="prev">Anterior</button>
+          <button type="button" id="next">Siguiente</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="tesis" data-title="Tesis">
+      <p class="kicker">01 · Tesis</p>
+      <h2>El analista no necesita otra base de datos. Necesita que el lunes y el viernes sean el mismo archivo.</h2>
+      <p class="lead">Hoy un cuerpo técnico de Tercera Federación paga, si paga, tres cosas que no se hablan: un programa de recorte, un PowerPoint y un grupo de WhatsApp. Kabin-e junta el informe del rival, el plan, el vídeo anotado y la charla en la tablet.</p>
+      <div class="grid g2">
+        <div class="card">
+          <h3>Lo que ya está construido</h3>
+          <ul class="clean">
+            <li>Semana de trabajo: sesiones, plantilla, partidos, rivales.</li>
+            <li>Informe del rival y plan de partido, con fases, ABP y PDF.</li>
+            <li>Charla en sala: la tele y la tablet ven lo mismo, con dibujo.</li>
+            <li>Vídeo en el ordenador del club: anotar, pantalla completa, extraer los clips por fase sin subir el partido.</li>
+            <li>Competición con actas y escudos de la liga, enfermería, RPE y nutrición.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Lo que este plan no promete</h3>
+          <ul class="clean">
+            <li>Tracking automático de jugadores. Eso es Metrica, y otro precio.</li>
+            <li>Una base mundial de fichajes. Eso es Wyscout.</li>
+            <li>GPS. Eso es Catapult, y lleva hardware.</li>
+            <li>Subir el partido entero a la nube. Hoy el archivo se queda en el club, a propósito.</li>
+          </ul>
+        </div>
+      </div>
+      <p class="note">El producto se llama Kabin-e de cara al club. El código interno sigue en TrainingHub. Para los socios, la marca es Kabin-e.</p>
+    </section>
+
+    <section class="slide" id="problema" data-title="Problema">
+      <p class="kicker">02 · El trabajo que se compra</p>
+      <h2>Seis horas de la semana del analista se van en pasar cosas de un sitio a otro.</h2>
+      <div class="grid g3">
+        <div class="card"><div class="num">Lunes</div><h3>Ver el partido</h3><p>El vídeo está en un disco. Los cortes viven en carpetas con nombres distintos. El entrenador pide «lo del córner» y nadie encuentra el archivo.</p></div>
+        <div class="card"><div class="num">Jueves</div><h3>El rival</h3><p>El once, los goles y el escudo se copian a mano desde el acta. El informe y el plan no comparten las mismas fases.</p></div>
+        <div class="card"><div class="num">Viernes</div><h3>La charla</h3><p>En la tele se ve bien y en la tablet se corta. El dibujo no va con el vídeo. El jugador no se lleva nada.</p></div>
+      </div>
+      <p>El comprador no es «el fútbol». Es la persona que el domingo por la noche todavía está montando diapositivas. Si Kabin-e le devuelve una tarde a la semana, 129 € al mes es barato al lado de su nómina o de sus horas.</p>
+    </section>
+
+    <section class="slide" id="publico" data-title="Público">
+      <p class="kicker">03 · A quién, y en qué orden</p>
+      <h2>No salimos a LaLiga. Salimos donde el analista existe y el presupuesto de software casi no.</h2>
+      <table>
+        <thead><tr><th>Orden</th><th>Rama</th><th>Por qué ahora</th><th>Qué plan le encaja</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Tercera Federación y Preferente con alguien que ve vídeo</td><td>Ya pagan horas. El software de élite les sobra y les sale caro. Hablan entre ellos.</td><td>Cuerpo técnico</td></tr>
+          <tr><td>2</td><td>Cantera de un club de 1ª RFEF, 2ª RFEF o Segunda</td><td>Varios equipos, el mismo idioma táctico. Un solo contrato cubre al club.</td><td>Cantera</td></tr>
+          <tr><td>3</td><td>Analista que lleva 4 u 8 clubes</td><td>Es el comercial que no tenemos que contratar. Le duele repetir el informe en cuatro herramientas.</td><td>Cantera, varios clubes</td></tr>
+          <tr><td>4</td><td>Federación territorial</td><td>Pone Kabin-e delante de decenas de clubes. El ciclo de venta es largo. Se pilota, no se persigue el primer año.</td><td>Institución</td></tr>
+          <tr><td>5</td><td>Fútbol femenino de Primera Federación y territoriales fuertes</td><td>El mismo producto. Menos software heredado. No hace falta una versión distinta.</td><td>Cuerpo técnico</td></tr>
+          <tr><td>—</td><td>Primera y Segunda División</td><td>Ya tienen Wyscout, Sportscode o un departamento propio. El ciclo es de un año y el precio no es el nuestro.</td><td>No en estos 18 meses</td></tr>
+        </tbody>
+      </table>
+      <p class="note">Portugal y el fútbol hispanohablante vienen después de que el cobro y el onboarding funcionen en España. Traducir la interfaz no es el cuello de botella. El cuello es sentarse con el primer cuerpo técnico y que el viernes la charla salga sola.</p>
+    </section>
+
+    <section class="slide" id="mercado" data-title="Mercado">
+      <p class="kicker">04 · Tamaño, con la fuente al lado</p>
+      <h2>El censo es grande. El mercado que puede pagar este año es estrecho, y basta.</h2>
+      <div class="grid g4">
+        <div class="card"><div class="num">10.266</div><h3>Clubes con licencia</h3><p>Fútbol, temporada 2023/24, datos de federaciones territoriales publicados por la RFEF.</p></div>
+        <div class="card"><div class="num">~450</div><h3>Federación estatal</h3><p>1ª RFEF (40), 2ª RFEF (90) y 3ª RFEF (18 grupos de 18, 324). La composición de grupos cambia cada verano.</p></div>
+        <div class="card"><div class="num">800–1.500</div><h3>Mercado útil</h3><p>Estimación nuestra: clubes en España donde alguien, cobrando o no, dedica una tarde a ver al rival. No es un censo.</p></div>
+        <div class="card"><div class="num">150</div><h3>Meta a 18 meses</h3><p>Un 10–20 % de ese mercado útil. Con el mix de precios de más abajo, unos 160.000 € al año.</p></div>
+      </div>
+      <p class="src">Fuentes: RFEF, «Licencias 2023/2024» (rfef.es, PDF de noviembre de 2024). Grupos de 1ª, 2ª y 3ª RFEF según el formato habitual de esas categorías; hay que recontarlos cada temporada. El rango 800–1.500 es criterio de este plan, no un dato oficial.</p>
+    </section>
+
+    <section class="slide" id="competencia" data-title="Competencia">
+      <p class="kicker">05 · Contra quién se nos compara</p>
+      <h2>Nos van a poner al lado de Nacsport. Hay que ganar esa frase, no esquivarla.</h2>
+      <table>
+        <thead><tr><th>Producto</th><th>Precio público que hemos podido ver</th><th>Qué compra el club</th><th>Hueco de Kabin-e</th></tr></thead>
+        <tbody>
+          <tr><td>Nacsport</td><td>Anual, precios publicados en 2022: Basic 85 €, Basic+ 225 €, Scout 600 €. Pro y Elite, a consultar. En libras, un distribuidor lista Scout 595 £, Pro 995 £ y Elite 1.845 £ al año, más IVA.</td><td>Recortar y presentar vídeo en el ordenador. Muy bueno en eso. Windows.</td><td>No lleva el informe, el plan, la plantilla ni la enfermería. La charla no es la semana del club.</td></tr>
+          <tr><td>Metrica PlayBase</td><td>10 €, 30 € y 80 € al mes.</td><td>Análisis de un partido, dibujo, tracking manual o automático según el plan.</td><td>Es del analista, no del club. No sustituye la reunión del viernes.</td></tr>
+          <tr><td>Metrica Nexus</td><td>60 €, 150 € y 300 € al mes.</td><td>Tracking y clip de nivel alto.</td><td>Otro oficio. No entramos ahí en este plan.</td></tr>
+          <tr><td>Hudl (fútbol americano de club, EE. UU.)</td><td>400 $, 1.000 $ y 1.600 $ por equipo y año.</td><td>Subir vídeo, almacenar, repartir cortes.</td><td>Referencia de precio por equipo. Su fútbol no es el nuestro y el vídeo en la nube no es nuestro coste hoy.</td></tr>
+          <tr><td>Wyscout / Sportscode</td><td>Presupuesto. En clubes profesionales, varios miles de euros al año y a menudo por persona.</td><td>Datos de partidos y scouting, o el estándar de la élite en vídeo.</td><td>No es el comprador de los 18 primeros meses.</td></tr>
+          <tr><td>Pizarra, PDF y WhatsApp</td><td>0 €, y muchas horas.</td><td>Lo que usa de verdad la mayoría.</td><td>Este es el rival principal. Se gana en el viernes, no en una tabla de funciones.</td></tr>
+        </tbody>
+      </table>
+      <p class="src">Precios revisados en septiembre de 2026 en las páginas de Metrica (planes de PlayBase y Nexus), en el blog de Nacsport sobre suscripciones (cifras de 2022, pueden haber subido) y en el listado de Hudl para club football en dólares. Hudl no publica el precio de Sportscode. Si un socio tiene una factura reciente, sustituye la celda: no defendemos una cifra vieja.</p>
+    </section>
+
+    <section class="slide" id="precios" data-title="Precios">
+      <p class="kicker">06 · Qué se cobra</p>
+      <h2>Cuatro productos. El que tiene que ganar es Cuerpo técnico.</h2>
+      <div class="grid g4">
+        <div class="card">
+          <span class="tag">1 equipo</span>
+          <h3>Vestuario</h3>
+          <div class="price">49 € <span>/ mes</span></div>
+          <p>490 € al año, si se paga en julio o agosto. Para el equipo que compite y todavía no tiene cantera dentro del contrato.</p>
+        </div>
+        <div class="card" style="outline: 2px solid var(--violet);">
+          <span class="tag">El plan</span>
+          <h3>Cuerpo técnico</h3>
+          <div class="price">129 € <span>/ mes</span></div>
+          <p>1.290 € al año. Hasta 4 equipos. Es el precio que hay que decir en la demo.</p>
+        </div>
+        <div class="card">
+          <span class="tag">El club</span>
+          <h3>Cantera</h3>
+          <div class="price">249 € <span>/ mes</span></div>
+          <p>2.490 € al año. Equipos del mismo club, con un uso razonable de hasta 30.</p>
+        </div>
+        <div class="card">
+          <span class="tag">A medida</span>
+          <h3>Institución</h3>
+          <div class="price">6.000 € <span>/ año</span></div>
+          <p>Desde ahí, hasta 18.000 €. Federación, grupo de clubes o club profesional que quiera a toda la cantera con formación.</p>
+        </div>
+      </div>
+      <p>Todo se cobra por club, no por persona. Si cobramos por asiento, castigamos justo lo que el producto hace: que el entrenador, el analista, el preparador y el fisio estén en la misma cabina.</p>
+      <p>El mensual existe para no asustar en la primera llamada. El anual es el producto de verdad: dos meses de regalo y el cobro cuando el club arma la plantilla, no en junio cuando no hay partidos.</p>
+    </section>
+
+    <section class="slide" id="incluye" data-title="Qué incluye">
+      <p class="kicker">07 · Qué entra y qué se queda fuera</p>
+      <h2>La tabla que se enseña en la demo. Sin funciones que todavía no existen.</h2>
+      <table>
+        <thead>
+          <tr><th></th><th>Prueba 21 días</th><th>Vestuario</th><th>Cuerpo técnico</th><th>Cantera</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Equipos</td><td>4, como el plan grande</td><td>1</td><td class="yes">4</td><td class="yes">El club</td></tr>
+          <tr><td>Informe, plan, ABP, PDF</td><td class="yes">Sí</td><td class="yes">Sí</td><td class="yes">Sí</td><td class="yes">Sí</td></tr>
+          <tr><td>Charla en tele y tablet</td><td class="yes">Sí</td><td class="yes">Sí</td><td class="yes">Sí</td><td class="yes">Sí</td></tr>
+          <tr><td>Vídeo en el ordenador del club y clips por fase</td><td class="yes">Sí</td><td class="yes">Sí</td><td class="yes">Sí</td><td class="yes">Sí</td></tr>
+          <tr><td>Usuarios del staff</td><td>20</td><td>6</td><td>20</td><td>40</td></tr>
+          <tr><td>Sesiones, microciclos, plantilla</td><td class="yes">Sí</td><td class="mid">Básico</td><td class="yes">Sí</td><td class="yes">Sí</td></tr>
+          <tr><td>Competición, actas, escudos</td><td class="yes">Sí</td><td class="no">No</td><td class="yes">Sí</td><td class="yes">Sí</td></tr>
+          <tr><td>Enfermería, RPE, nutrición</td><td class="yes">Sí</td><td class="no">No</td><td class="yes">Sí</td><td class="yes">Sí</td></tr>
+          <tr><td>Puesta en marcha por videollamada</td><td class="no">No</td><td class="no">Guía escrita</td><td class="yes">1 hora</td><td class="yes">2 horas</td></tr>
+          <tr><td>Partido entero en la nube</td><td class="no">No</td><td class="no">No</td><td class="no">No</td><td class="no">No</td></tr>
+          <tr><td>Tracking automático o base de fichajes</td><td class="no">No</td><td class="no">No</td><td class="no">No</td><td class="no">No</td></tr>
+        </tbody>
+      </table>
+      <p class="note">Institución añade formación en el club, un interlocutor fijo y la sala con el escudo de la federación. No añade tracking. Si un club lo pide, se le dice que eso es otro proveedor y que Kabin-e convive con su vídeo.</p>
+    </section>
+
+    <section class="slide" id="logica" data-title="Lógica de precio">
+      <p class="kicker">08 · Por qué este precio y no otro</p>
+      <h2>49 € es la puerta. 129 € es donde el producto se parece a lo que ya hace.</h2>
+      <div class="grid g2">
+        <div class="card">
+          <h3>Por debajo de 49 €</h3>
+          <p>Nos juntamos con las pizarras de 10 €. El club no llama, no se deja ayudar y a los tres meses se va. El soporte de un informe de rival cuesta más que esa cuota.</p>
+        </div>
+        <div class="card">
+          <h3>Vestuario a 490 € al año</h3>
+          <p>Queda al lado de Nacsport Scout (600 € al año en la tarifa publicada) y entrega la semana entera, no solo el recorte. Si Scout ha subido, seguimos un peldaño por debajo del precio que el analista ya ha oído.</p>
+        </div>
+        <div class="card">
+          <h3>Cuerpo técnico a 1.290 € al año</h3>
+          <p>Un analista a media jornada en estas categorías cobra del orden de 600 a 1.200 € al mes. El software es una tarde de ese sueldo. Si le ahorra una tarde por semana, el precio se defiende solo en la demo.</p>
+        </div>
+        <div class="card">
+          <h3>Cantera a 2.490 € al año</h3>
+          <p>Ocho entrenadores compartiendo criterio vale más que ocho licencias de un programa de vídeo. Por persona sale a unos 20 € al mes. Por equipo, si hay ocho, sale a unos 26 €.</p>
+        </div>
+      </div>
+      <p>No hay descuento por «ser amigo del fútbol base» por debajo de Vestuario. Sí hay un mes gratis por cada club que traiga un analista que ya usa Kabin-e y pague el año. El descuento eterno enseña al siguiente club a esperar el descuento.</p>
+    </section>
+
+    <section class="slide" id="freemium" data-title="Prueba, no freemium">
+      <p class="kicker">09 · Freemium</p>
+      <h2>No hay plan gratis para siempre. Hay 21 días con todo, y luego se paga o se exporta.</h2>
+      <div class="grid g2">
+        <div class="card">
+          <h3>Lo que sí</h3>
+          <ul class="clean">
+            <li>21 días de Cuerpo técnico, sin tarjeta.</li>
+            <li>Al acabar, el club se baja los PDF que haya generado. No retenemos el trabajo como rehén.</li>
+            <li>Una segunda prueba, una vez, si cambia el entrenador.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Lo que no</h3>
+          <ul class="clean">
+            <li>Un plan Cancha eterno con la pizarra abierta. Llena de soporte y enseña que Kabin-e es «la gratis».</li>
+            <li>Informes de rival gratis. Es el momento en que el club entiende el precio.</li>
+            <li>Marca de agua en la charla del viernes. Humilla al entrenador delante de los jugadores.</li>
+          </ul>
+        </div>
+      </div>
+      <p>El código ya tiene suscripciones y Stripe. Este plan no pide construir otro sistema de pago: pide que los cuatro precios de arriba sean los únicos visibles y que la prueba caduque sola.</p>
+    </section>
+
+    <section class="slide" id="unidad" data-title="Unidad económica">
+      <p class="kicker">10 · Qué queda de cada club</p>
+      <h2>Mientras el partido no se suba, el coste de servir a un club es bajo. El coste es la puesta en marcha.</h2>
+      <table>
+        <thead><tr><th></th><th>Vestuario anual</th><th>Cuerpo técnico anual</th><th>Cantera anual</th></tr></thead>
+        <tbody>
+          <tr><td>Ingreso</td><td>490 €</td><td>1.290 €</td><td>2.490 €</td></tr>
+          <tr><td>Coste directo de servidores, orden de magnitud</td><td>40–80 €</td><td>50–100 €</td><td>80–150 €</td></tr>
+          <tr><td>Puesta en marcha, si la hacemos nosotros</td><td>0 €, guía</td><td>~80 € de tiempo</td><td>~160 € de tiempo</td></tr>
+          <tr><td>Margen del primer año, antes de comercial</td><td>Alto, y frágil si no renueva</td><td>El que queremos</td><td>El mejor, si el onboarding sale bien</td></tr>
+        </tbody>
+      </table>
+      <p>Esos costes de servidor son un reparto de la factura actual (Render, Supabase, correo) entre los clubes de pago, no una medición por cliente. El vídeo local es la decisión que mantiene el margen: en cuanto guardemos partidos enteros, el almacenamiento manda y hay que cobrarlo aparte.</p>
+      <p>Un comercial que cierre Cuerpo técnico en dos demos de una hora recupera el tiempo en el primer año. Por eso el plan no pide anuncios. Pide demos con un partido de verdad del club.</p>
+    </section>
+
+    <section class="slide" id="estrategia" data-title="18 meses">
+      <p class="kicker">11 · Plan estratégico</p>
+      <h2>Tres tramos. Cada uno se para si el anterior no se cumple.</h2>
+      <div class="grid g3">
+        <div class="card">
+          <div class="num">0–3 meses</div>
+          <h3>15 clubes que pagan el año</h3>
+          <p>Precio publicado. Una demo con su vídeo, no con el nuestro. Una hora de puesta en marcha. Si no llegan a 8 de 15 renovando la intención antes del segundo mes, se revisa el precio antes de seguir.</p>
+        </div>
+        <div class="card">
+          <div class="num">4–9 meses</div>
+          <h3>60 clubes</h3>
+          <p>Un analista que ya usa Kabin-e trae a los clubes de su grupo. Un piloto con una federación territorial, gratis ese año, a cambio de presentar el producto a sus clubes de Preferente y Tercera. No se firma exclusividad.</p>
+        </div>
+        <div class="card">
+          <div class="num">10–18 meses</div>
+          <h3>150 clubes</h3>
+          <p>Mix de trabajo: mitad Vestuario, un tercio Cuerpo técnico, el resto Cantera. Ingreso recurrente del orden de 160.000 €. Una persona de puesta en marcha, no un equipo de ventas.</p>
+        </div>
+      </div>
+      <p class="note">La cuenta de los 160.000 €: 75 clubes × 490 €, 52 × 1.290 € y 23 × 2.490 €. Es un mix, no una promesa. Si todos se quedan en Vestuario, son unos 73.000 €. Por eso la demo enseña Cuerpo técnico.</p>
+    </section>
+
+    <section class="slide" id="comercial" data-title="Comercial y servicio">
+      <p class="kicker">12 · Cómo se entra y cómo se queda</p>
+      <h2>El canal es otro entrenador. El anuncio llega tarde.</h2>
+      <div class="grid g2">
+        <div class="card">
+          <h3>Entrada</h3>
+          <ul class="clean">
+            <li>Demo de 45 minutos con un partido que ellos ya han jugado.</li>
+            <li>El viernes de esa semana, la charla sale de Kabin-e. Si no sale, no se cobra.</li>
+            <li>Un mes de regalo al club que traiga a otro club que pague el año.</li>
+            <li>Presencia en un curso de entrenador, con un taller, no con un stand.</li>
+            <li>Un informe real, anonimizado, publicado como se publica una charla. No una lista de consejos.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Servicio</h3>
+          <ul class="clean">
+            <li>Respuesta en el día laborable siguiente. No hay guardia de domingo.</li>
+            <li>La puesta en marcha la hace alguien que ha estado en un banquillo, no un guion de software.</li>
+            <li>En agosto se llama a todos los anuales antes de que empiece la liga. Ahí se decide la renovación, no en mayo.</li>
+            <li>Formación extra en el campo: 450 € la media jornada, fuera de suscripción.</li>
+          </ul>
+        </div>
+      </div>
+      <p>No se promete «inteligencia artificial que hace el informe». El informe lo escribe el cuerpo técnico. La herramienta lo ordena, lo dibuja y lo pone en la tele. Si más adelante un modelo propone un párrafo, será un borrador que el entrenador acepta, y no forma parte del precio de este plan.</p>
+    </section>
+
+    <section class="slide" id="infra" data-title="Infraestructura">
+      <p class="kicker">13 · Costes de tenerlo en pie</p>
+      <h2>La factura técnica es pequeña. La factura humana es el plan.</h2>
+      <table>
+        <thead><tr><th>Partida</th><th>Hoy, pocos clubes</th><th>Con 150 clubes, si el vídeo sigue en local</th></tr></thead>
+        <tbody>
+          <tr><td>Aplicación y API (Render)</td><td>Decenas de euros al mes</td><td>150–400 € al mes</td></tr>
+          <tr><td>Base de datos y acceso (Supabase)</td><td>Incluido en el tramo actual</td><td>100–300 € al mes</td></tr>
+          <tr><td>Correo, dominio, errores</td><td>~40 € al mes</td><td>~80 € al mes</td></tr>
+          <tr><td>Pagos (Stripe)</td><td>Porcentaje de lo cobrado</td><td>Igual. No es coste fijo.</td></tr>
+          <tr><td>Almacenar partidos enteros</td><td>0 €, porque no se hace</td><td>No abrir esta puerta sin un precio nuevo</td></tr>
+          <tr><td>Datos médicos</td><td>Ya hay cifrado y registro de acceso</td><td>Revisión legal antes de vender Cantera a un club con muchos menores</td></tr>
+        </tbody>
+      </table>
+      <p>Orden de magnitud honesto: por debajo de 20 clubes, la infraestructura cabe en 200–400 € al mes. A 150 clubes, sin vídeo en la nube, cabe en 500–1.000 € al mes. El sueldo de quien implanta el producto es cinco o diez veces eso.</p>
+    </section>
+
+    <section class="slide" id="inversion" data-title="Inversión">
+      <p class="kicker">14 · Dinero</p>
+      <h2>Hay dos caminos. Este documento recomienda el corto.</h2>
+      <div class="grid g2">
+        <div class="card">
+          <span class="tag">Recomendado</span>
+          <h3>Sin ronda</h3>
+          <p>Se sigue construyendo y se cobran los primeros anuales. Presupuesto de caja: unos 1.500 € al mes entre viajes a dos federaciones, herramientas y dominio. El producto ya está en producción. El riesgo no es «construir la app». Es cobrar.</p>
+        </div>
+        <div class="card">
+          <h3>Si los socios ponen 120.000 €</h3>
+          <p>18 meses, un solo uso:</p>
+          <ul class="clean">
+            <li>70.000 € — una persona de puesta en marcha que haya entrenado o analizado, coste de empresa incluido.</li>
+            <li>25.000 € — viajes, demos y el piloto con una federación.</li>
+            <li>15.000 € — infraestructura, seguro y un colchón legal de datos de menores.</li>
+            <li>10.000 € — reserva, sin asignar a marketing digital.</li>
+          </ul>
+        </div>
+      </div>
+      <p>Este plan no fija un porcentaje de la sociedad. Fija en qué se gasta el dinero si se aporta. No se gasta en anuncios, ni en una oficina, ni en un segundo producto.</p>
+      <p class="note">120.000 € no compran 150 clubes por sí solos. Compran a la persona que se sienta con ellos. Si a los nueve meses no hay 30 anuales vivos, se para el gasto comercial y se vuelve al camino corto.</p>
+    </section>
+
+    <section class="slide" id="escenarios" data-title="Escenarios">
+      <p class="kicker">15 · Tres finales posibles a 18 meses</p>
+      <h2>El caso medio paga el sueldo de implantación. El bajo dice que hay que cambiar el precio o el canal.</h2>
+      <table>
+        <thead><tr><th></th><th>Clubes de pago</th><th>Ingreso anual, orden</th><th>Qué ha pasado</th></tr></thead>
+        <tbody>
+          <tr><td>Bajo</td><td>40</td><td>30.000–45.000 €</td><td>Casi todos en Vestuario, o se van en verano. El producto gusta y no se renueva. Se cambia el cobro o el discurso antes de contratar.</td></tr>
+          <tr><td>Medio, el del plan</td><td>150</td><td>~160.000 €</td><td>El analista trae al siguiente club. La federación presenta, no revende todavía.</td></tr>
+          <tr><td>Alto</td><td>300</td><td>300.000–400.000 €</td><td>Una federación grande y dos canteras de club profesional. Sigue sin ser un mercado de millones. Es una empresa pequeña que ya se sostiene.</td></tr>
+        </tbody>
+      </table>
+      <div class="grid g2" style="margin-top:14px">
+        <div class="card">
+          <h3>Riesgos que aceptamos</h3>
+          <ul class="clean">
+            <li>El club desaparece en junio. Por eso el año se cobra en pretemporada.</li>
+            <li>Hudl o Nacsport meten una plantilla de partido dentro de su programa. Nuestra respuesta es la charla y el vestuario, no una guerra de botones.</li>
+            <li>Un club pide guardar el partido en la nube y se enfada si decimos que no. Se dice que no, con fecha, en vez de prometerlo.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Riesgos que no aceptamos</h3>
+          <ul class="clean">
+            <li>Vender tracking que no tenemos.</li>
+            <li>Datos médicos de menores sin el contrato y el acceso que ya esboza el producto.</li>
+            <li>Un plan gratis que nos convierta en soporte de pizarras.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="alianzas" data-title="Alianzas">
+      <p class="kicker">16 · Ramas y socios posibles</p>
+      <h2>Se colabora con quien ya está en el viernes del club. No con quien vende datos de la élite.</h2>
+      <table>
+        <thead><tr><th>Con quién</th><th>Qué se les propone</th><th>Qué no se firma</th></tr></thead>
+        <tbody>
+          <tr><td>Federación territorial</td><td>Un año de Institución a coste cero si presentan Kabin-e a sus clubes de Preferente y Tercera. Al año siguiente, licencia de 6.000 € o el 15 % del primer año de los clubes que entren por ellos. Lo que sea más claro de explicar.</td><td>Exclusividad. Otra federación tiene que poder usar el mismo producto.</td></tr>
+          <tr><td>Escuelas de entrenadores</td><td>Un taller dentro del curso. Los alumnos se llevan 21 días.</td><td>Patrocinio de camiseta ni cuota por alumno.</td></tr>
+          <tr><td>Cámaras de partido (Veo, Pixellot y equivalentes)</td><td>«Tu cámara graba. Kabin-e prepara la semana.» Ellos no tienen el informe ni la charla.</td><td>Integración prometida antes de tenerla. Primero un texto conjunto y un club piloto.</td></tr>
+          <tr><td>Analistas independientes</td><td>Cantera para los clubes que llevan. Un mes gratis por cada club nuevo que pague el año.</td><td>Que revendan por debajo de la tarifa. El precio público es el precio.</td></tr>
+          <tr><td>Clínicas y preparadores</td><td>Más adelante, cuando enfermería y RPE estén usados de verdad por los 15 primeros clubes.</td><td>Un módulo médico como producto separado este año.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="slide dark" id="decision" data-title="Decisión">
+      <p class="kicker">17 · Lo que hay que decidir</p>
+      <h2>Tres acuerdos. El resto del documento se puede discutir después.</h2>
+      <div class="grid g3">
+        <div class="card"><div class="num">1</div><h3>El precio</h3><p>Vestuario 490 €, Cuerpo técnico 1.290 €, Cantera 2.490 €, al año. Mensual solo como puerta. Sin plan gratis permanente.</p></div>
+        <div class="card"><div class="num">2</div><h3>El campo</h3><p>Tercera Federación, Preferente y canteras modestas. LaLiga y el tracking quedan fuera de estos 18 meses.</p></div>
+        <div class="card"><div class="num">3</div><h3>El dinero</h3><p>Camino corto, sin ronda. Si se aportan 120.000 €, van a una persona de banquillo y a las demos, con una parada a los nueve meses.</p></div>
+      </div>
+      <p class="lead" style="margin-top:22px">Kabin-e ya es la cabina donde el cuerpo técnico prepara el partido. Este plan solo dice a quién se le cobra, cuánto, y a quién todavía no.</p>
+      <p class="note">Septiembre de 2026. Cifras de mercado con fuente en la sección correspondiente. Los ingresos son un modelo para decidir, no un presupuesto contable. Marca y colores tomados del logotipo de Kabin-e.</p>
+      <div class="bar">
+        <p class="note">Para imprimir o guardar en PDF: imprimir desde el navegador. Salen todas las secciones.</p>
+        <div class="keys">
+          <button type="button" class="ghost" id="prev2">Anterior</button>
+          <button type="button" id="next2">Al inicio</button>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+<script>
+  const slides = Array.from(document.querySelectorAll('section.slide'))
+  const toc = document.getElementById('toc')
+  slides.forEach((slide, i) => {
+    const li = document.createElement('li')
+    const a = document.createElement('a')
+    a.href = '#' + slide.id
+    a.textContent = slide.dataset.title || slide.id
+    a.dataset.index = String(i)
+    li.appendChild(a)
+    toc.appendChild(li)
+  })
+  const links = Array.from(toc.querySelectorAll('a'))
+  function indexOfHash() {
+    const id = location.hash.replace('#', '')
+    const i = slides.findIndex((s) => s.id === id)
+    return i >= 0 ? i : 0
+  }
+  function mark(i) {
+    links.forEach((a, n) => a.setAttribute('aria-current', n === i ? 'true' : 'false'))
+  }
+  function go(i) {
+    const next = Math.max(0, Math.min(slides.length - 1, i))
+    slides[next].scrollIntoView({ behavior: 'smooth', block: 'start' })
+    history.replaceState(null, '', '#' + slides[next].id)
+    mark(next)
+  }
+  const observer = new IntersectionObserver((entries) => {
+    const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0]
+    if (!visible) return
+    mark(slides.indexOf(visible.target))
+  }, { threshold: [0.55] })
+  slides.forEach((s) => observer.observe(s))
+  document.getElementById('next').addEventListener('click', () => go(indexFromView() + 1))
+  document.getElementById('prev').addEventListener('click', () => go(indexFromView() - 1))
+  document.getElementById('prev2').addEventListener('click', () => go(indexFromView() - 1))
+  document.getElementById('next2').addEventListener('click', () => go(0))
+  function indexFromView() {
+    let current = 0
+    slides.forEach((s, i) => {
+      if (s.getBoundingClientRect().top < 120) current = i
+    })
+    return current
+  }
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); go(indexFromView() + 1) }
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); go(indexFromView() - 1) }
+    if (e.key === 'Home') { e.preventDefault(); go(0) }
+    if (e.key === 'End') { e.preventDefault(); go(slides.length - 1) }
+  })
+  mark(indexOfHash())
+</script>
+</body>
+</html>
