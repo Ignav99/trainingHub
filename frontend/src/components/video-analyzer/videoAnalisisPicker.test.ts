@@ -5,6 +5,7 @@ import {
   groupPartidosByMonth,
   localiaLabel,
   revisionLinkForMode,
+  matchArchiveLabel,
   watchedMatchNote,
   watchModeLabel,
 } from './videoAnalisisPicker.ts'
@@ -35,5 +36,30 @@ describe('video analisis picker', () => {
     assert.equal(canLoadMatchVideo('revision', ''), true)
     assert.equal(canLoadMatchVideo('informe_rival', ''), false)
     assert.equal(canLoadMatchVideo('informe_rival', 'Herrera'), true)
+  })
+
+  it('names the clip archive after the match and lets a loose file keep its name', () => {
+    assert.equal(matchArchiveLabel({
+      clubName: 'Motilla',
+      rivalName: 'Herrera',
+      localia: 'local',
+      fecha: '2026-09-20',
+      watchMode: 'revision',
+      fileName: 'partido.mp4',
+    }), 'Motilla vs Herrera 20 sep')
+    assert.equal(matchArchiveLabel({
+      clubName: 'Motilla',
+      rivalName: 'Herrera',
+      localia: 'visitante',
+      fecha: '2026-10-04T18:00:00',
+      watchMode: 'revision',
+    }), 'Herrera vs Motilla 4 oct')
+    assert.equal(matchArchiveLabel({
+      rivalName: 'Herrera',
+      fecha: '2026-09-20',
+      watchMode: 'informe_rival',
+      watchedOpponent: 'vs Estrella',
+    }), 'Herrera vs Estrella 20 sep')
+    assert.equal(matchArchiveLabel({ fileName: 'rondos.mp4' }), 'rondos')
   })
 })
