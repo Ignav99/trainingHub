@@ -13,7 +13,10 @@ import {
   sanitizeLayout,
   shiftLayout,
   layoutsOverlap,
+  clipArchiveFileName,
   clipFileName,
+  phaseFolderLabel,
+  planDeskZip,
   matchRevisionFolderId,
   groupClipsByButton,
   lanesWithEvents,
@@ -143,6 +146,43 @@ describe('video desk coding', () => {
     assert.equal(clipFileName('ABP', 0, 3, 'webm'), 'ABP — 00.00-00.03.webm')
   })
 
+  it('packs annotated clips into phase folders and keeps a renamed clip', () => {
+    const buttons = DEFAULT_DESK_BUTTONS
+    const custom = { id: 'propio', label: 'Saque de banda', color: '#fff', preRoll: 2, postRoll: 2 }
+    const plan = planDeskZip({
+      kind: 'all-folders',
+      matchLabel: 'Motilla vs Herrera',
+      archiveName: 'Motilla vs Herrera 20 sep',
+      buttons: [...buttons, custom],
+      clips: [
+        { id: 'b', buttonId: 'fase-abp-of', timestamp: 40, startTime: 32, endTime: 52, title: 'Córner corto' },
+        { id: 'a', buttonId: 'fase-ataque-org', timestamp: 10, startTime: 5, endTime: 18 },
+        { id: 'c', buttonId: 'propio', timestamp: 70, startTime: 68, endTime: 74 },
+        { id: 'd', buttonId: 'fase-ataque-org', timestamp: 12, startTime: 5, endTime: 18, title: 'Salida' },
+      ],
+    })
+    assert.equal(plan.zipName, 'Motilla vs Herrera 20 sep.zip')
+    assert.equal(clipArchiveFileName('Motilla vs Herrera.zip'), 'Motilla vs Herrera.zip')
+    assert.equal(phaseFolderLabel(buttons[0]), 'Ataque organizado')
+    assert.deepEqual(plan.files.map((file) => file.path), [
+      'Ataque organizado/Ataque organizado — 00.05-00.18.mp4',
+      'Ataque organizado/Salida — 00.05-00.18.mp4',
+      'ABP ofensiva/Córner corto — 00.32-00.52.mp4',
+      'Saque de banda/Saque de banda — 01.08-01.14.mp4',
+    ])
+    const sameName = planDeskZip({
+      kind: 'all-folders',
+      matchLabel: 'x',
+      buttons,
+      clips: [
+        { id: '1', buttonId: 'fase-ataque-org', timestamp: 10, startTime: 5, endTime: 18, title: 'Salida' },
+        { id: '2', buttonId: 'fase-ataque-org', timestamp: 10, startTime: 5, endTime: 18, title: 'Salida' },
+      ],
+    })
+    assert.equal(sameName.files[1].path, 'Ataque organizado/Salida — 00.05-00.18 (2).mp4')
+    assert.equal(sameName.zipName, 'x — carpetas.zip')
+  })
+
   it('preselects the revision folder even when informe uses other fase ids', () => {
     const folders = [
       { id: 'a', fase: 'balon_parado_ofensivo', parent_id: null },
@@ -225,6 +265,7 @@ describe('video desk coding', () => {
   it('keeps keyboard shortcuts unique and reserved keys free', () => {
     assert.equal(normalizeShortcut('A'), 'a')
     assert.equal(normalizeShortcut(' '), undefined)
+    assert.equal(normalizeShortcut('f'), undefined)
     assert.equal(normalizeShortcut('h'), undefined)
     assert.equal(normalizeShortcut('Delete'), undefined)
     assert.equal(normalizeShortcut('Backspace'), undefined)

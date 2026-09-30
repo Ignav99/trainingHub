@@ -73,6 +73,7 @@ export const DEFAULT_DESK_BUTTONS: CodeButton[] = [
 export const RESERVED_SHORTCUTS = new Set([
   ' ',
   'escape',
+  'f',
   'h',
   'arrowleft',
   'arrowright',
@@ -412,6 +413,85 @@ export function clipFileName(label: string, start: number, end: number, ext = 'm
 
 export function zipFolderName(label: string): string {
   return sanitizeFilename(label)
+}
+
+export function phaseFolderLabel(button?: CodeButton | null): string {
+  if (button?.fase) {
+    const named = DESK_FASE_OPTIONS.find((opt) => opt.fase === button.fase)
+    if (named?.nombre) return named.nombre
+  }
+  const label = button?.label?.trim()
+  return label || 'Otros momentos'
+}
+
+export function clipArchiveFileName(label: string): string {
+  const base = zipFolderName(label.replace(/\.zip$/i, ''))
+  return `${base}.zip`
+}
+
+export function uniqueZipPath(used: Set<string>, path: string): string {
+  if (!used.has(path)) {
+    used.add(path)
+    return path
+  }
+  const slash = path.lastIndexOf('/')
+  const dot = path.lastIndexOf('.')
+  const ext = dot > slash ? path.slice(dot) : ''
+  const base = ext ? path.slice(0, dot) : path
+  let n = 2
+  let next = `${base} (${n})${ext}`
+  while (used.has(next)) {
+    n += 1
+    next = `${base} (${n})${ext}`
+  }
+  used.add(next)
+  return next
+}
+
+export function planDeskZip(opts: {
+  kind: 'folder' | 'all-folders' | 'all-flat'
+  clips: CodeEvent[]
+  buttons: CodeButton[]
+  selectedButtonId?: string | null
+  matchLabel: string
+  archiveName?: string
+}): { zipName: string; files: Array<{ clipId: string; path: string }> } {
+  const buttonById = new Map(opts.buttons.map((button) => [button.id, button]))
+  const selected = opts.kind === 'folder'
+    ? opts.clips.filter((clip) => clip.buttonId === opts.selectedButtonId)
+    : opts.clips.slice()
+  selected.sort((a, b) => {
+    const left = buttonById.get(a.buttonId)
+    const right = buttonById.get(b.buttonId)
+    const rank = phaseRank(left) - phaseRank(right)
+    if (rank !== 0) return rank
+    const folder = phaseFolderLabel(left).localeCompare(phaseFolderLabel(right), 'es')
+    if (folder !== 0) return folder
+    return a.startTime - b.startTime
+  })
+  const used = new Set<string>()
+  const files = selected.map((clip) => {
+    const button = buttonById.get(clip.buttonId)
+    const name = clipFileName(clipDisplayTitle(clip, button), clip.startTime, clip.endTime)
+    const path = opts.kind === 'all-flat'
+      ? name
+      : `${zipFolderName(phaseFolderLabel(button))}/${name}`
+    return { clipId: clip.id, path: uniqueZipPath(used, path) }
+  })
+  const folderButton = buttonById.get(opts.selectedButtonId || '')
+  const zipName = opts.archiveName
+    ? clipArchiveFileName(opts.archiveName)
+    : opts.kind === 'folder'
+      ? `${zipFolderName(phaseFolderLabel(folderButton))} — recortes.zip`
+      : opts.kind === 'all-flat'
+        ? `${zipFolderName(opts.matchLabel)} — clips.zip`
+        : `${zipFolderName(opts.matchLabel)} — carpetas.zip`
+  return { zipName, files }
+}
+
+function phaseRank(button?: CodeButton | null): number {
+  const index = DESK_FASE_OPTIONS.findIndex((opt) => opt.fase && opt.fase === button?.fase)
+  return index === -1 ? DESK_FASE_OPTIONS.length : index
 }
 
 export function acceptedFasesFor(fase?: string | null): Set<string> {

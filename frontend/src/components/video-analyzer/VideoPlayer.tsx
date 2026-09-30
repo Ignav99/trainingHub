@@ -109,6 +109,7 @@ export interface VideoPlayerHandle {
   pause: () => void
   play: () => void
   setMuted: (muted: boolean) => void
+  toggleFullscreen: () => void
 }
 
 interface VideoPlayerProps {
@@ -513,6 +514,16 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       void runFrameQueue()
     }, [runFrameQueue])
 
+    const toggleFullscreen = useCallback(() => {
+      const el = containerRef.current
+      if (!el) return
+      if (document.fullscreenElement === el) {
+        void document.exitFullscreen()
+      } else {
+        void el.requestFullscreen?.()
+      }
+    }, [])
+
     useImperativeHandle(ref, () => ({
       getVideoElement: () => videoRef.current,
       getCurrentTime: () => (
@@ -550,7 +561,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         if (videoRef.current && !playbackMuted) videoRef.current.muted = next
         onMutedChange?.(next)
       },
-    }), [frameStep, hideOverlay, seek, seekToTime, playbackMuted, onMutedChange])
+      toggleFullscreen,
+    }), [frameStep, hideOverlay, seek, seekToTime, playbackMuted, onMutedChange, toggleFullscreen])
 
     const cycleSpeed = useCallback(() => {
       const next = nextPlaybackSpeed(speed)
@@ -898,16 +910,6 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       return () => document.removeEventListener('fullscreenchange', handleFsChange)
     }, [])
 
-    const toggleFullscreen = useCallback(() => {
-      const el = containerRef.current
-      if (!el) return
-      if (document.fullscreenElement === el) {
-        document.exitFullscreen()
-      } else {
-        el.requestFullscreen?.()
-      }
-    }, [])
-
     // Time display: show relative time in clip mode
     const displayTime = clipRange ? currentTime - clipRange.start : currentTime
     const displayDuration = clipRange ? clipRange.end - clipRange.start : duration
@@ -925,7 +927,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           isPortalExpanded
             ? 'fixed inset-4 z-[100] flex flex-col bg-black outline-none rounded-lg overflow-hidden shadow-2xl'
             : fillVideo
-              ? 'flex h-full min-h-0 flex-col overflow-hidden outline-none'
+              ? `flex min-h-0 flex-col overflow-hidden bg-black outline-none ${showFullscreen ? 'h-screen w-screen' : 'h-full'}`
               : 'flex flex-col outline-none'
         }
         tabIndex={jogPointer ? 0 : undefined}
@@ -1148,10 +1150,10 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             ) : null}
           </div>
 
-          {(standalonePreview || presenterEmbed) && (
+          {(standalonePreview || presenterEmbed || fillFrame) && (
             <>
               <div className="w-px h-4 bg-white/20 mx-0.5" />
-              {!presenterEmbed && (
+              {standalonePreview && !presenterEmbed && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -1168,7 +1170,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
                 data-testid="video-fullscreen-toggle"
                 className="h-7 w-7 text-white/70 hover:text-white hover:bg-white/20"
                 onClick={() => (onToggleFullscreen ? onToggleFullscreen() : toggleFullscreen())}
-                title={showFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+                title={showFullscreen ? 'Salir de pantalla completa (f)' : 'Pantalla completa (f)'}
               >
                 {showFullscreen ? <Minimize className="h-3.5 w-3.5" /> : <Maximize className="h-3.5 w-3.5" />}
               </Button>

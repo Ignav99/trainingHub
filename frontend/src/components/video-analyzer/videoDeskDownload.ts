@@ -1,5 +1,5 @@
 import { extractClipRange, LOCAL_CLIP_MAX_SECONDS, clipMimeToExt } from './extractClip'
-import { clipDisplayTitle, clipFileName, zipFolderName } from './videoDesk'
+import { clipDisplayTitle, clipFileName, planDeskZip } from './videoDesk'
 import { buildZipStore, downloadBlob } from './zipStore'
 import type { CodeButton, CodeEvent } from './types'
 
@@ -17,63 +17,63 @@ export async function extractAndDownloadDeskClips(opts: {
   selectedClipId?: string | null
   selectedButtonId?: string | null
   matchLabel: string
+  archiveName?: string
   sourceFile?: File
   onProgress?: (label: string) => void
 }): Promise<void> {
   const { video, kind, clips, buttons, matchLabel, sourceFile, onProgress } = opts
   const buttonById = new Map(buttons.map((b) => [b.id, b]))
 
-  const named = (clip: CodeEvent, mime?: string | null) => {
-    const btn = buttonById.get(clip.buttonId)
-    return clipFileName(clipDisplayTitle(clip, btn), clip.startTime, clip.endTime, clipMimeToExt(mime))
-  }
-
-  const folderOf = (clip: CodeEvent) => {
-    const btn = buttonById.get(clip.buttonId)
-    return zipFolderName(btn?.label || 'Otros momentos')
-  }
-
-  let selected = clips
   if (kind === 'clip') {
     const one = clips.find((c) => c.id === opts.selectedClipId)
     if (!one) throw new Error('Elige un recorte')
-    selected = [one]
-  } else if (kind === 'folder') {
-    const btnId = opts.selectedButtonId
-    if (!btnId) throw new Error('Elige una carpeta')
-    selected = clips.filter((c) => c.buttonId === btnId)
-    if (!selected.length) throw new Error('Esa carpeta no tiene recortes')
+    onProgress?.('Recortando 1/1')
+    const blob = await extractClipRange(video, one.startTime, one.endTime, {
+      maxSeconds: LOCAL_CLIP_MAX_SECONDS,
+      sourceFile,
+      onProgress,
+    })
+    downloadBlob(blob, clipFileName(
+      clipDisplayTitle(one, buttonById.get(one.buttonId)),
+      one.startTime,
+      one.endTime,
+      clipMimeToExt(blob.type),
+    ))
+    return
   }
 
-  if (!selected.length) throw new Error('No hay recortes para descargar')
+  const plan = planDeskZip({
+    kind,
+    clips,
+    buttons,
+    selectedButtonId: opts.selectedButtonId,
+    matchLabel,
+    archiveName: opts.archiveName,
+  })
+  if (kind === 'folder' && !opts.selectedButtonId) throw new Error('Elige una carpeta')
+  if (!plan.files.length) {
+    throw new Error(kind === 'folder' ? 'Esa carpeta no tiene recortes' : 'No hay recortes para descargar')
+  }
 
+  const clipById = new Map(clips.map((clip) => [clip.id, clip]))
   const files: { path: string; data: Uint8Array }[] = []
-  for (let i = 0; i < selected.length; i++) {
-    const clip = selected[i]
-    onProgress?.(`Recortando ${i + 1}/${selected.length}`)
+  for (let i = 0; i < plan.files.length; i++) {
+    const planned = plan.files[i]
+    const clip = clipById.get(planned.clipId)
+    if (!clip) continue
+    onProgress?.(`Recortando ${i + 1}/${plan.files.length}`)
     const blob = await extractClipRange(video, clip.startTime, clip.endTime, {
       maxSeconds: LOCAL_CLIP_MAX_SECONDS,
       sourceFile,
       onProgress,
     })
     const bytes = await blobToBytes(blob)
-    const name = named(clip, blob.type)
-    if (kind === 'clip') {
-      downloadBlob(blob, name)
-      return
-    }
-    const path = kind === 'all-flat' ? name : `${folderOf(clip)}/${name}`
+    const ext = clipMimeToExt(blob.type)
+    const path = ext === 'mp4' ? planned.path : planned.path.replace(/\.mp4$/, `.${ext}`)
     files.push({ path, data: bytes })
   }
 
-  const zipName =
-    kind === 'folder'
-      ? `${zipFolderName(buttonById.get(opts.selectedButtonId || '')?.label || 'carpeta')} — recortes.zip`
-      : kind === 'all-flat'
-        ? `${zipFolderName(matchLabel)} — clips.zip`
-        : `${zipFolderName(matchLabel)} — carpetas.zip`
-
   onProgress?.('Empaquetando…')
   const zip = buildZipStore(files)
-  downloadBlob(zip, zipName)
+  downloadBlob(zip, plan.zipName)
 }

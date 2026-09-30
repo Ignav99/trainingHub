@@ -30,6 +30,7 @@ import {
   canLoadMatchVideo,
   groupPartidosByMonth,
   localiaLabel,
+  matchArchiveLabel,
   revisionLinkForMode,
   watchedMatchNote,
   type VideoWatchMode,
@@ -361,6 +362,15 @@ export default function VideoAnalisisPage() {
         <Suspense fallback={null}>
           <VideoAnalyzer
             localFile={analyzerFile}
+            videoTitle={matchArchiveLabel({
+              clubName,
+              rivalName: selectedPartido ? rivalName : null,
+              localia: selectedPartido?.localia,
+              fecha: selectedPartido?.fecha,
+              watchMode,
+              watchedOpponent: opponentNote,
+              fileName: analyzerFile.name,
+            })}
             partidoId={link?.attachUpcomingMatch ? selectedPartido?.id : undefined}
             equipoId={equipoId}
             videoId={localVideoId || undefined}

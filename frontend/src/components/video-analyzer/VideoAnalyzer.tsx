@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Send, Trash2, X } from 'lucide-react'
+import { Download, Maximize, Minimize, Send, Trash2, X } from 'lucide-react'
 import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
 import { useCodeWindowStore } from './useCodeWindowStore'
 import { SendToRevisionDialog } from '@/components/revision/SendToRevisionDialog'
@@ -71,6 +71,9 @@ export function VideoAnalyzer({
   const [objectUrl, setObjectUrl] = useState('')
   const [armedButtonId, setArmedButtonId] = useState<string | null>(null)
   const [stage, setStage] = useState<ClipStagePlaylist | null>(null)
+  const [videoFullscreen, setVideoFullscreen] = useState(false)
+  const [extractOpen, setExtractOpen] = useState(false)
+  const [extractName, setExtractName] = useState('')
 
   const buttons = useCodeWindowStore((s) => s.buttons)
   const activeButtonId = useCodeWindowStore((s) => s.activeButtonId)
@@ -266,7 +269,12 @@ export function VideoAnalyzer({
         return
       }
       if (e.key === 'Escape') {
+        if (document.fullscreenElement) return
         e.preventDefault()
+        if (extractOpen) {
+          setExtractOpen(false)
+          return
+        }
         if (stage) {
           setStage(null)
           return
@@ -282,6 +290,12 @@ export function VideoAnalyzer({
       if (isClipDeleteKey(e)) {
         e.preventDefault()
         deleteSelectedClips()
+        return
+      }
+      if ((e.key === 'f' || e.key === 'F') && !e.metaKey && !e.ctrlKey && !e.altKey && !e.repeat) {
+        if (stage || extractOpen) return
+        e.preventDefault()
+        playerRef.current?.toggleFullscreen()
         return
       }
       if (e.key === ' ') {
@@ -307,7 +321,7 @@ export function VideoAnalyzer({
     }
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
-  }, [armedButtonId, buttons, deleteSelectedClips, onClose, pressButton, stage])
+  }, [armedButtonId, buttons, deleteSelectedClips, extractOpen, onClose, pressButton, stage])
 
   const patchClip = useCallback((clip: CodeEvent, startTime: number, endTime: number) => {
     updateEvent(videoKey, clip.id, { startTime, endTime }, duration)
@@ -324,7 +338,13 @@ export function VideoAnalyzer({
     ))
   }, [duration, updateEvent, videoKey])
 
-  const runDownload = useCallback(async (kind: DeskDownloadKind, clip?: CodeEvent) => {
+  useEffect(() => {
+    const sync = () => setVideoFullscreen(document.fullscreenElement != null)
+    document.addEventListener('fullscreenchange', sync)
+    return () => document.removeEventListener('fullscreenchange', sync)
+  }, [])
+
+  const runDownload = useCallback(async (kind: DeskDownloadKind, clip?: CodeEvent, archiveName?: string) => {
     const video = playerRef.current?.getVideoElement()
     if (!video) {
       toast.error('No hay vídeo cargado')
@@ -341,6 +361,7 @@ export function VideoAnalyzer({
         selectedClipId: target?.id,
         selectedButtonId: selectedLaneId || target?.buttonId || activeButtonId,
         matchLabel: title.replace(/\.[^.]+$/, ''),
+        archiveName,
         sourceFile: localFile,
         onProgress: setProgress,
       })
@@ -416,10 +437,31 @@ export function VideoAnalyzer({
           <div className="vd-header-meta">
             {informeRival
               ? `Informe de ${rivalName || 'rival'}${watchedOpponent ? ` · ${watchedOpponent}` : ''} · ${events.length} recortes · el archivo se queda en el PC`
-              : `${events.length} recortes · ←/→ fotograma · mantén para acelerar · ⌫ borra · el archivo se queda en el PC`}
+              : `${events.length} recortes · ←/→ fotograma · f pantalla completa · ⌫ borra · el archivo se queda en el PC`}
           </div>
         </div>
         <div className="vd-header-actions">
+          <button
+            type="button"
+            className="vd-btn"
+            title="Pantalla completa (f)"
+            onClick={() => playerRef.current?.toggleFullscreen()}
+          >
+            {videoFullscreen ? <Minimize size={14} /> : <Maximize size={14} />}
+            {videoFullscreen ? 'Salir' : 'Pantalla completa'}
+          </button>
+          <button
+            type="button"
+            className="vd-btn"
+            disabled={!events.length}
+            onClick={() => {
+              setExtractName(title.replace(/\.[^.]+$/, ''))
+              setExtractOpen(true)
+            }}
+          >
+            <Download size={14} />
+            Extraer clips en comprimido
+          </button>
           <VideoDeskDownloadMenu disabled={!events.length} onPick={(kind) => void runDownload(kind)} />
           <button
             type="button"
@@ -523,6 +565,40 @@ export function VideoAnalyzer({
         onPlayClip={playClip}
         onTrim={patchClip}
       />
+
+      {extractOpen ? (
+        <form
+          className="vd-modal-back"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setExtractOpen(false)
+          }}
+          onSubmit={(e) => {
+            e.preventDefault()
+            const name = extractName.trim() || title.replace(/\.[^.]+$/, '')
+            setExtractOpen(false)
+            void runDownload('all-folders', undefined, name)
+          }}
+        >
+          <div className="vd-modal" onMouseDown={(e) => e.stopPropagation()}>
+            <h2>Extraer clips en comprimido</h2>
+            <p>
+              Una carpeta por cada fase con recortes. Si le pusiste nombre a un clip, el archivo lo conserva.
+            </p>
+            <label>
+              Nombre del archivo
+              <input
+                value={extractName}
+                autoFocus
+                onChange={(e) => setExtractName(e.target.value)}
+              />
+            </label>
+            <div className="vd-modal-actions">
+              <button type="button" className="vd-btn" onClick={() => setExtractOpen(false)}>Cancelar</button>
+              <button type="submit" className="vd-btn vd-btn-accent">Descargar</button>
+            </div>
+          </div>
+        </form>
+      ) : null}
 
       {stage && src ? (
         <VideoDeskClipStage
