@@ -7,7 +7,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react'
-import { Film, Save, Settings2, X } from 'lucide-react'
+import { Film, Save, Settings2, Trash2, X } from 'lucide-react'
 import { useTacticalBoardStore } from '@/stores/useTacticalBoardStore'
 import TacticalBoardEditor from '@/components/tactical-board/TacticalBoardEditor'
 import { captureBoardPreview, selectPitchSvg } from '@/components/tactical-board/utils'
@@ -23,6 +23,7 @@ import { jugadaToBoardData, asignacionesFromElements, pitchViewForTipo } from '@
 export interface ABPBoardEditorProps {
   jugada?: Partial<ABPJugada>
   onSave: (data: Partial<ABPJugada>) => void
+  onDelete?: () => void
   onCancel: () => void
   saving?: boolean
   lockLado?: LadoABP
@@ -34,6 +35,7 @@ export interface ABPBoardEditorProps {
 export default function ABPBoardEditor({
   jugada,
   onSave,
+  onDelete,
   onCancel,
   saving,
   lockLado,
@@ -231,6 +233,16 @@ export default function ABPBoardEditor({
               <option value="ofensivo">Ofensivo</option>
               <option value="defensivo">Defensivo</option>
             </select>
+          )}
+          {jugada?.id && onDelete && (
+            <button
+              type="button"
+              onClick={onDelete}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50"
+              title="Eliminar jugada"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
           )}
           <button
             onClick={() => setShowSettings(!showSettings)}

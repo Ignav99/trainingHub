@@ -375,6 +375,7 @@ export default function TareaDetailPage() {
               value={(tarea.grafico_data as TareaPizarraData) || emptyTareaPizarra}
               onChange={handleDiagramChange}
               numJugadores={tarea.num_jugadores_min}
+              spaceMetricsDefault
               height="100%"
               onClose={() => setBoardEditing(false)}
             />

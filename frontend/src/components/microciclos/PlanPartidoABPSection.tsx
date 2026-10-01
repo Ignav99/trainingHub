@@ -73,6 +73,21 @@ export function PlanPartidoABPSection({
     )
   }
 
+  const handleDeleteJugada = async (id: string) => {
+    if (!confirm('¿Eliminar esta jugada? Se quita también de partidos y sesiones donde estuviera enlazada.')) return
+    try {
+      await abpApi.delete(id)
+      handleRemove(id)
+      await refreshLibrary()
+      toast.success('Jugada eliminada')
+      setEditorOpen(false)
+      setEditingJugada(null)
+    } catch (e) {
+      console.error('Error deleting ABP from plan:', e)
+      toast.error(e instanceof Error ? e.message : 'No se pudo eliminar')
+    }
+  }
+
   const updateComentario = (jugadaId: string, comentario: string) => {
     onChange(items.map((i) => (i.jugada_id === jugadaId ? { ...i, comentario } : i)))
   }
@@ -135,6 +150,7 @@ export function PlanPartidoABPSection({
         <ABPEditor
           jugada={editingJugada || undefined}
           onSave={handleSave}
+          onDelete={editingJugada?.id ? () => handleDeleteJugada(editingJugada.id as string) : undefined}
           onCancel={() => {
             setEditorOpen(false)
             setEditingJugada(null)

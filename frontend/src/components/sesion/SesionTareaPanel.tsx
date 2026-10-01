@@ -662,6 +662,7 @@ export default function SesionTareaPanel({
       {boardEditing && (
         <div className="fixed inset-0 z-50 bg-white flex flex-col">
           <TacticalBoardEditor
+            spaceMetricsDefault
             onSave={handleBoardSave}
             onCancel={() => {
               setBoardEditing(false)

@@ -70,11 +70,24 @@ export default function ABPPlayCard({ jugada, onClick, onDuplicate, onDelete }: 
             )}
           </div>
 
-          {(onDuplicate || onDelete || canDownloadVideo) && (
+          <div className="flex items-center gap-0.5 shrink-0">
+            {onDelete && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onDelete() }}
+                className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"
+                title="Eliminar jugada"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
+          {(onDuplicate || canDownloadVideo) && (
             <div className="relative">
               <button
+                type="button"
                 onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu) }}
-                className="p-1 rounded hover:bg-gray-100 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="p-1 rounded hover:bg-gray-100"
+                title="Más opciones"
               >
                 <MoreVertical className="h-4 w-4 text-gray-400" />
               </button>
@@ -97,18 +110,11 @@ export default function ABPPlayCard({ jugada, onClick, onDuplicate, onDelete }: 
                       <Copy className="h-3.5 w-3.5" /> Duplicar
                     </button>
                   )}
-                  {onDelete && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onDelete(); setShowMenu(false) }}
-                      className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" /> Eliminar
-                    </button>
-                  )}
                 </div>
               )}
             </div>
           )}
+          </div>
         </div>
 
         {jugada.senal_codigo && (
