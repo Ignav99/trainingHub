@@ -9,10 +9,6 @@ import {
   Heart,
   Loader2,
   RefreshCw,
-  Moon,
-  Zap,
-  Brain,
-  Smile,
   BarChart3,
   FileSpreadsheet,
   ChevronDown,
@@ -48,7 +44,7 @@ import { rpeApi } from '@/lib/api/rpe'
 import { wellnessApi } from '@/lib/api/wellness'
 import { jugadoresApi, Jugador } from '@/lib/api/jugadores'
 import { apiKey } from '@/lib/swr'
-import type { CargaEquipoResponse, CargaJugador, NivelCarga, WellnessAggregates, WellnessEntry, CargaDiaria } from '@/types'
+import type { CargaEquipoResponse, CargaJugador, NivelCarga, WellnessAggregates, CargaDiaria } from '@/types'
 import {
   LineChart,
   Line,
@@ -328,7 +324,7 @@ export default function RPEPage() {
         <CardHeader className="pb-3">
           <CardTitle className="text-lg">Jugadores</CardTitle>
           <p className="text-xs text-muted-foreground">
-            Carga (UA) = RPE × minutos efectivos · EWMA y ACWR siguen igual · Wellness y RPE se despliegan al pulsar la columna
+            Carga (UA) = RPE × minutos efectivos · Al pulsar un jugador ves su RPE reciente, la carga y los registros
           </p>
         </CardHeader>
         <CardContent>
@@ -515,7 +511,6 @@ export default function RPEPage() {
                               </div>
                               <PlayerRpeCharts jugadorId={item.jugador_id} />
                               <ExpandedRPERow jugadorId={item.jugador_id} />
-                              <ExpandedWellnessRow jugadorId={item.jugador_id} />
                             </td>
                           </tr>
                         )}
@@ -566,307 +561,15 @@ export default function RPEPage() {
   )
 }
 
-/** Mini-chart row that loads player wellness history on expand */
-function ExpandedWellnessRow({ jugadorId }: { jugadorId: string }) {
-  const [history, setHistory] = useState<WellnessEntry[]>([])
-  const [loading, setLoading] = useState(true)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editValues, setEditValues] = useState({ sueno: 3, fatiga: 3, dolor: 3, estres: 3, humor: 3 })
-  const [editHoras, setEditHoras] = useState('')
-  const [editMolestia, setEditMolestia] = useState(false)
-  const [editMolestiaTexto, setEditMolestiaTexto] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [deleting, setDeleting] = useState<string | null>(null)
-
-  const fetchData = async () => {
-    try {
-      const res = await wellnessApi.getPlayerHistory(jugadorId, { limit: 14 })
-      setHistory(res.data.reverse())
-    } catch {
-      setHistory([])
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchData()
-  }, [jugadorId])
-
-  const [editFecha, setEditFecha] = useState('')
-
-  const handleStartEdit = (entry: WellnessEntry) => {
-    setEditingId(entry.id)
-    setEditFecha(entry.fecha)
-    setEditValues({
-      sueno: entry.sueno,
-      fatiga: entry.fatiga,
-      dolor: entry.dolor,
-      estres: entry.estres,
-      humor: entry.humor,
-    })
-    setEditHoras(entry.horas_sueno != null ? String(entry.horas_sueno) : '')
-    setEditMolestia(Boolean(entry.molestia))
-    setEditMolestiaTexto(entry.molestia_texto || '')
-  }
-
-  const handleSaveEdit = async (entry: WellnessEntry) => {
-    setSaving(true)
-    try {
-      const horas = editHoras === '' ? null : Number(editHoras.replace(',', '.'))
-      await wellnessApi.update(entry.id, {
-        jugador_id: entry.jugador_id,
-        fecha: editFecha,
-        ...editValues,
-        horas_sueno: horas != null && Number.isFinite(horas) ? horas : null,
-        molestia: editMolestia,
-        molestia_texto: editMolestia ? editMolestiaTexto.trim() : null,
-      })
-      toast.success('Registro actualizado')
-      setEditingId(null)
-      setLoading(true)
-      await fetchData()
-      mutate((key: string) => typeof key === 'string' && (key.includes('/wellness') || key.includes('/carga')), undefined, { revalidate: true })
-    } catch (err: any) {
-      toast.error(err?.message || 'Error al actualizar')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar este registro de wellness?')) return
-    setDeleting(id)
-    try {
-      await wellnessApi.delete(id)
-      toast.success('Registro eliminado')
-      setHistory((prev) => prev.filter((h) => h.id !== id))
-      mutate((key: string) => typeof key === 'string' && (key.includes('/wellness') || key.includes('/carga')), undefined, { revalidate: true })
-    } catch (err: any) {
-      toast.error(err?.message || 'Error al eliminar')
-    } finally {
-      setDeleting(null)
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="p-4 text-center text-xs text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin mx-auto" />
-      </div>
-    )
-  }
-
-  if (history.length === 0) {
-    return (
-      <div className="p-4 text-center text-xs text-muted-foreground">
-        Sin registros de wellness
-      </div>
-    )
-  }
-
-  const FIELDS = [
-    { key: 'sueno' as const, icon: Moon, color: 'text-indigo-600', label: 'Sue' },
-    { key: 'fatiga' as const, icon: Zap, color: 'text-amber-600', label: 'Fat' },
-    { key: 'dolor' as const, icon: Heart, color: 'text-red-600', label: 'Dol' },
-    { key: 'estres' as const, icon: Brain, color: 'text-purple-600', label: 'Est' },
-    { key: 'humor' as const, icon: Smile, color: 'text-emerald-600', label: 'Hum' },
-  ]
-
-  return (
-    <div className="p-4 bg-muted/30 border-t space-y-4">
-      {/* Chart + last entry summary */}
-      <div className="flex items-center gap-6">
-        <div className="flex-1 h-32">
-          <p className="text-xs font-medium text-muted-foreground mb-1">Wellness total (ultimos 14 registros)</p>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={history}>
-              <XAxis dataKey="fecha" tick={{ fontSize: 9 }} />
-              <YAxis domain={[0, 25]} tick={{ fontSize: 9 }} width={25} />
-              <Tooltip />
-              <Line type="monotone" dataKey="total" stroke="#3B82F6" strokeWidth={2} dot={{ r: 3 }} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="w-52 shrink-0">
-          <p className="text-xs font-medium text-muted-foreground mb-2">Ultimo registro</p>
-          <div className="grid grid-cols-5 gap-1 text-center">
-            {FIELDS.map((f) => {
-              const Icon = f.icon
-              const val = (history[history.length - 1] as any)[f.key] as number
-              return (
-                <div key={f.key}>
-                  <Icon className={`h-3 w-3 mx-auto ${f.color}`} />
-                  <p className="text-[9px] text-muted-foreground">{f.label}</p>
-                  <p className={`text-sm font-bold ${val <= 2 ? 'text-red-600' : val >= 4 ? 'text-green-600' : ''}`}>{val}</p>
-                </div>
-              )
-            })}
-          </div>
-          {(() => {
-            const last = history[history.length - 1]
-            return (
-              <p className="mt-2 text-[10px] text-muted-foreground">
-                {last.horas_sueno != null ? `${last.horas_sueno} h sueño` : 'Sin horas'}
-                {last.molestia ? ` · Molestia: ${last.molestia_texto || 'sí'}` : ''}
-              </p>
-            )
-          })()}
-        </div>
-      </div>
-
-      {/* History table with edit/delete */}
-      <div className="overflow-x-auto max-h-48 overflow-y-auto">
-        <table className="w-full text-xs">
-          <thead className="sticky top-0 bg-muted/80">
-            <tr className="border-b">
-              <th className="pb-1 text-left font-medium">Fecha</th>
-              {FIELDS.map((f) => (
-                <th key={f.key} className="pb-1 text-center font-medium">{f.label}</th>
-              ))}
-              <th className="pb-1 text-center font-medium">Hrs</th>
-              <th className="pb-1 text-left font-medium">Molestia</th>
-              <th className="pb-1 text-center font-medium">Total</th>
-              <th className="pb-1 text-center font-medium w-20">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[...history].reverse().map((entry, idx) => {
-              const isEditing = editingId === entry.id
-              const total = isEditing
-                ? editValues.sueno + editValues.fatiga + editValues.dolor + editValues.estres + editValues.humor
-                : entry.total
-
-              return (
-                <tr key={entry.id} className={`border-b last:border-0 ${isEditing ? 'bg-blue-50/50' : ''}`}>
-                  <td className="py-1.5">
-                    {isEditing ? (
-                      <input
-                        type="date"
-                        value={editFecha}
-                        onChange={(e) => setEditFecha(e.target.value)}
-                        className="border rounded px-1.5 py-0.5 text-xs w-28"
-                      />
-                    ) : (
-                      entry.fecha
-                    )}
-                  </td>
-                  {FIELDS.map((f) => (
-                    <td key={f.key} className="py-1.5 text-center">
-                      {isEditing ? (
-                        <input
-                          type="number"
-                          min={1}
-                          max={5}
-                          value={editValues[f.key]}
-                          onChange={(e) => setEditValues({ ...editValues, [f.key]: Math.min(5, Math.max(1, parseInt(e.target.value) || 1)) })}
-                          className="w-10 text-center border rounded px-1 py-0.5 text-xs"
-                        />
-                      ) : (
-                        <span className={entry[f.key] <= 2 ? 'text-red-600 font-bold' : ''}>
-                          {entry[f.key]}
-                        </span>
-                      )}
-                    </td>
-                  ))}
-                  <td className="py-1.5 text-center">
-                    {isEditing ? (
-                      <input
-                        type="number"
-                        min={0}
-                        max={16}
-                        step={0.5}
-                        value={editHoras}
-                        onChange={(e) => setEditHoras(e.target.value)}
-                        className="w-12 text-center border rounded px-1 py-0.5 text-xs"
-                      />
-                    ) : (
-                      entry.horas_sueno ?? '—'
-                    )}
-                  </td>
-                  <td className="py-1.5 text-[11px] max-w-[8rem]">
-                    {isEditing ? (
-                      <div className="space-y-1">
-                        <label className="flex items-center gap-1">
-                          <input
-                            type="checkbox"
-                            checked={editMolestia}
-                            onChange={(e) => setEditMolestia(e.target.checked)}
-                          />
-                          Sí
-                        </label>
-                        {editMolestia ? (
-                          <input
-                            value={editMolestiaTexto}
-                            onChange={(e) => setEditMolestiaTexto(e.target.value)}
-                            placeholder="Dónde / tipo"
-                            className="w-full border rounded px-1 py-0.5 text-[10px]"
-                          />
-                        ) : null}
-                      </div>
-                    ) : entry.molestia ? (
-                      <span className="text-red-700">{entry.molestia_texto || 'Sí'}</span>
-                    ) : (
-                      'No'
-                    )}
-                  </td>
-                  <td className={`py-1.5 text-center font-bold ${
-                    total >= 20 ? 'text-green-600' : total >= 15 ? 'text-amber-600' : 'text-red-600'
-                  }`}>
-                    {total}
-                  </td>
-                  <td className="py-1.5 text-center">
-                    <div className="flex items-center justify-center gap-1">
-                      {isEditing ? (
-                        <>
-                          <button
-                            onClick={() => handleSaveEdit(entry)}
-                            disabled={saving}
-                            className="p-1 text-green-600 hover:bg-green-50 rounded disabled:opacity-50"
-                            title="Guardar"
-                          >
-                            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                          </button>
-                          <button
-                            onClick={() => setEditingId(null)}
-                            className="p-1 text-gray-500 hover:bg-gray-100 rounded"
-                            title="Cancelar"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => handleStartEdit(entry)}
-                            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-                            title="Editar"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(entry.id)}
-                            disabled={deleting === entry.id}
-                            className="p-1 text-red-500 hover:bg-red-50 rounded disabled:opacity-50"
-                            title="Eliminar"
-                          >
-                            {deleting === entry.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
+function rpeRecordTitle(entry: { titulo?: string | null; tipo?: string | null; partido_id?: string | null }): string {
+  const title = (entry.titulo || '').trim()
+  if (title) return title
+  if (entry.tipo === 'partido' || entry.partido_id) return 'Partido'
+  if (entry.tipo === 'manual') return 'Carga manual'
+  return 'Sesión'
 }
 
-/** Manual RPE records with edit/delete */
+/** RPE y minutos de sesión, partido y carga manual. */
 function ExpandedRPERow({ jugadorId }: { jugadorId: string }) {
   const [records, setRecords] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -878,8 +581,8 @@ function ExpandedRPERow({ jugadorId }: { jugadorId: string }) {
 
   const fetchData = async () => {
     try {
-      const res = await rpeApi.listByJugador(jugadorId, { tipo: 'manual', limit: 20 })
-      setRecords(res.data || [])
+      const res = await rpeApi.listByJugador(jugadorId, { limit: 60 })
+      setRecords((res.data || []).filter((row) => row.tipo !== 'wellness' && row.rpe != null))
     } catch {
       setRecords([])
     } finally {
@@ -904,10 +607,11 @@ function ExpandedRPERow({ jugadorId }: { jugadorId: string }) {
   const handleSaveEdit = async (entry: any) => {
     setSaving(true)
     try {
+      const titulo = editValues.titulo.trim()
       await rpeApi.update(entry.id, {
         rpe: editValues.rpe,
         duracion_percibida: editValues.duracion_percibida,
-        titulo: editValues.titulo,
+        ...(titulo ? { titulo } : {}),
         fecha: editFechaRpe,
       })
       toast.success('RPE actualizado')
@@ -923,7 +627,7 @@ function ExpandedRPERow({ jugadorId }: { jugadorId: string }) {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar este registro RPE manual?')) return
+    if (!confirm('¿Eliminar este registro de RPE?')) return
     setDeleting(id)
     try {
       await rpeApi.delete(id)
@@ -945,14 +649,15 @@ function ExpandedRPERow({ jugadorId }: { jugadorId: string }) {
     )
   }
 
-  if (records.length === 0) return null
-
   return (
     <div className="p-4 bg-blue-50/30 border-t space-y-2">
       <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
         <Activity className="h-3.5 w-3.5 text-blue-600" />
-        Registros RPE manuales
+        Registros de RPE
       </p>
+      {records.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Sin registros de RPE todavía.</p>
+      ) : (
       <div className="overflow-x-auto max-h-40 overflow-y-auto">
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-blue-50/80">
@@ -991,11 +696,12 @@ function ExpandedRPERow({ jugadorId }: { jugadorId: string }) {
                       <input
                         type="text"
                         value={editValues.titulo}
+                        placeholder={rpeRecordTitle(entry)}
                         onChange={(e) => setEditValues({ ...editValues, titulo: e.target.value })}
                         className="w-full border rounded px-1.5 py-0.5 text-xs"
                       />
                     ) : (
-                      <span className="text-muted-foreground">{entry.titulo || '-'}</span>
+                      <span className="text-muted-foreground">{rpeRecordTitle(entry)}</span>
                     )}
                   </td>
                   <td className="py-1.5 text-center">
@@ -1078,6 +784,7 @@ function ExpandedRPERow({ jugadorId }: { jugadorId: string }) {
           </tbody>
         </table>
       </div>
+      )}
     </div>
   )
 }

@@ -51,24 +51,25 @@ export function PlayerRpeCharts({ jugadorId }: { jugadorId: string }) {
   }
 
   const events = [...rows]
-    .filter((row) => row.rpe != null && kindOf(row) !== 'manual')
+    .filter((row) => row.rpe != null && row.tipo !== 'wellness')
     .sort((a, b) => a.fecha.localeCompare(b.fecha))
     .slice(-12)
     .map((row) => {
+      const kind = kindOf(row)
       const minutos = row.duracion_percibida || 0
       const ua = row.carga_sesion || (minutos > 0 ? row.rpe * minutos : 0)
       return {
         label: dayLabel(row.fecha),
         rpe: row.rpe,
         ua: Math.round(ua),
-        tipo: kindOf(row) === 'partido' ? 'Partido' : 'Sesión',
+        tipo: kind === 'partido' ? 'Partido' : kind === 'manual' ? 'Manual' : 'Sesión',
       }
     })
 
   if (events.length === 0) {
     return (
       <p className="px-4 py-3 text-xs text-muted-foreground border-t">
-        Sin RPE de sesión o partido todavía.
+        Sin registros de RPE todavía.
       </p>
     )
   }
