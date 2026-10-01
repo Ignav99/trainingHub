@@ -189,6 +189,13 @@ def sala_guest_code(token: str) -> Optional[str]:
 
 
 def sala_pass_is_live(code: str) -> bool:
+    """El QR vale con una sesión de revisión abierta, o si el ordenador ya está en la sala de vídeo."""
+    if manager.sala_peer_count(code) > 0:
+        return True
+    return _sala_db_pass_is_live(code)
+
+
+def _sala_db_pass_is_live(code: str) -> bool:
     """El QR vale mientras la sala siga abierta y no haya pasado el pase."""
     from datetime import datetime, timedelta, timezone
 

@@ -28,6 +28,10 @@ interface UseSalaLinkParams {
   onPeerJoined?: (peers: number) => void
   onSyncRequest?: () => void
   disabled?: boolean
+  /** Ordenador: el vídeo local que hay que mandar a la tablet. */
+  getLocalStream?: () => MediaStream | null
+  /** Tablet: llega la imagen del ordenador. */
+  onRemoteStream?: (stream: MediaStream) => void
 }
 
 export function useSalaLink({
@@ -39,6 +43,8 @@ export function useSalaLink({
   onPeerJoined,
   onSyncRequest,
   disabled = false,
+  getLocalStream,
+  onRemoteStream,
 }: UseSalaLinkParams) {
   const [status, setStatus] = useState<SalaLinkStatus>('offline')
   const statusRef = useRef<SalaLinkStatus>('offline')
@@ -67,6 +73,10 @@ export function useSalaLink({
   onPeerJoinedRef.current = onPeerJoined
   const onSyncRequestRef = useRef(onSyncRequest)
   onSyncRequestRef.current = onSyncRequest
+  const getLocalStreamRef = useRef(getLocalStream)
+  getLocalStreamRef.current = getLocalStream
+  const onRemoteStreamRef = useRef(onRemoteStream)
+  onRemoteStreamRef.current = onRemoteStream
 
   const setLinkStatus = useCallback((next: SalaLinkStatus) => {
     statusRef.current = next
@@ -179,6 +189,10 @@ export function useSalaLink({
       }
     }
     pc.ondatachannel = (event) => bindChannel(event.channel)
+    pc.ontrack = (event) => {
+      const stream = event.streams[0] ?? (event.track ? new MediaStream([event.track]) : null)
+      if (stream) onRemoteStreamRef.current?.(stream)
+    }
   }, [bindChannel, sendSignal, setLinkStatus, teardownRtc])
 
   const startOffer = useCallback(async () => {
@@ -189,6 +203,9 @@ export function useSalaLink({
     try {
       const pc = new RTCPeerConnection({ iceServers: SALA_ICE_SERVERS })
       bindPeer(pc)
+      const local = getLocalStreamRef.current?.()
+      const videoTrack = local?.getVideoTracks().find((track) => track.readyState === 'live')
+      if (local && videoTrack) pc.addTrack(videoTrack, local)
       const dc = pc.createDataChannel('sala', { ordered: true })
       bindChannel(dc)
       const offer = await pc.createOffer()
@@ -199,6 +216,31 @@ export function useSalaLink({
       teardownRtc()
     }
   }, [bindChannel, bindPeer, sendSignal, teardownRtc])
+
+  const publishLocalVideo = useCallback(async () => {
+    if (roleRef.current !== 'host') return
+    const pc = pcRef.current
+    const local = getLocalStreamRef.current?.()
+    const track = local?.getVideoTracks().find((item) => item.readyState === 'live')
+    if (!pc || !local || !track) return
+    const sender = pc.getSenders().find((item) => item.track?.kind === 'video')
+    if (sender) {
+      if (sender.track !== track) {
+        try { await sender.replaceTrack(track) } catch { /* ignore */ }
+      }
+      return
+    }
+    pc.addTrack(track, local)
+    if (pc.signalingState !== 'stable') return
+    try {
+      offeringRef.current = true
+      const offer = await pc.createOffer()
+      await pc.setLocalDescription(offer)
+      sendSignal({ kind: 'offer', sdp: pc.localDescription?.sdp })
+    } catch {
+      offeringRef.current = false
+    }
+  }, [sendSignal])
 
   const handleSignal = useCallback(async (signal: SignalMsg | undefined) => {
     if (!signal || typeof RTCPeerConnection === 'undefined') return
@@ -366,6 +408,7 @@ export function useSalaLink({
   return {
     send,
     requestSync,
+    publishLocalVideo,
     status,
     wsOk: status !== 'offline',
     direct: status === 'direct',

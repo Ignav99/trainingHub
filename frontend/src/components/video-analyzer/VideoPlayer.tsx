@@ -113,7 +113,12 @@ export interface VideoPlayerHandle {
 }
 
 interface VideoPlayerProps {
-  src: string
+  src?: string
+  /** Imagen que llega de otro aparato (sala de vídeo). */
+  srcObject?: MediaStream | null
+  /** La tablet no busca en su copia: el ordenador es quien mueve el archivo. */
+  mirrorStream?: boolean
+  onMirrorToggle?: () => void
   clipRange?: { start: number; end: number }
   onTimeUpdate?: (time: number) => void
   onPlayStateChange?: (playing: boolean) => void
@@ -154,7 +159,10 @@ interface VideoPlayerProps {
 
 export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
   function VideoPlayer({
-    src,
+    src = '',
+    srcObject,
+    mirrorStream = false,
+    onMirrorToggle,
     clipRange,
     onTimeUpdate,
     onPlayStateChange,
@@ -212,6 +220,10 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const onTimeUpdateRef = useRef(onTimeUpdate)
     onTimeUpdateRef.current = onTimeUpdate
     speedRef.current = speed
+    const mirrorRef = useRef(mirrorStream)
+    mirrorRef.current = mirrorStream
+    const onMirrorToggleRef = useRef(onMirrorToggle)
+    onMirrorToggleRef.current = onMirrorToggle
     const jogPointer = (standalonePreview || fillFrame) && !presenterEmbed
     const jogKeysWindow = (keyboardJog ?? !!fillFrame) && !presenterEmbed
     const jogKeysContainer = !!standalonePreview && !presenterEmbed
@@ -221,7 +233,18 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
 
     useEffect(() => {
       const v = videoRef.current
-      if (!v || !src) return
+      if (!v || !srcObject) return
+      v.srcObject = srcObject
+      v.muted = true
+      void v.play()?.catch(() => undefined)
+      return () => {
+        if (v.srcObject === srcObject) v.srcObject = null
+      }
+    }, [srcObject])
+
+    useEffect(() => {
+      const v = videoRef.current
+      if (!v || !src || srcObject) return
 
       const isHls = src.includes('.m3u8')
 
@@ -239,9 +262,13 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         v.src = src
       }
       // For non-HLS, the src attribute on <video> handles it
-    }, [src])
+    }, [src, srcObject])
 
     const togglePlay = useCallback(() => {
+      if (mirrorRef.current) {
+        onMirrorToggleRef.current?.()
+        return
+      }
       const v = videoRef.current
       if (!v) return
       if (v.paused) {
@@ -342,6 +369,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     }, [hideOverlay])
 
     const seekToTime = useCallback((time: number) => {
+      if (mirrorRef.current) return
       const v = videoRef.current
       if (!v) return
       hideOverlay()
@@ -939,7 +967,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         <div className={fillVideo ? 'relative flex-1 min-h-0 w-full bg-black' : 'relative w-full bg-black'}>
           <video
             ref={videoRef}
-            src={src.includes('.m3u8') ? undefined : src}
+            src={!src || src.includes('.m3u8') || srcObject ? undefined : src}
             preload="auto"
             muted={elementMuted}
             playsInline

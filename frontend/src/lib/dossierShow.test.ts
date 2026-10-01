@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  buildDirectoPlaylist,
   buildDirectoShow,
   buildInformeShow,
   buildPlanShow,
@@ -229,6 +230,32 @@ describe('dossier live show builder', () => {
     const blank = buildDirectoShow('  ', 'blob:x').slides[0]
     assert.equal(blank?.kind, 'video')
     if (blank?.kind === 'video') assert.equal(blank.title, 'Vídeo')
+  })
+
+  it('builds a playlist and strips local urls before syncing the tablet', () => {
+    const show = buildDirectoPlaylist([
+      { title: 'Primer tiempo.mp4', src: 'blob:http://localhost/a' },
+      { title: 'Segundo.mov', src: 'blob:http://localhost/b' },
+    ])
+    assert.equal(show.slides.length, 2)
+    const first = show.slides[0]
+    const second = show.slides[1]
+    assert.equal(first?.kind, 'video')
+    assert.equal(second?.kind, 'video')
+    if (first?.kind !== 'video' || second?.kind !== 'video') return
+    assert.equal(first.id, 'video:directo:0')
+    assert.equal(first.clipId, 'directo-0')
+    assert.equal(first.title, 'Primer tiempo')
+    assert.equal(second.clipId, 'directo-1')
+    assert.equal(second.title, 'Segundo')
+    const slim = slimShowForSync(show)
+    const slimFirst = slim.slides[0]
+    const slimSecond = slim.slides[1]
+    assert.equal(slimFirst?.kind, 'video')
+    assert.equal(slimSecond?.kind, 'video')
+    if (slimFirst?.kind === 'video') assert.equal(slimFirst.src, '')
+    if (slimSecond?.kind === 'video') assert.equal(slimSecond.src, '')
+    assert.equal(slimFirst?.kind === 'video' ? slimFirst.title : '', 'Primer tiempo')
   })
 
   it('ignores blank clip urls', () => {

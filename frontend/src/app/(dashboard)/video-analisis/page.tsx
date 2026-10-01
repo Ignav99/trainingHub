@@ -35,6 +35,7 @@ import {
   watchedMatchNote,
   type VideoWatchMode,
 } from '@/components/video-analyzer/videoAnalisisPicker'
+import { directoRoomCode } from '@/lib/directoSala'
 
 const VideoAnalyzer = lazy(() =>
   import('@/components/video-analyzer/VideoAnalyzer').then((m) => ({ default: m.VideoAnalyzer }))
@@ -53,13 +54,13 @@ export default function VideoAnalisisPage() {
   const [watchMode, setWatchMode] = useState<VideoWatchMode | null>(null)
   const [watchedOpponent, setWatchedOpponent] = useState('')
   const [analyzerFile, setAnalyzerFile] = useState<File | null>(null)
-  const [directo, setDirecto] = useState<{ src: string; title: string } | null>(null)
+  const [directo, setDirecto] = useState<{ code: string; clips: { src: string; title: string }[] } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const directoRef = useRef<HTMLInputElement>(null)
-  const directoSrcRef = useRef<string | null>(null)
+  const directoClipsRef = useRef<{ src: string; title: string }[]>([])
 
   useEffect(() => () => {
-    if (directoSrcRef.current) URL.revokeObjectURL(directoSrcRef.current)
+    for (const clip of directoClipsRef.current) URL.revokeObjectURL(clip.src)
   }, [])
 
   const { data: partidosData } = useSWR(
@@ -83,23 +84,30 @@ export default function VideoAnalisisPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [localVideoId, setLocalVideoId] = useState<string | null>(null)
 
-  const replaceDirecto = (next: { src: string; title: string } | null) => {
+  const closeDirecto = () => {
     setDirecto((current) => {
-      if (current && current.src !== next?.src) URL.revokeObjectURL(current.src)
-      directoSrcRef.current = next?.src ?? null
-      return next
+      for (const clip of current?.clips ?? []) URL.revokeObjectURL(clip.src)
+      directoClipsRef.current = []
+      return null
     })
   }
 
   const handleDirectoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
+    const picked = Array.from(e.target.files ?? [])
     e.target.value = ''
-    if (!file) return
-    if (!file.type.startsWith('video/')) {
+    if (picked.length === 0) return
+    const videos = picked.filter((file) => file.type.startsWith('video/'))
+    if (videos.length === 0) {
       toast.error('Solo se permiten archivos de video')
       return
     }
-    replaceDirecto({ src: URL.createObjectURL(file), title: file.name })
+    if (videos.length < picked.length) toast('Se han dejado fuera los archivos que no son vídeo')
+    const added = videos.map((file) => ({ src: URL.createObjectURL(file), title: file.name }))
+    setDirecto((current) => {
+      const clips = [...(current?.clips ?? []), ...added]
+      directoClipsRef.current = clips
+      return { code: current?.code ?? directoRoomCode(), clips }
+    })
   }
 
   const handleFileSelect = () => {
@@ -183,6 +191,7 @@ export default function VideoAnalisisPage() {
         ref={directoRef}
         type="file"
         accept="video/*"
+        multiple
         className="hidden"
         onChange={handleDirectoChange}
       />
@@ -260,7 +269,7 @@ export default function VideoAnalisisPage() {
           <span>
             <span className="block font-medium">Anotador de vídeo en directo</span>
             <span className="block text-sm text-muted-foreground">
-              El visor de la tablet sobre cualquier vídeo: dibuja, salta fotogramas y haz zoom. El archivo se queda en este dispositivo.
+              Importa uno o varios vídeos a la vez. A la derecha queda la playlist y el QR abre la misma sala en la tablet. Los archivos se quedan en este ordenador.
             </span>
           </span>
         </button>
@@ -352,8 +361,11 @@ export default function VideoAnalisisPage() {
         <Suspense fallback={null}>
           <PresentacionSala
             role="host"
-            localVideo={directo}
-            onClose={() => replaceDirecto(null)}
+            code={directo.code}
+            directoRoom
+            localPlaylist={directo.clips}
+            onAddLocalVideos={() => directoRef.current?.click()}
+            onClose={closeDirecto}
           />
         </Suspense>
       ) : null}
