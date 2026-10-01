@@ -26,7 +26,7 @@ import {
   slimShowForSync,
   type DossierShow,
 } from '@/lib/dossierShow'
-import { captureHostVideo, directoSalaPath } from '@/lib/directoSala'
+import { captureHostVideo, captureVideoJpeg, directoSalaPath } from '@/lib/directoSala'
 import {
   IDENTITY_ZOOM,
   JOG_SECONDS,
@@ -83,6 +83,7 @@ export function PresentacionSala({
   const [peerReady, setPeerReady] = useState(!isHost)
   const [qrOpen, setQrOpen] = useState(directoHost && shareDevice)
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
+  const [relayFrame, setRelayFrame] = useState<string | null>(null)
   const [videoFrame, setVideoFrame] = useState(false)
   const [videoSlow, setVideoSlow] = useState(false)
   const [mounted, setMounted] = useState(false)
@@ -168,7 +169,7 @@ export function PresentacionSala({
     return next
   }, [])
 
-  const { send, requestSync, publishLocalVideo, status, wsOk } = useSalaLink({
+  const { send, sendFrame, requestSync, publishLocalVideo, status, wsOk } = useSalaLink({
     code,
     role,
     accessToken,
@@ -251,6 +252,11 @@ export function PresentacionSala({
 
   useEffect(() => {
     remoteHandlerRef.current = (msg) => {
+      if (msg.type === 'sala_frame' && typeof msg.jpeg === 'string' && msg.jpeg) {
+        if (typeof msg.slide === 'number') setIndex(msg.slide)
+        setRelayFrame(`data:image/jpeg;base64,${msg.jpeg}`)
+        return
+      }
       if (hostActionRef.current(msg)) {
         applyingRemote.current = false
         return
@@ -488,13 +494,52 @@ export function PresentacionSala({
   }, [directoHost, shareDevice, peerReady, playSrc, publishLocalVideo])
 
   useEffect(() => {
-    if (!directoTablet || videoFrame) {
+    if (!directoHost || !shareDevice || !peerReady) return
+    let lastAt = 0
+    let lastT = -1
+    let bound: HTMLVideoElement | null = null
+    const push = (force: boolean) => {
+      const el = playerRef.current?.getVideoElement()
+      if (!el) return
+      const now = performance.now()
+      const playing = !el.paused && !el.ended
+      const sameSpot = Math.abs(el.currentTime - lastT) < 0.04
+      const gap = playing ? 220 : (sameSpot ? 2000 : 80)
+      if (!force && now - lastAt < gap) return
+      const jpeg = captureVideoJpeg(el)
+      if (!jpeg) return
+      lastAt = now
+      lastT = el.currentTime
+      sendFrame(jpeg, el.currentTime, indexRef.current)
+    }
+    const onFresh = () => push(true)
+    const timer = window.setInterval(() => {
+      const el = playerRef.current?.getVideoElement() ?? null
+      if (el !== bound) {
+        bound?.removeEventListener('seeked', onFresh)
+        bound?.removeEventListener('loadeddata', onFresh)
+        el?.addEventListener('seeked', onFresh)
+        el?.addEventListener('loadeddata', onFresh)
+        bound = el
+      }
+      push(false)
+    }, 200)
+    push(true)
+    return () => {
+      window.clearInterval(timer)
+      bound?.removeEventListener('seeked', onFresh)
+      bound?.removeEventListener('loadeddata', onFresh)
+    }
+  }, [directoHost, shareDevice, peerReady, playSrc, sendFrame])
+
+  useEffect(() => {
+    if (!directoTablet || videoFrame || relayFrame) {
       setVideoSlow(false)
       return
     }
     const timer = window.setTimeout(() => setVideoSlow(true), 8000)
     return () => window.clearTimeout(timer)
-  }, [directoTablet, videoFrame, index])
+  }, [directoTablet, videoFrame, relayFrame, index])
 
   useEffect(() => () => {
     const stream = captureRef.current
@@ -757,7 +802,15 @@ export function PresentacionSala({
                       Clip no disponible
                     </div>
                   )}
-                  {directoTablet && !videoFrame && (
+                  {directoTablet && relayFrame && !videoFrame && (
+                    <img
+                      alt=""
+                      src={relayFrame}
+                      className="pointer-events-none absolute inset-0 h-full w-full object-contain"
+                      style={zoomCss(zoom)}
+                    />
+                  )}
+                  {directoTablet && !videoFrame && !relayFrame && (
                     <div className="absolute inset-0 z-[55] flex items-center justify-center px-6 text-center text-sm" style={{ background: '#000', color: '#9AA59B' }}>
                       {videoSlow
                         ? 'El vídeo no llega. Ordenador y tablet tienen que estar en la misma WiFi.'

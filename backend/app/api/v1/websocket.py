@@ -397,6 +397,12 @@ async def websocket_endpoint(
                         exclude=websocket,
                     )
 
+            elif msg_type == "sala_frame":
+                code = (data.get("session_code") or "").upper().strip()
+                frame = sala_frame_payload(data, user_id)
+                if code and frame:
+                    await manager.broadcast_sala(code, frame, exclude=websocket)
+
     except WebSocketDisconnect:
         salas = list(manager.ws_salas.get(id(websocket), []))
         manager.disconnect_user(websocket, user_id, equipo_id)
@@ -469,7 +475,7 @@ async def _serve_sala_guest(websocket: WebSocket, code: str) -> None:
                     exclude=websocket,
                 )
                 continue
-            if msg_type not in {"sala_sync", "sala_sync_request", "sala_sync_ack", "sala_signal"}:
+            if msg_type not in {"sala_sync", "sala_sync_request", "sala_sync_ack", "sala_signal", "sala_frame"}:
                 continue
             msg_code = (data.get("session_code") or "").upper().strip()
             if msg_code != code:
@@ -500,6 +506,10 @@ async def _serve_sala_guest(websocket: WebSocket, code: str) -> None:
                     },
                     exclude=websocket,
                 )
+            elif msg_type == "sala_frame":
+                frame = sala_frame_payload(data, user_id)
+                if frame:
+                    await manager.broadcast_sala(code, frame, exclude=websocket)
     except WebSocketDisconnect:
         pass
     finally:
@@ -513,6 +523,28 @@ async def _serve_sala_guest(websocket: WebSocket, code: str) -> None:
 
 
 # ============ Message Handlers ============
+
+FRAME_MAX_CHARS = 480_000
+
+
+def sala_frame_payload(data: dict, user_id: str) -> Optional[dict]:
+    """Fotograma JPEG del ordenador. Se reenvía por el mismo canal que ya une la sala."""
+    jpeg = data.get("jpeg")
+    if not isinstance(jpeg, str) or not jpeg or len(jpeg) > FRAME_MAX_CHARS:
+        return None
+    payload: dict = {
+        "type": "sala_frame",
+        "user_id": user_id,
+        "session_code": (data.get("session_code") or "").upper().strip(),
+        "role": data.get("role"),
+        "jpeg": jpeg,
+    }
+    if isinstance(data.get("t"), (int, float)) and not isinstance(data.get("t"), bool):
+        payload["t"] = data.get("t")
+    if isinstance(data.get("slide"), int) and not isinstance(data.get("slide"), bool):
+        payload["slide"] = data.get("slide")
+    return payload
+
 
 def sala_sync_payload(data: dict, user_id: str) -> dict:
     """Forward clip sala fields plus presentation slide/show when present."""

@@ -159,6 +159,20 @@ export function useSalaLink({
     transmit(wrapSalaEnvelope('sala_sync_request', codeRef.current, roleRef.current, {}))
   }, [disabled, transmit])
 
+  const sendFrame = useCallback((jpeg: string, t: number, slide: number) => {
+    if (disabled || !jpeg) return
+    const ws = wsRef.current
+    if (ws?.readyState !== WebSocket.OPEN) return
+    ws.send(JSON.stringify({
+      type: 'sala_frame',
+      session_code: codeRef.current,
+      role: roleRef.current,
+      jpeg,
+      t,
+      slide,
+    }))
+  }, [disabled])
+
   const sendSignal = useCallback((signal: SignalMsg) => {
     const ws = wsRef.current
     if (ws?.readyState !== WebSocket.OPEN) return
@@ -361,6 +375,10 @@ export function useSalaLink({
       void handleSignal(msg.signal as SignalMsg | undefined)
       return
     }
+    if (msg.type === 'sala_frame') {
+      onMessageRef.current(msg)
+      return
+    }
     if (msg.type === 'sala_sync_ack') {
       const seq = msg.seq
       if (typeof seq === 'number' && pendingRef.current?.seq === seq) {
@@ -461,6 +479,7 @@ export function useSalaLink({
 
   return {
     send,
+    sendFrame,
     requestSync,
     publishLocalVideo,
     status,

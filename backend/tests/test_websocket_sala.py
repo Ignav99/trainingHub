@@ -97,3 +97,26 @@ class TestSalaSyncPayload:
         assert "slide" not in payload
         assert "show" not in payload
         assert payload["clip_id"] == "c1"
+
+
+class TestSalaFramePayload:
+    def test_forwards_jpeg_frame(self):
+        from app.api.v1.websocket import sala_frame_payload
+
+        payload = sala_frame_payload(
+            {"session_code": "vide01", "role": "host", "jpeg": "abc", "t": 1.5, "slide": 0},
+            "user-1",
+        )
+        assert payload is not None
+        assert payload["type"] == "sala_frame"
+        assert payload["jpeg"] == "abc"
+        assert payload["session_code"] == "VIDE01"
+        assert payload["t"] == 1.5
+        assert payload["slide"] == 0
+
+    def test_drops_empty_or_huge_frame(self):
+        from app.api.v1.websocket import FRAME_MAX_CHARS, sala_frame_payload
+
+        assert sala_frame_payload({"jpeg": ""}, "user-1") is None
+        assert sala_frame_payload({"jpeg": "a" * (FRAME_MAX_CHARS + 1)}, "user-1") is None
+        assert sala_frame_payload({"jpeg": True}, "user-1") is None
