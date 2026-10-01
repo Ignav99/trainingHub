@@ -15,8 +15,9 @@ export function directoRoomCode(): string {
   return code
 }
 
-export function directoSalaPath(code: string): string {
-  return `/revision/video/${code}`
+export function directoSalaPath(code: string, pass?: string | null): string {
+  const base = `/revision/video/${code.toUpperCase()}`
+  return pass ? `${base}/${pass}` : base
 }
 
 type CapturableVideo = HTMLVideoElement & { captureStream?: () => MediaStream }

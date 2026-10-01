@@ -35,7 +35,7 @@ import {
   watchedMatchNote,
   type VideoWatchMode,
 } from '@/components/video-analyzer/videoAnalisisPicker'
-import { directoRoomCode } from '@/lib/directoSala'
+import { revisionApi } from '@/lib/api/revision'
 
 const VideoAnalyzer = lazy(() =>
   import('@/components/video-analyzer/VideoAnalyzer').then((m) => ({ default: m.VideoAnalyzer }))
@@ -54,10 +54,11 @@ export default function VideoAnalisisPage() {
   const [watchMode, setWatchMode] = useState<VideoWatchMode | null>(null)
   const [watchedOpponent, setWatchedOpponent] = useState('')
   const [analyzerFile, setAnalyzerFile] = useState<File | null>(null)
-  const [directo, setDirecto] = useState<{ code: string; clips: { src: string; title: string }[] } | null>(null)
+  const [directo, setDirecto] = useState<{ code: string; pass: string; clips: { src: string; title: string }[] } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const directoRef = useRef<HTMLInputElement>(null)
   const directoClipsRef = useRef<{ src: string; title: string }[]>([])
+  const directoRoomRef = useRef<{ code: string; pass: string } | null>(null)
 
   useEffect(() => () => {
     for (const clip of directoClipsRef.current) URL.revokeObjectURL(clip.src)
@@ -88,11 +89,12 @@ export default function VideoAnalisisPage() {
     setDirecto((current) => {
       for (const clip of current?.clips ?? []) URL.revokeObjectURL(clip.src)
       directoClipsRef.current = []
+      directoRoomRef.current = null
       return null
     })
   }
 
-  const handleDirectoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDirectoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const picked = Array.from(e.target.files ?? [])
     e.target.value = ''
     if (picked.length === 0) return
@@ -103,10 +105,18 @@ export default function VideoAnalisisPage() {
     }
     if (videos.length < picked.length) toast('Se han dejado fuera los archivos que no son vídeo')
     const added = videos.map((file) => ({ src: URL.createObjectURL(file), title: file.name }))
+    if (!directoRoomRef.current?.pass) {
+      try {
+        directoRoomRef.current = await revisionApi.openVideoRoom()
+      } catch {
+        toast.error('No se ha podido abrir la sala de la tablet. El vídeo sigue en este ordenador.')
+      }
+    }
+    const room = directoRoomRef.current || { code: '', pass: '' }
     setDirecto((current) => {
       const clips = [...(current?.clips ?? []), ...added]
       directoClipsRef.current = clips
-      return { code: current?.code ?? directoRoomCode(), clips }
+      return { code: room.code, pass: room.pass, clips }
     })
   }
 
@@ -362,6 +372,7 @@ export default function VideoAnalisisPage() {
           <PresentacionSala
             role="host"
             code={directo.code}
+            guestPass={directo.pass}
             directoRoom
             localPlaylist={directo.clips}
             onAddLocalVideos={() => directoRef.current?.click()}

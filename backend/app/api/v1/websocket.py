@@ -180,12 +180,28 @@ SALA_PASS_HOURS = 8
 
 
 def sala_guest_code(token: str) -> Optional[str]:
-    if not token.startswith("sala:"):
+    from app.services.video_room_pass import parse_sala_guest_token
+
+    parsed = parse_sala_guest_token(token)
+    if not parsed:
         return None
-    code = token[5:].upper().strip()
-    if len(code) < 4:
+    return parsed[0]
+
+
+def sala_guest_allowed(token: str) -> Optional[str]:
+    """Código si el QR de revisión sigue vivo o si el pase de la sala de vídeo es válido."""
+    from app.config import get_settings
+    from app.services.video_room_pass import parse_sala_guest_token, video_room_pass_ok
+
+    parsed = parse_sala_guest_token(token)
+    if not parsed:
         return None
-    return code
+    code, room_pass = parsed
+    if video_room_pass_ok(code, room_pass, get_settings().SECRET_KEY):
+        return code
+    if sala_pass_is_live(code):
+        return code
+    return None
 
 
 def sala_pass_is_live(code: str) -> bool:
@@ -241,9 +257,9 @@ async def websocket_endpoint(
     - chat_send: Send a chat message to team
     - ping: Keep alive
     """
-    guest_code = sala_guest_code(token)
-    if guest_code:
-        if not sala_pass_is_live(guest_code):
+    if token.startswith("sala:"):
+        guest_code = sala_guest_allowed(token)
+        if not guest_code:
             await websocket.accept()
             await websocket.close(code=4003, reason="Pase de sala caducado")
             return

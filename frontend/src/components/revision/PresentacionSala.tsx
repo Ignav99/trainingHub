@@ -47,6 +47,8 @@ interface PresentacionSalaProps {
   localPlaylist?: { src: string; title: string }[] | null
   /** Sala de vídeo en directo: QR, sin sesión de revisión. */
   directoRoom?: boolean
+  /** Pase que va en el QR. Ordenador y tablet entran con él, sin fila de revisión. */
+  guestPass?: string | null
   onAddLocalVideos?: () => void
   onClose?: () => void
 }
@@ -58,6 +60,7 @@ export function PresentacionSala({
   initialShow,
   localPlaylist,
   directoRoom = false,
+  guestPass,
   onAddLocalVideos,
   onClose,
 }: PresentacionSalaProps) {
@@ -165,7 +168,8 @@ export function PresentacionSala({
     role,
     accessToken,
     equipoId: equipoActivo?.id,
-    disabled: false,
+    disabled: directoLive && !guestPass,
+    guestPass: directoLive ? guestPass : null,
     getLocalStream,
     onRemoteStream: (stream) => setRemoteStream(stream),
     onMessage: (msg) => remoteHandlerRef.current(msg),
@@ -283,8 +287,9 @@ export function PresentacionSala({
   useEffect(() => {
     if (isHost || show) return
     if (status === 'offline') return
-    const timer = window.setTimeout(() => requestSync(), 700)
-    return () => window.clearTimeout(timer)
+    requestSync()
+    const timer = window.setInterval(() => requestSync(), 2000)
+    return () => window.clearInterval(timer)
   }, [isHost, show, status, requestSync])
 
   useEffect(() => {
@@ -516,7 +521,7 @@ export function PresentacionSala({
     return () => window.removeEventListener('keydown', onKey)
   }, [go, goTo, onClose, slide?.kind])
 
-  const salaPath = directoLive ? directoSalaPath(code) : `/revision/${code}`
+  const salaPath = directoLive ? directoSalaPath(code, guestPass) : `/revision/${code}`
   const salaUrl = typeof window !== 'undefined' && code ? `${window.location.origin}${salaPath}` : ''
   const pictureReady = Boolean(playSrc) || (directoTablet && Boolean(remoteStream))
   const qrSrc = salaUrl
@@ -642,8 +647,12 @@ export function PresentacionSala({
       <div className="relative flex min-h-0 flex-1">
         <div className="relative min-h-0 min-w-0 flex-1">
         {!show ? (
-          <div className="flex h-full items-center justify-center text-sm" style={{ color: '#9AA59B' }}>
-            Esperando al presentador…
+          <div className="flex h-full items-center justify-center px-6 text-center text-sm" style={{ color: '#9AA59B' }}>
+            {directoTablet
+              ? (guestPass
+                ? (wsOk ? 'Conectando con el ordenador…' : 'Reconectando con el ordenador…')
+                : 'Este QR no trae el pase. Ciérralo y escanéalo otra vez desde el ordenador.')
+              : 'Esperando al presentador…'}
           </div>
         ) : (
           <div className="dossier-slide flex h-full min-h-0 flex-col overflow-hidden px-3 pb-1 sm:px-6">
@@ -873,12 +882,14 @@ export function PresentacionSala({
               Escanea el QR con la tablet. El vídeo se ve allí y podéis dibujar y saltar fotogramas a la vez. El archivo se queda en este ordenador.
             </p>
             <p className="text-4xl font-mono tracking-[0.3em] font-semibold">{code}</p>
-            {qrSrc ? (
+            {guestPass && qrSrc ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={qrSrc} alt={`QR sala ${code}`} width={240} height={240} className="mx-auto rounded-md bg-white p-2" />
-            ) : null}
+              <img src={qrSrc} alt={`QR sala ${code}`} width={280} height={280} className="mx-auto rounded-md bg-white p-2" />
+            ) : (
+              <p className="text-sm" style={{ color: '#F0C35A' }}>Preparando el QR…</p>
+            )}
             <p className={`text-xs ${wsOk ? 'text-emerald-400' : 'text-amber-400'}`}>
-              {peerReady ? 'Tablet conectada' : wsOk ? 'Esperando a la tablet…' : 'Reconectando la sala…'}
+              {peerReady ? 'Tablet conectada' : !guestPass ? 'Abriendo la sala…' : wsOk ? 'Esperando a la tablet…' : 'Reconectando la sala…'}
             </p>
             <button
               type="button"
