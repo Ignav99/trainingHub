@@ -7,11 +7,23 @@ import {
   SALA_PING_MS,
   SALA_RETRY_MAX,
   SALA_RETRY_MS,
+  orderVideoCodecs,
   reconnectDelay,
   shouldApplySeq,
   wrapSalaEnvelope,
   type SalaLinkStatus,
 } from '@/lib/salaLink'
+
+function attachSendOnlyVideo(pc: RTCPeerConnection, track: MediaStreamTrack, stream: MediaStream) {
+  const transceiver = pc.addTransceiver(track, { direction: 'sendonly', streams: [stream] })
+  const caps = typeof RTCRtpSender !== 'undefined' ? RTCRtpSender.getCapabilities?.('video') : null
+  if (!caps || typeof transceiver.setCodecPreferences !== 'function') return
+  try {
+    transceiver.setCodecPreferences(orderVideoCodecs(caps.codecs))
+  } catch {
+    /* el navegador se queda con su orden */
+  }
+}
 
 type SignalMsg = {
   kind: 'offer' | 'answer' | 'ice'
@@ -64,6 +76,10 @@ export function useSalaLink({
   const retryTimer = useRef<number | null>(null)
   const pingTimer = useRef<number | null>(null)
   const offeringRef = useRef(false)
+  const videoPendingRef = useRef(false)
+  const offerRestartsRef = useRef(0)
+  const publishLocalVideoRef = useRef<() => Promise<void>>(async () => {})
+  const startOfferRef = useRef<() => Promise<void>>(async () => {})
   const incomingRef = useRef<(msg: Record<string, unknown>, viaDc: boolean) => void>(() => {})
   const codeRef = useRef(code)
   codeRef.current = code
@@ -183,7 +199,15 @@ export function useSalaLink({
       if (event.candidate) sendSignal({ kind: 'ice', candidate: event.candidate.toJSON() })
     }
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+      if (pc.connectionState === 'failed') {
+        if (pcRef.current !== pc || offerRestartsRef.current >= 3) return
+        offerRestartsRef.current += 1
+        offeringRef.current = false
+        teardownRtc()
+        window.setTimeout(() => { void startOfferRef.current() }, 600)
+        return
+      }
+      if (pc.connectionState === 'closed') {
         if (pcRef.current === pc) {
           offeringRef.current = false
           teardownRtc()
@@ -193,10 +217,19 @@ export function useSalaLink({
         }
       }
     }
+    pc.onsignalingstatechange = () => {
+      if (pc.signalingState === 'stable' && videoPendingRef.current) {
+        void publishLocalVideoRef.current()
+      }
+    }
     pc.ondatachannel = (event) => bindChannel(event.channel)
     pc.ontrack = (event) => {
       const stream = event.streams[0] ?? (event.track ? new MediaStream([event.track]) : null)
-      if (stream) onRemoteStreamRef.current?.(stream)
+      if (!stream) return
+      const deliver = () => onRemoteStreamRef.current?.(new MediaStream(stream.getVideoTracks()))
+      deliver()
+      const track = stream.getVideoTracks()[0]
+      if (track) track.onunmute = deliver
     }
   }, [bindChannel, sendSignal, setLinkStatus, teardownRtc])
 
@@ -210,7 +243,8 @@ export function useSalaLink({
       bindPeer(pc)
       const local = getLocalStreamRef.current?.()
       const videoTrack = local?.getVideoTracks().find((track) => track.readyState === 'live')
-      if (local && videoTrack) pc.addTrack(videoTrack, local)
+      if (local && videoTrack) attachSendOnlyVideo(pc, videoTrack, local)
+      else videoPendingRef.current = true
       const dc = pc.createDataChannel('sala', { ordered: true })
       bindChannel(dc)
       const offer = await pc.createOffer()
@@ -221,31 +255,42 @@ export function useSalaLink({
       teardownRtc()
     }
   }, [bindChannel, bindPeer, sendSignal, teardownRtc])
+  startOfferRef.current = startOffer
 
   const publishLocalVideo = useCallback(async () => {
     if (roleRef.current !== 'host') return
     const pc = pcRef.current
     const local = getLocalStreamRef.current?.()
     const track = local?.getVideoTracks().find((item) => item.readyState === 'live')
-    if (!pc || !local || !track) return
+    if (!pc || !local || !track) {
+      videoPendingRef.current = true
+      return
+    }
+    if (pc.signalingState !== 'stable') {
+      videoPendingRef.current = true
+      return
+    }
     const sender = pc.getSenders().find((item) => item.track?.kind === 'video')
     if (sender) {
+      videoPendingRef.current = false
       if (sender.track !== track) {
         try { await sender.replaceTrack(track) } catch { /* ignore */ }
       }
       return
     }
-    pc.addTrack(track, local)
-    if (pc.signalingState !== 'stable') return
+    videoPendingRef.current = false
     try {
+      attachSendOnlyVideo(pc, track, local)
       offeringRef.current = true
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
       sendSignal({ kind: 'offer', sdp: pc.localDescription?.sdp })
     } catch {
       offeringRef.current = false
+      videoPendingRef.current = true
     }
   }, [sendSignal])
+  publishLocalVideoRef.current = publishLocalVideo
 
   const handleSignal = useCallback(async (signal: SignalMsg | undefined) => {
     if (!signal || typeof RTCPeerConnection === 'undefined') return
@@ -273,6 +318,8 @@ export function useSalaLink({
           try { await pcRef.current.addIceCandidate(c) } catch { /* ignore */ }
         }
         offeringRef.current = false
+        offerRestartsRef.current = 0
+        void publishLocalVideoRef.current()
         return
       }
       if (signal.kind === 'ice' && signal.candidate) {

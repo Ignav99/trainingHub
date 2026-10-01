@@ -10,6 +10,17 @@ export const SALA_ICE_SERVERS: RTCIceServer[] = [
   { urls: ['stun:stun.l.google.com:19302'] },
 ]
 
+/** H.264 primero: es el códec que reproduce la tablet. */
+export function orderVideoCodecs<T extends { mimeType: string }>(codecs: readonly T[]): T[] {
+  const h264: T[] = []
+  const rest: T[] = []
+  for (const codec of codecs) {
+    if (codec.mimeType.toLowerCase() === 'video/h264') h264.push(codec)
+    else rest.push(codec)
+  }
+  return [...h264, ...rest]
+}
+
 export function reconnectDelay(attempt: number): number {
   const exp = Math.min(SALA_RECONNECT_MAX_MS, SALA_RECONNECT_BASE_MS * 2 ** Math.max(0, attempt))
   return exp

@@ -54,11 +54,13 @@ export default function VideoAnalisisPage() {
   const [watchMode, setWatchMode] = useState<VideoWatchMode | null>(null)
   const [watchedOpponent, setWatchedOpponent] = useState('')
   const [analyzerFile, setAnalyzerFile] = useState<File | null>(null)
-  const [directo, setDirecto] = useState<{ code: string; pass: string; clips: { src: string; title: string }[] } | null>(null)
+  const [directo, setDirecto] = useState<{ code: string; pass: string; share: boolean; clips: { src: string; title: string }[] } | null>(null)
+  const [directoMenu, setDirectoMenu] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const directoRef = useRef<HTMLInputElement>(null)
   const directoClipsRef = useRef<{ src: string; title: string }[]>([])
   const directoRoomRef = useRef<{ code: string; pass: string } | null>(null)
+  const directoShareRef = useRef(false)
 
   useEffect(() => () => {
     for (const clip of directoClipsRef.current) URL.revokeObjectURL(clip.src)
@@ -105,19 +107,27 @@ export default function VideoAnalisisPage() {
     }
     if (videos.length < picked.length) toast('Se han dejado fuera los archivos que no son vídeo')
     const added = videos.map((file) => ({ src: URL.createObjectURL(file), title: file.name }))
-    if (!directoRoomRef.current?.pass) {
+    const share = directoShareRef.current
+    if (share && !directoRoomRef.current?.pass) {
       try {
         directoRoomRef.current = await revisionApi.openVideoRoom()
       } catch {
         toast.error('No se ha podido abrir la sala de la tablet. El vídeo sigue en este ordenador.')
+        directoShareRef.current = false
       }
     }
-    const room = directoRoomRef.current || { code: '', pass: '' }
+    const room = directoShareRef.current ? (directoRoomRef.current || { code: '', pass: '' }) : { code: '', pass: '' }
     setDirecto((current) => {
       const clips = [...(current?.clips ?? []), ...added]
       directoClipsRef.current = clips
-      return { code: room.code, pass: room.pass, clips }
+      return { code: room.code, pass: room.pass, share: directoShareRef.current, clips }
     })
+  }
+
+  const startDirecto = (share: boolean) => {
+    directoShareRef.current = share
+    setDirectoMenu(false)
+    directoRef.current?.click()
   }
 
   const handleFileSelect = () => {
@@ -268,21 +278,48 @@ export default function VideoAnalisisPage() {
           ) : null}
         </Card>
 
-        <button
-          type="button"
-          onClick={() => directoRef.current?.click()}
-          className="flex w-full items-center gap-4 rounded-lg border p-4 text-left transition-colors hover:bg-muted/60"
-        >
-          <span className="grid h-12 w-12 place-items-center rounded-md border bg-background">
-            <PenLine className="h-5 w-5" />
-          </span>
-          <span>
-            <span className="block font-medium">Anotador de vídeo en directo</span>
-            <span className="block text-sm text-muted-foreground">
-              Importa uno o varios vídeos a la vez. A la derecha queda la playlist y el QR abre la misma sala en la tablet. Los archivos se quedan en este ordenador.
+        <div className="rounded-lg border">
+          <button
+            type="button"
+            onClick={() => setDirectoMenu((open) => !open)}
+            aria-expanded={directoMenu}
+            className="flex w-full items-center gap-4 p-4 text-left transition-colors hover:bg-muted/60"
+          >
+            <span className="grid h-12 w-12 place-items-center rounded-md border bg-background">
+              <PenLine className="h-5 w-5" />
             </span>
-          </span>
-        </button>
+            <span>
+              <span className="block font-medium">Anotador de vídeo en directo</span>
+              <span className="block text-sm text-muted-foreground">
+                Importa varios vídeos y pásalos en la lista de la derecha. Puedes verlos solo aquí o abrir la misma imagen en una tablet. Los archivos se quedan en este ordenador.
+              </span>
+            </span>
+          </button>
+          {directoMenu && (
+            <div className="grid gap-2 border-t p-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => startDirecto(false)}
+                className="rounded-lg border p-3 text-left transition-colors hover:bg-muted/60"
+              >
+                <span className="block text-sm font-medium">Solo en este ordenador</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">
+                  La lista queda a la derecha. No se crea sala ni QR.
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => startDirecto(true)}
+                className="rounded-lg border p-3 text-left transition-colors hover:bg-muted/60"
+              >
+                <span className="block text-sm font-medium">Con tablet</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">
+                  Sale un QR. La tablet ve el vídeo y la misma lista. Misma WiFi.
+                </span>
+              </button>
+            </div>
+          )}
+        </div>
 
         <button
           type="button"
@@ -372,7 +409,8 @@ export default function VideoAnalisisPage() {
           <PresentacionSala
             role="host"
             code={directo.code}
-            guestPass={directo.pass}
+            guestPass={directo.share ? directo.pass : null}
+            shareDevice={directo.share}
             directoRoom
             localPlaylist={directo.clips}
             onAddLocalVideos={() => directoRef.current?.click()}

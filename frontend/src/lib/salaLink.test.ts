@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  orderVideoCodecs,
   reconnectDelay,
   salaLinkLabel,
   shouldApplySeq,
@@ -24,6 +25,15 @@ describe('sala link helpers', () => {
     assert.equal(reconnectDelay(20), SALA_RECONNECT_MAX_MS)
   })
 
+  it('puts H.264 first so the tablet can decode the computer video', () => {
+    const ordered = orderVideoCodecs([
+      { mimeType: 'video/VP8' },
+      { mimeType: 'video/H264' },
+      { mimeType: 'video/VP9' },
+    ])
+    assert.deepEqual(ordered.map((codec) => codec.mimeType), ['video/H264', 'video/VP8', 'video/VP9'])
+  })
+
   it('labels the transport the coach sees', () => {
     assert.equal(salaLinkLabel('offline'), 'reconectando…')
     assert.equal(salaLinkLabel('cloud'), 'en vivo')
@@ -40,7 +50,7 @@ describe('sala link helpers', () => {
   })
 
   it('opens the sala websocket with the QR code and without a user token', () => {
-    const url = trainingHubSalaGuestUrl('ab12cd', 'https://api.example.com/v1')
+    const url = trainingHubSalaGuestUrl('ab12cd', null, 'https://api.example.com/v1')
     assert.equal(url, 'wss://api.example.com/v1/ws?token=sala%3AAB12CD')
   })
 })
