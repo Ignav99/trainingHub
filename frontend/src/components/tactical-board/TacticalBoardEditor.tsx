@@ -30,6 +30,11 @@ interface TacticalBoardEditorProps {
   numJugadores?: number
   /** Vuelca el espacio calculado en la pizarra sobre los campos de la tarea */
   onApplyEspacio?: (patch: TareaEspacioPatch) => void
+  /**
+   * Medidas, m²/jugador y densidad. Encendido solo al diseñar una tarea.
+   * En el resto de pizarras nace apagado: una zona es solo una zona.
+   */
+  spaceMetricsDefault?: boolean
   /** ABP: selector de rol + plantilla en el panel del token */
   roleMode?: BoardRoleMode
   jugadores?: Jugador[]
@@ -45,6 +50,7 @@ export default function TacticalBoardEditor({
   embedded = false,
   numJugadores,
   onApplyEspacio,
+  spaceMetricsDefault = false,
   roleMode = 'tactical',
   jugadores = [],
   teamColors,
@@ -63,6 +69,7 @@ export default function TacticalBoardEditor({
   const playerCounter = useTacticalBoardStore((s) => s.playerCounter)
   const arrowCounter = useTacticalBoardStore((s) => s.arrowCounter)
   const isPlaying = useTacticalBoardStore((s) => s.isPlaying)
+  const [spaceMetrics, setSpaceMetrics] = useState(spaceMetricsDefault)
 
   const setNombre = useTacticalBoardStore((s) => s.setNombre)
   const setTipo = useTacticalBoardStore((s) => s.setTipo)
@@ -514,8 +521,9 @@ export default function TacticalBoardEditor({
           color: zoneColor,
           opacity: 0.3,
           shape: activeTool === 'zone_circle' ? 'ellipse' : 'rectangle',
-          // La primera zona que se dibuja pasa a ser el espacio de juego de referencia
-          isPlayingArea: zones.length === 0,
+          // Solo en diseño de tarea, y con las medidas encendidas, la primera zona
+          // es el espacio de referencia. En el resto, una zona es solo una zona.
+          isPlayingArea: spaceMetrics && zones.length === 0,
         }
         addZone(newZone)
         setSelectedElementId(newZone.id)
@@ -565,7 +573,7 @@ export default function TacticalBoardEditor({
 
     setIsDragging(false)
     lastDragPosRef.current = null
-  }, [zoneDragStart, zoneDragCurrent, activeTool, getSvgPosition, zoneColor, pushHistory, addZone, isPlaying, draggingEndpoint, isRotating, draggingZoneId, elements, arrows, zones, setSelectedElementIds, setSelectedElementId])
+  }, [zoneDragStart, zoneDragCurrent, activeTool, getSvgPosition, zoneColor, pushHistory, addZone, isPlaying, draggingEndpoint, isRotating, draggingZoneId, elements, arrows, zones, spaceMetrics, setSelectedElementIds, setSelectedElementId])
 
   const handleElementMouseDown = useCallback((e: React.MouseEvent, elementId: string) => {
     if (isPlaying) return
@@ -824,6 +832,7 @@ export default function TacticalBoardEditor({
   const renderZone = (zone: DiagramZone) => {
     const { id, position, width, height, color, opacity, shape, label, rotation } = zone
     const isSelected = !isPlaying && allSelectedIds.has(id)
+    const marked = spaceMetrics && !!zone.isPlayingArea
     const geo = zoneGeometry(zone)
     const cx = position.x + width / 2
     const cy = position.y + height / 2
@@ -849,16 +858,16 @@ export default function TacticalBoardEditor({
             cx={cx} cy={cy}
             rx={width / 2} ry={height / 2}
             fill={color} opacity={opacity || 0.3}
-            stroke={isSelected ? '#FFE600' : zone.isPlayingArea ? '#FFFFFF' : 'none'}
-            strokeWidth={isSelected ? 2 : zone.isPlayingArea ? 1.5 : 0}
+            stroke={isSelected ? '#FFE600' : marked ? '#FFFFFF' : 'none'}
+            strokeWidth={isSelected ? 2 : marked ? 1.5 : 0}
             strokeDasharray={isSelected ? '6,3' : undefined}
           />
         ) : (
           <rect
             x={position.x} y={position.y} width={width} height={height}
             fill={color} opacity={opacity || 0.3}
-            stroke={isSelected ? '#FFE600' : zone.isPlayingArea ? '#FFFFFF' : 'none'}
-            strokeWidth={isSelected ? 2 : zone.isPlayingArea ? 1.5 : 0}
+            stroke={isSelected ? '#FFE600' : marked ? '#FFFFFF' : 'none'}
+            strokeWidth={isSelected ? 2 : marked ? 1.5 : 0}
             strokeDasharray={isSelected ? '6,3' : undefined}
           />
         )}
@@ -873,8 +882,7 @@ export default function TacticalBoardEditor({
             {label}
           </text>
         )}
-        {/* Cota en metros: siempre visible en el espacio de juego, y al seleccionar cualquier zona */}
-        {!isPlaying && (isSelected || zone.isPlayingArea) && (
+        {!isPlaying && spaceMetrics && (isSelected || zone.isPlayingArea) && (
           <MeasureBadge
             x={cx}
             y={position.y - 8}
@@ -970,7 +978,7 @@ export default function TacticalBoardEditor({
         ) : (
           <rect x={x} y={y} width={w} height={h} fill={zoneColor} opacity={0.3} stroke="#FFE600" strokeWidth="1" strokeDasharray="4,2" />
         )}
-        {w > 4 && h > 4 && (
+        {spaceMetrics && w > 4 && h > 4 && (
           <MeasureBadge x={x + w / 2} y={y - 8} text={`${geo.anchoX} × ${geo.altoY} m · ${geo.areaM2} m²`} highlight />
         )}
       </g>
@@ -1031,15 +1039,14 @@ export default function TacticalBoardEditor({
       {/* Panel de propiedades del elemento seleccionado */}
       {!isPlaying && <ElementEditPanel />}
 
-      {/* Métricas del espacio (metros, m²/jugador, condicionalidad) */}
-      {!isPlaying && (
+      {!isPlaying && spaceMetrics && (
         <GeometryPanel numJugadores={numJugadores} onApplyEspacio={onApplyEspacio} />
       )}
     </div>
   )
 
   return (
-    <BoardEditorExtrasContext.Provider value={{ roleMode, jugadores }}>
+    <BoardEditorExtrasContext.Provider value={{ roleMode, jugadores, spaceMetrics }}>
     <div ref={containerRef} tabIndex={0} className="flex flex-col h-full outline-none">
       {/* Top bar */}
       {!embedded && (
@@ -1093,6 +1100,8 @@ export default function TacticalBoardEditor({
         arrowStart={!!arrowStart}
         onLoadFormation={handleLoadFormation}
         onExport={() => setShowExport(true)}
+        spaceMetrics={spaceMetrics}
+        onToggleSpaceMetrics={() => setSpaceMetrics((on) => !on)}
       />
 
       {/* Pitch + roles de ABP a la derecha. El campo ocupa solo su proporción;

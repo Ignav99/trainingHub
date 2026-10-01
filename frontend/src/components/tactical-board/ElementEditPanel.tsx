@@ -21,7 +21,9 @@ export type BoardRoleMode = 'tactical' | 'abp'
 export const BoardEditorExtrasContext = createContext<{
   roleMode: BoardRoleMode
   jugadores: Jugador[]
-}>({ roleMode: 'tactical', jugadores: [] })
+  /** Medidas, m²/jugador y densidad. Apagado: una zona es solo una zona. */
+  spaceMetrics: boolean
+}>({ roleMode: 'tactical', jugadores: [], spaceMetrics: false })
 
 function jugadorLabel(j: Jugador) {
   return `${j.dorsal ? `${j.dorsal}. ` : ''}${j.nombre} ${j.apellidos || ''}`.trim()
@@ -38,7 +40,7 @@ export default function ElementEditPanel() {
   const updateElementSize = useTacticalBoardStore((s) => s.updateElementSize)
   const updateElementRotation = useTacticalBoardStore((s) => s.updateElementRotation)
   const patchElement = useTacticalBoardStore((s) => s.patchElement)
-  const { roleMode, jugadores } = useContext(BoardEditorExtrasContext)
+  const { roleMode, jugadores, spaceMetrics } = useContext(BoardEditorExtrasContext)
   const updateArrowLabel = useTacticalBoardStore((s) => s.updateArrowLabel)
   const updateArrowComment = useTacticalBoardStore((s) => s.updateArrowComment)
   const updateArrowType = useTacticalBoardStore((s) => s.updateArrowType)
@@ -238,8 +240,7 @@ export default function ElementEditPanel() {
           </>
         )}
 
-        {/* Zona: medidas en metros */}
-        {zone && (() => {
+        {zone && spaceMetrics && (() => {
           const geo = zoneGeometry(zone)
           const esElipse = zone.shape === 'ellipse'
           return (
@@ -290,7 +291,12 @@ export default function ElementEditPanel() {
                 <Target className="h-3.5 w-3.5" />
                 {zone.isPlayingArea ? 'Es el espacio de juego' : 'Marcar como espacio de juego'}
               </button>
+            </>
+          )
+        })()}
 
+        {zone && (
+          <>
               <Field label="Etiqueta">
                 <input
                   type="text"
@@ -321,9 +327,8 @@ export default function ElementEditPanel() {
                   className="mt-1 w-full"
                 />
               </Field>
-            </>
-          )
-        })()}
+          </>
+        )}
 
         <button
           onClick={deleteSelected}

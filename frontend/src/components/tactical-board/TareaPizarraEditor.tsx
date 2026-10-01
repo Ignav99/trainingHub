@@ -25,6 +25,8 @@ interface TareaPizarraEditorProps {
   numJugadores?: number
   /** Vuelca espacio, densidad y tipo de esfuerzo calculados sobre el formulario de la tarea */
   onApplyEspacio?: (patch: TareaEspacioPatch) => void
+  /** En el diseño de una tarea las medidas nacen encendidas. En informes y pizarras sueltas, apagadas. */
+  spaceMetricsDefault?: boolean
   onClose?: () => void
   /** Texto de la cabecera. Por defecto, pizarra de tarea. */
   title?: string
@@ -41,6 +43,7 @@ export default function TareaPizarraEditor({
   onChange,
   numJugadores,
   onApplyEspacio,
+  spaceMetricsDefault = false,
   onClose,
   title = 'Pizarra de la tarea',
   height = 620,
@@ -191,6 +194,7 @@ export default function TareaPizarraEditor({
           embedded
           numJugadores={numJugadores}
           onApplyEspacio={onApplyEspacio}
+          spaceMetricsDefault={spaceMetricsDefault}
           onSave={() => {}}
           onCancel={() => onClose?.()}
         />

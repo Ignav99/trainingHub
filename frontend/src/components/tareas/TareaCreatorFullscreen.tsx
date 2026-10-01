@@ -328,6 +328,7 @@ export default function TareaCreatorFullscreen({
               onChange={(v) => set('grafico_data', v)}
               numJugadores={form.num_jugadores_min}
               onApplyEspacio={handleApplyEspacio}
+              spaceMetricsDefault
               height="100%"
             />
           </div>

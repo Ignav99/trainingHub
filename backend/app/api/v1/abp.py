@@ -4,6 +4,7 @@ CRUD para biblioteca de jugadas, integración partido/rival/sesión, PDF export.
 """
 
 import asyncio
+import logging
 
 from fastapi import APIRouter, HTTPException, Depends, Query, status
 from fastapi.responses import Response
@@ -18,10 +19,12 @@ from app.models.abp import (
     ABPPartidoPlanFullSave,
 )
 from app.database import get_supabase
+from app.services.abp_delete import release_jugada
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 # ============ Biblioteca CRUD ============
@@ -196,7 +199,16 @@ async def delete_jugada(
     if not existing.data:
         raise HTTPException(status_code=404, detail="Jugada ABP no encontrada")
 
-    supabase.table("abp_jugadas").delete().eq("id", str(jugada_id)).execute()
+    jugada = str(jugada_id)
+    release_jugada(supabase, jugada)
+    try:
+        supabase.table("abp_jugadas").delete().eq("id", jugada).execute()
+    except Exception:
+        logger.exception("No se pudo borrar la jugada %s", jugada)
+        raise HTTPException(status_code=409, detail="No se pudo eliminar la jugada")
+    left = supabase.table("abp_jugadas").select("id").eq("id", jugada).execute()
+    if left.data:
+        raise HTTPException(status_code=409, detail="No se pudo eliminar la jugada")
     return None
 
 

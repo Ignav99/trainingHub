@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import useSWR from 'swr'
 import { Plus, Trash2, Video } from 'lucide-react'
+import { toast } from 'sonner'
 import { apiKey, apiFetcher } from '@/lib/swr'
 import { abpApi } from '@/lib/api/abp'
 import { ABPRivalJugada, ABPJugada, ABP_TIPOS, LadoABP } from '@/types'
@@ -44,8 +45,10 @@ export default function ABPRivalPlays({ rivalId, lado }: ABPRivalPlaysProps) {
         setBoardOpen(false)
       }
       mutate()
+      toast.success('Jugada eliminada')
     } catch (e) {
       console.error('Error deleting rival play:', e)
+      toast.error(e instanceof Error ? e.message : 'No se pudo eliminar')
     }
   }
 
@@ -115,6 +118,7 @@ export default function ABPRivalPlays({ rivalId, lado }: ABPRivalPlaysProps) {
               jugada={editingJugada ? ({ ...editingJugada } as Partial<ABPJugada>) : undefined}
               lockLado={lado}
               onSave={handleSave}
+              onDelete={editingJugada?.id ? () => handleDelete(editingJugada.id) : undefined}
               onCancel={handleNew}
               saving={saving}
             />
@@ -140,6 +144,7 @@ export default function ABPRivalPlays({ rivalId, lado }: ABPRivalPlaysProps) {
                     await handleSave(jugada)
                     setBoardFull(false)
                   }}
+                  onDelete={editingJugada?.id ? () => handleDelete(editingJugada.id) : undefined}
                   onCancel={() => setBoardFull(false)}
                   saving={saving}
                 />
@@ -249,7 +254,7 @@ function RivalPlayCard({
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onDelete() }}
-            className="p-1 rounded bg-black/40 hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+            className="p-1 rounded bg-black/50 hover:bg-red-600"
             title="Eliminar jugada"
           >
             <Trash2 className="h-3 w-3 text-white" />

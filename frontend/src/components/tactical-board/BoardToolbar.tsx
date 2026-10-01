@@ -2,7 +2,7 @@
 
 import React from 'react'
 import {
-  Trash2, RotateCcw, MousePointer, Square, Circle as CircleIcon,
+  Trash2, RotateCcw, MousePointer, Square, Circle as CircleIcon, Ruler,
   Undo2, Redo2, Type, Copy, ClipboardPaste, Group, Ungroup,
   RotateCw, RotateCcw as RotateLeft, FlipHorizontal, FlipVertical, Download,
   ChevronUp, ChevronDown,
@@ -87,12 +87,16 @@ interface BoardToolbarProps {
   arrowStart: boolean
   onLoadFormation: (name: string, team: 'home' | 'away') => void
   onExport?: () => void
+  spaceMetrics?: boolean
+  onToggleSpaceMetrics?: () => void
 }
 
 export default function BoardToolbar({
   arrowStart,
   onLoadFormation,
   onExport,
+  spaceMetrics = false,
+  onToggleSpaceMetrics,
 }: BoardToolbarProps) {
   // Barra plegable: al dibujar interesa tener todo el alto para el campo
   const [colapsada, setColapsada] = React.useState(false)
@@ -174,6 +178,25 @@ export default function BoardToolbar({
 
         <div className="flex-1" />
 
+        {onToggleSpaceMetrics && (
+          <button
+            type="button"
+            onClick={onToggleSpaceMetrics}
+            aria-pressed={spaceMetrics}
+            title={spaceMetrics
+              ? 'Medidas encendidas: la zona calcula metros y densidad. Pulsa para apagarlas.'
+              : 'Medidas apagadas: una zona es solo una zona. Pulsa para ver metros y densidad.'}
+            className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+              spaceMetrics
+                ? 'bg-blue-600 border-blue-600 text-white'
+                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            <Ruler className="h-3.5 w-3.5" />
+            Medidas
+          </button>
+        )}
+
         {/* Tipo de campo — decide la tarea, por eso esta siempre a la vista */}
         <div className="flex items-center rounded-lg border border-gray-200 overflow-hidden">
           <button
@@ -230,10 +253,10 @@ export default function BoardToolbar({
         <Sep />
 
         {/* Zonas */}
-        <ToolButton active={activeTool === 'zone_rect'} onClick={() => setActiveTool('zone_rect')} title="Zona rectangular (se mide en metros)">
+        <ToolButton active={activeTool === 'zone_rect'} onClick={() => setActiveTool('zone_rect')} title={spaceMetrics ? 'Zona rectangular (se mide en metros)' : 'Zona rectangular'}>
           <Square className="h-4 w-4" style={{ color: activeTool === 'zone_rect' ? '#fff' : zoneColor }} />
         </ToolButton>
-        <ToolButton active={activeTool === 'zone_circle'} onClick={() => setActiveTool('zone_circle')} title="Zona elíptica (se mide en metros)">
+        <ToolButton active={activeTool === 'zone_circle'} onClick={() => setActiveTool('zone_circle')} title={spaceMetrics ? 'Zona elíptica (se mide en metros)' : 'Zona elíptica'}>
           <CircleIcon className="h-4 w-4" style={{ color: activeTool === 'zone_circle' ? '#fff' : zoneColor }} />
         </ToolButton>
 
@@ -353,7 +376,9 @@ export default function BoardToolbar({
               ? '2. Clic en el destino del movimiento'
               : `1. Clic en el origen — ${ARROW_STYLES[activeTool.replace('arrow_', '') as ArrowType]?.hint || ''}`
             : isZoneTool
-              ? 'Clic y arrastra para dibujar la zona; después ajusta sus lados en metros desde el panel o arrastrando las esquinas'
+              ? spaceMetrics
+                ? 'Clic y arrastra para dibujar la zona; después ajusta sus lados en metros desde el panel o arrastrando las esquinas'
+                : 'Clic y arrastra para dibujar la zona'
               : activeTool === 'text'
                 ? 'Clic en el campo para colocar un texto'
                 : `Colocando ${ELEMENT_TOOLS.find((t) => t.type === activeTool)?.label || activeTool}: pica en el campo tantas veces como necesites · Esc para terminar`}

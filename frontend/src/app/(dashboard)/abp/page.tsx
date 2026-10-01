@@ -85,14 +85,18 @@ export default function ABPPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar esta jugada?')) return
+    if (!confirm('¿Eliminar esta jugada? Se quita también de partidos y sesiones donde estuviera enlazada.')) return
     try {
       await abpApi.delete(id)
       refreshList()
       toast.success('Jugada eliminada')
+      if (editingJugada?.id === id) {
+        setEditorOpen(false)
+        setEditingJugada(null)
+      }
     } catch (e) {
       console.error('Error deleting:', e)
-      toast.error('No se pudo eliminar')
+      toast.error(e instanceof Error ? e.message : 'No se pudo eliminar')
     }
   }
 
@@ -135,6 +139,7 @@ export default function ABPPage() {
         <ABPEditor
           jugada={editingJugada || undefined}
           onSave={handleSave}
+          onDelete={editingJugada?.id ? () => handleDelete(editingJugada.id) : undefined}
           onCancel={() => {
             setEditorOpen(false)
             setEditingJugada(null)
