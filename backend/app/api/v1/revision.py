@@ -28,6 +28,7 @@ from app.models.revision import (
 )
 from app.security.dependencies import AuthContext, require_permission
 from app.security.permissions import Permission
+from app.services.video_room_pass import sign_video_room
 from app.services.revision_service import (
     MAX_CLIP_BYTES,
     MIN_CLIP_BYTES,
@@ -680,6 +681,15 @@ async def delete_clip_link(
 
 
 # ============ SALA ============
+
+@router.post("/video-rooms", status_code=201)
+async def open_video_room(
+    _auth: AuthContext = Depends(require_permission(Permission.VIDEO_READ)),
+):
+    """Sala de vídeo en directo. El pase va en el QR; no crea un pack ni sube el partido."""
+    code = generate_session_code()
+    return {"code": code, "pass": sign_video_room(code, get_settings().SECRET_KEY)}
+
 
 @router.post("/sessions", status_code=201)
 async def create_session(

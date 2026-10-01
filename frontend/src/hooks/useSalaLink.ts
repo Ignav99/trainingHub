@@ -28,6 +28,8 @@ interface UseSalaLinkParams {
   onPeerJoined?: (peers: number) => void
   onSyncRequest?: () => void
   disabled?: boolean
+  /** Sala de vídeo: ordenador y tablet entran con el pase del QR, sin equipo ni fila en revisión. */
+  guestPass?: string | null
   /** Ordenador: el vídeo local que hay que mandar a la tablet. */
   getLocalStream?: () => MediaStream | null
   /** Tablet: llega la imagen del ordenador. */
@@ -43,6 +45,7 @@ export function useSalaLink({
   onPeerJoined,
   onSyncRequest,
   disabled = false,
+  guestPass,
   getLocalStream,
   onRemoteStream,
 }: UseSalaLinkParams) {
@@ -75,6 +78,8 @@ export function useSalaLink({
   onSyncRequestRef.current = onSyncRequest
   const getLocalStreamRef = useRef(getLocalStream)
   getLocalStreamRef.current = getLocalStream
+  const guestPassRef = useRef(guestPass)
+  guestPassRef.current = guestPass
   const onRemoteStreamRef = useRef(onRemoteStream)
   onRemoteStreamRef.current = onRemoteStream
 
@@ -343,22 +348,24 @@ export function useSalaLink({
 
   useEffect(() => {
     unmountedRef.current = false
+    const asGuest = Boolean(guestPass)
     if (disabled) return
-    if (!accessToken && !code) return
-    if (accessToken && !equipoId) return
+    if (asGuest && !code) return
+    if (!asGuest && !accessToken && !code) return
+    if (!asGuest && accessToken && !equipoId) return
 
     const connect = () => {
       if (unmountedRef.current) return
       const ws = new WebSocket(
-        accessToken && equipoId
-          ? trainingHubWsUrl(accessToken, equipoId)
-          : trainingHubSalaGuestUrl(code)
+        asGuest || !(accessToken && equipoId)
+          ? trainingHubSalaGuestUrl(codeRef.current, guestPassRef.current)
+          : trainingHubWsUrl(accessToken as string, equipoId as string)
       )
       wsRef.current = ws
       ws.onopen = () => {
         attemptRef.current = 0
         setLinkStatus(dcRef.current?.readyState === 'open' ? 'direct' : 'cloud')
-        ws.send(JSON.stringify({ type: 'sala_join', session_code: code, role }))
+        ws.send(JSON.stringify({ type: 'sala_join', session_code: codeRef.current, role: roleRef.current }))
         flushPending()
       }
       ws.onclose = () => {
@@ -403,7 +410,7 @@ export function useSalaLink({
       try { wsRef.current?.close() } catch { /* ignore */ }
       wsRef.current = null
     }
-  }, [accessToken, equipoId, code, role, disabled, flushPending, setLinkStatus, teardownRtc])
+  }, [accessToken, equipoId, code, role, disabled, guestPass, flushPending, setLinkStatus, teardownRtc])
 
   return {
     send,

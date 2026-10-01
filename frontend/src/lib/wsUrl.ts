@@ -15,11 +15,15 @@ export function trainingHubWsUrl(
 /** Invitación de sala: el código del QR es el pase, sin usuario. */
 export function trainingHubSalaGuestUrl(
   code: string,
+  pass?: string | null,
   apiUrl: string | undefined = process.env.NEXT_PUBLIC_API_URL,
 ): string {
   const httpBase = (apiUrl || '').replace(/\/v1\/?$/, '')
     || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000')
   const wsBase = httpBase.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:')
-  const qs = new URLSearchParams({ token: `sala:${code.toUpperCase()}` })
+  const token = pass
+    ? `sala:${code.toUpperCase()}.${pass}`
+    : `sala:${code.toUpperCase()}`
+  const qs = new URLSearchParams({ token })
   return `${wsBase}/v1/ws?${qs.toString()}`
 }

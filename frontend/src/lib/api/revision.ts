@@ -329,6 +329,10 @@ export const revisionApi = {
     return api.delete(`/revision/clip-links/${linkId}`)
   },
 
+  openVideoRoom(): Promise<{ code: string; pass: string }> {
+    return api.post('/revision/video-rooms')
+  },
+
   createSession(data: { equipo_id: string; pack_id: string; clip_id?: string }): Promise<RevisionSession> {
     return api.post('/revision/sessions', data)
   },

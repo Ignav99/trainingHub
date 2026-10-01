@@ -716,5 +716,6 @@ class TestWatchedOpponentNote:
 class TestSalaGuestPass:
     def test_reads_the_code_from_the_qr_token(self):
         assert sala_guest_code("sala:ab12cd") == "AB12CD"
+        assert sala_guest_code("sala:ab12cd.deadbeef") == "AB12CD"
         assert sala_guest_code("jwt.token") is None
 
