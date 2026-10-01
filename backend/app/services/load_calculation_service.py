@@ -20,8 +20,7 @@ logger = logging.getLogger(__name__)
 # --- EWMA constants ---
 EWMA_ACUTE_LAMBDA = 2.0 / (7 + 1)    # ~0.25
 EWMA_CHRONIC_LAMBDA = 2.0 / (28 + 1)  # ~0.069
-HISTORY_LOOKBACK_DAYS = 56  # fetch 56 days for EWMA warm-up
-UPSERT_DAYS = 28            # persist last 28 days to DB
+HISTORY_LOOKBACK_DAYS = 56  # mínimo de calentamiento del EWMA si la temporada acaba de empezar
 
 # --- RPE estimation constants ---
 INTENSITY_BASE_RPE = {
@@ -45,6 +44,10 @@ COGNITIVE_MODIFIER = {
 
 GK_MATCH_RPE_MAX = 6.0
 GK_SESSION_LOAD_FACTOR = 0.625  # GK RPE max ~6.25 vs 10.0 for outfield
+
+# Sin RPE medido: RPE medio de una sesión «media» × minutos.
+DEFAULT_SESSION_RPE = 5.5
+DEFAULT_SESSION_MINUTES = 75.0
 
 
 def estimate_session_load(
@@ -150,6 +153,254 @@ def calculate_match_load(
     return (match_rpe, match_load)
 
 
+def load_window_start(today: date) -> date:
+    """1 de julio: la temporada europea incluye la pretemporada."""
+    year = today.year if today.month >= 7 else today.year - 1
+    return date(year, 7, 1)
+
+
+def series_start(today: date) -> date:
+    """Toda la temporada, y al menos el calentamiento del EWMA."""
+    return min(load_window_start(today), today - timedelta(days=HISTORY_LOOKBACK_DAYS))
+
+
+def _positive(value) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return number if number > 0 else 0.0
+
+
+def real_rpe_load(row: dict) -> float:
+    """Carga Foster medida. Sin RPE no hay carga real."""
+    if row.get("rpe") is None:
+        return 0.0
+    stored = _positive(row.get("carga_sesion"))
+    if stored:
+        return stored
+    return _positive(row.get("rpe")) * _positive(row.get("duracion_percibida"))
+
+
+def imputed_session_load(
+    *,
+    peer_mean: Optional[float],
+    structural: float,
+    minutes: float,
+    mean_foster: float,
+    mean_structural: float,
+    mean_minutes: float,
+) -> float:
+    """Carga de quien entrenó y no tiene RPE.
+
+    Si otros jugadores marcaron esa sesión, usa su media.
+    Si nadie la marcó, escala la carga media de las sesiones del equipo
+    por lo que pesa esta sesión (carga de tareas, o minutos) respecto a la media.
+    Nunca devuelve 0.
+    """
+    if peer_mean is not None and peer_mean > 0:
+        return round(float(peer_mean), 1)
+    if mean_foster > 0:
+        if structural > 0 and mean_structural > 0:
+            return round(mean_foster * (structural / mean_structural), 1)
+        if minutes > 0 and mean_minutes > 0:
+            return round(mean_foster * (minutes / mean_minutes), 1)
+        return round(mean_foster, 1)
+    mins = minutes if minutes > 0 else DEFAULT_SESSION_MINUTES
+    return round(DEFAULT_SESSION_RPE * mins, 1)
+
+
+class SessionLoadContext:
+    """Sesiones completadas del equipo y la referencia para imputar."""
+
+    def __init__(
+        self,
+        sessions: list[dict],
+        real: dict[tuple[str, str], float],
+        mean_foster: float,
+        mean_structural: float,
+        mean_minutes: float,
+    ):
+        self.sessions = sessions
+        self.real = real
+        self.mean_foster = mean_foster
+        self.mean_structural = mean_structural
+        self.mean_minutes = mean_minutes
+
+
+def _parse_day(value) -> Optional[date]:
+    if isinstance(value, date):
+        return value
+    text = str(value or "")[:10]
+    try:
+        return date.fromisoformat(text)
+    except ValueError:
+        return None
+
+
+def build_session_load_context(
+    sessions: list[dict],
+    attendance: list[dict],
+    rpe_rows: list[dict],
+) -> SessionLoadContext:
+    """Arma la referencia de carga sin tocar la base de datos."""
+    by_session_attendance: dict[str, list[dict]] = defaultdict(list)
+    for row in attendance or []:
+        sid = str(row.get("sesion_id") or "")
+        if sid:
+            by_session_attendance[sid].append(row)
+
+    real: dict[tuple[str, str], float] = {}
+    peer_values: dict[str, list[float]] = defaultdict(list)
+    for row in rpe_rows or []:
+        tipo = (row.get("tipo") or "sesion")
+        if tipo in ("wellness", "partido"):
+            continue
+        sid = str(row.get("sesion_id") or "")
+        jid = str(row.get("jugador_id") or "")
+        if not sid or not jid:
+            continue
+        load = real_rpe_load(row)
+        if load <= 0:
+            continue
+        real[(jid, sid)] = load
+        peer_values[sid].append(load)
+
+    built: list[dict] = []
+    struct_vals: list[float] = []
+    minute_vals: list[float] = []
+    for raw in sessions or []:
+        sid = str(raw.get("id") or "")
+        fecha = _parse_day(raw.get("fecha"))
+        if not sid or fecha is None:
+            continue
+        minutes = _positive(raw.get("duracion_total"))
+        structural = _positive(raw.get("carga_sesion"))
+        if minutes:
+            minute_vals.append(minutes)
+        if structural:
+            struct_vals.append(structural)
+        rows = by_session_attendance.get(sid)
+        if not rows:
+            presentes = None
+        else:
+            presentes = {
+                str(row.get("jugador_id"))
+                for row in rows
+                if row.get("presente") and row.get("jugador_id")
+            }
+        peers = peer_values.get(sid) or []
+        peer_mean = (sum(peers) / len(peers)) if peers else None
+        built.append({
+            "id": sid,
+            "fecha": fecha,
+            "minutes": minutes,
+            "structural": structural,
+            "peer_mean": peer_mean,
+            "presentes": presentes,
+        })
+
+    peer_means = [s["peer_mean"] for s in built if s["peer_mean"]]
+    mean_foster = (sum(peer_means) / len(peer_means)) if peer_means else 0.0
+    mean_structural = (sum(struct_vals) / len(struct_vals)) if struct_vals else 0.0
+    mean_minutes = (sum(minute_vals) / len(minute_vals)) if minute_vals else 0.0
+    return SessionLoadContext(built, real, mean_foster, mean_structural, mean_minutes)
+
+
+def player_session_loads(ctx: SessionLoadContext, jugador_id: str) -> dict[date, float]:
+    """Carga de sesión por día. El RPE real manda; si no hay, la sesión media."""
+    loads: dict[date, float] = defaultdict(float)
+    jid = str(jugador_id)
+    for session in ctx.sessions:
+        sid = session["id"]
+        real = ctx.real.get((jid, sid), 0.0)
+        if real > 0:
+            loads[session["fecha"]] += real
+            continue
+        presentes = session["presentes"]
+        attended = presentes is None or jid in presentes
+        if not attended:
+            continue
+        loads[session["fecha"]] += imputed_session_load(
+            peer_mean=session["peer_mean"],
+            structural=session["structural"],
+            minutes=session["minutes"],
+            mean_foster=ctx.mean_foster,
+            mean_structural=ctx.mean_structural,
+            mean_minutes=ctx.mean_minutes,
+        )
+    return loads
+
+
+def _rows_in(supabase, table: str, columns: str, column: str, ids: list[str]) -> list[dict]:
+    rows: list[dict] = []
+    clean = [str(i) for i in ids if i]
+    for offset in range(0, len(clean), 80):
+        chunk = clean[offset:offset + 80]
+        resp = (
+            supabase.table(table)
+            .select(columns)
+            .in_(column, chunk)
+            .execute()
+        )
+        rows.extend(resp.data or [])
+    return rows
+
+
+def fetch_session_load_context(supabase, equipo_id: str, since: date) -> SessionLoadContext:
+    """Sesiones completadas del equipo desde `since`, con asistencia y RPE real."""
+    empty = SessionLoadContext([], {}, 0.0, 0.0, 0.0)
+    try:
+        sesiones = None
+        for columns in (
+            "id, fecha, duracion_total, carga_sesion",
+            "id, fecha, duracion_total",
+        ):
+            try:
+                sesiones = (
+                    supabase.table("sesiones")
+                    .select(columns)
+                    .eq("equipo_id", str(equipo_id))
+                    .eq("estado", "completada")
+                    .gte("fecha", since.isoformat())
+                    .execute()
+                )
+                break
+            except Exception as e:
+                logger.warning("sesiones carga columnas %s: %s", columns, e)
+                sesiones = None
+        session_rows = (sesiones.data if sesiones else None) or []
+        if not session_rows:
+            return empty
+        ids = [str(s["id"]) for s in session_rows if s.get("id")]
+        try:
+            attendance = _rows_in(
+                supabase,
+                "asistencias_sesion",
+                "sesion_id, jugador_id, presente",
+                "sesion_id",
+                ids,
+            )
+        except Exception as e:
+            logger.warning("asistencia para carga %s: %s", equipo_id, e)
+            attendance = []
+        try:
+            rpe_rows = _rows_in(
+                supabase,
+                "registros_rpe",
+                "sesion_id, jugador_id, rpe, duracion_percibida, carga_sesion, tipo",
+                "sesion_id",
+                ids,
+            )
+        except Exception as e:
+            logger.warning("rpe para carga %s: %s", equipo_id, e)
+            rpe_rows = []
+        return build_session_load_context(session_rows, attendance, rpe_rows)
+    except Exception as e:
+        logger.error("Error armando contexto de carga %s: %s", equipo_id, e)
+        return empty
+
+
 def _determine_nivel(ratio: Optional[float]) -> str:
     """Determine load level from ACWR ratio.
 
@@ -178,78 +429,25 @@ def _determine_nivel(ratio: Optional[float]) -> str:
 # ---------------------------------------------------------------------------
 
 def _gather_session_loads(
-    supabase, jid: str, es_portero: bool, since: date
+    supabase, jid: str, es_portero: bool, since: date, equipo_id: Optional[str] = None,
+    session_ctx: Optional[SessionLoadContext] = None,
 ) -> dict[date, float]:
-    """
-    Gather session loads for a player.
+    """Carga de sesión del jugador.
 
-    Only a recorded RPE counts. Load = RPE × minutes stored with that RPE
-    (effective minutes when assigned from the session). Estimated task load
-    is not used.
+    El RPE medido (RPE × minutos) manda. Si entrenó y no hay RPE, entra la
+    carga relativa de la sesión media del equipo. Un día de sesión no queda en 0.
     """
-    loads: dict[date, float] = defaultdict(float)
-
+    del es_portero  # el RPE real ya distingue al portero; la media no lo baja aparte
     try:
-        asistencias = (
-            supabase.table("asistencias_sesion")
-            .select("sesion_id, tipo_participacion")
-            .eq("jugador_id", jid)
-            .eq("presente", True)
-            .execute()
-        )
-
-        if not asistencias.data:
-            return loads
-
-        all_sesion_ids = [a["sesion_id"] for a in asistencias.data if a.get("sesion_id")]
-
-        if not all_sesion_ids:
-            return loads
-
-        # Batch fetch sessions (completed, within lookback)
-        sesiones = (
-            supabase.table("sesiones")
-            .select("id, fecha, intensidad_objetivo, duracion_total, estado, estructura_fases")
-            .eq("estado", "completada")
-            .gte("fecha", since.isoformat())
-            .in_("id", all_sesion_ids)
-            .execute()
-        )
-
-        if not sesiones.data:
-            return loads
-
-        sesion_ids_in_range = [s["id"] for s in sesiones.data]
-
-        # Batch fetch manual RPE for all sessions at once
-        rpe_records = (
-            supabase.table("registros_rpe")
-            .select("sesion_id, rpe, duracion_percibida, carga_sesion")
-            .eq("jugador_id", jid)
-            .in_("sesion_id", sesion_ids_in_range)
-            .execute()
-        )
-        rpe_map: dict[str, dict] = {}
-        for r in (rpe_records.data or []):
-            if r.get("sesion_id"):
-                rpe_map[r["sesion_id"]] = r
-
-        for s in sesiones.data:
-            sid = s["id"]
-            if sid not in rpe_map:
-                continue
-            fecha = date.fromisoformat(s["fecha"][:10])
-            mr = rpe_map[sid]
-            load = mr.get("carga_sesion") or 0
-            if not load and mr.get("rpe") and mr.get("duracion_percibida"):
-                load = float(mr["rpe"]) * float(mr["duracion_percibida"])
-            if load:
-                loads[fecha] += float(load)
-
+        ctx = session_ctx
+        if ctx is None:
+            if not equipo_id:
+                return defaultdict(float)
+            ctx = fetch_session_load_context(supabase, equipo_id, since)
+        return player_session_loads(ctx, jid)
     except Exception as e:
         logger.error(f"Error gathering session loads for {jid}: {e}")
-
-    return loads
+        return defaultdict(float)
 
 
 def _gather_match_loads(
@@ -495,14 +693,18 @@ def _compute_ewma_series(
 #  Main recalculation
 # ---------------------------------------------------------------------------
 
-def recalculate_player_load(jugador_id: UUID, equipo_id: UUID) -> dict:
+def recalculate_player_load(
+    jugador_id: UUID,
+    equipo_id: UUID,
+    session_ctx: Optional[SessionLoadContext] = None,
+) -> dict:
     """
     Recalculate accumulated load for a single player using EWMA.
     Writes daily rows to carga_diaria_jugador and snapshot to carga_acumulada_jugador.
     """
     supabase = get_supabase()
     today = date.today()
-    since = today - timedelta(days=HISTORY_LOOKBACK_DAYS)
+    since = series_start(today)
 
     jid = str(jugador_id)
     eid = str(equipo_id)
@@ -520,8 +722,10 @@ def recalculate_player_load(jugador_id: UUID, equipo_id: UUID) -> dict:
     except Exception:
         pass
 
-    # Gather raw loads
-    session_loads = _gather_session_loads(supabase, jid, es_portero, since)
+    # Gather raw loads. Session days without RPE take the team mean session load.
+    session_loads = _gather_session_loads(
+        supabase, jid, es_portero, since, equipo_id=eid, session_ctx=session_ctx,
+    )
     match_loads = _gather_match_loads(supabase, jid, es_portero, since)
     manual_loads = _gather_manual_loads(supabase, jid, since)
 
@@ -600,8 +804,8 @@ def recalculate_player_load(jugador_id: UUID, equipo_id: UUID) -> dict:
 
     ultima_carga = today_entry["load_total"] if today_entry else 0
 
-    # --- Bulk upsert daily rows (last UPSERT_DAYS) ---
-    cutoff = today - timedelta(days=UPSERT_DAYS)
+    # Toda la temporada, no solo el último mes: las sesiones viejas también cuentan.
+    cutoff = load_window_start(today)
     daily_rows = []
     for entry in series:
         if entry["fecha"] >= cutoff:
@@ -701,6 +905,7 @@ def recalculate_team_load(equipo_id: UUID) -> list[dict]:
     """Recalculate load for all players in a team."""
     supabase = get_supabase()
     eid = str(equipo_id)
+    session_ctx = fetch_session_load_context(supabase, eid, series_start(date.today()))
 
     jugadores = (
         supabase.table("jugadores")
@@ -714,7 +919,7 @@ def recalculate_team_load(equipo_id: UUID) -> list[dict]:
         if not incluye_tracking_carga(j):
             continue
         try:
-            row = recalculate_player_load(UUID(j["id"]), equipo_id)
+            row = recalculate_player_load(UUID(j["id"]), equipo_id, session_ctx=session_ctx)
             results.append(row)
         except Exception as e:
             logger.error(f"Error recalculating load for player {j['id']}: {e}")
