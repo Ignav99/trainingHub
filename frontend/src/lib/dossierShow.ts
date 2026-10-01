@@ -164,22 +164,39 @@ export interface ShowChapter {
   videoCount: number
 }
 
+export interface DirectoClipInput {
+  title: string
+  src: string
+}
+
+function directoClipTitle(title: string): string {
+  return title.replace(/\.[^.]+$/, '').trim() || 'Vídeo'
+}
+
+/** Un vídeo local: mismo id de siempre para el anotador de un solo archivo. */
 export function buildDirectoShow(title: string, src: string): DossierShow {
-  const name = title.replace(/\.[^.]+$/, '').trim() || 'Vídeo'
+  return buildDirectoPlaylist([{ title, src }])
+}
+
+/** Playlist importada del ordenador. Cada archivo es una diapositiva. */
+export function buildDirectoPlaylist(clips: DirectoClipInput[]): DossierShow {
+  const single = clips.length === 1
   return {
     kind: 'informe',
-    slides: [
-      {
-        id: 'video:directo',
-        kind: 'video',
-        fase: 'ataque_organizado',
-        kicker: 'En directo',
-        title: name,
-        src,
-        clipId: 'directo',
-      },
-    ],
+    slides: clips.map((clip, index) => ({
+      id: single ? 'video:directo' : `video:directo:${index}`,
+      kind: 'video' as const,
+      fase: 'ataque_organizado' as const,
+      kicker: 'En directo',
+      title: directoClipTitle(clip.title),
+      src: clip.src,
+      clipId: single ? 'directo' : `directo-${index}`,
+    })),
   }
+}
+
+export function isDirectoClipId(clipId: string | null | undefined): boolean {
+  return clipId === 'directo' || (typeof clipId === 'string' && clipId.startsWith('directo-'))
 }
 
 export function playableClipUrl(url?: string): string | null {
@@ -321,6 +338,9 @@ export function slimShowForSync(show: DossierShow): DossierShow {
   return {
     ...show,
     slides: show.slides.map((slide) => {
+      if (slide.kind === 'video' && (slide.src.startsWith('blob:') || isDirectoClipId(slide.clipId))) {
+        return { ...slide, src: '' }
+      }
       if (slide.kind !== 'fase' || !slide.board) {
         return slide.kind === 'fase' ? { ...slide, boardSrc: undefined } : slide
       }

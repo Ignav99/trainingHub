@@ -19,13 +19,14 @@ import { useSalaVideoShare } from '@/components/revision/useSalaVideoShare'
 import { useSalaLink } from '@/hooks/useSalaLink'
 import { salaLinkLabel } from '@/lib/salaLink'
 import {
-  buildDirectoShow,
+  buildDirectoPlaylist,
   chapterIndexForSlide,
   showChapters,
   showPresenterLabel,
   slimShowForSync,
   type DossierShow,
 } from '@/lib/dossierShow'
+import { captureHostVideo, directoSalaPath } from '@/lib/directoSala'
 import {
   IDENTITY_ZOOM,
   JOG_SECONDS,
@@ -42,8 +43,11 @@ interface PresentacionSalaProps {
   role: 'host' | 'tablet'
   initialSession?: RevisionSession | null
   initialShow?: DossierShow | null
-  /** Vídeo local: el mismo visor de la sala, sin tele ni código. */
-  localVideo?: { src: string; title: string } | null
+  /** Vídeos locales del ordenador. Cada uno es una diapositiva de la playlist. */
+  localPlaylist?: { src: string; title: string }[] | null
+  /** Sala de vídeo en directo: QR, sin sesión de revisión. */
+  directoRoom?: boolean
+  onAddLocalVideos?: () => void
   onClose?: () => void
 }
 
@@ -52,21 +56,27 @@ export function PresentacionSala({
   role,
   initialSession,
   initialShow,
-  localVideo,
+  localPlaylist,
+  directoRoom = false,
+  onAddLocalVideos,
   onClose,
 }: PresentacionSalaProps) {
-  const localAnnotator = Boolean(localVideo?.src)
-  const isHost = role === 'host' && !localAnnotator
+  const directoHost = Boolean(localPlaylist && localPlaylist.length > 0)
+  const directoTablet = directoRoom && role === 'tablet' && !directoHost
+  const directoLive = directoHost || directoTablet
+  const isHost = role === 'host'
   const equipoActivo = useEquipoStore((s) => s.equipoActivo)
   const accessToken = useAuthStore((s) => s.accessToken)
 
   const [session, setSession] = useState<RevisionSession | null>(initialSession || null)
   const [show, setShow] = useState<DossierShow | null>(
-    localVideo?.src ? buildDirectoShow(localVideo.title, localVideo.src) : (initialShow || null),
+    directoHost && localPlaylist ? buildDirectoPlaylist(localPlaylist) : (initialShow || null),
   )
-  const [loading, setLoading] = useState(!initialSession && !localVideo?.src)
+  const [loading, setLoading] = useState(!initialSession && !directoLive)
   const [index, setIndex] = useState(0)
   const [peerReady, setPeerReady] = useState(!isHost)
+  const [qrOpen, setQrOpen] = useState(directoHost)
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
   const [mounted, setMounted] = useState(false)
   const [tool, setTool] = useState<DrawingTool>('freehand')
   const [color, setColor] = useState('#f97316')
@@ -92,6 +102,14 @@ export function PresentacionSala({
   const indexRef = useRef(index)
   indexRef.current = index
   const touchStartX = useRef<number | null>(null)
+  const captureRef = useRef<MediaStream | null>(null)
+  const directoHostRef = useRef(directoHost)
+  directoHostRef.current = directoHost
+  const mirrorRef = useRef(directoTablet)
+  mirrorRef.current = directoTablet
+  const hostActionRef = useRef<(msg: Record<string, unknown>) => boolean>(() => false)
+  const qrOpenRef = useRef(qrOpen)
+  qrOpenRef.current = qrOpen
 
   const { elements, setElements: pushElements, undo, canUndo, reset } = useUndoRedo([])
   const { preview, handlePointerDown, handlePointerMove, handlePointerUp, clearAll } = useDrawingEngine({
@@ -118,30 +136,42 @@ export function PresentacionSala({
   }, [])
 
   useEffect(() => {
-    if (initialSession || localAnnotator || !code) return
+    if (initialSession || directoLive || !code) return
     let cancelled = false
     revisionApi.getSession(code)
       .then((s) => { if (!cancelled) setSession(s) })
       .catch(() => { if (!cancelled) toast.error('Sala no encontrada') })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [code, initialSession, localAnnotator])
+  }, [code, initialSession, directoLive])
 
+  const playlistKey = localPlaylist?.map((clip) => clip.src).join('|') ?? ''
   useEffect(() => {
-    if (!localVideo?.src) return
-    setShow(buildDirectoShow(localVideo.title, localVideo.src))
-    setIndex(0)
-  }, [localVideo?.src, localVideo?.title])
+    if (!directoHost || !localPlaylist?.length) return
+    setShow(buildDirectoPlaylist(localPlaylist))
+  }, [directoHost, playlistKey, localPlaylist])
 
-  const { send, requestSync, status, wsOk } = useSalaLink({
+  const getLocalStream = useCallback(() => {
+    if (!directoHostRef.current) return null
+    const el = playerRef.current?.getVideoElement()
+    if (!el) return captureRef.current
+    const next = captureHostVideo(el, captureRef.current)
+    captureRef.current = next
+    return next
+  }, [])
+
+  const { send, requestSync, publishLocalVideo, status, wsOk } = useSalaLink({
     code,
-    role: localAnnotator ? 'tablet' : role,
+    role,
     accessToken,
     equipoId: equipoActivo?.id,
-    disabled: localAnnotator,
+    disabled: false,
+    getLocalStream,
+    onRemoteStream: (stream) => setRemoteStream(stream),
     onMessage: (msg) => remoteHandlerRef.current(msg),
     onPeerJoined: () => {
       setPeerReady(true)
+      setQrOpen(false)
       if (isHost) broadcastShowRef.current(indexRef.current)
     },
     onSyncRequest: () => {
@@ -208,20 +238,31 @@ export function PresentacionSala({
 
   useEffect(() => {
     remoteHandlerRef.current = (msg) => {
+      if (hostActionRef.current(msg)) {
+        applyingRemote.current = false
+        return
+      }
       applyingRemote.current = true
       leaderRef.current = false
-      if (msg.show && typeof msg.show === 'object' && Array.isArray((msg.show as DossierShow).slides)) {
+      if (
+        !directoHostRef.current
+        && msg.show
+        && typeof msg.show === 'object'
+        && Array.isArray((msg.show as DossierShow).slides)
+      ) {
         setShow(msg.show as DossierShow)
       }
       if (typeof msg.slide === 'number') {
         setIndex(msg.slide)
         setMediaError(false)
       }
-      if (typeof msg.t === 'number') playerRef.current?.seekTo(msg.t)
+      if (!mirrorRef.current && typeof msg.t === 'number') playerRef.current?.seekTo(msg.t)
       if (typeof msg.paused === 'boolean') {
-        if (msg.paused) playerRef.current?.pause()
-        else playerRef.current?.play()
         setPlaying(!msg.paused)
+        if (!mirrorRef.current) {
+          if (msg.paused) playerRef.current?.pause()
+          else playerRef.current?.play()
+        }
       }
       if (Array.isArray(msg.overlay)) {
         reset(msg.overlay)
@@ -271,7 +312,7 @@ export function PresentacionSala({
 
   const handlePlayState = useCallback((nextPlaying: boolean) => {
     setPlaying(nextPlaying)
-    if (applyingRemote.current) return
+    if (mirrorRef.current || applyingRemote.current) return
     leaderRef.current = nextPlaying
     sendSync({
       paused: !nextPlaying,
@@ -283,7 +324,7 @@ export function PresentacionSala({
   }, [sendSync, clipId, audioMuted])
 
   const handleSeeked = useCallback((t: number) => {
-    if (applyingRemote.current) return
+    if (mirrorRef.current || applyingRemote.current) return
     sendSync({ t, clip_id: clipId, slide: indexRef.current })
   }, [sendSync, clipId])
 
@@ -363,6 +404,68 @@ export function PresentacionSala({
     else v.pause()
   }
 
+  hostActionRef.current = (msg) => {
+    if (!directoHostRef.current) return false
+    if (msg.action === 'frame' && (msg.direction === 1 || msg.direction === -1)) {
+      stepFrame(msg.direction)
+      return true
+    }
+    if (msg.action === 'jog' && typeof msg.delta === 'number') {
+      jogBy(msg.delta)
+      return true
+    }
+    if (msg.action === 'toggle') {
+      togglePlay()
+      return true
+    }
+    return false
+  }
+
+  const sendTabletAction = (payload: Record<string, unknown>) => {
+    sendSync({ ...payload, slide: indexRef.current, clip_id: clipId })
+  }
+
+  const onFrame = (direction: 1 | -1) => {
+    if (directoTablet) {
+      sendTabletAction({ action: 'frame', direction })
+      return
+    }
+    stepFrame(direction)
+  }
+
+  const onJog = (delta: number) => {
+    if (directoTablet) {
+      sendTabletAction({ action: 'jog', delta })
+      return
+    }
+    jogBy(delta)
+  }
+
+  const onToggle = () => {
+    if (directoTablet) {
+      sendTabletAction({ action: 'toggle' })
+      return
+    }
+    togglePlay()
+  }
+
+  useEffect(() => {
+    if (!directoHost || !peerReady) return
+    const el = playerRef.current?.getVideoElement()
+    if (!el) return
+    const next = captureHostVideo(el, captureRef.current)
+    if (!next) return
+    const changed = next !== captureRef.current
+    captureRef.current = next
+    if (changed) void publishLocalVideo()
+  }, [directoHost, peerReady, playSrc, publishLocalVideo])
+
+  useEffect(() => () => {
+    const stream = captureRef.current
+    captureRef.current = null
+    stream?.getTracks().forEach((track) => track.stop())
+  }, [])
+
   useEffect(() => {
     if (!mounted) return
     const prevOverflow = document.body.style.overflow
@@ -377,6 +480,10 @@ export function PresentacionSala({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault()
+        if (directoHost && qrOpenRef.current) {
+          setQrOpen(false)
+          return
+        }
         onClose?.()
         return
       }
@@ -409,7 +516,9 @@ export function PresentacionSala({
     return () => window.removeEventListener('keydown', onKey)
   }, [go, goTo, onClose, slide?.kind])
 
-  const salaUrl = typeof window !== 'undefined' ? `${window.location.origin}/revision/${code}` : ''
+  const salaPath = directoLive ? directoSalaPath(code) : `/revision/${code}`
+  const salaUrl = typeof window !== 'undefined' && code ? `${window.location.origin}${salaPath}` : ''
+  const pictureReady = Boolean(playSrc) || (directoTablet && Boolean(remoteStream))
   const qrSrc = salaUrl
     ? `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(salaUrl)}`
     : ''
@@ -426,7 +535,7 @@ export function PresentacionSala({
     )
   }
 
-  if (!session && !localAnnotator) {
+  if (!session && !directoLive) {
     return createPortal(
       <div className="fixed inset-0 z-[100] flex items-center justify-center text-zinc-400" style={{ background: '#08110F' }}>
         No hay sala con el código {code}.
@@ -445,7 +554,7 @@ export function PresentacionSala({
       ref={rootRef}
       role="dialog"
       aria-modal="true"
-      aria-label={localAnnotator ? 'Anotador de vídeo en directo' : showPresenterLabel(show?.kind ?? 'informe')}
+      aria-label={directoLive ? 'Anotador de vídeo en directo' : showPresenterLabel(show?.kind ?? 'informe')}
       data-testid="presentacion-sala"
       tabIndex={-1}
       className="fixed inset-0 z-[100] flex flex-col outline-none"
@@ -475,10 +584,18 @@ export function PresentacionSala({
         >
           {slide?.kicker || 'Presentación'}
         </p>
-        {!localAnnotator && (
-          <span className={`text-[10px] ${wsOk ? 'text-emerald-400' : 'text-amber-400'}`}>
-            {salaLinkLabel(status)}
-          </span>
+        <span className={`text-[10px] ${wsOk ? 'text-emerald-400' : 'text-amber-400'}`}>
+          {salaLinkLabel(status)}
+        </span>
+        {directoHost && (
+          <button
+            type="button"
+            onClick={() => setQrOpen(true)}
+            className="rounded-md px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F0C35A]"
+            style={{ color: '#F0C35A' }}
+          >
+            QR sala
+          </button>
         )}
         <div className="h-px flex-1" style={{ background: '#2A3A34' }} />
         {total > 0 && (
@@ -516,13 +633,14 @@ export function PresentacionSala({
         )}
       </header>
 
-      {!isHost && !localAnnotator && (
+      {!isHost && (
         <div className="px-4 py-1 text-[11px] flex items-center gap-1" style={{ color: '#9AA59B' }}>
           <VolumeX className="h-3 w-3" /> Audio en el PC · mute aquí también lo corta allí
         </div>
       )}
 
-      <div className="relative min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1">
+        <div className="relative min-h-0 min-w-0 flex-1">
         {!show ? (
           <div className="flex h-full items-center justify-center text-sm" style={{ color: '#9AA59B' }}>
             Esperando al presentador…
@@ -558,14 +676,17 @@ export function PresentacionSala({
                   }
                   style={{ background: '#000' }}
                 >
-                  {playSrc ? (
+                  {pictureReady ? (
                     <VideoPlayer
-                      key={playSrc}
+                      key={directoHost ? 'directo-host' : directoTablet ? 'directo-tablet' : playSrc}
                       ref={playerRef}
-                      src={playSrc}
-                      standalonePreview={isHost || localAnnotator}
+                      src={directoTablet ? '' : (playSrc || '')}
+                      srcObject={directoTablet ? remoteStream : null}
+                      mirrorStream={directoTablet}
+                      onMirrorToggle={onToggle}
+                      standalonePreview={isHost}
                       presenterEmbed
-                      playbackMuted={!isHost && !localAnnotator}
+                      playbackMuted={!isHost}
                       muted={audioMuted}
                       onMutedChange={(next) => handleMutedChange(next, { clip_id: clipId, slide: indexRef.current })}
                       isFullscreen={videoFullscreen}
@@ -573,22 +694,22 @@ export function PresentacionSala({
                       contentTransform={zoomCss(zoom)}
                       onPlayStateChange={handlePlayState}
                       onSeeked={handleSeeked}
-                      onError={() => setMediaError(true)}
+                      onError={() => { if (!directoTablet) setMediaError(true) }}
                     />
                   ) : (
-                    <div className="flex h-full items-center justify-center text-sm" style={{ color: '#9AA59B' }}>
-                      Clip no disponible
+                    <div className="flex h-full items-center justify-center px-6 text-center text-sm" style={{ color: '#9AA59B' }}>
+                      {directoTablet ? 'Conectando el vídeo del ordenador…' : 'Clip no disponible'}
                     </div>
                   )}
-                  {playSrc && (!isHost || localAnnotator) && (
+                  {pictureReady && (!isHost || directoHost) && (
                     <div className="absolute left-2 top-16 z-[70] flex flex-col gap-1">
-                      <button type="button" className="h-10 rounded-md bg-black/70 px-2 text-[11px] font-bold text-white" onClick={() => stepFrame(-1)}>1 fot</button>
-                      <button type="button" className="h-10 rounded-md bg-black/70 px-2 text-[11px] font-bold text-white" onClick={() => jogBy(-0.5)}>0,5 s</button>
-                      <button type="button" className="h-10 rounded-md bg-black/70 px-2 text-[11px] font-bold text-white" onClick={() => jogBy(-1)}>1 s</button>
-                      <button type="button" className="h-10 rounded-md bg-black/70 px-2 text-[11px] font-bold text-white" onClick={() => jogBy(-5)}>5 s</button>
+                      <button type="button" className="h-10 rounded-md bg-black/70 px-2 text-[11px] font-bold text-white" onClick={() => onFrame(-1)}>1 fot</button>
+                      <button type="button" className="h-10 rounded-md bg-black/70 px-2 text-[11px] font-bold text-white" onClick={() => onJog(-0.5)}>0,5 s</button>
+                      <button type="button" className="h-10 rounded-md bg-black/70 px-2 text-[11px] font-bold text-white" onClick={() => onJog(-1)}>1 s</button>
+                      <button type="button" className="h-10 rounded-md bg-black/70 px-2 text-[11px] font-bold text-white" onClick={() => onJog(-5)}>5 s</button>
                     </div>
                   )}
-                  {playSrc && (
+                  {pictureReady && (
                     <div className={`absolute left-0 right-0 top-0 ${VIDEO_PLAYER_CHROME_CLASS} overflow-hidden`}>
                       <div className="absolute inset-0" style={zoomCss(zoom)}>
                         <DrawingOverlay
@@ -627,7 +748,7 @@ export function PresentacionSala({
                       onUndo={undo}
                       onClearAll={clearAll}
                       playing={playing}
-                      onPlay={togglePlay}
+                      onPlay={onToggle}
                     />
                     <SalaReviewBar
                       zoomMode={zoomMode}
@@ -637,11 +758,11 @@ export function PresentacionSala({
                       onZoomIn={() => bumpZoom(1.25)}
                       onZoomOut={() => bumpZoom(1 / 1.25)}
                       onRestore={restoreZoom}
-                      onFrameBack={() => stepFrame(-1)}
-                      onFrameFwd={() => stepFrame(1)}
-                      onJogBack={() => jogBy(-0.5)}
-                      onRepeat={repeatAction}
-                      onRewindDown={startHoldRewind}
+                      onFrameBack={() => onFrame(-1)}
+                      onFrameFwd={() => onFrame(1)}
+                      onJogBack={() => onJog(-0.5)}
+                      onRepeat={() => { if (directoTablet) onJog(-REPEAT_SECONDS); else repeatAction() }}
+                      onRewindDown={() => { if (!directoTablet) startHoldRewind() }}
                       onRewindUp={stopHoldRewind}
                       fullscreen={videoFullscreen}
                       onToggleFullscreen={() => toggleVideoFullscreen({ clip_id: clipId, slide: indexRef.current })}
@@ -657,9 +778,55 @@ export function PresentacionSala({
             )}
           </div>
         )}
+        </div>
+        {directoHost && (
+          <aside
+            className="flex w-44 shrink-0 flex-col border-l sm:w-60"
+            style={{ borderColor: '#2A3A34', background: '#0C1814' }}
+            aria-label="Listado de vídeos"
+          >
+            <div className="flex items-center justify-between gap-2 px-3 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: '#F0C35A' }}>
+                Vídeos
+              </p>
+              {onAddLocalVideos && (
+                <button
+                  type="button"
+                  onClick={onAddLocalVideos}
+                  className="rounded-md px-2 py-1 text-[11px] font-semibold hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F0C35A]"
+                >
+                  Añadir
+                </button>
+              )}
+            </div>
+            <ul className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+              {slides.map((item, itemIndex) => {
+                const active = itemIndex === index
+                const label = item.kind === 'video' ? item.title : item.kicker
+                return (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      onClick={() => goTo(itemIndex)}
+                      aria-current={active ? 'true' : undefined}
+                      className="mb-1 flex w-full items-center gap-2 rounded-md px-2 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F0C35A]"
+                      style={{
+                        background: active ? '#F0C35A' : 'transparent',
+                        color: active ? '#08110F' : '#E7E2D6',
+                      }}
+                    >
+                      <span className="w-5 shrink-0 text-[11px] tabular-nums">{itemIndex + 1}</span>
+                      <span className="min-w-0 flex-1 truncate text-sm">{label}</span>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </aside>
+        )}
       </div>
 
-      {!localAnnotator && (
+      {!directoLive && (
       <footer className="shrink-0 px-3 pb-3 pt-1 sm:px-5">
         <div
           className="flex items-center gap-1 overflow-x-auto pb-1"
@@ -698,7 +865,33 @@ export function PresentacionSala({
       </footer>
       )}
 
-      {isHost && !peerReady && !localAnnotator && (
+      {directoHost && qrOpen && (
+        <div className="absolute inset-0 z-[90] flex items-center justify-center p-6" style={{ background: 'rgba(8,17,15,0.92)' }}>
+          <div className="max-w-sm w-full text-center space-y-4">
+            <h2 className="text-lg font-semibold" style={{ fontFamily: DISPLAY_FONT }}>Sala de vídeo</h2>
+            <p className="text-sm" style={{ color: '#C5CDC7' }}>
+              Escanea el QR con la tablet. El vídeo se ve allí y podéis dibujar y saltar fotogramas a la vez. El archivo se queda en este ordenador.
+            </p>
+            <p className="text-4xl font-mono tracking-[0.3em] font-semibold">{code}</p>
+            {qrSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={qrSrc} alt={`QR sala ${code}`} width={240} height={240} className="mx-auto rounded-md bg-white p-2" />
+            ) : null}
+            <p className={`text-xs ${wsOk ? 'text-emerald-400' : 'text-amber-400'}`}>
+              {peerReady ? 'Tablet conectada' : wsOk ? 'Esperando a la tablet…' : 'Reconectando la sala…'}
+            </p>
+            <button
+              type="button"
+              onClick={() => setQrOpen(false)}
+              className="inline-flex h-11 items-center justify-center rounded-md bg-[#F0C35A] px-4 text-sm font-semibold text-[#08110F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            >
+              {peerReady ? 'Cerrar' : 'Entrar sin tablet'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isHost && !peerReady && !directoLive && (
         <div className="absolute inset-0 z-[90] flex items-center justify-center p-6" style={{ background: 'rgba(8,17,15,0.92)' }}>
           <div className="max-w-sm w-full text-center space-y-4">
             <p className="text-sm" style={{ color: '#C5CDC7' }}>

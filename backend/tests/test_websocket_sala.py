@@ -19,6 +19,16 @@ class TestSalaRooms:
         assert m.join_sala(ws, "abc123") == 1
         assert m.sala_peer_count("abc123") == 1
 
+    def test_guest_pass_accepts_open_video_room(self):
+        from app.api.v1.websocket import manager, sala_pass_is_live
+
+        ws = FakeWS()
+        manager.join_sala(ws, "vide01")
+        try:
+            assert sala_pass_is_live("VIDE01") is True
+        finally:
+            manager.leave_all_salas(ws)
+
     def test_second_peer_increments(self):
         m = ConnectionManager()
         a, b = FakeWS(), FakeWS()
