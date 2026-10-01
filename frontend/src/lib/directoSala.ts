@@ -22,17 +22,27 @@ export function directoSalaPath(code: string, pass?: string | null): string {
 
 type CapturableVideo = HTMLVideoElement & { captureStream?: () => MediaStream }
 
-/** Reutiliza el stream del mismo elemento. Solo vídeo: el audio se queda en el ordenador. */
+const HAVE_CURRENT_DATA = 2
+
+function liveVideoTrack(stream: MediaStream | null): MediaStreamTrack | null {
+  return stream?.getVideoTracks().find((track) => track.readyState === 'live') ?? null
+}
+
+/** Reutiliza el stream del mismo elemento cuando ya tiene imagen. Solo vídeo: el audio se queda en el ordenador. */
 export function captureHostVideo(video: HTMLVideoElement, previous: MediaStream | null): MediaStream | null {
-  const live = previous?.getVideoTracks().some((track) => track.readyState === 'live')
-  if (previous && live) return previous
+  if (video.readyState < HAVE_CURRENT_DATA) return liveVideoTrack(previous) ? previous : null
+  if (liveVideoTrack(previous)) return previous
   const media = video as CapturableVideo
   if (typeof media.captureStream !== 'function') return null
   try {
     const stream = media.captureStream()
     for (const track of stream.getAudioTracks()) track.stop()
     const videoOnly = new MediaStream(stream.getVideoTracks())
-    return videoOnly.getVideoTracks().length > 0 ? videoOnly : null
+    if (videoOnly.getVideoTracks().length === 0) return null
+    if (previous && previous !== videoOnly) {
+      for (const track of previous.getTracks()) track.stop()
+    }
+    return videoOnly
   } catch {
     return null
   }
