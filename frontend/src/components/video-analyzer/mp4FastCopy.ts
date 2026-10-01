@@ -49,6 +49,8 @@ type TrackInfo = {
   sampleTimes: number[]
   sampleOffsets: number[]
   keyframes: number[]
+  /** Composition offsets (ctts). Empty when the file has no B-frames. */
+  compositionOffsets: number[]
 }
 
 function textDecoder(): TextDecoder {
@@ -210,6 +212,71 @@ function childPath(bytes: Uint8Array, root: BoxHeader, path: string[]): BoxHeade
 
 function sliceBox(bytes: Uint8Array, box: BoxHeader): Uint8Array {
   return bytes.subarray(box.start, box.start + box.size)
+}
+
+function parseCtts(bytes: Uint8Array, box: BoxHeader): number[] {
+  const view = new DataView(bytes.buffer, bytes.byteOffset + box.start, box.size)
+  const version = bytes[box.start + box.headerSize]
+  const entryCount = view.getUint32(box.headerSize + 4)
+  const offsets: number[] = []
+  let o = box.headerSize + 8
+  for (let i = 0; i < entryCount; i++) {
+    const count = view.getUint32(o)
+    const raw = view.getUint32(o + 4)
+    const delta = version === 1 && raw > 0x7fffffff ? raw - 0x100000000 : raw
+    o += 8
+    for (let n = 0; n < count; n++) offsets.push(delta)
+  }
+  return offsets
+}
+
+function rleCtts(offsets: number[]): Uint8Array {
+  const runs: { count: number; delta: number }[] = []
+  for (const d of offsets) {
+    const last = runs[runs.length - 1]
+    if (last && last.delta === d) last.count += 1
+    else runs.push({ count: 1, delta: d })
+  }
+  const rest = new Uint8Array(4 + runs.length * 8)
+  const view = new DataView(rest.buffer)
+  view.setUint32(0, runs.length)
+  let o = 4
+  for (const r of runs) {
+    view.setUint32(o, r.count)
+    view.setInt32(o + 4, r.delta)
+    o += 8
+  }
+  return makeBox('ctts', fullBox(1, 0, rest))
+}
+
+/** Movie header timescale. Durations in mvhd/tkhd are in these units, not milliseconds. */
+export function movieTimescaleOf(mvhd: Uint8Array): number {
+  const header = parseBoxHeader(mvhd, 0)
+  if (!header || header.type !== 'mvhd') return 1000
+  const version = mvhd[header.headerSize] || 0
+  const view = new DataView(mvhd.buffer, mvhd.byteOffset, mvhd.byteLength)
+  const scale = version === 1
+    ? view.getUint32(header.headerSize + 20)
+    : view.getUint32(header.headerSize + 12)
+  return scale > 0 ? scale : 1000
+}
+
+export function movieDurationSeconds(mp4: Uint8Array): number {
+  const ftyp = parseBoxHeader(mp4, 0)
+  if (!ftyp) return 0
+  const moov = parseBoxHeader(mp4, ftyp.size)
+  if (!moov || moov.type !== 'moov') return 0
+  const mvhd = child(mp4, { ...moov, start: ftyp.size }, 'mvhd')
+  if (!mvhd) return 0
+  const version = mp4[mvhd.start + mvhd.headerSize] || 0
+  const view = new DataView(mp4.buffer, mp4.byteOffset, mp4.byteLength)
+  const timescale = movieTimescaleOf(mp4.subarray(mvhd.start, mvhd.start + mvhd.size))
+  const duration = version === 1
+    ? view.getUint32(mvhd.start + mvhd.headerSize + 24) * 0x100000000
+      + view.getUint32(mvhd.start + mvhd.headerSize + 28)
+    : view.getUint32(mvhd.start + mvhd.headerSize + 16)
+  if (timescale <= 0) return 0
+  return duration / timescale
 }
 
 function parseStts(bytes: Uint8Array, box: BoxHeader): number[] {
@@ -417,6 +484,8 @@ function parseTrack(bytes: Uint8Array, trak: BoxHeader): TrackInfo | null {
 
   const stssBox = child(bytes, stblBox, 'stss')
   const keyframes = stssBox ? parseStss(bytes, stssBox) : handler === 'vide' ? [0] : []
+  const cttsBox = child(bytes, stblBox, 'ctts')
+  const compositionOffsets = cttsBox ? parseCtts(bytes, cttsBox) : []
 
   return {
     handler,
@@ -436,6 +505,7 @@ function parseTrack(bytes: Uint8Array, trak: BoxHeader): TrackInfo | null {
     sampleTimes: times,
     sampleOffsets,
     keyframes,
+    compositionOffsets,
   }
 }
 
@@ -552,6 +622,9 @@ function buildTrack(track: TrackInfo, from: number, to: number, movieTimescale: 
   const keyframes = track.keyframes
     .filter((k) => k >= from && k <= to)
     .map((k) => k - from)
+  const ctts = track.compositionOffsets.length === track.sampleCount
+    ? track.compositionOffsets.slice(from, to + 1)
+    : []
 
   // stco offset filled later
   const stbl = makeBox(
@@ -559,6 +632,7 @@ function buildTrack(track: TrackInfo, from: number, to: number, movieTimescale: 
     concatBytes([
       track.stsd,
       rleDurations(durs),
+      ctts.length === sizes.length ? rleCtts(ctts) : new Uint8Array(),
       track.handler === 'vide' ? makeStss(keyframes.length ? keyframes : [0]) : new Uint8Array(),
       makeStsc(sizes.length),
       makeStsz(sizes),
@@ -687,7 +761,8 @@ export async function copyMp4Range(
     primary.timescale
   )
 
-  const movieTimescale = 1000
+  const mvhdBox = child(moovBytes, moovBox, 'mvhd')
+  const movieTimescale = mvhdBox ? movieTimescaleOf(sliceBox(moovBytes, mvhdBox)) : 1000
   const built: BuiltTrack[] = []
   const vBuilt = buildTrack(primary, videoRange.from, videoRange.to, movieTimescale)
   if (!vBuilt) return null
@@ -713,8 +788,7 @@ export async function copyMp4Range(
   if (mdatPayloadSize < 16) return null
 
   const ftyp = ftypHdr ? await readSlice(file, ftypHdr.start, ftypHdr.size) : defaultFtyp()
-  const movieDuration = Math.round((alignedEnd - alignedStart) * movieTimescale)
-  const mvhdBox = child(moovBytes, moovBox, 'mvhd')
+  const movieDuration = Math.max(1, Math.round((alignedEnd - alignedStart) * movieTimescale))
   const mvhd = mvhdBox
     ? patchMvhdDuration(sliceBox(moovBytes, mvhdBox), movieDuration, built.length + 1)
     : defaultMvhd(movieTimescale, movieDuration, built.length + 1)
@@ -743,6 +817,9 @@ export async function copyMp4Range(
   mdatHdr[7] = 0x74
 
   onProgress?.('Empaquetando recorte…')
+  const producedSec = movieDuration / movieTimescale
+  if (!(producedSec >= 0.2)) return null
+
   const blob = new Blob([ftyp, moov, mdatHdr, ...sampleBlobs], { type: 'video/mp4' })
   return {
     blob,

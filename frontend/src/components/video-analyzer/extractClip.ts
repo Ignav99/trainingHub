@@ -238,7 +238,12 @@ function captureStreamOf(video: HTMLVideoElement): MediaStream {
     captureStream?: (fps?: number) => MediaStream
     mozCaptureStream?: (fps?: number) => MediaStream
   }
-  const stream = withCapture.captureStream?.() || withCapture.mozCaptureStream?.()
+  // Un fps fijo pide fotogramas aunque el <video> esté fuera de pantalla.
+  // Sin eso Chrome se queda en el fotograma del seek y el archivo dura 0 s.
+  const stream = withCapture.captureStream?.(30)
+    || withCapture.mozCaptureStream?.(30)
+    || withCapture.captureStream?.()
+    || withCapture.mozCaptureStream?.()
   if (!stream) throw new Error('Este navegador no puede recortar el vídeo')
   stream.getAudioTracks().forEach((t) => {
     stream.removeTrack(t)
@@ -282,16 +287,23 @@ async function recordNativeRange(
     })
     recorder.start(200)
     await clone.play()
+    const startedAt = performance.now()
+    const spanMs = Math.max(400, (endTime - startTime) * 1000)
     await new Promise<void>((resolve) => {
       const tick = () => {
-        if (clone.currentTime >= endTime || clone.paused || clone.ended) {
+        const elapsed = performance.now() - startedAt
+        const reached = clone.currentTime >= endTime - 0.04 || clone.ended
+        if (reached && elapsed > 150) {
+          resolve()
+          return
+        }
+        if (elapsed >= spanMs + 800) {
           resolve()
           return
         }
         requestAnimationFrame(tick)
       }
       tick()
-      window.setTimeout(resolve, (endTime - startTime + 2.5) * 1000)
     })
     if (recorder.state === 'recording') recorder.stop()
     clone.pause()

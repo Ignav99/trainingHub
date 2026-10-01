@@ -7,6 +7,7 @@ import {
   findKeyframeIndex,
   makeBox,
   mediaTimeToSeconds,
+  movieDurationSeconds,
   parseBoxHeader,
   secondsToMediaTime,
 } from './mp4FastCopy.ts'
@@ -112,7 +113,7 @@ function stco(offset: number): Uint8Array {
 }
 
 /** 10s of 25 fps, GOP of 25 frames, 4-byte dummy samples. */
-function buildSyntheticMatch(): File {
+function buildSyntheticMatch(movieTimescale = 1000): File {
   const fps = 25
   const seconds = 10
   const samples = fps * seconds
@@ -133,8 +134,8 @@ function buildSyntheticMatch(): File {
   )
   const minf = makeBox('minf', concatBytes([vmhd(), dinf(), stbl]))
   const mdia = makeBox('mdia', concatBytes([mdhd(fps, samples), hdlr('vide'), minf]))
-  const trak = makeBox('trak', concatBytes([tkhd(1, seconds * 1000), mdia]))
-  const moov = makeBox('moov', concatBytes([mvhd(1000, seconds * 1000), trak]))
+  const trak = makeBox('trak', concatBytes([tkhd(1, seconds * movieTimescale), mdia]))
+  const moov = makeBox('moov', concatBytes([mvhd(movieTimescale, seconds * movieTimescale), trak]))
 
   const mdatSize = 8 + mdatPayload.byteLength
   const mdatHdr = new Uint8Array(8)
@@ -210,6 +211,17 @@ describe('mp4 GOP stream copy', () => {
     assert.equal(ftyp?.type, 'ftyp')
     const moov = parseBoxHeader(bytes, ftyp!.size)
     assert.equal(moov?.type, 'moov')
+    const seconds = movieDurationSeconds(bytes)
+    assert.ok(seconds > 1.5 && seconds < 3, `duration ${seconds}s`)
+  })
+
+  it('does not collapse a 90 kHz movie header into a 0-second poster frame', async () => {
+    const file = buildSyntheticMatch(90000)
+    const result = await copyMp4Range(file, 3.2, 5.1)
+    assert.ok(result)
+    const seconds = movieDurationSeconds(new Uint8Array(await result!.blob.arrayBuffer()))
+    assert.ok(seconds > 1.5, `duration ${seconds}s — el reproductor solo vería el primer fotograma`)
+    assert.ok(seconds < 3)
   })
 
   it('copies a 3-minute dummy window in well under 5 seconds', async () => {
