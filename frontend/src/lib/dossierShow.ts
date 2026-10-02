@@ -3,6 +3,7 @@ import { diagramHasContent } from './planPartidoDiagramRoles'
 import { abpDefensivaEnInforme, estructuraTieneContenido, nutricionEnInforme, nutricionLineas } from './planPartidoOpcional'
 import type { IntelVisual } from './pdf/informeRivalPdfBlocks'
 import type {
+  ABPJugada,
   ClipRival,
   FasePlanPartido,
   PlanPartidoData,
@@ -12,6 +13,7 @@ import type {
   RivalPhaseAnalysis,
   RivalScoutData,
   RivalScoutStrategy,
+  TipoABP,
 } from '../types'
 
 export const SHOW_FASE_ORDER: FasePlanPartido[] = [
@@ -62,6 +64,9 @@ export type ShowSection = 'informe' | 'plan'
 
 export type ShowVideoSlot = FasePlanPartido | 'once_probable'
 
+/** Jugada del laboratorio, sin el código corto: la diapositiva pinta la pizarra. */
+export type AbpShowJugada = Pick<ABPJugada, 'id' | 'nombre' | 'tipo' | 'fases' | 'asignaciones'>
+
 export interface ShowMeta {
   rivalNombre?: string
   clubNombre?: string
@@ -75,6 +80,7 @@ export interface ShowMeta {
   jornada?: number
   intelLines?: string[]
   intelVisual?: IntelVisual
+  abpJugadas?: AbpShowJugada[]
 }
 
 export type ShowSlide =
@@ -242,6 +248,7 @@ export function buildPlanShow(data: Partial<PlanPartidoData> | undefined, meta: 
     if (fase === 'abp_defensiva' && !defensiva) continue
     const phase = fases.find((item) => item.fase === fase)
     slides.push(...phaseBlock(fase, phase, bulletsFromPlan(phase), false))
+    slides.push(...jugadasAbpSlides(fase, phase, meta.abpJugadas))
     if (fase === 'abp_ofensiva') slides.push(...estructuraRivalSlides(phase))
   }
   if (nutricionEnInforme(data)) {
@@ -777,6 +784,91 @@ function estructuraRivalSlides(phase: PlanPartidoPhase | undefined): ShowSlide[]
   return slides
 }
 
+const ABP_TIPO_LABELS: Record<string, string> = {
+  corner: 'Corner',
+  semi_corner: 'Semi-corner',
+  falta_lateral: 'Falta lateral',
+  falta_frontal: 'Falta frontal',
+  falta_lejana: 'Falta lejana',
+  penalti: 'Penalti',
+  saque_banda: 'Saque de banda',
+  saque_puerta: 'Saque de puerta',
+  saque_centro: 'Saque de centro',
+}
+
+function abpTipoLabel(tipo?: TipoABP | string): string {
+  if (!tipo) return ''
+  return ABP_TIPO_LABELS[tipo] ?? ''
+}
+
+function boardFromAbpJugada(jugada: AbpShowJugada): TareaPizarraData | undefined {
+  const diagram = jugada.fases?.[0]?.diagram
+  if (!diagram) return undefined
+  const byElement = new Map(
+    (jugada.asignaciones ?? [])
+      .filter((item) => item.element_id)
+      .map((item) => [item.element_id as string, item]),
+  )
+  const applyRoles = (elements: TareaPizarraData['elements'] | undefined) =>
+    (elements ?? []).map((element) => {
+      const assigned = byElement.get(element.id)
+      if (!assigned) return element
+      return {
+        ...element,
+        rol: element.rol || assigned.rol,
+        jugadorId: element.jugadorId || assigned.jugador_id || assigned.jugador_ids?.[0],
+      }
+    })
+  const frames = Array.isArray(diagram.frames) ? diagram.frames : []
+  const start = frames[0]
+  const pitchType =
+    diagram.pitchType === 'full' || diagram.pitchType === 'half'
+      ? diagram.pitchType
+      : jugada.tipo === 'falta_lejana' || jugada.tipo === 'saque_centro'
+        ? 'full'
+        : 'half'
+  const board: TareaPizarraData = {
+    elements: applyRoles(start?.elements ?? diagram.elements),
+    arrows: start?.arrows ?? diagram.arrows ?? [],
+    zones: start?.zones ?? diagram.zones ?? [],
+    pitchType,
+    ...(frames.length > 0
+      ? { frames: frames.map((frame) => ({ ...frame, elements: applyRoles(frame.elements) })) }
+      : {}),
+    ...(diagram.preview ? { preview: diagram.preview } : {}),
+  }
+  return diagramHasContent(board) ? board : undefined
+}
+
+function jugadasAbpSlides(
+  fase: FasePlanPartido,
+  phase: PlanPartidoPhase | RivalPhaseAnalysis | undefined,
+  catalog: AbpShowJugada[] | undefined,
+): ShowSlide[] {
+  if (!phase || !('jugadas_abp' in phase) || !catalog?.length) return []
+  const byId = new Map(catalog.map((jugada) => [jugada.id, jugada]))
+  const slides: ShowSlide[] = []
+  for (const item of phase.jugadas_abp ?? []) {
+    const jugada = byId.get(item.jugada_id)
+    if (!jugada) continue
+    const tipo = abpTipoLabel(jugada.tipo)
+    const title = jugada.nombre?.trim() || tipo || 'Jugada'
+    const bullets: string[] = []
+    const comment = item.comentario?.trim()
+    if (comment && comment !== item.jugada_id && comment !== title) pushLine(bullets, comment)
+    slides.push({
+      id: `fase:${fase}:jugada:${item.jugada_id}`,
+      kind: 'fase',
+      fase,
+      kicker: SHOW_FASE_LABELS[fase],
+      title,
+      bullets,
+      board: boardFromAbpJugada(jugada),
+    })
+  }
+  return slides
+}
+
 function bulletsFromPlan(phase: PlanPartidoPhase | undefined): string[] {
   if (!phase) return []
   const out: string[] = []
@@ -784,7 +876,8 @@ function bulletsFromPlan(phase: PlanPartidoPhase | undefined): string[] {
   pushLine(out, phase.sistema)
   pushSubfaseNotes(out, phase.subfases, true, true)
   for (const item of phase.jugadas_abp ?? []) {
-    pushLine(out, item.comentario || item.jugada_id)
+    const comment = item.comentario?.trim()
+    if (comment && comment !== item.jugada_id) pushLine(out, comment)
   }
   return finalizeBullets(out)
 }

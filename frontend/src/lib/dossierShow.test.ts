@@ -643,4 +643,62 @@ describe('dossier live show builder', () => {
     assert.equal(corner?.kind === 'fase' && corner.bullets[0], 'Cinco en zona')
     assert.equal(corner?.kind === 'fase' && Boolean(corner.board), true)
   })
+
+  it('renders chosen set pieces as tactical boards instead of codes', () => {
+    const show = buildPlanShow(
+      {
+        ataque_organizado: '',
+        defensa_organizada: '',
+        transicion_ofensiva: '',
+        transicion_defensiva: '',
+        abp_ofensiva: '',
+        abp_defensiva: '',
+        fases: [
+          {
+            fase: 'abp_ofensiva' as const,
+            clips: [],
+            jugadas_abp: [
+              { jugada_id: 'corner-1', comentario: 'Segundo palo', orden: 0 },
+              { jugada_id: '11111111-2222-3333-4444-555555555555', comentario: '', orden: 1 },
+            ],
+          },
+        ],
+      },
+      {
+        abpJugadas: [
+          {
+            id: 'corner-1',
+            nombre: 'Córner corto',
+            tipo: 'corner',
+            fases: [
+              {
+                id: 'f1',
+                nombre: '1',
+                orden: 0,
+                diagram: {
+                  elements: [{ id: 'a', type: 'player' }],
+                  arrows: [],
+                  zones: [],
+                  pitchType: 'half',
+                },
+              },
+            ],
+            asignaciones: [],
+          },
+        ],
+      },
+    )
+    const play = show.slides.find((slide) => slide.title === 'Córner corto')
+    assert.equal(play?.kind, 'fase')
+    assert.equal(play?.kind === 'fase' && play.kicker, 'ABP ofensiva')
+    assert.equal(play?.kind === 'fase' && Boolean(play.board), true)
+    assert.equal(play?.kind === 'fase' && play.bullets[0], 'Segundo palo')
+    const visible = show.slides
+      .flatMap((slide) => [slide.title, ...('bullets' in slide ? slide.bullets : [])])
+      .join('\n')
+    assert.equal(visible.includes('corner-1'), false)
+    assert.equal(visible.includes('C1'), false)
+    assert.equal(visible.includes('11111111'), false)
+    assert.equal(show.slides.some((slide) => slide.title === 'ABP ofensiva'), true)
+  })
 })

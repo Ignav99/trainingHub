@@ -114,11 +114,14 @@ def _collect_phase_plan(fase: dict) -> dict[str, Any]:
             payload["subfases"] = notes
     abp = fase.get("jugadas_abp") or []
     if isinstance(abp, list) and abp:
-        payload["abp"] = [
-            _clip(item.get("comentario") or item.get("jugada_id"), 120)
+        comments = [
+            _clip(item.get("comentario"), 120)
             for item in abp[:4]
             if isinstance(item, dict)
         ]
+        comments = [line for line in comments if line]
+        if comments:
+            payload["abp"] = comments
     estructuras = []
     for item in fase.get("estructuras_rival") or []:
         if not isinstance(item, dict):

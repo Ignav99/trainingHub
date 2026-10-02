@@ -6,14 +6,32 @@ import {
 import { rivalesApi } from '@/lib/api/partidos'
 import { api } from '@/lib/api/client'
 import { collectIntelVisual, type IntelVisual } from '@/lib/pdf/informeRivalPdfBlocks'
+import { abpApi } from '@/lib/api/abp'
 import {
   attachRevisionPack,
   concatCharlaShow,
+  type AbpShowJugada,
   type DossierShow,
 } from '@/lib/dossierShow'
 import { pickPlanForCharla, type PlanTramo } from '@/lib/planPartidoTramos'
 import { revisionPackLookup } from '@/lib/revisionDestino'
 import type { PlanPartidoData, RivalScoutData } from '@/types'
+
+export async function loadAbpShowJugadas(equipoId?: string): Promise<AbpShowJugada[]> {
+  if (!equipoId) return []
+  try {
+    const res = await abpApi.list(equipoId)
+    return (res.data ?? []).map((jugada) => ({
+      id: jugada.id,
+      nombre: jugada.nombre,
+      tipo: jugada.tipo,
+      fases: jugada.fases,
+      asignaciones: jugada.asignaciones,
+    }))
+  } catch {
+    return []
+  }
+}
 
 export async function loadShowIntel(equipoId?: string, rivalId?: string): Promise<IntelVisual | undefined> {
   if (!equipoId || !rivalId) return undefined

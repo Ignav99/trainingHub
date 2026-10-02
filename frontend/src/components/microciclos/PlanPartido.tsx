@@ -22,7 +22,7 @@ import { DossierTacticalBoard } from '@/components/rivales/DossierTacticalBoard'
 import { PresentacionSala } from '@/components/revision/PresentacionSala'
 import { exportPresentacionDossier } from '@/lib/api/presentaciones'
 import { buildPlanShow, buildInformeShow, type DossierShow } from '@/lib/dossierShow'
-import { loadShowIntel, loadInformeDataForCharla, prepareCharlaSala, prepareDossierSala } from '@/lib/dossierPresentar'
+import { loadAbpShowJugadas, loadShowIntel, loadInformeDataForCharla, prepareCharlaSala, prepareDossierSala } from '@/lib/dossierPresentar'
 import type { RevisionSession } from '@/lib/api/revision'
 import { useClubStore } from '@/stores/clubStore'
 import { OrganizedPhaseStack, organizedSubfases } from './OrganizedPhaseStack'
@@ -149,6 +149,7 @@ export function PlanPartido({
             onPresentar={async () => {
               setPresenting(true)
               try {
+                const abpJugadas = await loadAbpShowJugadas(equipoId)
                 const built = buildPlanShow(dataRef.current, {
                   rivalNombre,
                   clubNombre,
@@ -159,6 +160,7 @@ export function PlanPartido({
                   campo: campoPartido || ciudadPartido,
                   localia,
                   tramo,
+                  abpJugadas,
                 })
                 const ready = await prepareDossierSala({
                   show: built,
@@ -188,11 +190,15 @@ export function PlanPartido({
                   localia,
                   tramo,
                 }
-                const plan = buildPlanShow(dataRef.current, meta)
-                const informeData = await loadInformeDataForCharla(getInformeForCharla?.() ?? null, rivalId)
+                const [informeData, intelVisual, abpJugadas] = await Promise.all([
+                  loadInformeDataForCharla(getInformeForCharla?.() ?? null, rivalId),
+                  loadShowIntel(equipoId, rivalId),
+                  loadAbpShowJugadas(equipoId),
+                ])
+                const plan = buildPlanShow(dataRef.current, { ...meta, abpJugadas })
                 const informe = buildInformeShow(informeData, {
                   ...meta,
-                  intelVisual: await loadShowIntel(equipoId, rivalId),
+                  intelVisual,
                 })
                 const ready = await prepareCharlaSala({
                   informe,
