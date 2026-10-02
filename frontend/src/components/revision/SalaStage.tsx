@@ -124,7 +124,10 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
       setPeerReady(true)
       resyncRef.current()
     },
-    onSyncRequest: () => resyncRef.current(),
+    onSyncRequest: () => {
+      setPeerReady(true)
+      resyncRef.current()
+    },
   })
 
   const sendSync = useCallback((payload: Record<string, unknown>) => {
@@ -180,9 +183,18 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
 
   useEffect(() => {
     if (isHost || status === 'offline') return
-    const timer = window.setTimeout(() => requestSync(), 800)
+    requestSync()
+    const timer = window.setTimeout(() => requestSync(), 1500)
     return () => window.clearTimeout(timer)
   }, [isHost, status, requestSync])
+
+  useEffect(() => {
+    if (!isHost || !wsOk || peerReady) return
+    const push = () => resyncRef.current()
+    push()
+    const timer = window.setInterval(push, 2000)
+    return () => window.clearInterval(timer)
+  }, [isHost, wsOk, peerReady])
 
   resyncRef.current = () => {
     if (!isHost) return

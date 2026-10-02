@@ -37,6 +37,30 @@ export function salaLinkLabel(status: SalaLinkStatus): string {
   return 'en vivo'
 }
 
+export function sameSalaCode(incoming: string, current: string): boolean {
+  if (!incoming) return true
+  return incoming.trim().toUpperCase() === current.trim().toUpperCase()
+}
+
+/**
+ * La tablet entra siempre con el código del QR. Un token a medias o un equipo
+ * que aún no cargó no puede dejar la sala sin abrir.
+ */
+export function salaSocketMode(input: {
+  role: 'host' | 'tablet'
+  accessToken?: string | null
+  equipoId?: string | null
+  guestPass?: string | null
+  code?: string | null
+}): 'jwt' | 'guest' | 'off' {
+  const code = (input.code || '').trim()
+  const pass = (input.guestPass || '').trim()
+  if (input.role === 'tablet' || pass) return code ? 'guest' : 'off'
+  if (input.accessToken && input.equipoId) return 'jwt'
+  if (code) return 'guest'
+  return 'off'
+}
+
 export function wrapSalaEnvelope(
   type: string,
   code: string,
@@ -45,7 +69,7 @@ export function wrapSalaEnvelope(
 ): Record<string, unknown> {
   return {
     type,
-    session_code: code,
+    session_code: code.trim().toUpperCase(),
     role,
     ...payload,
   }

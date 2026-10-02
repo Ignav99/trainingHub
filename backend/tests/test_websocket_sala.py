@@ -36,6 +36,30 @@ class TestSalaRooms:
         assert m.join_sala(b, "zz9k2m") == 2
         assert m.sala_peer_count("ZZ9K2M") == 2
 
+    def test_replay_gives_a_late_tablet_the_deck(self):
+        m = ConnectionManager()
+        host, tablet = FakeWS(), FakeWS()
+        m.join_sala(host, "sala01")
+        m.remember_sala_sync("sala01", {
+            "type": "sala_sync",
+            "session_code": "SALA01",
+            "slide": 2,
+            "show": {"kind": "plan", "slides": [{"id": "a"}]},
+        })
+        m.remember_sala_sync("SALA01", {
+            "type": "sala_sync",
+            "session_code": "SALA01",
+            "slide": 4,
+        })
+
+        async def run():
+            await m.replay_sala_sync(tablet, "sala01")
+
+        asyncio.run(run())
+        assert tablet.sent[0]["slide"] == 4
+        assert tablet.sent[0]["show"]["kind"] == "plan"
+        assert host.sent == []
+
     def test_broadcast_skips_sender(self):
         m = ConnectionManager()
         a, b = FakeWS(), FakeWS()

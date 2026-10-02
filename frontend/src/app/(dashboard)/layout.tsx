@@ -141,7 +141,7 @@ export default function DashboardLayout({
     // Platform superadmin has no club — never show it the regular club
     // dashboard (which would otherwise try to load/display a stale or
     // arbitrary team). Send it to its own control panel instead.
-    if (!isLoading && isAuthenticated && isSuperadminRole(user?.rol)) {
+    if (!isRevisionSala && !isLoading && isAuthenticated && isSuperadminRole(user?.rol)) {
       router.replace('/admin')
     }
     // Club admin/coordinator manage the whole club (all teams, staff, roles,
@@ -155,7 +155,7 @@ export default function DashboardLayout({
     if (!isLoading && isAuthenticated && isClubAdminRole(user?.rol) && pathname === '/') {
       router.replace('/gestion')
     }
-  }, [isLoading, isAuthenticated, user, router, pathname])
+  }, [isLoading, isAuthenticated, user, router, pathname, isRevisionSala])
 
   const isClubOnlyRole = isSuperadminRole(user?.rol) || isClubAdminRole(user?.rol)
 
@@ -168,10 +168,11 @@ export default function DashboardLayout({
 
   useEffect(() => {
     if (!authHydrated || !clubHydrated) return
+    if (isRevisionSala) return
     if (isAuthenticated && !isOnboardingComplete && pathname !== '/onboarding') {
       router.push('/onboarding')
     }
-  }, [authHydrated, clubHydrated, isAuthenticated, isOnboardingComplete, pathname, router])
+  }, [authHydrated, clubHydrated, isAuthenticated, isOnboardingComplete, pathname, router, isRevisionSala])
 
   useEffect(() => {
     // Club-admin/superadmin manage the whole club from /gestion, not a single
@@ -259,19 +260,9 @@ export default function DashboardLayout({
 
   const activeTeam = equipoActivo ?? equipos[0] ?? null
 
-  // El QR de la sala es la invitación. Quien entra por ahí no inicia sesión.
-  if (isRevisionSala && !isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-black">
-        {children}
-        <Toaster />
-      </div>
-    )
-  }
-
-  // Club-admin/superadmin have no single "active team" (they manage the whole
-  // club) — only gate on team data for the operational, single-team roles.
-  if (isRevisionSala && isAuthenticated && (isClubOnlyRole || activeTeam)) {
+  // El QR de la sala es la invitación. No espera equipo, login ni onboarding:
+  // si no, la tablet se queda en la pantalla de carga y el ordenador esperando.
+  if (isRevisionSala) {
     return (
       <div className="min-h-screen bg-black">
         {children}
