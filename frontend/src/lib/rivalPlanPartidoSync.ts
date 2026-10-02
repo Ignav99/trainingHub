@@ -45,6 +45,7 @@ function mapPhasePersistent(f: PlanPartidoPhase): PlanPartidoPhase {
     sistema: f.sistema,
     subfases,
     jugadas_abp: f.jugadas_abp,
+    estructuras_rival: f.estructuras_rival,
     roles: f.roles,
     clips: f.clips ?? [],
     pizarra_tactica: f.pizarra_tactica,
@@ -58,6 +59,8 @@ export function extractPersistentPlanPartido(
   return {
     fases: (plan.fases ?? []).map(mapPhasePersistent),
     nutricion_partido: plan.nutricion_partido,
+    incluir_nutricion: plan.incluir_nutricion,
+    incluir_abp_defensiva: plan.incluir_abp_defensiva,
   }
 }
 
@@ -112,6 +115,7 @@ export function mergePlanPartidoOnLoad(
       sistema: s?.sistema ?? l?.sistema ?? '',
       subfases: mergeSubfases(s?.subfases, l?.subfases),
       jugadas_abp: s?.jugadas_abp?.length ? s.jugadas_abp : l?.jugadas_abp ?? [],
+      estructuras_rival: s?.estructuras_rival?.length ? s.estructuras_rival : l?.estructuras_rival ?? [],
       roles: s?.roles?.length ? s.roles : l?.roles ?? [],
       clips: s?.clips?.length ? s.clips : l?.clips ?? [],
       pizarra_tactica: s?.pizarra_tactica ?? l?.pizarra_tactica,
@@ -119,5 +123,10 @@ export function mergePlanPartidoOnLoad(
     }
   })
 
-  return { fases, nutricion_partido: local.nutricion_partido ?? saved.nutricion_partido }
+  return {
+    fases,
+    nutricion_partido: local.nutricion_partido ?? saved.nutricion_partido,
+    incluir_nutricion: saved.incluir_nutricion ?? local.incluir_nutricion,
+    incluir_abp_defensiva: saved.incluir_abp_defensiva ?? local.incluir_abp_defensiva,
+  }
 }

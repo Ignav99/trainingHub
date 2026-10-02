@@ -1120,6 +1120,15 @@ export interface PlanPartidoABPItem {
   orden: number
 }
 
+/** Pizarra de cómo defiende el rival una situación de ABP (córner, falta…). */
+export interface PlanEstructuraRivalABP {
+  id: string
+  titulo: string
+  notas?: string
+  pizarra_tactica?: string
+  pizarra_diagrama?: import('@/components/tactical-board/types').TareaPizarraData
+}
+
 export interface PlanPartidoPhase {
   fase: FasePlanPartido
   /** Comentario común de ataque o defensa organizada, encima de las tres fases */
@@ -1132,6 +1141,8 @@ export interface PlanPartidoPhase {
   subfases?: Partial<Record<RivalSubfaseAtaque | RivalSubfaseDefensa, PlanPartidoSubfaseData>>
   /** ABP: jugadas del laboratorio seleccionadas para el partido */
   jugadas_abp?: PlanPartidoABPItem[]
+  /** ABP ofensiva: pizarras de la estructura defensiva del rival */
+  estructuras_rival?: PlanEstructuraRivalABP[]
   /** Roles en transición ofensiva */
   roles?: AsignacionRolTactico[]
   /** @deprecated */
@@ -1159,6 +1170,10 @@ export interface PlanPartidoData {
   fases: PlanPartidoPhase[]
   /** Suplementación sencilla para el partido (2-3 ítems) */
   nutricion_partido?: NutricionPartidoPlan
+  /** Si está definido, decide si nutrición entra en el informe. Sin definir, entra solo si hay texto. */
+  incluir_nutricion?: boolean
+  /** Si está definido, decide si la ABP defensiva entra en el informe. Sin definir, entra solo si hay contenido. */
+  incluir_abp_defensiva?: boolean
 }
 
 export interface OnceProbableData {

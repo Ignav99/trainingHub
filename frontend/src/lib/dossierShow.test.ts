@@ -597,4 +597,50 @@ describe('dossier live show builder', () => {
     assert.equal(packed.slides.some((slide) => slide.id === 'informe:video:rev:rev-i'), true)
     assert.equal(packed.slides.some((slide) => slide.id === 'plan:video:rev:rev-p'), true)
   })
+
+  it('keeps nutrition and defensive set pieces out of the plan until they are switched on', () => {
+    const base = {
+      ataque_organizado: '',
+      defensa_organizada: '',
+      transicion_ofensiva: '',
+      transicion_defensiva: '',
+      abp_ofensiva: '',
+      abp_defensiva: 'Presión al sacador',
+      fases: [
+        {
+          fase: 'abp_ofensiva' as const,
+          clips: [],
+          jugadas_abp: [{ jugada_id: 'corner-1', comentario: 'Segundo palo', orden: 0 }],
+          estructuras_rival: [
+            {
+              id: 'est-1',
+              titulo: 'Córner',
+              notas: 'Cinco en zona',
+              pizarra_diagrama: { elements: [{ id: 'rival' }] },
+            },
+          ],
+        },
+        {
+          fase: 'abp_defensiva' as const,
+          texto: 'Salida al primer palo',
+          clips: [],
+        },
+      ],
+      nutricion_partido: { notas: 'Gel en el minuto 70' },
+    }
+    const off = buildPlanShow({ ...base, incluir_nutricion: false, incluir_abp_defensiva: false })
+    const titlesOff = off.slides.map((slide) => slide.title)
+    assert.equal(titlesOff.includes('ABP defensiva'), false)
+    assert.equal(titlesOff.includes('Nutrición'), false)
+    assert.equal(titlesOff.includes('Córner'), true)
+    assert.equal(titlesOff.includes('ABP ofensiva'), true)
+
+    const on = buildPlanShow({ ...base, incluir_nutricion: true, incluir_abp_defensiva: true })
+    const titlesOn = on.slides.map((slide) => slide.title)
+    assert.equal(titlesOn.includes('ABP defensiva'), true)
+    assert.equal(titlesOn.includes('Nutrición'), true)
+    const corner = on.slides.find((slide) => slide.title === 'Córner')
+    assert.equal(corner?.kind === 'fase' && corner.bullets[0], 'Cinco en zona')
+    assert.equal(corner?.kind === 'fase' && Boolean(corner.board), true)
+  })
 })
