@@ -15,6 +15,7 @@ import {
   tramoHasContent,
   type PlanTramo,
 } from '@/lib/planPartidoTramos'
+import { planMatchIdForTramo } from '@/lib/revisionDestino'
 
 interface RivalPlanPartidoTabProps {
   rivalId: string
@@ -32,6 +33,7 @@ export function RivalPlanPartidoTab({ rivalId, rivalNombre, rivalEscudoUrl, esta
     ida: {},
     vuelta: {},
   })
+  const [partidos, setPartidos] = useState<Array<{ id: string; fecha?: string | null; competicion?: string | null }>>([])
   const [loaded, setLoaded] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -57,6 +59,7 @@ export function RivalPlanPartidoTab({ rivalId, rivalNombre, rivalEscudoUrl, esta
         if (cancelled) return
         const store = unwrapPlanTramos(raw)
         setPlans(store)
+        setPartidos(partidos.data || [])
         setTramo(inferPlanTramo(partidos.data || []))
         setLoaded(true)
       })
@@ -124,11 +127,12 @@ export function RivalPlanPartidoTab({ rivalId, rivalNombre, rivalEscudoUrl, esta
         )}
       </div>
       <p className="text-xs text-muted-foreground">
-        Ida y vuelta se guardan aparte. Pizarras, roles, clips y jugadas ABP van con cada enfrentamiento.
+        Ida y vuelta se guardan aparte. Pizarras, roles y jugadas ABP van con cada enfrentamiento.
       </p>
       <PlanPartido
         data={plan}
         rivalId={rivalId}
+        partidoId={planMatchIdForTramo(partidos, tramo)}
         equipoId={equipoActivo?.id}
         rivalNombre={rivalNombre}
         rivalEscudoUrl={rivalEscudoUrl}

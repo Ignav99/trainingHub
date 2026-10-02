@@ -665,7 +665,8 @@ class TestSalaSync:
         assert "<video" not in section
         assert "VideoPlayer" in section
         assert "VideoPlayer" in scout
-        assert "VideoPlayer" in plan
+        assert "RevisionLibrary" in plan
+        assert "Clips de vídeo" not in plan
         assert "VideoPlayer" in library
         assert "VideoPlayer" in organizer
         assert "Mini scrub bar" not in studio

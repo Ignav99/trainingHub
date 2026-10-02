@@ -584,6 +584,7 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
               data={planCT.plan_partido ?? {}}
               rivalId={data.microciclo.rival_id}
               microcicloId={data.microciclo.id}
+              partidoId={data.microciclo.partido_id}
               equipoId={data.microciclo.equipo_id}
               horaPartido={data.microciclo.partidos?.hora}
               fechaPartido={data.microciclo.partidos?.fecha}
