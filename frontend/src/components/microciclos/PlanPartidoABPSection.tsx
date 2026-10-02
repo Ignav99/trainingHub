@@ -229,9 +229,6 @@ export function PlanPartidoABPSection({
                       <span className="text-sm font-medium truncate">
                         {jugada?.nombre ?? 'Jugada (cargando...)'}
                       </span>
-                      {jugada?.codigo && (
-                        <span className="text-[10px] font-mono text-muted-foreground">{jugada.codigo}</span>
-                      )}
                     </div>
                     {tipoInfo && <p className="text-[10px] text-muted-foreground mt-0.5">{tipoInfo.label}</p>}
                     {jugada?.senal_codigo && (
@@ -317,9 +314,6 @@ export function PlanPartidoABPSection({
                         <div className="text-sm font-medium truncate">{j.nombre}</div>
                         <span className="text-xs text-muted-foreground">{tipoInfo?.label}</span>
                       </div>
-                      {j.codigo && (
-                        <span className="text-[10px] font-mono text-muted-foreground">{j.codigo}</span>
-                      )}
                     </button>
                   )
                 })

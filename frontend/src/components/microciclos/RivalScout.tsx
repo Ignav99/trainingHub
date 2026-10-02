@@ -30,7 +30,7 @@ import { DossierTacticalBoard } from '@/components/rivales/DossierTacticalBoard'
 import { PresentacionSala } from '@/components/revision/PresentacionSala'
 import { exportPresentacionDossier } from '@/lib/api/presentaciones'
 import { buildInformeShow, buildPlanShow, type DossierShow } from '@/lib/dossierShow'
-import { loadShowIntel, loadPlanDataForCharla, prepareCharlaSala, prepareDossierSala } from '@/lib/dossierPresentar'
+import { loadAbpShowJugadas, loadShowIntel, loadPlanDataForCharla, prepareCharlaSala, prepareDossierSala } from '@/lib/dossierPresentar'
 import type { RevisionSession } from '@/lib/api/revision'
 import { useClubStore } from '@/stores/clubStore'
 import { OrganizedPhaseStack, organizedSubfases } from './OrganizedPhaseStack'
@@ -255,12 +255,16 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
                   jornada: jornada ?? undefined,
                   tramo,
                 }
+                const [intelVisual, planData, abpJugadas] = await Promise.all([
+                  loadShowIntel(equipoId, rivalId),
+                  loadPlanDataForCharla(getPlanForCharla?.() ?? null, rivalId),
+                  loadAbpShowJugadas(equipoId),
+                ])
                 const informe = buildInformeShow(dataRef.current, {
                   ...meta,
-                  intelVisual: await loadShowIntel(equipoId, rivalId),
+                  intelVisual,
                 })
-                const planData = await loadPlanDataForCharla(getPlanForCharla?.() ?? null, rivalId)
-                const plan = buildPlanShow(planData, meta)
+                const plan = buildPlanShow(planData, { ...meta, abpJugadas })
                 const ready = await prepareCharlaSala({
                   informe,
                   plan,

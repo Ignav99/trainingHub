@@ -1,12 +1,14 @@
 import { jsPDF } from 'jspdf'
-import type {
-  FasePlanPartido,
-  PlanPartidoData,
-  PlanPartidoPhase,
-  PlanPartidoSubfaseData,
-  RivalSubfaseAtaque,
-  RivalSubfaseDefensa,
+import {
+  ABP_TIPOS,
+  type FasePlanPartido,
+  type PlanPartidoData,
+  type PlanPartidoPhase,
+  type PlanPartidoSubfaseData,
+  type RivalSubfaseAtaque,
+  type RivalSubfaseDefensa,
 } from '@/types'
+import { jugadaToBoardData } from '@/lib/abpDiagramAdapter'
 import { abpApi } from '@/lib/api/abp'
 import {
   getContextForSubfase,
@@ -82,9 +84,18 @@ export interface PlanPartidoPdfMeta {
 type JugadaInfo = {
   nombre: string
   tipo?: string
-  codigo?: string
   preview?: string
   diagrama?: import('@/components/tactical-board/types').TareaPizarraData
+}
+
+function jugadaTipoLabel(tipo?: string): string {
+  return ABP_TIPOS.find((item) => item.value === tipo)?.label ?? ''
+}
+
+function jugadaDisplayName(info: JugadaInfo | undefined): string {
+  const nombre = info?.nombre?.trim()
+  if (nombre) return nombre
+  return jugadaTipoLabel(info?.tipo) || 'Jugada'
 }
 
 let lockPage = false
@@ -371,21 +382,20 @@ async function writeAbpItems(
   y += 5
   for (const item of items) {
     const info = jugadas.get(item.jugada_id)
-    const nombre = info?.nombre ?? item.jugada_id.slice(0, 8)
+    const nombre = jugadaDisplayName(info)
+    const tipoLabel = jugadaTipoLabel(info?.tipo)
     const preview = await resolvePizarraPng(info?.preview, info?.diagrama)
     y = ensureSpace(doc, y, 12, margin)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(10)
     doc.setTextColor(15, 23, 42)
-    const bits = [nombre]
-    if (info?.codigo) bits.push(info.codigo)
-    doc.text(bits.join('  ·  '), margin, y)
+    doc.text(nombre, margin, y)
     y += 4.5
-    if (info?.tipo) {
+    if (tipoLabel && tipoLabel !== nombre) {
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(8)
       doc.setTextColor(100, 116, 139)
-      doc.text(info.tipo.replace(/_/g, ' '), margin, y)
+      doc.text(tipoLabel, margin, y)
       y += 4
     }
     if (item.comentario?.trim()) {
@@ -482,12 +492,12 @@ export async function exportPlanPartidoPDF(
     try {
       const res = await abpApi.list(equipoId)
       for (const j of res.data) {
+        const board = jugadaToBoardData(j)
         jugadas.set(j.id, {
           nombre: j.nombre,
           tipo: j.tipo,
-          codigo: j.codigo,
           preview: j.fases?.[0]?.diagram?.preview,
-          diagrama: j.fases?.[0]?.diagram,
+          diagrama: diagramHasContent(board) ? board : undefined,
         })
       }
     } catch {

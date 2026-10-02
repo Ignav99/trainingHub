@@ -70,6 +70,23 @@ class TestBriefing:
         assert brief["tramo"] == "ida"
         assert any("segundo palo" in str(v) for v in brief["fases"].values())
 
+    def test_plan_abp_omits_play_ids(self):
+        plan = {
+            "fases": [
+                {
+                    "fase": "abp_ofensiva",
+                    "jugadas_abp": [
+                        {"jugada_id": "11111111-2222-3333-4444-555555555555", "comentario": "", "orden": 0},
+                        {"jugada_id": "abc", "comentario": "Corto", "orden": 1},
+                    ],
+                }
+            ]
+        }
+        brief = briefing_from_plan(plan, {})
+        dumped = str(brief)
+        assert "11111111" not in dumped
+        assert "Corto" in dumped
+
 
 class TestDeck:
     def test_fallback_is_short_and_starts_with_title(self):
