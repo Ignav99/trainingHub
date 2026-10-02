@@ -16,6 +16,7 @@ import {
 } from '@/lib/tacticalRoles'
 import type { AsignacionRolTactico } from '@/types'
 import { deriveAsignacionesFromDiagram, diagramHasContent } from '@/lib/planPartidoDiagramRoles'
+import { abpDefensivaEnInforme, estructuraTieneContenido, nutricionEnInforme, nutricionLineas } from '@/lib/planPartidoOpcional'
 import { useClubStore } from '@/stores/clubStore'
 import {
   formatLocalia,
@@ -263,6 +264,7 @@ function phaseHasContent(phase: PlanPartidoPhase | undefined): boolean {
     return true
   if (phase.jugadas_abp?.length) return true
   if (phase.clips?.length) return true
+  if ((phase.estructuras_rival ?? []).some((item) => estructuraTieneContenido(item))) return true
   return false
 }
 
@@ -438,6 +440,12 @@ function planPhaseHeight(
       if (info?.preview || info?.diagrama) h += imageMax + 6
     }
   }
+  for (const item of phase.estructuras_rival ?? []) {
+    if (!estructuraTieneContenido(item)) continue
+    h += 12
+    h += wrappedMm(doc, item.notas, contentWidth)
+    if (item.pizarra_tactica || diagramHasContent(item.pizarra_diagrama)) h += imageMax + 6
+  }
   if (phase.clips?.length) {
     h += 8
     for (const clip of phase.clips) h += wrappedMm(doc, clip.titulo, contentWidth)
@@ -497,6 +505,7 @@ export async function exportPlanPartidoPDF(
   const fases = data.fases ?? []
 
   for (const faseKey of FASE_ORDER) {
+    if (faseKey === 'abp_defensiva' && !abpDefensivaEnInforme(data)) continue
     const phase = fases.find((f) => f.fase === faseKey)
     if (!phase || !phaseHasContent(phase)) continue
 
@@ -601,6 +610,42 @@ export async function exportPlanPartidoPDF(
       y = await writeAbpItems(doc, phase.jugadas_abp, jugadas, title, accent, margin, y, contentWidth, imageMax)
     }
 
+    if (faseKey === 'abp_ofensiva' && phase?.estructuras_rival?.length) {
+      const visibles = phase.estructuras_rival.filter((item) => estructuraTieneContenido(item))
+      if (visibles.length > 0) {
+        y = ensureSpace(doc, y, 12, margin)
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(8)
+        doc.setTextColor(...accent)
+        doc.text('ESTRUCTURA DEFENSIVA DEL RIVAL', margin, y)
+        y += 5
+        for (const item of visibles) {
+          y = ensureSpace(doc, y, 12, margin)
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(10)
+          doc.setTextColor(15, 23, 42)
+          doc.text(item.titulo.trim() || 'Estructura defensiva', margin, y)
+          y += 4.5
+          if (item.notas?.trim()) {
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(9)
+            doc.setTextColor(51, 65, 85)
+            y = writeWrapped(doc, item.notas.trim(), margin, y, contentWidth)
+            y += 2
+          }
+          y = addPizarraImage(
+            doc,
+            await resolvePizarraPng(item.pizarra_tactica, item.pizarra_diagrama),
+            margin,
+            y,
+            contentWidth,
+            imageMax,
+          )
+          y += 2
+        }
+      }
+    }
+
     if (phase?.clips?.length) {
       y = ensureSpace(doc, y, 10, margin)
       doc.setFont('helvetica', 'bold')
@@ -619,6 +664,31 @@ export async function exportPlanPartidoPDF(
 
     y += 4
     lockPage = false
+  }
+
+  if (nutricionEnInforme(data)) {
+    const lineas = nutricionLineas(data.nutricion_partido)
+    if (lineas.length > 0) {
+      const need = 16 + lineas.reduce((sum, line) => sum + wrappedMm(doc, line, contentWidth), 0)
+      if (y + need > pageFloor(doc)) {
+        doc.addPage()
+        y = margin + 6
+      }
+      doc.setFillColor(5, 150, 105)
+      doc.roundedRect(margin, y, contentWidth, 10, 1.2, 1.2, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(13)
+      doc.text('Nutrición', margin + 3, y + 6.8)
+      y += 14
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(9.5)
+      doc.setTextColor(51, 65, 85)
+      for (const line of lineas) {
+        y = writeWrapped(doc, line, margin, y, contentWidth)
+        y += 2
+      }
+    }
   }
 
   drawFooters(doc, meta.clubNombre)

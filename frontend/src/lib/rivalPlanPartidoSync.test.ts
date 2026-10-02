@@ -56,4 +56,30 @@ describe('plan de partido persistence', () => {
     assert.deepEqual(defensa?.subfases?.bloque_alto?.fortalezas, ['Altura'])
     assert.deepEqual(defensa?.subfases?.bloque_bajo?.fortalezas, ['Cierre'])
   })
+
+  it('keeps optional sections and rival set-piece boards', () => {
+    const saved = extractPersistentPlanPartido({
+      incluir_nutricion: true,
+      incluir_abp_defensiva: false,
+      nutricion_partido: { notas: 'Isotónica' },
+      fases: [
+        {
+          fase: 'abp_ofensiva',
+          clips: [],
+          estructuras_rival: [{ id: 'c1', titulo: 'Córner', notas: 'Zona' }],
+        },
+      ],
+    })
+    assert.equal(saved.incluir_nutricion, true)
+    assert.equal(saved.incluir_abp_defensiva, false)
+    assert.equal(saved.fases?.[0]?.estructuras_rival?.[0]?.titulo, 'Córner')
+
+    const merged = mergePlanPartidoOnLoad(saved, {
+      incluir_nutricion: false,
+      fases: [{ fase: 'abp_ofensiva', clips: [], estructuras_rival: [{ id: 'local', titulo: 'Falta' }] }],
+    })
+    assert.equal(merged.incluir_nutricion, true)
+    assert.equal(merged.incluir_abp_defensiva, false)
+    assert.equal(merged.fases?.find((fase) => fase.fase === 'abp_ofensiva')?.estructuras_rival?.[0]?.titulo, 'Córner')
+  })
 })

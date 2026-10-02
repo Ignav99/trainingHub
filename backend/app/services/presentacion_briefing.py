@@ -119,6 +119,20 @@ def _collect_phase_plan(fase: dict) -> dict[str, Any]:
             for item in abp[:4]
             if isinstance(item, dict)
         ]
+    estructuras = []
+    for item in fase.get("estructuras_rival") or []:
+        if not isinstance(item, dict):
+            continue
+        titulo = _clip(item.get("titulo") or "Estructura defensiva", 48)
+        nota = _clip(item.get("notas"), 180)
+        if nota:
+            estructuras.append(f"{titulo}: {nota}")
+        elif titulo:
+            estructuras.append(titulo)
+        if len(estructuras) >= 6:
+            break
+    if estructuras:
+        payload["estructura_rival"] = estructuras
     return payload
 
 
@@ -159,6 +173,29 @@ def briefing_from_informe(data: dict | None, meta: dict | None = None) -> dict[s
     }
 
 
+def _optional_on(flag: Any, has_content: bool) -> bool:
+    if isinstance(flag, bool):
+        return flag
+    return has_content
+
+
+def _nutricion_lineas(nutricion: Any) -> list[str]:
+    if not isinstance(nutricion, dict):
+        return []
+    out: list[str] = []
+    for key in ("argumento_suplementacion", "comida_recomendada", "notas", "clima_estimacion"):
+        line = _clip(nutricion.get(key), 220)
+        if line:
+            out.append(line)
+    tags = _tags(nutricion.get("etiquetas"), 8)
+    if tags:
+        out.append(", ".join(tags))
+    for item in nutricion.get("items") or []:
+        if isinstance(item, dict) and item.get("nombre"):
+            out.append(_clip(item.get("nombre"), 40))
+    return out
+
+
 def briefing_from_plan(data: dict | None, meta: dict | None = None) -> dict[str, Any]:
     data = data or {}
     meta = meta or {}
@@ -170,19 +207,19 @@ def briefing_from_plan(data: dict | None, meta: dict | None = None) -> dict[str,
         if not key:
             continue
         collected = _collect_phase_plan(fase)
+        if str(key) == "abp_defensiva" and not _optional_on(data.get("incluir_abp_defensiva"), bool(collected)):
+            continue
         if collected:
             fases[FASE_LABELS.get(str(key), str(key))] = collected
     legacy = {}
     for key, label in FASE_LABELS.items():
         val = _clip(data.get(key), 220)
+        if key == "abp_defensiva" and not _optional_on(data.get("incluir_abp_defensiva"), bool(val)):
+            continue
         if val:
             legacy[label] = val
-    nutricion = data.get("nutricion_partido") or {}
-    items = []
-    if isinstance(nutricion, dict):
-        for it in nutricion.get("items") or []:
-            if isinstance(it, dict) and it.get("nombre"):
-                items.append(_clip(it.get("nombre"), 40))
+    lineas = _nutricion_lineas(data.get("nutricion_partido"))
+    nutricion = lineas if _optional_on(data.get("incluir_nutricion"), bool(lineas)) else []
     return {
         "tipo": "plan",
         "rival": meta.get("rival_nombre") or "",
@@ -194,7 +231,7 @@ def briefing_from_plan(data: dict | None, meta: dict | None = None) -> dict[str,
         "campo": meta.get("campo") or "",
         "consignas": _tags(data.get("consignas_clave")),
         "fases": fases or legacy,
-        "nutricion": items,
+        "nutricion": nutricion,
     }
 
 

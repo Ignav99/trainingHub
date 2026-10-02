@@ -35,7 +35,8 @@ import { api } from '@/lib/api/client'
 import { rivalesApi } from '@/lib/api/partidos'
 import { VideoPlayer } from '@/components/video-analyzer/VideoPlayer'
 import { NutricionPartidoEditor } from './NutricionPartidoEditor'
-import { hasNutricionPartidoContent } from '@/lib/microcicloNutricionSync'
+import { PlanEstructurasRivalABP } from './PlanEstructurasRivalABP'
+import { abpDefensivaEnInforme, nutricionEnInforme } from '@/lib/planPartidoOpcional'
 
 interface PlanPartidoProps {
   data: Partial<PlanPartidoData>
@@ -100,6 +101,12 @@ export function PlanPartido({
   const clubNombre = useClubStore((s) => s.organizacion?.nombre)
   const clubEscudoUrl = useClubStore((s) => s.theme.logoUrl || s.organizacion?.logo_url)
   const fases = data.fases ?? []
+  const nutricionOn = nutricionEnInforme(data)
+  const abpDefensivaOn = abpDefensivaEnInforme(data)
+  const fasesVisibles = FASES.filter((section) => section.fase !== 'abp_defensiva' || abpDefensivaOn)
+  const tabVisible =
+    activeTab === 'nutricion' ? nutricionOn : activeTab === 'abp_defensiva' ? abpDefensivaOn : true
+  const tabActual: PlanTab = tabVisible ? activeTab : 'ataque_organizado'
 
   const totalClipsSize = fases.reduce(
     (sum, f) => sum + (f.clips ?? []).reduce((s, c) => s + (c.size ?? 0), 0),
@@ -273,24 +280,53 @@ export function PlanPartido({
       )}
 
       <CardContent className="space-y-5">
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as PlanTab)}>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-medium text-muted-foreground">Mostrar en el informe</span>
+          <Button
+            type="button"
+            size="sm"
+            variant={nutricionOn ? 'default' : 'outline'}
+            className="h-7 text-[10px]"
+            aria-pressed={nutricionOn}
+            onClick={() => {
+              const next = !nutricionOn
+              update({ incluir_nutricion: next })
+              setActiveTab(next ? 'nutricion' : 'ataque_organizado')
+            }}
+          >
+            Nutrición
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={abpDefensivaOn ? 'default' : 'outline'}
+            className="h-7 text-[10px]"
+            aria-pressed={abpDefensivaOn}
+            onClick={() => {
+              const next = !abpDefensivaOn
+              update({ incluir_abp_defensiva: next })
+              setActiveTab(next ? 'abp_defensiva' : 'abp_ofensiva')
+            }}
+          >
+            ABP defensiva
+          </Button>
+        </div>
+
+        <Tabs value={tabActual} onValueChange={(v) => setActiveTab(v as PlanTab)}>
           <TabsList className="flex flex-wrap h-auto gap-1">
-            {FASES.map((f) => (
+            {fasesVisibles.map((f) => (
               <TabsTrigger key={f.fase} value={f.fase} className="text-[10px] px-2 py-1">
                 {f.label}
               </TabsTrigger>
             ))}
-            <TabsTrigger value="nutricion" className="text-[10px] px-2 py-1">
-              Nutrición
-              {hasNutricionPartidoContent(data.nutricion_partido) ? (
-                <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
-              ) : (
-                <span className="ml-1 font-normal text-muted-foreground">opcional</span>
-              )}
-            </TabsTrigger>
+            {nutricionOn && (
+              <TabsTrigger value="nutricion" className="text-[10px] px-2 py-1">
+                Nutrición
+              </TabsTrigger>
+            )}
           </TabsList>
 
-          {FASES.map((section) => {
+          {fasesVisibles.map((section) => {
             const phase = getPhase(section.fase)
             const subfases = organizedSubfases(section.fase)
 
@@ -376,6 +412,13 @@ export function PlanPartido({
                   />
                 )}
 
+                {section.fase === 'abp_ofensiva' && (
+                  <PlanEstructurasRivalABP
+                    items={phase.estructuras_rival ?? []}
+                    onChange={(estructuras_rival) => updatePhase(section.fase, { estructuras_rival })}
+                  />
+                )}
+
                 {!isAbpPhase(section.fase) && (
                   <ClipsSection
                     phase={phase}
@@ -402,9 +445,10 @@ export function PlanPartido({
             )
           })}
 
+          {nutricionOn && (
           <TabsContent value="nutricion" className="space-y-3 mt-4">
             <p className="text-xs text-muted-foreground">
-              Opcional. Solo si quieres clima y suplementación para este partido.
+              Sale en el informe cuando hay clima, suplementación o comida.
             </p>
             <NutricionPartidoEditor
               data={data.nutricion_partido}
@@ -414,6 +458,7 @@ export function PlanPartido({
               onChange={(nutricion_partido) => update({ nutricion_partido })}
             />
           </TabsContent>
+          )}
         </Tabs>
       </CardContent>
     </Card>

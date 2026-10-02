@@ -1,5 +1,6 @@
 import type { TareaPizarraData } from '../components/tactical-board/types'
 import { diagramHasContent } from './planPartidoDiagramRoles'
+import { abpDefensivaEnInforme, estructuraTieneContenido, nutricionEnInforme, nutricionLineas } from './planPartidoOpcional'
 import type { IntelVisual } from './pdf/informeRivalPdfBlocks'
 import type {
   ClipRival,
@@ -236,9 +237,25 @@ export function buildInformeShow(data: Partial<RivalScoutData> | undefined, meta
 export function buildPlanShow(data: Partial<PlanPartidoData> | undefined, meta: ShowMeta = {}): DossierShow {
   const slides: ShowSlide[] = [portadaSlide('plan', meta)]
   const fases = data?.fases ?? []
+  const defensiva = abpDefensivaEnInforme(data)
   for (const fase of SHOW_FASE_ORDER) {
+    if (fase === 'abp_defensiva' && !defensiva) continue
     const phase = fases.find((item) => item.fase === fase)
     slides.push(...phaseBlock(fase, phase, bulletsFromPlan(phase), false))
+    if (fase === 'abp_ofensiva') slides.push(...estructuraRivalSlides(phase))
+  }
+  if (nutricionEnInforme(data)) {
+    const bullets: string[] = []
+    for (const line of nutricionLineas(data?.nutricion_partido)) pushLine(bullets, line)
+    if (bullets.length > 0) {
+      slides.push({
+        id: 'nutricion',
+        kind: 'contexto',
+        kicker: 'Plan de partido',
+        title: 'Nutrición',
+        bullets,
+      })
+    }
   }
   return {
     kind: 'plan',
@@ -738,6 +755,26 @@ function bulletsFromInforme(phase: RivalPhaseAnalysis | undefined): string[] {
   pushLine(out, phase.abp_defensa)
   pushSubfaseNotes(out, phase.subfases)
   return finalizeBullets(out)
+}
+
+function estructuraRivalSlides(phase: PlanPartidoPhase | undefined): ShowSlide[] {
+  const slides: ShowSlide[] = []
+  for (const item of phase?.estructuras_rival ?? []) {
+    if (!estructuraTieneContenido(item)) continue
+    const bullets: string[] = []
+    pushLine(bullets, item.notas)
+    const board = diagramHasContent(item.pizarra_diagrama) ? item.pizarra_diagrama : undefined
+    slides.push({
+      id: `fase:abp_ofensiva:estructura:${item.id}`,
+      kind: 'fase',
+      fase: 'abp_ofensiva',
+      kicker: 'ABP ofensiva',
+      title: item.titulo.trim() || 'Estructura defensiva del rival',
+      bullets,
+      board,
+    })
+  }
+  return slides
 }
 
 function bulletsFromPlan(phase: PlanPartidoPhase | undefined): string[] {
