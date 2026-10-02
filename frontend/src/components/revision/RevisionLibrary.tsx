@@ -40,6 +40,7 @@ import {
 } from '@/lib/api/revision'
 import { SalaHostDialog } from './SalaHostDialog'
 import { downloadRevisionPackZip } from '@/lib/revisionPackZip'
+import { revisionPackLookup } from '@/lib/revisionDestino'
 
 const VideoPlayer = dynamic(
   () => import('@/components/video-analyzer/VideoPlayer').then((m) => ({ default: m.VideoPlayer })),
@@ -66,20 +67,24 @@ export function RevisionLibrary({
   initialFase,
   compact,
 }: RevisionLibraryProps) {
+  const packQuery = useMemo(
+    () =>
+      revisionPackLookup({
+        equipoId,
+        ambito,
+        partidoId,
+        rivalId,
+        microcicloId,
+      }),
+    [equipoId, ambito, partidoId, rivalId, microcicloId],
+  )
   const swrKey = equipoId
-    ? `revision:${ambito}:${partidoId || ''}:${rivalId || ''}:${microcicloId || ''}`
+    ? `revision:${packQuery.ambito}:${packQuery.partido_id || ''}:${packQuery.rival_id || ''}:${packQuery.microciclo_id || ''}`
     : null
 
   const { data: pack, error, mutate, isLoading } = useSWR(
     swrKey,
-    () =>
-      revisionApi.getOrCreatePack({
-        equipo_id: equipoId,
-        ambito,
-        partido_id: partidoId,
-        rival_id: rivalId,
-        microciclo_id: microcicloId,
-      }),
+    () => revisionApi.getOrCreatePack(packQuery),
     {
       errorRetryCount: 0,
       shouldRetryOnError: false,
@@ -89,13 +94,7 @@ export function RevisionLibrary({
 
   const ensurePack = async (): Promise<RevisionPack> => {
     if (pack) return pack
-    const next = await revisionApi.getOrCreatePack({
-      equipo_id: equipoId,
-      ambito,
-      partido_id: partidoId,
-      rival_id: rivalId,
-      microciclo_id: microcicloId,
-    })
+    const next = await revisionApi.getOrCreatePack(packQuery)
     await mutate(next, { revalidate: false })
     return next
   }

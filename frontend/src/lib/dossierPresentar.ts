@@ -12,6 +12,7 @@ import {
   type DossierShow,
 } from '@/lib/dossierShow'
 import { pickPlanForCharla, type PlanTramo } from '@/lib/planPartidoTramos'
+import { revisionPackLookup } from '@/lib/revisionDestino'
 import type { PlanPartidoData, RivalScoutData } from '@/types'
 
 export async function loadShowIntel(equipoId?: string, rivalId?: string): Promise<IntelVisual | undefined> {
@@ -42,13 +43,15 @@ export async function prepareDossierSala(params: {
   if (!params.equipoId) return { show, session: null }
 
   try {
-    const pack = await revisionApi.getOrCreatePack({
-      equipo_id: params.equipoId,
-      ambito: params.ambito,
-      rival_id: params.rivalId,
-      microciclo_id: params.microcicloId,
-      partido_id: params.partidoId,
-    })
+    const pack = await revisionApi.getOrCreatePack(
+      revisionPackLookup({
+        equipoId: params.equipoId,
+        ambito: params.ambito,
+        rivalId: params.rivalId,
+        microcicloId: params.microcicloId,
+        partidoId: params.partidoId,
+      }),
+    )
     show = attachRevisionPack(show, pack)
     try {
       const session = await revisionApi.createSession({
@@ -78,16 +81,16 @@ export async function prepareCharlaSala(params: {
     return { show: concatCharlaShow(informe, plan), session: null }
   }
 
-  const packParams = {
-    equipo_id: params.equipoId,
-    rival_id: params.rivalId,
-    microciclo_id: params.microcicloId,
-    partido_id: params.partidoId,
-  }
-
   let packId: string | undefined
   try {
-    const rivalPack = await revisionApi.getOrCreatePack({ ...packParams, ambito: 'rival' })
+    const rivalPack = await revisionApi.getOrCreatePack(
+      revisionPackLookup({
+        equipoId: params.equipoId,
+        ambito: 'rival',
+        rivalId: params.rivalId,
+        microcicloId: params.microcicloId,
+      }),
+    )
     informe = attachRevisionPack(informe, rivalPack)
     packId = rivalPack.id
   } catch {
@@ -95,7 +98,15 @@ export async function prepareCharlaSala(params: {
   }
 
   try {
-    const planPack = await revisionApi.getOrCreatePack({ ...packParams, ambito: 'partido_plan' })
+    const planPack = await revisionApi.getOrCreatePack(
+      revisionPackLookup({
+        equipoId: params.equipoId,
+        ambito: 'partido_plan',
+        partidoId: params.partidoId,
+        rivalId: params.rivalId,
+        microcicloId: params.microcicloId,
+      }),
+    )
     plan = attachRevisionPack(plan, planPack)
     packId = packId ?? planPack.id
   } catch {

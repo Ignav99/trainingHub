@@ -133,6 +133,7 @@ export function PartidoPlanTab({ partido, equipoId }: PartidoPlanTabProps) {
         onChange={setPlan}
         rivalId={partido.rival_id}
         microcicloId={context.microcicloId ?? undefined}
+        partidoId={partido.id}
         equipoId={equipoId}
         horaPartido={partido.hora}
         fechaPartido={partido.fecha}
