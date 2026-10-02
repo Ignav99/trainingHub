@@ -4,6 +4,8 @@ import {
   orderVideoCodecs,
   reconnectDelay,
   salaLinkLabel,
+  salaSocketMode,
+  sameSalaCode,
   shouldApplySeq,
   wrapSalaEnvelope,
   SALA_RECONNECT_MAX_MS,
@@ -41,12 +43,51 @@ describe('sala link helpers', () => {
   })
 
   it('wraps control envelopes with the sala code', () => {
-    const env = wrapSalaEnvelope('sala_sync', 'AB12CD', 'tablet', { slide: 2, seq: 9 })
+    const env = wrapSalaEnvelope('sala_sync', 'ab12cd', 'tablet', { slide: 2, seq: 9 })
     assert.equal(env.type, 'sala_sync')
     assert.equal(env.session_code, 'AB12CD')
     assert.equal(env.role, 'tablet')
     assert.equal(env.slide, 2)
     assert.equal(env.seq, 9)
+  })
+
+  it('keeps the tablet on the QR guest socket even when a login is already stored', () => {
+    assert.equal(salaSocketMode({
+      role: 'tablet',
+      accessToken: 'expired-jwt',
+      equipoId: 'equipo-1',
+      code: 'AB12CD',
+    }), 'guest')
+    assert.equal(salaSocketMode({
+      role: 'tablet',
+      accessToken: 'jwt',
+      code: 'AB12CD',
+    }), 'guest')
+    assert.equal(salaSocketMode({ role: 'tablet', code: '' }), 'off')
+  })
+
+  it('lets the computer fall back to the sala code when the team is not ready', () => {
+    assert.equal(salaSocketMode({
+      role: 'host',
+      accessToken: 'jwt',
+      equipoId: 'equipo-1',
+      code: 'AB12CD',
+    }), 'jwt')
+    assert.equal(salaSocketMode({
+      role: 'host',
+      accessToken: 'jwt',
+      code: 'AB12CD',
+    }), 'guest')
+    assert.equal(salaSocketMode({
+      role: 'host',
+      guestPass: 'pase',
+      accessToken: 'jwt',
+      equipoId: 'equipo-1',
+      code: 'AB12CD',
+    }), 'guest')
+    assert.equal(sameSalaCode('ab12cd', 'AB12CD'), true)
+    assert.equal(sameSalaCode('OTRA', 'AB12CD'), false)
+    assert.equal(sameSalaCode('', 'AB12CD'), true)
   })
 
   it('opens the sala websocket with the QR code and without a user token', () => {

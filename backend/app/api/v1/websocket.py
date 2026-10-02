@@ -36,6 +36,8 @@ class ConnectionManager:
         # sala code -> list of sockets (host + tablet)
         self.sala_rooms: dict[str, list[WebSocket]] = {}
         self.ws_salas: dict[int, list[str]] = {}
+        # Last presentation/clip sync, replayed when a tablet joins late.
+        self.sala_last_sync: dict[str, dict] = {}
 
     async def connect_user(self, websocket: WebSocket, user_id: str, team_id: Optional[str] = None):
         """Accept and register a user's WebSocket connection."""
@@ -81,6 +83,28 @@ class ConnectionManager:
 
     def sala_peer_count(self, session_code: str) -> int:
         return len(self.sala_rooms.get(session_code.upper().strip(), []))
+
+    def remember_sala_sync(self, session_code: str, payload: dict) -> None:
+        """Keep the latest deck so a tablet that enters a second later still gets it."""
+        if payload.get("type") != "sala_sync":
+            return
+        code = session_code.upper().strip()
+        if not code:
+            return
+        prev = dict(self.sala_last_sync.get(code) or {})
+        merged = {**prev, **payload}
+        if "show" not in payload and "show" in prev:
+            merged["show"] = prev["show"]
+        self.sala_last_sync[code] = merged
+
+    async def replay_sala_sync(self, websocket: WebSocket, session_code: str) -> None:
+        payload = self.sala_last_sync.get(session_code.upper().strip())
+        if not payload:
+            return
+        try:
+            await websocket.send_json(payload)
+        except Exception:
+            logger.warning("sala sync replay failed for %s", session_code)
 
     def leave_all_salas(self, websocket: WebSocket):
         for code in self.ws_salas.pop(id(websocket), []):
@@ -208,7 +232,11 @@ def sala_pass_is_live(code: str) -> bool:
     """El QR vale con una sesión de revisión abierta, o si el ordenador ya está en la sala de vídeo."""
     if manager.sala_peer_count(code) > 0:
         return True
-    return _sala_db_pass_is_live(code)
+    try:
+        return _sala_db_pass_is_live(code)
+    except Exception:
+        logger.warning("sala pass db check failed for %s", code, exc_info=True)
+        return False
 
 
 def _sala_db_pass_is_live(code: str) -> bool:
@@ -219,7 +247,7 @@ def _sala_db_pass_is_live(code: str) -> bool:
     result = (
         supabase.table("revision_sessions")
         .select("created_at,updated_at")
-        .eq("code", code)
+        .eq("code", code.upper().strip())
         .limit(1)
         .execute()
     )
@@ -235,6 +263,33 @@ def _sala_db_pass_is_live(code: str) -> bool:
     if stamp.tzinfo is None:
         stamp = stamp.replace(tzinfo=timezone.utc)
     return datetime.now(timezone.utc) - stamp <= timedelta(hours=SALA_PASS_HOURS)
+
+
+async def announce_sala_join(websocket: WebSocket, code: str, role: str) -> None:
+    """Registra el aparato y le entrega la diapositiva que el ordenador ya mandó."""
+    peers = manager.join_sala(websocket, code)
+    await websocket.send_json({
+        "type": "sala_joined",
+        "session_code": code,
+        "role": role,
+        "peers": peers,
+    })
+    await manager.replay_sala_sync(websocket, code)
+    await manager.broadcast_sala(
+        code,
+        {
+            "type": "sala_peer_joined",
+            "session_code": code,
+            "role": role,
+            "peers": peers,
+        },
+        exclude=websocket,
+    )
+
+
+async def relay_sala_sync(websocket: WebSocket, code: str, payload: dict) -> None:
+    manager.remember_sala_sync(code, payload)
+    await manager.broadcast_sala(code, payload, exclude=websocket)
 
 
 @router.websocket("/ws")
@@ -330,29 +385,13 @@ async def websocket_endpoint(
                 code = (data.get("session_code") or "").upper().strip()
                 role = data.get("role") or "tablet"
                 if code:
-                    peers = manager.join_sala(websocket, code)
-                    await websocket.send_json({
-                        "type": "sala_joined",
-                        "session_code": code,
-                        "role": role,
-                        "peers": peers,
-                    })
-                    await manager.broadcast_sala(
-                        code,
-                        {
-                            "type": "sala_peer_joined",
-                            "session_code": code,
-                            "role": role,
-                            "peers": peers,
-                        },
-                        exclude=websocket,
-                    )
+                    await announce_sala_join(websocket, code, role)
 
             elif msg_type == "sala_sync":
                 code = (data.get("session_code") or "").upper().strip()
                 if code:
                     payload = sala_sync_payload(data, user_id)
-                    await manager.broadcast_sala(code, payload, exclude=websocket)
+                    await relay_sala_sync(websocket, code, payload)
 
             elif msg_type == "sala_sync_ack":
                 code = (data.get("session_code") or "").upper().strip()
@@ -457,23 +496,7 @@ async def _serve_sala_guest(websocket: WebSocket, code: str) -> None:
                 join_code = (data.get("session_code") or code).upper().strip()
                 if join_code != code:
                     continue
-                peers = manager.join_sala(websocket, join_code)
-                await websocket.send_json({
-                    "type": "sala_joined",
-                    "session_code": join_code,
-                    "role": data.get("role") or "tablet",
-                    "peers": peers,
-                })
-                await manager.broadcast_sala(
-                    join_code,
-                    {
-                        "type": "sala_peer_joined",
-                        "session_code": join_code,
-                        "role": data.get("role") or "tablet",
-                        "peers": peers,
-                    },
-                    exclude=websocket,
-                )
+                await announce_sala_join(websocket, join_code, data.get("role") or "tablet")
                 continue
             if msg_type not in {"sala_sync", "sala_sync_request", "sala_sync_ack", "sala_signal", "sala_frame"}:
                 continue
@@ -481,7 +504,7 @@ async def _serve_sala_guest(websocket: WebSocket, code: str) -> None:
             if msg_code != code:
                 continue
             if msg_type == "sala_sync":
-                await manager.broadcast_sala(code, sala_sync_payload(data, user_id), exclude=websocket)
+                await relay_sala_sync(websocket, code, sala_sync_payload(data, user_id))
             elif msg_type == "sala_sync_request":
                 await manager.broadcast_sala(
                     code,

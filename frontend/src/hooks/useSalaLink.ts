@@ -9,6 +9,8 @@ import {
   SALA_RETRY_MS,
   orderVideoCodecs,
   reconnectDelay,
+  salaSocketMode,
+  sameSalaCode,
   shouldApplySeq,
   wrapSalaEnvelope,
   type SalaLinkStatus,
@@ -62,6 +64,7 @@ export function useSalaLink({
   onRemoteStream,
 }: UseSalaLinkParams) {
   const [status, setStatus] = useState<SalaLinkStatus>('offline')
+  const [jwtRejected, setJwtRejected] = useState(false)
   const statusRef = useRef<SalaLinkStatus>('offline')
   const wsRef = useRef<WebSocket | null>(null)
   const pcRef = useRef<RTCPeerConnection | null>(null)
@@ -165,7 +168,7 @@ export function useSalaLink({
     if (ws?.readyState !== WebSocket.OPEN) return
     ws.send(JSON.stringify({
       type: 'sala_frame',
-      session_code: codeRef.current,
+      session_code: codeRef.current.trim().toUpperCase(),
       role: roleRef.current,
       jpeg,
       t,
@@ -178,7 +181,7 @@ export function useSalaLink({
     if (ws?.readyState !== WebSocket.OPEN) return
     ws.send(JSON.stringify({
       type: 'sala_signal',
-      session_code: codeRef.current,
+      session_code: codeRef.current.trim().toUpperCase(),
       role: roleRef.current,
       signal,
     }))
@@ -351,7 +354,7 @@ export function useSalaLink({
 
   incomingRef.current = (msg, viaDc) => {
     const msgCode = typeof msg.session_code === 'string' ? msg.session_code : ''
-    if (msgCode && msgCode !== codeRef.current) return
+    if (!sameSalaCode(msgCode, codeRef.current)) return
 
     if (msg.type === 'sala_joined') {
       const peers = typeof msg.peers === 'number' ? msg.peers : 0
@@ -368,6 +371,7 @@ export function useSalaLink({
       return
     }
     if (msg.type === 'sala_sync_request') {
+      onPeerJoinedRef.current?.(typeof msg.peers === 'number' ? msg.peers : 2)
       onSyncRequestRef.current?.()
       return
     }
@@ -411,29 +415,39 @@ export function useSalaLink({
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(envelope))
   }
 
+  const socketMode = salaSocketMode({
+    role,
+    accessToken: jwtRejected ? null : accessToken,
+    equipoId,
+    guestPass,
+    code,
+  })
+  const socketUrl = socketMode === 'jwt'
+    ? trainingHubWsUrl(accessToken as string, equipoId as string)
+    : socketMode === 'guest'
+      ? trainingHubSalaGuestUrl(code, guestPass)
+      : ''
+
   useEffect(() => {
     unmountedRef.current = false
-    const asGuest = Boolean(guestPass)
-    if (disabled) return
-    if (asGuest && !code) return
-    if (!asGuest && !accessToken && !code) return
-    if (!asGuest && accessToken && !equipoId) return
+    if (disabled || !socketUrl) return
 
     const connect = () => {
       if (unmountedRef.current) return
-      const ws = new WebSocket(
-        asGuest || !(accessToken && equipoId)
-          ? trainingHubSalaGuestUrl(codeRef.current, guestPassRef.current)
-          : trainingHubWsUrl(accessToken as string, equipoId as string)
-      )
+      const ws = new WebSocket(socketUrl)
       wsRef.current = ws
       ws.onopen = () => {
         attemptRef.current = 0
         setLinkStatus(dcRef.current?.readyState === 'open' ? 'direct' : 'cloud')
-        ws.send(JSON.stringify({ type: 'sala_join', session_code: codeRef.current, role: roleRef.current }))
+        ws.send(JSON.stringify({
+          type: 'sala_join',
+          session_code: codeRef.current.trim().toUpperCase(),
+          role: roleRef.current,
+        }))
         flushPending()
       }
-      ws.onclose = () => {
+      ws.onclose = (event) => {
+        if (event.code === 4001) setJwtRejected(true)
         if (wsRef.current === ws) wsRef.current = null
         if (statusRef.current !== 'direct') setLinkStatus('offline')
         if (unmountedRef.current) return
@@ -475,7 +489,7 @@ export function useSalaLink({
       try { wsRef.current?.close() } catch { /* ignore */ }
       wsRef.current = null
     }
-  }, [accessToken, equipoId, code, role, disabled, guestPass, flushPending, setLinkStatus, teardownRtc])
+  }, [socketUrl, disabled, flushPending, setLinkStatus, teardownRtc])
 
   return {
     send,

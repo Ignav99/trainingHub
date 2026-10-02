@@ -189,7 +189,11 @@ export function PresentacionSala({
       if (isHost) broadcastShowRef.current(indexRef.current)
     },
     onSyncRequest: () => {
-      if (isHost) broadcastShowRef.current(indexRef.current)
+      if (isHost) {
+        setPeerReady(true)
+        setQrOpen(false)
+        broadcastShowRef.current(indexRef.current)
+      }
     },
   })
 
@@ -306,6 +310,15 @@ export function PresentacionSala({
     const timer = window.setInterval(() => requestSync(), 2000)
     return () => window.clearInterval(timer)
   }, [isHost, show, status, requestSync])
+
+  const deckReady = Boolean(show)
+  useEffect(() => {
+    if (!isHost || !wsOk || peerReady || !deckReady) return
+    const push = () => broadcastShowRef.current(indexRef.current)
+    push()
+    const timer = window.setInterval(push, 2000)
+    return () => window.clearInterval(timer)
+  }, [isHost, wsOk, peerReady, deckReady])
 
   useEffect(() => {
     if (skipOverlaySend.current) {
@@ -741,7 +754,7 @@ export function PresentacionSala({
               ? (guestPass
                 ? (wsOk ? 'Conectando con el ordenador…' : 'Reconectando con el ordenador…')
                 : 'Este QR no trae el pase. Ciérralo y escanéalo otra vez desde el ordenador.')
-              : 'Esperando al presentador…'}
+              : (wsOk ? 'Esperando al presentador…' : 'Reconectando con el ordenador…')}
           </div>
         ) : (
           <div className="dossier-slide flex h-full min-h-0 flex-col overflow-hidden px-3 pb-1 sm:px-6">
