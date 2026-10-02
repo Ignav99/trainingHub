@@ -146,7 +146,7 @@ describe('dossier live show builder', () => {
     const defensa = plan.slides.filter((slide) => slide.kind === 'fase')
     assert.deepEqual(
       defensa.map((slide) => slide.title),
-      ['Defensa organizada', 'Bloque alto', 'Bloque medio', 'Bloque bajo']
+      ['Defensa organizada', 'Bloque alto', 'Bloque Mixto', 'Bloque bajo']
     )
     assert.deepEqual(defensa[3].kind === 'fase' ? defensa[3].fortalezas : [], [])
     assert.deepEqual(defensa[3].kind === 'fase' ? defensa[3].debilidades : [], [])

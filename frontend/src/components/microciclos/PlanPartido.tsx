@@ -308,7 +308,7 @@ export function PlanPartido({
                       const sub = phase.subfases?.[s.key] ?? { notas: '' }
                       return {
                         key: s.key,
-                        label: s.label,
+                        label: s.key === 'bloque_medio' ? 'Bloque Mixto' : s.label,
                         notas: sub.notas ?? '',
                         diagrama: sub.pizarra_diagrama,
                         fortalezas: sub.fortalezas ?? [],
