@@ -10,7 +10,7 @@
 
 import React from 'react'
 import type { DiagramElement, ElementType } from '@/components/tarea-editor/types'
-import { ELEMENT_SIZES } from '@/components/tarea-editor/types'
+import { ELEMENT_SIZES, TEAM_COLORS } from '@/components/tarea-editor/types'
 import { abpRoleAbbrev } from '@/lib/abpRoles'
 
 // ============ Utilidades de color ============
@@ -467,6 +467,30 @@ export const ELEMENT_TOOLS: ElementToolMeta[] = [
   { type: 'goal_large', label: 'Portería', grupo: 'material' },
   { type: 'ball_cart', label: 'Carro balones', grupo: 'material' },
 ]
+
+/** Colores al elegir una ficha. El elegido vale para todas las que se coloquen después. */
+export const FICHA_COLORS = [
+  { label: 'Blanco', hex: '#FFFFFF' },
+  { label: 'Negro', hex: '#111827' },
+  { label: 'Rojo', hex: '#EF4444' },
+  { label: 'Azul', hex: '#3B82F6' },
+  { label: 'Verde', hex: '#22C55E' },
+  { label: 'Amarillo', hex: '#EAB308' },
+] as const
+
+export function fichaColor(
+  type: string,
+  overrides: Partial<Record<string, string>>,
+  teamColors?: { team1: string; team2: string }
+): string {
+  const chosen = overrides[type]
+  if (chosen) return chosen
+  if (type === 'player') return teamColors?.team1 || TEAM_COLORS.team1
+  if (type === 'opponent') return teamColors?.team2 || TEAM_COLORS.team2
+  if (type === 'player_gk') return TEAM_COLORS.goalkeeper
+  if (type === 'player_joker') return TEAM_COLORS.joker
+  return ELEMENT_TOOLS.find((tool) => tool.type === type)?.defaultColor || '#FFFFFF'
+}
 
 /** Miniatura del símbolo para los botones de la toolbar. */
 export function SymbolPreview({ type, color, size = 20 }: { type: ElementType; color?: string; size?: number }) {

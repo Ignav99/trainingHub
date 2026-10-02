@@ -5,7 +5,7 @@ import { Save, X, Download, Film, Image as ImageIcon } from 'lucide-react'
 import ABPPitch from '@/components/abp/ABPPitch'
 import {
   DiagramElement, DiagramArrow, DiagramZone, ElementType, ArrowType,
-  Position, TEAM_COLORS, ELEMENT_SIZES, generateId,
+  Position, ELEMENT_SIZES, generateId,
 } from '@/components/tarea-editor/types'
 import { useTacticalBoardStore } from '@/stores/useTacticalBoardStore'
 import { zoneGeometry, type TareaEspacioPatch } from '@/lib/tacticalMetrics'
@@ -17,7 +17,7 @@ import ElementEditPanel, { BoardEditorExtrasContext, type BoardRoleMode } from '
 import GeometryPanel from './GeometryPanel'
 import ABPCampoRolesPanel from '@/components/abp/ABPCampoRolesPanel'
 import BoardArrow from './BoardArrow'
-import { BoardDefs, ElementSymbol, ELEMENT_TOOLS, ROTATABLE_ELEMENTS } from './BoardSymbols'
+import { BoardDefs, ElementSymbol, ELEMENT_TOOLS, ROTATABLE_ELEMENTS, fichaColor } from './BoardSymbols'
 import { RESIZE_HANDLES, HANDLE_CURSORS, type ResizeHandle } from './types'
 import type { Jugador } from '@/types'
 
@@ -356,22 +356,18 @@ export default function TacticalBoardEditor({
 
     pushHistory()
     const elementType = activeTool as ElementType
-    const meta = ELEMENT_TOOLS.find((t) => t.type === elementType)
     let label = ''
-    let color = meta?.defaultColor
+    const pieceColors = useTacticalBoardStore.getState().pieceColorOverrides
+    const color = fichaColor(elementType, pieceColors, teamColors)
 
     if (elementType === 'player') {
       label = String(playerCounter.team1)
-      color = teamColors?.team1 || TEAM_COLORS.team1
     } else if (elementType === 'opponent') {
       label = String(playerCounter.team2)
-      color = teamColors?.team2 || TEAM_COLORS.team2
     } else if (elementType === 'player_gk') {
       label = 'GK'
-      color = TEAM_COLORS.goalkeeper
     } else if (elementType === 'player_joker') {
       label = 'C'
-      color = TEAM_COLORS.joker
     }
 
     addElement({
@@ -1102,6 +1098,7 @@ export default function TacticalBoardEditor({
         onExport={() => setShowExport(true)}
         spaceMetrics={spaceMetrics}
         onToggleSpaceMetrics={() => setSpaceMetrics((on) => !on)}
+        teamColors={teamColors}
       />
 
       {/* Pitch + roles de ABP a la derecha. El campo ocupa solo su proporción;

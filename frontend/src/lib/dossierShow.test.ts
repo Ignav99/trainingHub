@@ -148,8 +148,8 @@ describe('dossier live show builder', () => {
       defensa.map((slide) => slide.title),
       ['Defensa organizada', 'Bloque alto', 'Bloque medio', 'Bloque bajo']
     )
-    assert.deepEqual(defensa[3].kind === 'fase' ? defensa[3].fortalezas : [], ['Cierre de área'])
-    assert.deepEqual(defensa[3].kind === 'fase' ? defensa[3].debilidades : [], ['Espalda del lateral'])
+    assert.deepEqual(defensa[3].kind === 'fase' ? defensa[3].fortalezas : [], [])
+    assert.deepEqual(defensa[3].kind === 'fase' ? defensa[3].debilidades : [], [])
     const chapters = showChapters(show.slides)
     const ataque = chapters.find((chapter) => chapter.id === 'fase:ataque_organizado')
     assert.equal(ataque?.label, 'Ataque organizado')

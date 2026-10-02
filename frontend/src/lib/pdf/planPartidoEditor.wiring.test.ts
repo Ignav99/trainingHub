@@ -29,6 +29,8 @@ describe('plan de partido editor wiring', () => {
     assert.match(plan, /DossierTacticalBoard/)
     assert.match(scout, /DossierTacticalBoard/)
     assert.match(plan, /OrganizedPhaseStack/)
+    assert.match(plan, /variant="plan"/)
+    assert.match(plan, /Objetivo/)
     assert.match(scout, /OrganizedPhaseStack/)
     assert.match(stack, /Comentario general/)
     assert.match(stack, /Fortalezas/)

@@ -300,6 +300,7 @@ export function PlanPartido({
 
                 {subfases && (
                   <OrganizedPhaseStack
+                    variant="plan"
                     idPrefix={section.fase}
                     general={phase.comentario_general ?? ''}
                     onGeneral={(comentario_general) => updatePhase(section.fase, { comentario_general })}
@@ -335,17 +336,20 @@ export function PlanPartido({
 
                 {isTransitionPhase(section.fase) && (
                   <div className="space-y-3">
-                    <Textarea
-                      rows={4}
-                      value={phase.texto ?? ''}
-                      onChange={(e) => updatePhase(section.fase, { texto: e.target.value })}
-                      placeholder={
-                        section.fase === 'transicion_ofensiva'
-                          ? 'Verticalidad, espacios, cambio de ritmo...'
-                          : 'Presión, repliegue, equilibrio...'
-                      }
-                      className="text-sm resize-none"
-                    />
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-foreground">Objetivo</label>
+                      <Textarea
+                        rows={4}
+                        value={phase.texto ?? ''}
+                        onChange={(e) => updatePhase(section.fase, { texto: e.target.value })}
+                        placeholder={
+                          section.fase === 'transicion_ofensiva'
+                            ? 'Verticalidad, espacios, cambio de ritmo...'
+                            : 'Presión, repliegue, equilibrio...'
+                        }
+                        className="text-sm resize-none"
+                      />
+                    </div>
                     {section.fase === 'transicion_ofensiva' && (
                       <DossierTacticalBoard
                         value={phase.pizarra_diagrama}

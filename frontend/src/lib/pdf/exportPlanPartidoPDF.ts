@@ -246,9 +246,7 @@ function planSubHasContent(sub: {
       sub?.sistema?.trim() ||
       sub?.roles?.length ||
       sub?.pizarra_tactica ||
-      diagramHasContent(sub?.pizarra_diagrama) ||
-      sub?.fortalezas?.length ||
-      sub?.debilidades?.length
+      diagramHasContent(sub?.pizarra_diagrama)
   )
 }
 
@@ -409,28 +407,6 @@ function wrappedMm(doc: jsPDF, text: string | undefined, width: number): number 
   return (doc.splitTextToSize(value, width) as string[]).length * 4.4 + 3
 }
 
-function writePlanTagList(
-  doc: jsPDF,
-  label: string,
-  items: string[] | undefined,
-  color: [number, number, number],
-  margin: number,
-  y: number,
-  contentWidth: number,
-): number {
-  if (!items?.length) return y
-  y = ensureSpace(doc, y, 10, margin)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
-  doc.setTextColor(color[0], color[1], color[2])
-  doc.text(label, margin, y)
-  y += 4
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(51, 65, 85)
-  y = writeWrapped(doc, items.join(' · '), margin, y, contentWidth)
-  return y + 3
-}
-
 function planPhaseHeight(
   doc: jsPDF,
   phase: PlanPartidoPhase,
@@ -447,8 +423,6 @@ function planPhaseHeight(
     h += wrappedMm(doc, sub?.notas, contentWidth)
     h += (sub?.roles?.length ?? 0) * 5
     if (sub?.pizarra_tactica || diagramHasContent(sub?.pizarra_diagrama)) h += imageMax + 6
-    if (sub?.fortalezas?.length) h += wrappedMm(doc, sub.fortalezas.join(' · '), contentWidth) + 5
-    if (sub?.debilidades?.length) h += wrappedMm(doc, sub.debilidades.join(' · '), contentWidth) + 5
   }
   if (phase.texto?.trim() && !phase.subfases) h += wrappedMm(doc, phase.texto, contentWidth)
   if (!phase.subfases) {
@@ -555,7 +529,7 @@ export async function exportPlanPartidoPDF(
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(9.5)
       doc.setTextColor(15, 23, 42)
-      doc.text('Comentario general', margin, y)
+      doc.text('Objetivo', margin, y)
       y += 4.5
       doc.setFont('helvetica', 'normal')
       doc.setTextColor(51, 65, 85)
@@ -599,8 +573,6 @@ export async function exportPlanPartidoPDF(
           contentWidth,
           imageMax,
         )
-        y = writePlanTagList(doc, 'Fortalezas', sub.fortalezas, [5, 150, 105], margin, y, contentWidth)
-        y = writePlanTagList(doc, 'Debilidades', sub.debilidades, [220, 38, 38], margin, y, contentWidth)
       }
     }
 
