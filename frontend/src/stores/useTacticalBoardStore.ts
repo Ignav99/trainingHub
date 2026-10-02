@@ -11,10 +11,10 @@ import {
   DiagramSnapshot,
   MAX_HISTORY,
   generateId,
-  TEAM_COLORS,
   Position,
 } from '@/components/tactical-board/types'
 import { compactKeyframes } from '@/components/tactical-board/interpolate'
+import { fichaColor } from '@/components/tactical-board/BoardSymbols'
 import { FORMATIONS } from '@/lib/formations'
 import { metersToUnits } from '@/lib/tacticalMetrics'
 import { normalizeCampoRoles, type ABPRolCampo } from '@/lib/abpCampoRoles'
@@ -180,6 +180,8 @@ interface TacticalBoardState {
   isDirty: boolean
   saving: boolean
   zoneColor: string
+  /** Color elegido para cada tipo de ficha. Las siguientes se colocan con ese color. */
+  pieceColorOverrides: Partial<Record<string, string>>
   playerCounter: { team1: number; team2: number; gk: number; joker: number }
   arrowCounter: number
 
@@ -202,6 +204,7 @@ interface TacticalBoardState {
   addToSelection: (id: string) => void
   selectAll: () => void
   setZoneColor: (color: string) => void
+  setPieceColor: (type: string, color: string) => void
   setSaving: (saving: boolean) => void
   setIsPlaying: (playing: boolean) => void
   markClean: () => void
@@ -292,6 +295,7 @@ const initialState = {
   isDirty: false,
   saving: false,
   zoneColor: '#3B82F6',
+  pieceColorOverrides: {} as Partial<Record<string, string>>,
   playerCounter: { team1: 1, team2: 1, gk: 1, joker: 1 },
   arrowCounter: 1,
   history: [] as DiagramSnapshot[],
@@ -343,6 +347,9 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
     set({ selectedElementIds: ids, selectedElementId: null })
   },
   setZoneColor: (zoneColor) => set({ zoneColor }),
+  setPieceColor: (type, color) => set((state) => ({
+    pieceColorOverrides: { ...state.pieceColorOverrides, [type]: color },
+  })),
   setSaving: (saving) => set({ saving }),
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   markClean: () => set({ isDirty: false }),
@@ -799,7 +806,8 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
 
     const state = get()
     const isHome = team === 'home'
-    const color = isHome ? TEAM_COLORS.team1 : TEAM_COLORS.team2
+    const color = fichaColor(isHome ? 'player' : 'opponent', state.pieceColorOverrides)
+    const gkColor = fichaColor('player_gk', state.pieceColorOverrides)
 
     // Full field is displayed horizontally (1050x680), half is vertical (680x525)
     const isHorizontal = state.pitchType === 'full'
@@ -831,7 +839,7 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
         type: slot.position === 'POR' ? 'player_gk' : (isHome ? 'player' : 'opponent'),
         position: { x, y },
         label: slot.label,
-        color: slot.position === 'POR' ? TEAM_COLORS.goalkeeper : color,
+        color: slot.position === 'POR' ? gkColor : color,
       }
     })
 

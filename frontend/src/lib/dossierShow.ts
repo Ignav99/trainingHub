@@ -217,7 +217,7 @@ export function buildInformeShow(data: Partial<RivalScoutData> | undefined, meta
   const fases = data?.fases ?? []
   for (const fase of SHOW_FASE_ORDER) {
     const phase = fases.find((item) => item.fase === fase)
-    slides.push(...phaseBlock(fase, phase, bulletsFromInforme(phase)))
+    slides.push(...phaseBlock(fase, phase, bulletsFromInforme(phase), true))
   }
   return {
     kind: 'informe',
@@ -233,7 +233,7 @@ export function buildPlanShow(data: Partial<PlanPartidoData> | undefined, meta: 
   const fases = data?.fases ?? []
   for (const fase of SHOW_FASE_ORDER) {
     const phase = fases.find((item) => item.fase === fase)
-    slides.push(...phaseBlock(fase, phase, bulletsFromPlan(phase)))
+    slides.push(...phaseBlock(fase, phase, bulletsFromPlan(phase), false))
   }
   return {
     kind: 'plan',
@@ -512,12 +512,12 @@ function subfaseHasOwnContent(sub: {
   debilidades?: string[]
   pizarra_tactica?: string
   pizarra_diagrama?: TareaPizarraData
-} | undefined): boolean {
+} | undefined, includeTags = true): boolean {
   if (!sub) return false
   return Boolean(
     sub.notas?.trim() ||
-      (sub.fortalezas?.length ?? 0) > 0 ||
-      (sub.debilidades?.length ?? 0) > 0 ||
+      (includeTags && (sub.fortalezas?.length ?? 0) > 0) ||
+      (includeTags && (sub.debilidades?.length ?? 0) > 0) ||
       sub.pizarra_tactica ||
       boardLoops(sub.pizarra_diagrama) ||
       diagramHasContent(sub.pizarra_diagrama)
@@ -526,16 +526,17 @@ function subfaseHasOwnContent(sub: {
 
 function organizedPhaseSlides(
   fase: 'ataque_organizado' | 'defensa_organizada',
-  phase: RivalPhaseAnalysis | PlanPartidoPhase | undefined
+  phase: RivalPhaseAnalysis | PlanPartidoPhase | undefined,
+  includeTags: boolean
 ): ShowSlide[] | null {
   if (!phase) return null
   const keys = ORGANIZED_KEYS[fase]
   const subs = phase.subfases
-  const hasSub = keys.some((key) => subfaseHasOwnContent(subs?.[key]))
+  const hasSub = keys.some((key) => subfaseHasOwnContent(subs?.[key], includeTags))
   const general = (phase.comentario_general || '').trim()
   if (!hasSub && !general) return null
 
-  const anySubTags = keys.some((key) => {
+  const anySubTags = includeTags && keys.some((key) => {
     const sub = subs?.[key]
     return (sub?.fortalezas?.length ?? 0) > 0 || (sub?.debilidades?.length ?? 0) > 0
   })
@@ -546,7 +547,7 @@ function organizedPhaseSlides(
     pushLine(parentBullets, phase.formacion)
     pushLine(parentBullets, phase.espacios)
   }
-  const parentTags = !anySubTags ? tagLists(phase) : { fortalezas: [], debilidades: [] }
+  const parentTags = includeTags && !anySubTags ? tagLists(phase) : { fortalezas: [], debilidades: [] }
 
   const slides: ShowSlide[] = []
   const parent = finalizeBullets(parentBullets)
@@ -565,7 +566,7 @@ function organizedPhaseSlides(
 
   for (const key of keys) {
     const sub = subs?.[key]
-    if (!subfaseHasOwnContent(sub)) continue
+    if (!subfaseHasOwnContent(sub, includeTags)) continue
     const bullets: string[] = []
     pushLine(bullets, sub?.notas)
     const sistema = sub && 'sistema' in sub ? sub.sistema : undefined
@@ -582,8 +583,8 @@ function organizedPhaseSlides(
       kicker: SHOW_FASE_LABELS[fase],
       title: SUBFASE_LABELS[key] ?? key,
       bullets: finalizeBullets(bullets),
-      fortalezas: cleanTags(sub?.fortalezas),
-      debilidades: cleanTags(sub?.debilidades),
+      fortalezas: includeTags ? cleanTags(sub?.fortalezas) : [],
+      debilidades: includeTags ? cleanTags(sub?.debilidades) : [],
       board,
     })
   }
@@ -594,14 +595,15 @@ function organizedPhaseSlides(
 function phaseBlock(
   fase: FasePlanPartido,
   phase: RivalPhaseAnalysis | PlanPartidoPhase | undefined,
-  bullets: string[]
+  bullets: string[],
+  includeTags: boolean
 ): ShowSlide[] {
-  const organized = isOrganizedFase(fase) ? organizedPhaseSlides(fase, phase) : null
+  const organized = isOrganizedFase(fase) ? organizedPhaseSlides(fase, phase, includeTags) : null
   const clips = playableClips(phase && 'clips' in phase ? phase.clips : undefined)
   const board = organized ? undefined : pickBoard(phase)
   const slides: ShowSlide[] = organized ? [...organized] : []
   if (!organized) {
-    const tags = tagLists(phase)
+    const tags = includeTags ? tagLists(phase) : { fortalezas: [], debilidades: [] }
     const notes = bullets.filter(
       (line) => !tags.fortalezas.includes(line) && !tags.debilidades.includes(line)
     )

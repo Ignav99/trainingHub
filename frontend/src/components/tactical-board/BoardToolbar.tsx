@@ -10,7 +10,7 @@ import {
 import { BoardTool, ZONE_COLORS } from './types'
 import { FORMATIONS } from '@/lib/formations'
 import { useTacticalBoardStore } from '@/stores/useTacticalBoardStore'
-import { ELEMENT_TOOLS, SymbolPreview } from './BoardSymbols'
+import { ELEMENT_TOOLS, FICHA_COLORS, SymbolPreview, fichaColor } from './BoardSymbols'
 import { ARROW_STYLES, ARROW_TYPE_ORDER, arrowGeometry, arrowHeadPoints, arrowBarPoints } from './arrowPaths'
 import type { ArrowType } from '@/components/tarea-editor/types'
 
@@ -89,6 +89,7 @@ interface BoardToolbarProps {
   onExport?: () => void
   spaceMetrics?: boolean
   onToggleSpaceMetrics?: () => void
+  teamColors?: { team1: string; team2: string }
 }
 
 export default function BoardToolbar({
@@ -97,6 +98,7 @@ export default function BoardToolbar({
   onExport,
   spaceMetrics = false,
   onToggleSpaceMetrics,
+  teamColors,
 }: BoardToolbarProps) {
   // Barra plegable: al dibujar interesa tener todo el alto para el campo
   const [colapsada, setColapsada] = React.useState(false)
@@ -104,6 +106,7 @@ export default function BoardToolbar({
   const selectedElementId = useTacticalBoardStore((s) => s.selectedElementId)
   const selectedElementIds = useTacticalBoardStore((s) => s.selectedElementIds)
   const zoneColor = useTacticalBoardStore((s) => s.zoneColor)
+  const pieceColorOverrides = useTacticalBoardStore((s) => s.pieceColorOverrides)
   const elements = useTacticalBoardStore((s) => s.elements)
   const arrows = useTacticalBoardStore((s) => s.arrows)
   const zones = useTacticalBoardStore((s) => s.zones)
@@ -114,6 +117,7 @@ export default function BoardToolbar({
 
   const setActiveTool = useTacticalBoardStore((s) => s.setActiveTool)
   const setZoneColor = useTacticalBoardStore((s) => s.setZoneColor)
+  const setPieceColor = useTacticalBoardStore((s) => s.setPieceColor)
   const setPitchType = useTacticalBoardStore((s) => s.setPitchType)
   const deleteSelected = useTacticalBoardStore((s) => s.deleteSelected)
   const clearDiagram = useTacticalBoardStore((s) => s.clearDiagram)
@@ -152,9 +156,32 @@ export default function BoardToolbar({
             onClick={() => setActiveTool(t.type as BoardTool)}
             title={t.label}
           >
-            <SymbolPreview type={t.type} color={t.defaultColor} size={18} />
+            <SymbolPreview type={t.type} color={fichaColor(t.type, pieceColorOverrides, teamColors)} size={18} />
           </ToolButton>
         ))}
+
+        {jugadores.some((t) => t.type === activeTool) && (
+          <div className="flex items-center gap-0.5" role="group" aria-label="Color de la ficha">
+            {FICHA_COLORS.map((swatch) => {
+              const chosen = fichaColor(activeTool, pieceColorOverrides, teamColors)
+              const active = chosen.toUpperCase() === swatch.hex.toUpperCase()
+              return (
+                <button
+                  key={swatch.hex}
+                  type="button"
+                  onClick={() => setPieceColor(activeTool, swatch.hex)}
+                  className={`w-5 h-5 rounded-full border-2 transition-transform ${
+                    active ? 'border-yellow-400 scale-110' : 'border-gray-300'
+                  }`}
+                  style={{ backgroundColor: swatch.hex }}
+                  title={swatch.label}
+                  aria-label={swatch.label}
+                  aria-pressed={active}
+                />
+              )
+            })}
+          </div>
+        )}
 
         <Sep />
 

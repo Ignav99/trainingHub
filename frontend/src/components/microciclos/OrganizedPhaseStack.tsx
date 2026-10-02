@@ -52,6 +52,8 @@ interface OrganizedPhaseStackProps {
   onGeneral: (value: string) => void
   items: OrganizedPhaseItem[]
   onChange: (key: string, patch: OrganizedPhasePatch) => void
+  /** El plan de partido es objetivo + pizarra. El informe del rival conserva fortalezas y debilidades. */
+  variant?: 'plan' | 'informe'
 }
 
 export function OrganizedPhaseStack({
@@ -60,7 +62,9 @@ export function OrganizedPhaseStack({
   onGeneral,
   items,
   onChange,
+  variant = 'informe',
 }: OrganizedPhaseStackProps) {
+  const esPlan = variant === 'plan'
   const [drafts, setDrafts] = useState<Record<string, string>>({})
 
   const setDraft = (draftKey: string, value: string) => {
@@ -80,14 +84,14 @@ export function OrganizedPhaseStack({
     <div className="space-y-4">
       <div className="space-y-1.5">
         <Label htmlFor={`${idPrefix}-comentario-general`} className="text-xs font-semibold text-foreground">
-          Comentario general
+          {esPlan ? 'Objetivo de la fase' : 'Comentario general'}
         </Label>
         <Textarea
           id={`${idPrefix}-comentario-general`}
           rows={3}
           value={general}
           onChange={(e) => onGeneral(e.target.value)}
-          placeholder="Comentario general de esta fase, encima de las tres..."
+          placeholder={esPlan ? 'Qué queremos en esta fase...' : 'Comentario general de esta fase, encima de las tres...'}
           className="text-sm resize-none"
         />
       </div>
@@ -97,14 +101,14 @@ export function OrganizedPhaseStack({
           <h3 className="text-sm font-semibold">{item.label}</h3>
           <div className="space-y-1.5">
             <Label htmlFor={`${idPrefix}-comentario-${item.key}`} className="text-xs text-muted-foreground">
-              Comentario
+              {esPlan ? 'Objetivo' : 'Comentario'}
             </Label>
             <Textarea
               id={`${idPrefix}-comentario-${item.key}`}
               rows={3}
               value={item.notas}
               onChange={(e) => onChange(item.key, { notas: e.target.value })}
-              placeholder={`Comentario de ${item.label.toLowerCase()}...`}
+              placeholder={esPlan ? `Objetivo de ${item.label.toLowerCase()}...` : `Comentario de ${item.label.toLowerCase()}...`}
               className="text-sm resize-none"
             />
           </div>
@@ -113,6 +117,7 @@ export function OrganizedPhaseStack({
             title={`Pizarra · ${item.label}`}
             onChange={(patch) => onChange(item.key, patch)}
           />
+          {!esPlan && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <PhaseTagList
               title="Fortalezas"
@@ -137,6 +142,7 @@ export function OrganizedPhaseStack({
               }
             />
           </div>
+          )}
         </section>
       ))}
     </div>
