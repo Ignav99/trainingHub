@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Upload
 from app.database import get_supabase
 from app.models.video import VideoPartidoCreate, VideoPartidoResponse, VideoPartidoUpdate
 from app.services.revision_service import make_fingerprint
+from app.services.video_trabajo import MODOS_TRABAJO, trabajo_descripcion, video_trabajo_marks
 from app.security.dependencies import AuthContext, require_permission
 from app.security.permissions import Permission
 
@@ -75,7 +76,11 @@ async def list_videos(
         query = query.eq("contexto", contexto)
 
     result = query.execute()
-    return {"data": result.data or []}
+    rows = [
+        row for row in (result.data or [])
+        if row.get("tipo") not in ("local_session", "trabajo_marca")
+    ]
+    return {"data": rows}
 
 
 # ============ LOCAL SESSION (for tagging local files) ============
@@ -142,6 +147,88 @@ async def create_local_session(
         row.pop("local_file_fingerprint", None)
         result = supabase.table("videos_partido").insert(row).execute()
         return result.data[0]
+
+
+# ============ WORK MARK (resume a match that already had a video) ============
+
+@router.get("/trabajo")
+async def list_video_trabajo(
+    equipo_id: UUID = Query(...),
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
+):
+    """Partidos en los que ya se cargó un vídeo, con la tarea para retomarla."""
+    supabase = get_supabase()
+    try:
+        result = (
+            supabase.table("videos_partido")
+            .select("partido_id, tipo, descripcion")
+            .eq("equipo_id", str(equipo_id))
+            .in_("tipo", ["trabajo_marca", "local_session"])
+            .execute()
+        )
+    except Exception:
+        logger.warning("video trabajo list failed", exc_info=True)
+        return {"data": []}
+    return {"data": video_trabajo_marks(result.data or [])}
+
+
+@router.put("/trabajo")
+async def save_video_trabajo(
+    data: dict,
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
+):
+    """Guarda la tarea del partido. El archivo local se puede volver a elegir."""
+    equipo_id = data.get("equipo_id")
+    partido_id = data.get("partido_id")
+    modo = data.get("modo")
+    rival_visto = str(data.get("rival_visto") or "").strip() or None
+    if not equipo_id or not partido_id:
+        raise HTTPException(status_code=400, detail="equipo_id y partido_id son requeridos.")
+    if modo not in MODOS_TRABAJO:
+        raise HTTPException(status_code=400, detail=f"modo inválido. Use: {MODOS_TRABAJO}")
+    if modo == "informe_rival" and not rival_visto:
+        raise HTTPException(status_code=400, detail="rival_visto es requerido para el informe del rival.")
+
+    supabase = get_supabase()
+    if not _verify_partido(supabase, str(partido_id), str(equipo_id)):
+        raise HTTPException(status_code=404, detail="Partido no encontrado.")
+
+    descripcion = trabajo_descripcion(modo, rival_visto)
+    payload = {
+        "partido_id": str(partido_id),
+        "modo": modo,
+        "rival_visto": rival_visto if modo == "informe_rival" else None,
+    }
+    try:
+        existing = (
+            supabase.table("videos_partido")
+            .select("id")
+            .eq("equipo_id", str(equipo_id))
+            .eq("partido_id", str(partido_id))
+            .eq("tipo", "trabajo_marca")
+            .limit(1)
+            .execute()
+        )
+        if existing.data:
+            supabase.table("videos_partido").update({
+                "descripcion": descripcion,
+                "titulo": "Trabajo de vídeo",
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("id", existing.data[0]["id"]).execute()
+            return payload
+        supabase.table("videos_partido").insert({
+            "partido_id": str(partido_id),
+            "equipo_id": str(equipo_id),
+            "tipo": "trabajo_marca",
+            "contexto": "post_partido",
+            "titulo": "Trabajo de vídeo",
+            "descripcion": descripcion,
+            "url": "",
+        }).execute()
+    except Exception as exc:
+        logger.warning("video trabajo save failed: %s", exc)
+        raise HTTPException(status_code=500, detail="No se pudo guardar la marca del partido.") from exc
+    return payload
 
 
 # ============ ADD LINK (Veo / External) ============

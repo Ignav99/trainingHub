@@ -31,7 +31,10 @@ import {
   groupPartidosByMonth,
   localiaLabel,
   matchArchiveLabel,
+  resumeWatchChoice,
   revisionLinkForMode,
+  videoTrabajoBadge,
+  videoTrabajoByPartido,
   watchedMatchNote,
   type VideoWatchMode,
 } from '@/components/video-analyzer/videoAnalisisPicker'
@@ -67,6 +70,15 @@ export default function VideoAnalisisPage() {
     for (const clip of directoClipsRef.current) URL.revokeObjectURL(clip.src)
   }, [])
 
+  const { data: trabajoData, mutate: mutateTrabajo } = useSWR(
+    equipoId ? `/videos/trabajo?equipo_id=${equipoId}` : null,
+    () => videosApi.listTrabajo(equipoId),
+  )
+  const trabajoByPartido = useMemo(
+    () => videoTrabajoByPartido(trabajoData?.data ?? []),
+    [trabajoData?.data],
+  )
+
   const { data: partidosData } = useSWR(
     equipoId ? `/partidos?equipo_id=${equipoId}&limit=80&orden=fecha&direccion=desc` : null,
     () => partidosApi.list({ equipo_id: equipoId, limit: 80, orden: 'fecha', direccion: 'desc' })
@@ -85,6 +97,9 @@ export default function VideoAnalisisPage() {
     [partidosData?.data],
   )
   const selectedPartido = source?.kind === 'match' ? partidos.find((p) => p.id === source.id) || null : null
+  const selectedTrabajo = selectedPartido ? trabajoByPartido.get(selectedPartido.id) : undefined
+  const resumedChoice = resumeWatchChoice(selectedTrabajo)
+  const isResuming = Boolean(selectedTrabajo && watchMode && watchMode === resumedChoice.mode)
   const months = groupPartidosByMonth(partidos)
   const rivalName = selectedPartido?.rival?.nombre_corto || selectedPartido?.rival?.nombre || 'el rival'
   const link = watchMode ? revisionLinkForMode(watchMode) : null
@@ -181,6 +196,14 @@ export default function VideoAnalisisPage() {
     }
 
     setAnalyzerFile(f)
+    if (source?.kind === 'match' && selectedPartido && watchMode) {
+      void videosApi.saveTrabajo({
+        equipo_id: equipoId,
+        partido_id: selectedPartido.id,
+        modo: watchMode,
+        rival_visto: watchMode === 'informe_rival' ? watchedOpponent.trim() : undefined,
+      }).then(() => mutateTrabajo()).catch(() => {})
+    }
     if (fileRef.current) fileRef.current.value = ''
   }
 
@@ -235,12 +258,16 @@ export default function VideoAnalisisPage() {
             <p className="text-sm text-muted-foreground">
               {source?.kind === 'loose'
                 ? 'Vídeo suelto — entrenamiento, charla o lo que sea, sin asociar a un partido'
-                : selectedPartido && watchMode === 'informe_rival'
-                  ? `Informe de ${rivalName}${opponentNote ? ` · ${opponentNote}` : ''}. Al enviar un recorte eliges el partido y si va a su informe, al plan o al informe de partido.`
-                  : selectedPartido && watchMode === 'revision'
-                    ? `Revisión del partido · ${rivalName} · ${localiaLabel(selectedPartido.localia)}`
-                    : selectedPartido
-                      ? `${rivalName} · ${localiaLabel(selectedPartido.localia)}. Elige revisión del partido o informe del rival.`
+                : selectedPartido && isResuming && watchMode === 'informe_rival'
+                  ? `Retomas el informe de ${rivalName}${opponentNote ? ` · ${opponentNote}` : ''}. Al enviar un recorte eliges el partido y la carpeta.`
+                  : selectedPartido && isResuming && watchMode === 'revision'
+                    ? `Retomas la revisión del partido · ${rivalName} · ${localiaLabel(selectedPartido.localia)}`
+                    : selectedPartido && watchMode === 'informe_rival'
+                      ? `Informe de ${rivalName}${opponentNote ? ` · ${opponentNote}` : ''}. Al enviar un recorte eliges el partido y si va a su informe, al plan o al informe de partido.`
+                      : selectedPartido && watchMode === 'revision'
+                        ? `Revisión del partido · ${rivalName} · ${localiaLabel(selectedPartido.localia)}`
+                        : selectedPartido
+                          ? `${rivalName} · ${localiaLabel(selectedPartido.localia)}. Elige revisión del partido o informe del rival.`
                       : 'Elige el partido que vais a jugar, o un vídeo que no va a ningún partido'}
             </p>
             <Button onClick={handleFileSelect} disabled={!canLoad}>
@@ -369,10 +396,12 @@ export default function VideoAnalisisPage() {
                   clubName={clubName}
                   clubCrest={clubCrest}
                   selected={source?.kind === 'match' && source.id === p.id}
+                  trabajo={trabajoByPartido.get(p.id)}
                   onSelect={() => {
+                    const choice = resumeWatchChoice(trabajoByPartido.get(p.id))
                     setSource({ kind: 'match', id: p.id })
-                    setWatchMode(null)
-                    setWatchedOpponent('')
+                    setWatchMode(choice.mode)
+                    setWatchedOpponent(choice.opponent)
                   }}
                 />
               ))}
@@ -471,12 +500,14 @@ function MatchPickCard({
   clubName,
   clubCrest,
   selected,
+  trabajo,
   onSelect,
 }: {
   partido: Partido
   clubName: string
   clubCrest?: string | null
   selected: boolean
+  trabajo?: { partido_id: string; modo: string; rival_visto?: string | null }
   onSelect: () => void
 }) {
   const fecha = new Date(partido.fecha)
@@ -509,8 +540,15 @@ function MatchPickCard({
         </span>
         <TeamCrest src={rightCrest} name={rightName} size="md" />
       </div>
-      <span className="shrink-0 rounded border px-2 py-0.5 text-[10px] uppercase tracking-wide">
-        {localiaLabel(partido.localia)}
+      <span className="flex shrink-0 flex-col items-end gap-1">
+        {trabajo ? (
+          <span className="rounded bg-foreground px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-background">
+            {videoTrabajoBadge(trabajo)}
+          </span>
+        ) : null}
+        <span className="rounded border px-2 py-0.5 text-[10px] uppercase tracking-wide">
+          {localiaLabel(partido.localia)}
+        </span>
       </span>
     </button>
   )
