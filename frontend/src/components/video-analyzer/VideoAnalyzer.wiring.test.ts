@@ -188,20 +188,25 @@ describe('video desk wiring', () => {
     assert.match(send, /matchRevisionFolderId/)
     assert.match(send, /partido_plan/)
     assert.match(send, /sourceFile/)
-    assert.match(send, /lockedAmbito/)
+    assert.match(send, /revision-destino-partido/)
+    assert.match(send, /packQueryForDestino/)
     assert.match(send, /clipNota/)
+    assert.equal(send.includes('lockedAmbito'), false)
   })
 
-  it('files rival footage against other teams into the rival informe, not our match', () => {
+  it('lets any review send cuts to any match report, plan, or rival informe', () => {
     const analyzer = read('VideoAnalyzer.tsx')
     const page = readFileSync(join(here, '../../app/(dashboard)/video-analisis/page.tsx'), 'utf8')
     assert.match(page, /Revisión del partido/)
     assert.match(page, /Informe del rival/)
     assert.match(page, /watched-opponent/)
     assert.match(page, /revisionLinkForMode/)
+    assert.match(page, /destinos=\{destinos\}/)
+    assert.match(page, /defaultDestinoId=\{selectedPartido\?\.id\}/)
     assert.match(analyzer, /informe-rival:/)
-    assert.match(analyzer, /lockedAmbito/)
-    assert.match(analyzer, /revisionPartidoId/)
+    assert.match(analyzer, /suggestedAmbito/)
+    assert.match(analyzer, /destinos/)
+    assert.equal(analyzer.includes('lockedAmbito'), false)
   })
 
   it('opens any local video in the tablet presenter', () => {
