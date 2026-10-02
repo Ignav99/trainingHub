@@ -4,8 +4,10 @@ import {
   canLoadMatchVideo,
   groupPartidosByMonth,
   localiaLabel,
+  resumeWatchChoice,
   revisionLinkForMode,
   matchArchiveLabel,
+  videoTrabajoBadge,
   watchedMatchNote,
   watchModeLabel,
 } from './videoAnalisisPicker.ts'
@@ -61,5 +63,24 @@ describe('video analisis picker', () => {
       watchedOpponent: 'vs Estrella',
     }), 'Herrera vs Estrella 20 sep')
     assert.equal(matchArchiveLabel({ fileName: 'rondos.mp4' }), 'rondos')
+  })
+
+  it('reopens a worked match as the same task, even if the file is loaded again', () => {
+    assert.deepEqual(resumeWatchChoice(null), { mode: null, opponent: '' })
+    assert.deepEqual(resumeWatchChoice({ partido_id: 'p1', modo: 'revision' }), {
+      mode: 'revision',
+      opponent: '',
+    })
+    assert.deepEqual(resumeWatchChoice({
+      partido_id: 'p1',
+      modo: 'informe_rival',
+      rival_visto: 'vs Herrera',
+    }), { mode: 'informe_rival', opponent: 'Herrera' })
+    assert.equal(videoTrabajoBadge({ partido_id: 'p1', modo: 'revision' }), 'Retomar revisión')
+    assert.equal(videoTrabajoBadge({
+      partido_id: 'p1',
+      modo: 'informe_rival',
+      rival_visto: 'Herrera',
+    }), 'Retomar · vs Herrera')
   })
 })

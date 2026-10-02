@@ -105,3 +105,38 @@ export function canLoadMatchVideo(mode: VideoWatchMode | null, watchedOpponent: 
   if (mode === 'informe_rival') return Boolean(watchedMatchNote(watchedOpponent))
   return true
 }
+
+export interface VideoTrabajoMark {
+  partido_id: string
+  modo: VideoWatchMode | string
+  rival_visto?: string | null
+}
+
+export function videoTrabajoByPartido(marks: VideoTrabajoMark[]): Map<string, VideoTrabajoMark> {
+  return new Map(marks.map((mark) => [mark.partido_id, mark]))
+}
+
+/** Al reabrir un partido trabajado, la tarea vuelve sola. */
+export function resumeWatchChoice(mark?: VideoTrabajoMark | null): {
+  mode: VideoWatchMode | null
+  opponent: string
+} {
+  if (!mark) return { mode: null, opponent: '' }
+  if (mark.modo === 'informe_rival') {
+    return {
+      mode: 'informe_rival',
+      opponent: (mark.rival_visto || '').replace(/^vs\.?\s+/i, '').trim(),
+    }
+  }
+  if (mark.modo === 'revision') return { mode: 'revision', opponent: '' }
+  return { mode: null, opponent: '' }
+}
+
+export function videoTrabajoBadge(mark: VideoTrabajoMark): string {
+  if (mark.modo === 'informe_rival') {
+    const note = watchedMatchNote(mark.rival_visto || '')
+    return note ? `Retomar · ${note}` : 'Retomar informe'
+  }
+  if (mark.modo === 'revision') return 'Retomar revisión'
+  return 'Retomar'
+}

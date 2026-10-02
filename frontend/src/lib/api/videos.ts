@@ -40,6 +40,19 @@ export const videosApi = {
     return api.delete(`/videos/${id}`, { params: { equipo_id: equipoId } })
   },
 
+  async listTrabajo(equipoId: string): Promise<{ data: Array<{ partido_id: string; modo: string; rival_visto?: string | null }> }> {
+    return api.get('/videos/trabajo', { params: { equipo_id: equipoId } })
+  },
+
+  async saveTrabajo(data: {
+    equipo_id: string
+    partido_id: string
+    modo: 'revision' | 'informe_rival'
+    rival_visto?: string
+  }): Promise<{ partido_id: string; modo: string; rival_visto?: string | null }> {
+    return api.put('/videos/trabajo', data)
+  },
+
   async createLocalSession(data: {
     partido_id?: string | null
     equipo_id: string
