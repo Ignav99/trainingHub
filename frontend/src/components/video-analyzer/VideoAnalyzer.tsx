@@ -7,7 +7,8 @@ import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
 import { useCodeWindowStore } from './useCodeWindowStore'
 import { SendToRevisionDialog } from '@/components/revision/SendToRevisionDialog'
 import { prefetchRevisionFolders, type RevisionAmbito } from '@/lib/api/revision'
-import { revisionLinkForMode, type VideoWatchMode } from './videoAnalisisPicker'
+import { packQueryForDestino, pickDestinoId, type RevisionDestinoPartido } from '@/lib/revisionDestino'
+import type { VideoWatchMode } from './videoAnalisisPicker'
 import { VideoDeskBotonera } from './VideoDeskBotonera'
 import { VideoDeskFolders } from './VideoDeskFolders'
 import { VideoDeskTimeline } from './VideoDeskTimeline'
@@ -34,6 +35,8 @@ interface VideoAnalyzerProps {
   equipoId: string
   videoId?: string
   rivalId?: string
+  destinos?: RevisionDestinoPartido[]
+  defaultDestinoId?: string
   watchMode?: VideoWatchMode
   watchedOpponent?: string
   rivalName?: string
@@ -48,6 +51,8 @@ export function VideoAnalyzer({
   equipoId,
   videoId,
   rivalId,
+  destinos = [],
+  defaultDestinoId,
   watchMode,
   watchedOpponent,
   rivalName,
@@ -92,10 +97,8 @@ export function VideoAnalyzer({
   })
 
   const informeRival = watchMode === 'informe_rival'
-  const revisionPartidoId = informeRival ? undefined : partidoId
-  const lockedAmbito: RevisionAmbito | undefined = watchMode
-    ? revisionLinkForMode(watchMode).lockAmbito || undefined
-    : undefined
+  const suggestedAmbito: RevisionAmbito = informeRival ? 'rival' : 'partido_post'
+  const destinoInicialId = pickDestinoId(destinos, defaultDestinoId || partidoId)
   const videoKey = informeRival
     ? `informe-rival:${rivalId || 'x'}:${watchedOpponent || localFile?.name || '_local'}`
     : (partidoId || (localFile?.name ?? '_local'))
@@ -128,23 +131,16 @@ export function VideoAnalyzer({
   const revisionClips = (selectedClipIds.length ? selectedClipIds : (selectedClipId ? [selectedClipId] : []))
     .map((id) => events.find((e) => e.id === id))
     .filter((e): e is CodeEvent => !!e)
-  const canSendToRevision = Boolean(revisionPartidoId || rivalId)
+  const canSendToRevision = destinos.length > 0 || Boolean(partidoId || rivalId)
 
   useEffect(() => {
-    if (informeRival) {
-      if (rivalId) {
-        void prefetchRevisionFolders({ equipo_id: equipoId, ambito: 'rival', rival_id: rivalId }).catch(() => {})
-      }
-      return
+    const destino = destinos.find((item) => item.id === destinoInicialId)
+    if (!destino) return
+    const ambitos: RevisionAmbito[] = ['partido_post', 'partido_plan', 'rival']
+    for (const ambito of ambitos) {
+      void prefetchRevisionFolders(packQueryForDestino(equipoId, ambito, destino)).catch(() => {})
     }
-    if (revisionPartidoId) {
-      void prefetchRevisionFolders({ equipo_id: equipoId, ambito: 'partido_post', partido_id: revisionPartidoId }).catch(() => {})
-      void prefetchRevisionFolders({ equipo_id: equipoId, ambito: 'partido_plan', partido_id: revisionPartidoId }).catch(() => {})
-    }
-    if (rivalId) {
-      void prefetchRevisionFolders({ equipo_id: equipoId, ambito: 'rival', rival_id: rivalId }).catch(() => {})
-    }
-  }, [equipoId, informeRival, revisionPartidoId, rivalId])
+  }, [destinos, destinoInicialId, equipoId])
 
   const seekTo = useCallback((time: number) => {
     playerRef.current?.seekTo(time)
@@ -621,9 +617,11 @@ export function VideoAnalyzer({
           onOpenChange={(v) => { if (!v) setSendClipId(null) }}
           onSent={() => setSelectedClipIds([])}
           equipoId={equipoId}
-          partidoId={revisionPartidoId}
+          partidoId={partidoId}
           rivalId={rivalId}
-          lockedAmbito={lockedAmbito}
+          destinos={destinos}
+          defaultPartidoId={destinoInicialId}
+          suggestedAmbito={suggestedAmbito}
           clipNota={informeRival ? watchedOpponent : undefined}
           videoElement={playerRef.current?.getVideoElement() || null}
           sourceFile={localFile}

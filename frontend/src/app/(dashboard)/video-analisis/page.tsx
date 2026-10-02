@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef, lazy, Suspense } from 'react'
+import { useEffect, useMemo, useState, useRef, lazy, Suspense } from 'react'
 import useSWR from 'swr'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { useClubStore } from '@/stores/clubStore'
@@ -36,6 +36,7 @@ import {
   type VideoWatchMode,
 } from '@/components/video-analyzer/videoAnalisisPicker'
 import { revisionApi } from '@/lib/api/revision'
+import { revisionDestinoLabel } from '@/lib/revisionDestino'
 
 const VideoAnalyzer = lazy(() =>
   import('@/components/video-analyzer/VideoAnalyzer').then((m) => ({ default: m.VideoAnalyzer }))
@@ -71,6 +72,18 @@ export default function VideoAnalisisPage() {
     () => partidosApi.list({ equipo_id: equipoId, limit: 80, orden: 'fecha', direccion: 'desc' })
   )
   const partidos = partidosData?.data || []
+  const destinos = useMemo(
+    () => (partidosData?.data ?? []).map((partido) => ({
+      id: partido.id,
+      rivalId: partido.rival_id,
+      label: revisionDestinoLabel({
+        fecha: partido.fecha,
+        rivalName: partido.rival?.nombre_corto || partido.rival?.nombre || 'Rival',
+        localia: partido.localia,
+      }),
+    })),
+    [partidosData?.data],
+  )
   const selectedPartido = source?.kind === 'match' ? partidos.find((p) => p.id === source.id) || null : null
   const months = groupPartidosByMonth(partidos)
   const rivalName = selectedPartido?.rival?.nombre_corto || selectedPartido?.rival?.nombre || 'el rival'
@@ -223,7 +236,7 @@ export default function VideoAnalisisPage() {
               {source?.kind === 'loose'
                 ? 'Vídeo suelto — entrenamiento, charla o lo que sea, sin asociar a un partido'
                 : selectedPartido && watchMode === 'informe_rival'
-                  ? `Informe de ${rivalName}${opponentNote ? ` · ${opponentNote}` : ''}. Los recortes van a su informe, no a la revisión de vuestro partido.`
+                  ? `Informe de ${rivalName}${opponentNote ? ` · ${opponentNote}` : ''}. Al enviar un recorte eliges el partido y si va a su informe, al plan o al informe de partido.`
                   : selectedPartido && watchMode === 'revision'
                     ? `Revisión del partido · ${rivalName} · ${localiaLabel(selectedPartido.localia)}`
                     : selectedPartido
@@ -259,7 +272,7 @@ export default function VideoAnalisisPage() {
                 >
                   <span className="block text-sm font-medium">Informe del rival</span>
                   <span className="mt-0.5 block text-xs text-muted-foreground">
-                    El vídeo es de {rivalName} contra otro equipo. Los recortes se quedan en su informe.
+                    El vídeo es de {rivalName} contra otro equipo. Los recortes pueden ir a cualquier partido.
                   </span>
                 </button>
               </div>
@@ -436,6 +449,8 @@ export default function VideoAnalisisPage() {
             equipoId={equipoId}
             videoId={localVideoId || undefined}
             rivalId={selectedPartido?.rival_id}
+            destinos={destinos}
+            defaultDestinoId={selectedPartido?.id}
             watchMode={watchMode || undefined}
             watchedOpponent={opponentNote}
             rivalName={selectedPartido ? rivalName : undefined}

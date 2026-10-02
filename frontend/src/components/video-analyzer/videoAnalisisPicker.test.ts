@@ -27,8 +27,8 @@ describe('video analisis picker', () => {
   it('keeps rival footage out of our match review and labels the other opponent', () => {
     assert.equal(watchModeLabel('revision'), 'Revisión del partido')
     assert.equal(watchModeLabel('informe_rival'), 'Informe del rival')
-    assert.deepEqual(revisionLinkForMode('revision'), { lockAmbito: null, attachUpcomingMatch: true })
-    assert.deepEqual(revisionLinkForMode('informe_rival'), { lockAmbito: 'rival', attachUpcomingMatch: false })
+    assert.deepEqual(revisionLinkForMode('revision'), { attachUpcomingMatch: true })
+    assert.deepEqual(revisionLinkForMode('informe_rival'), { attachUpcomingMatch: false })
     assert.equal(watchedMatchNote('  Herrera '), 'vs Herrera')
     assert.equal(watchedMatchNote('vs Estrella'), 'vs Estrella')
     assert.equal(watchedMatchNote('   '), undefined)

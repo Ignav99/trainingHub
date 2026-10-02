@@ -16,6 +16,7 @@ import {
 import { peekRevisionFolders, prefetchRevisionFolders, revisionApi, type RevisionAmbito, type RevisionPack } from '@/lib/api/revision'
 import { extractClipRange } from '@/components/video-analyzer/extractClip'
 import { matchRevisionFolderId } from '@/components/video-analyzer/videoDesk'
+import { packQueryForDestino, pickDestinoId, type RevisionDestinoPartido } from '@/lib/revisionDestino'
 
 interface SendToRevisionDialogProps {
   open: boolean
@@ -23,6 +24,9 @@ interface SendToRevisionDialogProps {
   equipoId: string
   partidoId?: string
   rivalId?: string
+  destinos?: RevisionDestinoPartido[]
+  defaultPartidoId?: string
+  suggestedAmbito?: RevisionAmbito
   videoElement: HTMLVideoElement | null
   sourceFile?: File
   clipTitle: string
@@ -31,7 +35,6 @@ interface SendToRevisionDialogProps {
   clips?: { title: string; startTime: number; endTime: number }[]
   sourceVideoId?: string
   preferredFase?: string
-  lockedAmbito?: RevisionAmbito
   clipNota?: string
   onSent?: () => void
 }
@@ -42,6 +45,9 @@ export function SendToRevisionDialog({
   equipoId,
   partidoId,
   rivalId,
+  destinos = [],
+  defaultPartidoId,
+  suggestedAmbito,
   videoElement,
   sourceFile,
   clipTitle,
@@ -50,18 +56,26 @@ export function SendToRevisionDialog({
   clips,
   sourceVideoId,
   preferredFase,
-  lockedAmbito,
   clipNota,
   onSent,
 }: SendToRevisionDialogProps) {
-  const startingAmbito: RevisionAmbito = lockedAmbito || (partidoId ? 'partido_post' : 'rival')
+  const destinosEfectivos = useMemo(() => {
+    if (destinos.length > 0) return destinos
+    if (!partidoId && !rivalId) return []
+    return [{
+      id: partidoId || rivalId || 'actual',
+      rivalId: rivalId || '',
+      label: 'Este partido',
+    }]
+  }, [destinos, partidoId, rivalId])
+  const startingAmbito: RevisionAmbito = suggestedAmbito || (partidoId ? 'partido_post' : 'rival')
+  const startingDestinoId = pickDestinoId(destinosEfectivos, defaultPartidoId || partidoId)
+  const [destinoId, setDestinoId] = useState(startingDestinoId)
   const [ambito, setAmbito] = useState<RevisionAmbito>(startingAmbito)
-  const initialPack = peekRevisionFolders({
-    equipo_id: equipoId,
-    ambito: startingAmbito,
-    partido_id: startingAmbito === 'rival' ? undefined : partidoId,
-    rival_id: startingAmbito === 'rival' ? rivalId : undefined,
-  })
+  const startingDestino = destinosEfectivos.find((item) => item.id === startingDestinoId)
+  const initialPack = startingDestino
+    ? peekRevisionFolders(packQueryForDestino(equipoId, startingAmbito, startingDestino))
+    : null
   const [pack, setPack] = useState<RevisionPack | null>(initialPack)
   const [folderId, setFolderId] = useState<string>(initialPack ? matchRevisionFolderId(initialPack.folders, preferredFase) : '')
   const [titulo, setTitulo] = useState(clipTitle)
@@ -77,15 +91,12 @@ export function SendToRevisionDialog({
     [pack]
   )
 
-  const loadPack = async (next: RevisionAmbito) => {
-    if ((next === 'partido_post' || next === 'partido_plan') && !partidoId) return
-    if (next === 'rival' && !rivalId) return
-    const query = {
-      equipo_id: equipoId,
-      ambito: next,
-      partido_id: (next === 'partido_post' || next === 'partido_plan') && partidoId ? partidoId : undefined,
-      rival_id: next === 'rival' ? rivalId : undefined,
-    }
+  const destino = destinosEfectivos.find((item) => item.id === destinoId) ?? null
+
+  const loadPack = async (next: RevisionAmbito, target = destino) => {
+    if (!target) return
+    if (next === 'rival' && !target.rivalId) return
+    const query = packQueryForDestino(equipoId, next, target)
     const cached = peekRevisionFolders(query)
     if (cached) {
       setPack(cached)
@@ -107,11 +118,16 @@ export function SendToRevisionDialog({
 
   useEffect(() => {
     if (!open) return
+    const nextId = pickDestinoId(destinosEfectivos, defaultPartidoId || partidoId)
+    setDestinoId(nextId)
+    setAmbito(startingAmbito)
     setTitulo(clipTitle)
-    void loadPack(ambito)
-    // The folder list is prefetched with the match. Re-read it when the dialog opens or the informe changes.
+    const target = destinosEfectivos.find((item) => item.id === nextId)
+    if (target) void loadPack(startingAmbito, target)
+    else setLoadingPack(false)
+    // Re-read folders when the dialog opens or the destination changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, ambito, equipoId, partidoId, rivalId])
+  }, [open, equipoId, defaultPartidoId, partidoId, startingAmbito, clipTitle])
 
   const handleOpen = (v: boolean) => {
     onOpenChange(v)
@@ -160,7 +176,9 @@ export function SendToRevisionDialog({
           fase: fase || undefined,
         }, setProgress)
       }
-      toast.success(queue.length > 1 ? `${queue.length} recortes enviados a Revisión` : 'Recorte enviado a Revisión')
+      const carpeta = ambito === 'partido_plan' ? 'plan de partido' : ambito === 'rival' ? 'informe del rival' : 'informe de partido'
+      const donde = destino ? `${destino.label} · ${carpeta}` : carpeta
+      toast.success(queue.length > 1 ? `${queue.length} recortes enviados a ${donde}` : `Recorte enviado a ${donde}`)
       onSent?.()
       onOpenChange(false)
     } catch (e) {
@@ -180,18 +198,32 @@ export function SendToRevisionDialog({
         <div className="space-y-3">
           <p className="text-xs text-muted-foreground">
             Se recorta aquí y solo sube ese fragmento (máx. 3 min). El archivo del partido no sale de este ordenador.
+            Elige el partido de destino y una de las tres carpetas, aunque el vídeo sea de otro partido.
           </p>
-          {lockedAmbito === 'rival' ? (
-            <p className="text-sm">
-              Va al informe del rival{clipNota ? ` · ${clipNota}` : ''}.
-            </p>
-          ) : (
+          <div className="space-y-1">
+            <Label htmlFor="revision-destino-partido">Partido</Label>
+            <select
+              id="revision-destino-partido"
+              className="w-full h-9 rounded-md border bg-background px-2 text-sm"
+              value={destinoId}
+              onChange={(e) => {
+                const nextId = e.target.value
+                setDestinoId(nextId)
+                const target = destinosEfectivos.find((item) => item.id === nextId)
+                if (target) void loadPack(ambito, target)
+              }}
+            >
+              {destinosEfectivos.map((item) => (
+                <option key={item.id} value={item.id}>{item.label}</option>
+              ))}
+            </select>
+          </div>
           <div className="flex gap-2 flex-wrap">
             <Button
               type="button"
               size="sm"
               variant={ambito === 'partido_post' ? 'default' : 'outline'}
-              disabled={!partidoId}
+              disabled={!destino}
               onClick={() => { setAmbito('partido_post'); void loadPack('partido_post') }}
             >
               Informe de partido
@@ -200,22 +232,21 @@ export function SendToRevisionDialog({
               type="button"
               size="sm"
               variant={ambito === 'rival' ? 'default' : 'outline'}
-              disabled={!rivalId}
+              disabled={!destino?.rivalId}
               onClick={() => { setAmbito('rival'); void loadPack('rival') }}
             >
-              Informe Rival
+              Informe del rival
             </Button>
             <Button
               type="button"
               size="sm"
               variant={ambito === 'partido_plan' ? 'default' : 'outline'}
-              disabled={!partidoId}
+              disabled={!destino}
               onClick={() => { setAmbito('partido_plan'); void loadPack('partido_plan') }}
             >
-              Plan de Partido
+              Plan de partido
             </Button>
           </div>
-          )}
           <div className="space-y-1">
             <Label>Carpeta / fase</Label>
             <select

@@ -46,17 +46,13 @@ export function watchModeLabel(mode: VideoWatchMode): string {
 }
 
 /**
- * Informe del rival: el vídeo es de ese rival contra otro equipo.
- * Los recortes van a su informe y no a la revisión del partido que vais a jugar.
+ * Informe del rival: el archivo es de ese rival contra otro equipo, así que no se guarda
+ * como el vídeo de nuestro partido. Al recortar se elige el destino.
  */
 export function revisionLinkForMode(mode: VideoWatchMode): {
-  lockAmbito: 'rival' | null
   attachUpcomingMatch: boolean
 } {
-  if (mode === 'informe_rival') {
-    return { lockAmbito: 'rival', attachUpcomingMatch: false }
-  }
-  return { lockAmbito: null, attachUpcomingMatch: true }
+  return { attachUpcomingMatch: mode !== 'informe_rival' }
 }
 
 /** Etiqueta del partido visto (el rival contra otro equipo), p. ej. "vs Herrera". */
