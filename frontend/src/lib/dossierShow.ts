@@ -40,6 +40,11 @@ const SUBFASE_LABELS: Record<string, string> = {
   bloque_bajo: 'Bloque bajo',
 }
 
+function subfaseLabel(key: string, forPlan: boolean): string {
+  if (forPlan && key === 'bloque_medio') return 'Bloque Mixto'
+  return SUBFASE_LABELS[key] ?? key
+}
+
 const SUBFASE_ORDER = [
   'creacion',
   'progresion',
@@ -581,7 +586,7 @@ function organizedPhaseSlides(
       kind: 'fase',
       fase,
       kicker: SHOW_FASE_LABELS[fase],
-      title: SUBFASE_LABELS[key] ?? key,
+      title: subfaseLabel(key, !includeTags),
       bullets: finalizeBullets(bullets),
       fortalezas: includeTags ? cleanTags(sub?.fortalezas) : [],
       debilidades: includeTags ? cleanTags(sub?.debilidades) : [],
@@ -740,7 +745,7 @@ function bulletsFromPlan(phase: PlanPartidoPhase | undefined): string[] {
   const out: string[] = []
   pushLine(out, phase.texto)
   pushLine(out, phase.sistema)
-  pushSubfaseNotes(out, phase.subfases, true)
+  pushSubfaseNotes(out, phase.subfases, true, true)
   for (const item of phase.jugadas_abp ?? []) {
     pushLine(out, item.comentario || item.jugada_id)
   }
@@ -750,7 +755,8 @@ function bulletsFromPlan(phase: PlanPartidoPhase | undefined): string[] {
 function pushSubfaseNotes(
   out: string[],
   subfases: RivalPhaseAnalysis['subfases'] | PlanPartidoPhase['subfases'],
-  includeSistema = false
+  includeSistema = false,
+  forPlan = false
 ) {
   if (!subfases) return
   for (const key of SUBFASE_ORDER) {
@@ -760,7 +766,7 @@ function pushSubfaseNotes(
       .map((bit) => (typeof bit === 'string' ? bit.trim() : ''))
       .filter(Boolean)
     if (bits.length === 0) continue
-    pushLine(out, `${SUBFASE_LABELS[key] ?? key}: ${bits.join(' · ')}`)
+    pushLine(out, `${subfaseLabel(key, forPlan)}: ${bits.join(' · ')}`)
   }
 }
 

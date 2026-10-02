@@ -52,7 +52,7 @@ const SUBFASE_LABELS: Record<string, string> = {
   progresion: 'Progresión',
   finalizacion: 'Finalización',
   bloque_alto: 'Bloque alto',
-  bloque_medio: 'Bloque medio',
+  bloque_medio: 'Bloque Mixto',
   bloque_bajo: 'Bloque bajo',
 }
 

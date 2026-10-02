@@ -22,6 +22,11 @@ SUBFASE_LABELS = {
     "bloque_bajo": "Bloque bajo",
 }
 
+PLAN_SUBFASE_LABELS = {
+    **SUBFASE_LABELS,
+    "bloque_medio": "Bloque Mixto",
+}
+
 _MAX_CHARS = 7000
 
 
@@ -104,7 +109,7 @@ def _collect_phase_plan(fase: dict) -> dict[str, Any]:
                 continue
             line = _subfase_line(sub, include_sistema=True)
             if line:
-                notes[SUBFASE_LABELS.get(key, key)] = line
+                notes[PLAN_SUBFASE_LABELS.get(key, key)] = line
         if notes:
             payload["subfases"] = notes
     abp = fase.get("jugadas_abp") or []
