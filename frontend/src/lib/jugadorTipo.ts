@@ -148,6 +148,19 @@ export const FASE_TRATAMIENTO_LABELS: Record<string, string> = {
   disponible: 'Disponible',
 }
 
+export type FaseStepperMode = 'tres' | 'full'
+
+/** Los tres estados operativos. Disponible solo si el caso ya está ahí. */
+export function stepperModeForLesion(fase?: string | null): FaseStepperMode {
+  if (fase === 'disponible') return 'full'
+  return 'tres'
+}
+
+export function faseEntrada(fase?: string | null): 'reposo' | 'margen' | 'inicio_grupo' {
+  if (fase === 'margen' || fase === 'inicio_grupo') return fase
+  return 'reposo'
+}
+
 export const FASE_TRATAMIENTO_COLORS: Record<string, string> = {
   reposo: 'bg-red-100 text-red-800 border-red-200',
   margen: 'bg-amber-100 text-amber-800 border-amber-200',

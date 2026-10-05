@@ -38,6 +38,7 @@ import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import { apiKey } from '@/lib/swr'
 import type { PruebaMedica, RegistroMedico } from '@/types'
 import { FaseTratamientoStepper, stepperModeForLesion } from '@/components/ficha-clinica/FaseTratamientoStepper'
+import { PasarMolestiaALesion } from '@/components/enfermeria/PasarMolestiaALesion'
 import { TratamientoCuaderno } from '@/components/ficha-clinica/TratamientoCuaderno'
 import { BodyInjuryMap } from '@/components/ficha-clinica/BodyInjuryMap'
 import { FASE_TRATAMIENTO_LABELS } from '@/lib/jugadorTipo'
@@ -343,7 +344,7 @@ export default function EnfermeriaDetailPage() {
             />
             {registro.tipo === 'lesion' && !isEditing && registro.estado !== 'alta' ? (
               <p className="text-xs text-muted-foreground">
-                Reposo o margen mientras está de baja. Para devolverlo al grupo o darlo de alta usa los botones de abajo.
+                Reposo, margen o inicio grupo. El alta cierra el caso.
               </p>
             ) : (
               <p className="text-xs text-muted-foreground">
@@ -360,9 +361,19 @@ export default function EnfermeriaDetailPage() {
           </CardHeader>
           <CardContent>
           <p className="text-sm text-amber-900">
-            El jugador sigue disponible en plantilla y microciclo. Registra cada sesión de tratamiento
-            (descarga, masaje, hielo…) con fecha, igual que en una lesión. Finaliza o elimina cuando desaparezca.
+            El jugador sigue disponible en plantilla y microciclo. Si la molestia pasa a lesión,
+            elige el tipo y si entra en reposo, margen o inicio grupo.
           </p>
+          <div className="mt-3">
+            <PasarMolestiaALesion
+              registroId={registro.id}
+              onDone={() => {
+                mutate(apiKey(`/medico/${registro.id}`))
+                mutate((key: string) => typeof key === 'string' && key.includes('/jugadores'))
+                mutate((key: string) => typeof key === 'string' && key.includes('/medico'))
+              }}
+            />
+          </div>
           </CardContent>
         </Card>
       ) : null}
@@ -475,21 +486,6 @@ export default function EnfermeriaDetailPage() {
             <Trash2 className="h-4 w-4 mr-2" />
             Eliminar
           </Button>
-          {registro.tipo === 'lesion' && registro.estado !== 'alta' && stepperModeForLesion(registro.fase_tratamiento) === 'lesion' && (
-            <Button
-              variant="outline"
-              onClick={async () => {
-                await medicoApi.update(registro.id, { fase_tratamiento: 'inicio_grupo' })
-                mutate(apiKey(`/medico/${registro.id}`))
-                mutate((key: string) => typeof key === 'string' && key.includes('/jugadores'))
-                toast.success('Pasado a inicio grupo')
-              }}
-              className="text-sky-700 border-sky-300 hover:bg-sky-50"
-            >
-              <Activity className="h-4 w-4 mr-2" />
-              Pasar a inicio grupo
-            </Button>
-          )}
           {registro.tipo !== 'lesion' && registro.tipo !== 'molestias' && registro.estado === 'activo' && (
             <Button variant="outline" onClick={() => setShowRehab(true)} className="text-blue-700 border-blue-300 hover:bg-blue-50">
               <Activity className="h-4 w-4 mr-2" />

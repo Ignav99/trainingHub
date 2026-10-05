@@ -120,6 +120,7 @@ class RegistroMedicoCreate(BaseModel):
 
 class RegistroMedicoUpdate(BaseModel):
     """Schema para actualizar registro medico."""
+    tipo: Optional[TipoRegistroMedico] = None
     titulo: Optional[str] = Field(None, max_length=255)
     descripcion: Optional[str] = None
     diagnostico: Optional[str] = None

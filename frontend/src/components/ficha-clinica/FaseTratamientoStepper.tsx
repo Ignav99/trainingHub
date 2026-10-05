@@ -1,19 +1,16 @@
 'use client'
 
-import { FASE_TRATAMIENTO_LABELS } from '@/lib/jugadorTipo'
+import { FASE_TRATAMIENTO_LABELS, type FaseStepperMode } from '@/lib/jugadorTipo'
 import { cn } from '@/lib/utils'
 
+export { faseEntrada, stepperModeForLesion } from '@/lib/jugadorTipo'
+export type { FaseStepperMode } from '@/lib/jugadorTipo'
+
 const STEPS_FULL = ['reposo', 'margen', 'inicio_grupo', 'disponible'] as const
-const STEPS_LESION = ['reposo', 'margen'] as const
+const STEPS_TRES = ['reposo', 'margen', 'inicio_grupo'] as const
 
 export type FaseTratamiento = typeof STEPS_FULL[number]
-export type FaseStepperMode = 'lesion' | 'full'
-
-/** Lesión nueva: reposo/margen. Si el fisio ya la pasó a grupo o disponible, stepper completo. */
-export function stepperModeForLesion(fase?: string | null): FaseStepperMode {
-  if (fase === 'inicio_grupo' || fase === 'disponible') return 'full'
-  return 'lesion'
-}
+export type FaseEntrada = typeof STEPS_TRES[number]
 
 export function FaseTratamientoStepper({
   value,
@@ -26,10 +23,10 @@ export function FaseTratamientoStepper({
   disabled?: boolean
   mode?: FaseStepperMode
 }) {
-  const steps = mode === 'lesion' ? STEPS_LESION : STEPS_FULL
+  const steps = mode === 'tres' ? STEPS_TRES : STEPS_FULL
   const current = value && (steps as readonly string[]).includes(value) ? value : 'reposo'
   return (
-    <div className={cn('grid gap-1', mode === 'lesion' ? 'grid-cols-2' : 'grid-cols-4')}>
+    <div className={cn('grid gap-1', mode === 'tres' ? 'grid-cols-3' : 'grid-cols-4')}>
       {steps.map((step, i) => {
         const active = current === step
         const passed = (steps as readonly string[]).indexOf(current) >= i
