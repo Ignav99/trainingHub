@@ -27,7 +27,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { EvaluacionCuaderno } from '@/components/ficha-clinica/EvaluacionCuaderno'
 import { HabitosPanel } from '@/components/ficha-clinica/HabitosPanel'
 import { BodyInjuryMap } from '@/components/ficha-clinica/BodyInjuryMap'
-import { FaseTratamientoStepper, stepperModeForLesion } from '@/components/ficha-clinica/FaseTratamientoStepper'
+import { FaseTratamientoStepper, faseEntrada, stepperModeForLesion } from '@/components/ficha-clinica/FaseTratamientoStepper'
+import { PasarMolestiaALesion } from '@/components/enfermeria/PasarMolestiaALesion'
 import { TratamientoCuaderno } from '@/components/ficha-clinica/TratamientoCuaderno'
 import { medicoApi, type CreateRegistroMedicoData } from '@/lib/api/medico'
 import { labelsFromZonas, zonaIds } from '@/lib/bodyRegions'
@@ -246,7 +247,7 @@ function LesionesTab({
       } else if (esMolestia) {
         createData.disponibilidad = 'pleno'
       } else if (tipoNuevo === 'lesion') {
-        createData.fase_tratamiento = nuevoForm.fase_tratamiento === 'margen' ? 'margen' : 'reposo'
+        createData.fase_tratamiento = faseEntrada(nuevoForm.fase_tratamiento)
       } else {
         createData.fase_tratamiento = nuevoForm.fase_tratamiento || 'reposo'
       }
@@ -365,7 +366,7 @@ function LesionesTab({
       <p className="text-xs text-slate-500">
         {modo === 'historial'
           ? 'Lesiones antiguas y altas. Van con el jugador aunque cambie de plantilla.'
-          : 'Lesión abierta: solo reposo o margen. Las molestias se anotan aquí pero el jugador sigue disponible en el programa.'}
+          : 'Una lesión entra en reposo, margen o inicio grupo. Una molestia se puede pasar a lesión y elegir uno de esos tres estados. Mientras sea molestia, el jugador sigue disponible.'}
       </p>
 
       {modo === 'temporada' ? (
@@ -390,9 +391,7 @@ function LesionesTab({
             {activeLesion ? (
               <div className="mt-3">
                 <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">
-                  {stepperModeForLesion(activeLesion.fase_tratamiento) === 'full'
-                    ? 'Fase de la lesión'
-                    : 'Fase de la lesión (reposo / margen)'}
+                  Fase de la lesión
                 </p>
                 <FaseTratamientoStepper
                   mode={stepperModeForLesion(activeLesion.fase_tratamiento)}
@@ -404,19 +403,6 @@ function LesionesTab({
                   }}
                 />
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {stepperModeForLesion(activeLesion.fase_tratamiento) === 'lesion' ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={async () => {
-                        await medicoApi.update(activeLesion.id, { fase_tratamiento: 'inicio_grupo' })
-                        refreshMedico()
-                        toast.success('Pasado a inicio grupo')
-                      }}
-                    >
-                      Pasar a inicio grupo
-                    </Button>
-                  ) : null}
                   <Button size="sm" variant="outline" onClick={() => handleAlta(activeLesion.id)}>
                     Dar alta
                   </Button>
@@ -458,6 +444,7 @@ function LesionesTab({
                       </>
                     ) : (
                       <>
+                        <PasarMolestiaALesion registroId={m.id} onDone={refreshMedico} />
                         <Button size="sm" variant="outline" onClick={() => startEditMolestia(m)}>
                           <Pencil className="mr-1 h-3.5 w-3.5" />
                           Editar
@@ -664,11 +651,11 @@ function LesionesTab({
               <div>
                 <label className="mb-1 block text-sm font-medium">Fase inicial</label>
                 <FaseTratamientoStepper
-                  mode="lesion"
+                  mode="tres"
                   value={nuevoForm.fase_tratamiento || 'reposo'}
-                  onChange={(fase) => setNuevoForm({ ...nuevoForm, fase_tratamiento: fase })}
+                  onChange={(fase) => setNuevoForm({ ...nuevoForm, fase_tratamiento: faseEntrada(fase) })}
                 />
-                <p className="mt-1 text-xs text-slate-500">Una lesión nueva solo puede estar en reposo o margen. Después el fisio edita el estado a inicio grupo o alta.</p>
+                <p className="mt-1 text-xs text-slate-500">Entra en reposo, margen o inicio grupo.</p>
               </div>
             ) : null}
             {!esHistorico && !esMolestia && tipoNuevo !== 'lesion' ? (

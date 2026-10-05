@@ -39,7 +39,7 @@ import { resolveDisponibilidad, visibleEnListaEquipo } from '@/lib/jugadorTipo'
 import { EnfermeriaBoard, EnfermeriaHistorico, type BoardBucket, type PlayerCaseCard } from '@/components/enfermeria/EnfermeriaBoard'
 import { SaludTabs } from '@/components/salud/SaludTabs'
 import { BodyInjuryMap } from '@/components/ficha-clinica/BodyInjuryMap'
-import { FaseTratamientoStepper } from '@/components/ficha-clinica/FaseTratamientoStepper'
+import { FaseTratamientoStepper, faseEntrada } from '@/components/ficha-clinica/FaseTratamientoStepper'
 import { labelsFromZonas } from '@/lib/bodyRegions'
 import { cn } from '@/lib/utils'
 
@@ -325,7 +325,7 @@ export default function EnfermeriaPage() {
       } else if (esMolestia) {
         createData.disponibilidad = 'pleno'
       } else if (tipo === 'lesion') {
-        createData.fase_tratamiento = nuevoForm.fase_tratamiento === 'margen' ? 'margen' : 'reposo'
+        createData.fase_tratamiento = faseEntrada(nuevoForm.fase_tratamiento)
       } else {
         createData.fase_tratamiento = nuevoForm.fase_tratamiento || 'reposo'
       }
@@ -667,12 +667,12 @@ export default function EnfermeriaPage() {
               <div>
                 <label className="text-sm font-medium mb-1 block">Fase inicial</label>
                 <FaseTratamientoStepper
-                  mode="lesion"
+                  mode="tres"
                   value={nuevoForm.fase_tratamiento || 'reposo'}
-                  onChange={(fase) => setNuevoForm({ ...nuevoForm, fase_tratamiento: fase })}
+                  onChange={(fase) => setNuevoForm({ ...nuevoForm, fase_tratamiento: faseEntrada(fase) })}
                 />
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Una lesión nueva solo puede estar en reposo o margen. Después el fisio edita a inicio grupo o alta.
+                  Entra en reposo, margen o inicio grupo.
                 </p>
               </div>
             ) : null}

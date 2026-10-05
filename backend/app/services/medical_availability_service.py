@@ -64,7 +64,9 @@ def disponibilidad_from_fase(fase_rtp: Optional[str]) -> Optional[str]:
     return None
 
 
-LESION_CREATE_FASES = {"reposo", "margen"}
+# Los tres estados operativos en los que puede entrar una lesión.
+ENTRY_FASES = {"reposo", "margen", "inicio_grupo"}
+LESION_TIPOS = {"lesion", "enfermedad", "rehabilitacion", "otro"}
 
 
 def is_molestia(record: dict | str | None) -> bool:
@@ -73,19 +75,44 @@ def is_molestia(record: dict | str | None) -> bool:
     return bool(record) and record.get("tipo") == "molestias"
 
 
+def entry_fase(fase: Optional[str]) -> str:
+    """Reposo, margen o inicio grupo. Cualquier otro valor entra en reposo."""
+    if fase in ENTRY_FASES:
+        return fase
+    return "reposo"
+
+
+def promotion_from_molestia(
+    existing_tipo: Optional[str],
+    new_tipo: Optional[str],
+    fase: Optional[str] = None,
+) -> Optional[dict[str, str]]:
+    """Pasa una molestia a un tipo de lesión y la coloca en uno de los 3 estados."""
+    tipo = new_tipo or existing_tipo or ""
+    if existing_tipo != "molestias" or tipo == "molestias" or tipo not in LESION_TIPOS:
+        return None
+    chosen = entry_fase(fase)
+    return {
+        "tipo": tipo,
+        "fase_tratamiento": chosen,
+        "disponibilidad": FASE_TRATAMIENTO_DISP[chosen],
+        "estado": "activo" if chosen == "reposo" else "en_recuperacion",
+    }
+
+
 def normalize_create_fase(
     tipo: str,
     fase_tratamiento: Optional[str] = None,
     *,
     is_historical: bool = False,
 ) -> tuple[Optional[str], str]:
-    """Fase + disponibilidad al crear. Lesión nueva: solo reposo/margen. Molestias: pleno."""
+    """Fase + disponibilidad al crear. Lesión: reposo, margen o inicio grupo. Molestias: pleno."""
     if is_historical:
         return None, "pleno"
     if tipo == "molestias":
         return None, "pleno"
     if tipo == "lesion":
-        fase = fase_tratamiento if fase_tratamiento in LESION_CREATE_FASES else "reposo"
+        fase = entry_fase(fase_tratamiento)
         return fase, FASE_TRATAMIENTO_DISP[fase]
     if fase_tratamiento in FASE_TRATAMIENTO_DISP:
         return fase_tratamiento, FASE_TRATAMIENTO_DISP[fase_tratamiento]

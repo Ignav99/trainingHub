@@ -40,6 +40,7 @@ from app.services.medical_availability_service import (
     disponibilidad_from_fase_tratamiento,
     is_molestia,
     normalize_create_fase,
+    promotion_from_molestia,
     sync_jugador_disponibilidad,
 )
 logger = logging.getLogger(__name__)
@@ -312,10 +313,14 @@ async def update_registro_medico(
         .single()
         .execute()
     )
-    tipo_actual = (update_data.get("tipo") or (existing_tipo_row.data or {}).get("tipo") or "otro")
+    existing_tipo = (existing_tipo_row.data or {}).get("tipo") or "otro"
+    tipo_actual = update_data.get("tipo") or existing_tipo
+    promo = promotion_from_molestia(existing_tipo, update_data.get("tipo"), update_data.get("fase_tratamiento"))
+    if promo:
+        update_data.update(promo)
 
     # Molestias nunca bajan disponibilidad, aunque arrastren una fase vieja.
-    if is_molestia(tipo_actual):
+    elif is_molestia(tipo_actual):
         update_data["disponibilidad"] = "pleno"
         update_data["fase_tratamiento"] = None
 

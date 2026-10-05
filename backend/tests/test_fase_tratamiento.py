@@ -3,6 +3,7 @@ from app.services.medical_availability_service import (
     disponibilidad_from_fase_tratamiento,
     estado_from_record,
     normalize_create_fase,
+    promotion_from_molestia,
     records_que_afectan_disponibilidad,
     resolve_record_disponibilidad,
 )
@@ -73,10 +74,24 @@ def test_molestias_no_afectan_disponibilidad_del_jugador():
     assert ops[0]["tipo"] == "lesion"
 
 
-def test_lesion_nueva_solo_reposo_o_margen():
-    assert normalize_create_fase("lesion", "inicio_grupo") == ("reposo", "fuera")
+def test_lesion_nueva_entra_en_los_tres_estados():
+    assert normalize_create_fase("lesion", "inicio_grupo") == ("inicio_grupo", "grupo_adaptado")
     assert normalize_create_fase("lesion", "disponible") == ("reposo", "fuera")
     assert normalize_create_fase("lesion", "margen") == ("margen", "individual")
     assert normalize_create_fase("lesion", "reposo") == ("reposo", "fuera")
     assert normalize_create_fase("molestias", "reposo") == (None, "pleno")
     assert normalize_create_fase("lesion", "reposo", is_historical=True) == (None, "pleno")
+
+
+def test_molestia_pasa_a_lesion_en_cualquiera_de_los_tres_estados():
+    assert promotion_from_molestia("molestias", "lesion", "inicio_grupo") == {
+        "tipo": "lesion",
+        "fase_tratamiento": "inicio_grupo",
+        "disponibilidad": "grupo_adaptado",
+        "estado": "en_recuperacion",
+    }
+    assert promotion_from_molestia("molestias", "enfermedad", "margen")["disponibilidad"] == "individual"
+    assert promotion_from_molestia("molestias", "rehabilitacion", "reposo")["estado"] == "activo"
+    assert promotion_from_molestia("molestias", "lesion", "disponible")["fase_tratamiento"] == "reposo"
+    assert promotion_from_molestia("molestias", "molestias", "margen") is None
+    assert promotion_from_molestia("lesion", "enfermedad", "margen") is None
