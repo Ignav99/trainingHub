@@ -475,6 +475,8 @@ export default function SesionDetailPage() {
   }, {} as Record<string, SesionTarea[]>) || {}
 
   const allTareas = sesion?.tareas || []
+  const allTareasRef = useRef(allTareas)
+  allTareasRef.current = allTareas
 
   const bloquesResueltos = useMemo(
     () => resolveEstructura(sesion?.estructura_fases, allTareas),
@@ -524,6 +526,11 @@ export default function SesionDetailPage() {
       }))
       const updated = await sesionesApi.batchUpdateTareas(sesionId, batch)
       setSesion(updated)
+      mutate(
+        (key: string) => typeof key === 'string' && (key.includes('/carga') || key.includes('/rpe')),
+        undefined,
+        { revalidate: true },
+      )
     } catch (err: any) {
       console.error('Error saving tareas:', err)
       toast.error(err?.message || 'No se pudieron guardar las tareas')
@@ -594,26 +601,27 @@ export default function SesionDetailPage() {
   }
 
   const handleUpdateTareaDuration = (tareaId: string, duration: number) => {
-    const newAll = allTareas.map((t) =>
+    const newAll = allTareasRef.current.map((t) =>
       t.id === tareaId ? { ...t, duracion_override: duration } : t
     )
+    allTareasRef.current = newAll
     setSesion((prev) => prev ? { ...prev, tareas: newAll } : prev)
   }
 
-  const handleCommitTareaDuration = (tareaId: string) => {
-    // Save current state on blur/Enter — avoids race conditions with debounce
-    saveTareasBatch(allTareas)
+  const handleCommitTareaDuration = (_tareaId?: string) => {
+    saveTareasBatch(allTareasRef.current)
   }
 
   const handleUpdateTareaEfectivos = (tareaId: string, minutos: number | null) => {
-    const newAll = allTareas.map((t) =>
+    const newAll = allTareasRef.current.map((t) =>
       t.id === tareaId ? { ...t, minutos_efectivos: minutos } : t
     )
+    allTareasRef.current = newAll
     setSesion((prev) => (prev ? { ...prev, tareas: newAll } : prev))
   }
 
   const handleCommitTareaEfectivos = async (tareaId: string) => {
-    const t = allTareas.find((x) => x.id === tareaId)
+    const t = allTareasRef.current.find((x) => x.id === tareaId)
     if (!t) return
     try {
       const updated = await sesionesApi.updateTarea(sesionId, tareaId, {

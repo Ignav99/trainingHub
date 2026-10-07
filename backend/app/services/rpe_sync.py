@@ -3,24 +3,36 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Optional
 from uuid import UUID
 
 from app.services.duracion_efectiva import player_session_minutes
 from app.services.load_calculation_service import recalculate_player_load
+from app.services.sesion_recalculo import (
+    apply_minutes_to_rpe_rows,
+    foster_carga,
+    resolve_rpe_minutes,
+    rpe_fields_for_minutes,
+    should_rewrite_session_rpe,
+)
 
 logger = logging.getLogger(__name__)
 
-
-def foster_carga(rpe: Any, minutos: Any) -> Optional[float]:
-    try:
-        r = float(rpe)
-        m = float(minutos)
-    except (TypeError, ValueError):
-        return None
-    if r <= 0 or m < 0:
-        return None
-    return round(r * m, 1)
+__all__ = [
+    "apply_minutes_to_rpe_rows",
+    "foster_carga",
+    "load_sesion_tareas_rows",
+    "player_minutes_for_sesion",
+    "present_player_ids",
+    "recalc_jugador_safe",
+    "refresh_completed_session_loads",
+    "resolve_rpe_minutes",
+    "rpe_fields_for_minutes",
+    "should_rewrite_session_rpe",
+    "sync_convocatoria_rpe",
+    "upsert_rpe_partido",
+    "upsert_rpe_sesion",
+]
 
 
 def _first_row(resp) -> Optional[dict]:
@@ -191,6 +203,53 @@ def sync_convocatoria_rpe(supabase, conv: dict) -> None:
         rpe=rpe_i,
         minutos=minutos,
     )
+
+
+def present_player_ids(supabase, sesion_id: str) -> set[str]:
+    try:
+        asist = (
+            supabase.table("asistencias_sesion")
+            .select("jugador_id, presente")
+            .eq("sesion_id", str(sesion_id))
+            .eq("presente", True)
+            .execute()
+        )
+    except Exception as e:
+        logger.warning("asistencia para recálculo %s: %s", sesion_id, e)
+        return set()
+    return {str(a.get("jugador_id")) for a in (asist.data or []) if a.get("jugador_id")}
+
+
+def refresh_completed_session_loads(supabase, sesion_id: str, equipo_id: str, extra_ids: set[str] | None = None) -> None:
+    """Recalcula la carga de quienes estuvieron y de quienes tienen RPE de esa sesión.
+
+    Comparte un solo contexto de sesiones para no repetir las lecturas por jugador.
+    """
+    if not equipo_id:
+        return
+    ids = set(extra_ids or set())
+    ids |= present_player_ids(supabase, sesion_id)
+    ids = {jid for jid in ids if jid}
+    if not ids:
+        return
+    try:
+        from datetime import date as date_cls
+
+        from app.services.load_calculation_service import (
+            fetch_session_load_context,
+            recalculate_player_load,
+            series_start,
+        )
+
+        ctx = fetch_session_load_context(supabase, str(equipo_id), series_start(date_cls.today()))
+    except Exception as e:
+        logger.warning("contexto de carga %s: %s", sesion_id, e)
+        return
+    for jid in ids:
+        try:
+            recalculate_player_load(UUID(str(jid)), UUID(str(equipo_id)), session_ctx=ctx)
+        except Exception as e:
+            logger.warning("recalc load %s tras sesión %s: %s", jid, sesion_id, e)
 
 
 def recalc_jugador_safe(jugador_id: str) -> None:

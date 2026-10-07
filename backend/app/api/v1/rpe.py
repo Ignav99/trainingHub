@@ -27,6 +27,9 @@ from app.services.load_calculation_service import recalculate_player_load
 from app.services.rpe_sync import (
     load_sesion_tareas_rows,
     player_minutes_for_sesion,
+    refresh_completed_session_loads,
+    resolve_rpe_minutes,
+    rpe_fields_for_minutes,
     upsert_rpe_sesion,
 )
 from app.services.jugador_tipo import resolve_tipo_jugador, rpe_roster_sort_key
@@ -46,6 +49,44 @@ def _recalc_jugador(jugador_id: str):
             logger.info("Auto-recalc load for player %s", jugador_id)
     except Exception as e:
         logger.error("Error in auto-recalc for %s: %s", jugador_id, e)
+
+
+def _apply_live_session_minutes(supabase, data: dict) -> dict:
+    """Un RPE de sesión usa el tiempo efectivo actual de los ejercicios."""
+    tipo = data.get("tipo") or "sesion"
+    sesion_id = data.get("sesion_id")
+    if tipo != "sesion" or not sesion_id or not data.get("jugador_id"):
+        return data
+    live = player_minutes_for_sesion(supabase, str(sesion_id), str(data["jugador_id"]))
+    mins = resolve_rpe_minutes(live, data.get("duracion_percibida"))
+    data.update(rpe_fields_for_minutes(data.get("rpe"), mins))
+    return data
+
+
+def _recalc_sesion_loads(sesion_id: str, jugador_ids: Optional[list] = None):
+    """Si la sesión ya está jugada, recalcula a todo el que asistió. Si no, solo a esos jugadores."""
+    ids = [str(j) for j in (jugador_ids or []) if j]
+    try:
+        supabase = get_supabase()
+        ses = (
+            supabase.table("sesiones")
+            .select("estado, equipo_id")
+            .eq("id", str(sesion_id))
+            .maybe_single()
+            .execute()
+        )
+        if ses.data and ses.data.get("estado") == "completada" and ses.data.get("equipo_id"):
+            refresh_completed_session_loads(
+                supabase,
+                str(sesion_id),
+                str(ses.data["equipo_id"]),
+                set(ids),
+            )
+            return
+    except Exception as e:
+        logger.error("recalc sesión %s: %s", sesion_id, e)
+    for jid in ids:
+        _recalc_jugador(jid)
 
 router = APIRouter()
 
@@ -381,9 +422,10 @@ async def put_rpe_sesion_asignacion(
             duracion_percibida=mins,
         )
         saved += 1
-        if jid not in seen:
-            seen.add(jid)
-            bg.add_task(_recalc_jugador, jid)
+        seen.add(jid)
+
+    if seen:
+        bg.add_task(_recalc_sesion_loads, str(sesion_id), list(seen))
 
     out = _sesion_rpe_jugadores(supabase, str(sesion_id))
     out.saved = saved
@@ -458,8 +500,10 @@ async def create_rpe(
                 detail=f"No se puede registrar RPE: jugador no disponible ({estado}/{disp})"
             )
 
-    # Calcular carga de sesión (RPE * duración)
-    if data.get("rpe") and data.get("duracion_percibida"):
+    # Sesión: minutos efectivos de los ejercicios. El resto: RPE × duración enviada.
+    if (data.get("tipo") or "sesion") == "sesion" and data.get("sesion_id"):
+        data = _apply_live_session_minutes(supabase, data)
+    elif data.get("rpe") and data.get("duracion_percibida"):
         data["carga_sesion"] = round(data["rpe"] * data["duracion_percibida"], 1)
 
     response = supabase.table("registros_rpe").insert(data).execute()
@@ -489,8 +533,12 @@ async def create_rpe(
                 jugador_id=data["jugador_id"],
             )
 
-    # Auto-recalculate player load in background
-    bg.add_task(_recalc_jugador, data["jugador_id"])
+    # Auto-recalculate player load in background. Si es de una sesión ya
+    # jugada, también a los compañeros: su carga imputada depende de esta media.
+    if data.get("sesion_id") and (data.get("tipo") or "sesion") == "sesion":
+        bg.add_task(_recalc_sesion_loads, data["sesion_id"], [data["jugador_id"]])
+    else:
+        bg.add_task(_recalc_jugador, data["jugador_id"])
 
     return RPEResponse(**created)
 
@@ -530,14 +578,26 @@ async def create_rpe_batch(
             data["sesion_id"] = str(data["sesion_id"])
         if data.get("partido_id"):
             data["partido_id"] = str(data["partido_id"])
-        if data.get("rpe") and data.get("duracion_percibida"):
+        if (data.get("tipo") or "sesion") == "sesion" and data.get("sesion_id"):
+            data = _apply_live_session_minutes(supabase, data)
+        elif data.get("rpe") and data.get("duracion_percibida"):
             data["carga_sesion"] = round(data["rpe"] * data["duracion_percibida"], 1)
         items.append(data)
 
     response = supabase.table("registros_rpe").insert(items).execute()
 
-    # Auto-recalculate load for all affected players in background
-    for jid in jugador_ids:
+    by_sesion: dict[str, list[str]] = {}
+    loose: list[str] = []
+    for item in items:
+        jid = item.get("jugador_id")
+        sid = item.get("sesion_id")
+        if jid and sid and (item.get("tipo") or "sesion") == "sesion":
+            by_sesion.setdefault(str(sid), []).append(str(jid))
+        elif jid:
+            loose.append(str(jid))
+    for sid, ids in by_sesion.items():
+        bg.add_task(_recalc_sesion_loads, sid, ids)
+    for jid in loose:
         bg.add_task(_recalc_jugador, jid)
 
     return {"created": len(response.data), "data": response.data}
@@ -570,11 +630,21 @@ async def update_rpe(
             detail="No hay campos para actualizar"
         )
 
-    # Recalculate carga_sesion if rpe or duracion changed
+    # Recalculate carga. En una sesión, los minutos salen de los ejercicios actuales.
     new_rpe = update_data.get("rpe", existing.data.get("rpe"))
-    new_dur = update_data.get("duracion_percibida", existing.data.get("duracion_percibida"))
-    if new_rpe and new_dur:
-        update_data["carga_sesion"] = round(new_rpe * new_dur, 1)
+    tipo = existing.data.get("tipo") or "sesion"
+    sesion_id = existing.data.get("sesion_id")
+    if tipo == "sesion" and sesion_id:
+        requested = update_data.get("duracion_percibida", existing.data.get("duracion_percibida"))
+        live = player_minutes_for_sesion(
+            supabase, str(sesion_id), str(existing.data.get("jugador_id"))
+        )
+        mins = resolve_rpe_minutes(live, requested)
+        update_data.update(rpe_fields_for_minutes(new_rpe, mins))
+    else:
+        new_dur = update_data.get("duracion_percibida", existing.data.get("duracion_percibida"))
+        if new_rpe and new_dur:
+            update_data["carga_sesion"] = round(new_rpe * new_dur, 1)
 
     # Serialize date to string for Supabase
     if "fecha" in update_data and hasattr(update_data["fecha"], "isoformat"):
@@ -595,8 +665,11 @@ async def update_rpe(
             detail="Error al actualizar registro RPE"
         )
 
-    # Auto-recalculate player load in background
-    bg.add_task(_recalc_jugador, existing.data["jugador_id"])
+    jugador_id = existing.data.get("jugador_id")
+    if tipo == "sesion" and sesion_id and jugador_id:
+        bg.add_task(_recalc_sesion_loads, str(sesion_id), [str(jugador_id)])
+    elif jugador_id:
+        bg.add_task(_recalc_jugador, jugador_id)
 
     return RPEResponse(**response.data)
 
@@ -610,7 +683,7 @@ async def delete_rpe(
     """Elimina un registro RPE."""
     supabase = get_supabase()
 
-    existing = supabase.table("registros_rpe").select("id, jugador_id").eq(
+    existing = supabase.table("registros_rpe").select("id, jugador_id, sesion_id, tipo").eq(
         "id", str(rpe_id)
     ).single().execute()
 
@@ -621,10 +694,13 @@ async def delete_rpe(
         )
 
     jugador_id = existing.data.get("jugador_id")
+    sesion_id = existing.data.get("sesion_id")
+    tipo = existing.data.get("tipo") or "sesion"
     supabase.table("registros_rpe").delete().eq("id", str(rpe_id)).execute()
 
-    # Auto-recalculate player load in background
-    if jugador_id:
+    if tipo == "sesion" and sesion_id and jugador_id:
+        bg.add_task(_recalc_sesion_loads, str(sesion_id), [str(jugador_id)])
+    elif jugador_id:
         bg.add_task(_recalc_jugador, jugador_id)
 
     return None
