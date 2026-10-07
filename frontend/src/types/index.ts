@@ -368,6 +368,8 @@ export interface SesionTarea {
   notas?: string
   responsable?: string
   carga_calculada?: number
+  /** Jugadores al margen o con fisio que entran en esta tarea. */
+  jugadores_margen?: string[]
   created_at: string
   // Relación
   tarea?: Tarea
@@ -2630,6 +2632,8 @@ export interface EntrenamientoMargenTarea {
   titulo_custom?: string
   descripcion_custom?: string
   duracion?: number
+  /** Minutos que entran en la carga. Vacío = duración del ejercicio. */
+  minutos_efectivos?: number | null
   series: number
   repeticiones?: string
   descanso?: string
@@ -2646,6 +2650,7 @@ export interface EntrenamientoMargenTareaCreate {
   titulo_custom?: string
   descripcion_custom?: string
   duracion?: number
+  minutos_efectivos?: number | null
   series?: number
   repeticiones?: string
   descanso?: string

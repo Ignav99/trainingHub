@@ -313,6 +313,26 @@ def player_session_loads(ctx: SessionLoadContext, jugador_id: str) -> dict[date,
     jid = str(jugador_id)
     for session in ctx.sessions:
         sid = session["id"]
+        custom = session.get("player_minutes") or {}
+        if jid in custom:
+            real = ctx.real.get((jid, sid), 0.0)
+            if real > 0:
+                loads[session["fecha"]] += real
+                continue
+            try:
+                mins = int(custom[jid] or 0)
+            except (TypeError, ValueError):
+                mins = 0
+            # 0 minutos nombrados: no hereda la carga de quien hizo la sesión entera.
+            if mins <= 0:
+                continue
+            session_mins = session["minutes"] or 0
+            peer = session.get("peer_mean")
+            if peer and session_mins > 0:
+                loads[session["fecha"]] += round(float(peer) * (mins / session_mins), 1)
+            else:
+                loads[session["fecha"]] += round(DEFAULT_SESSION_RPE * mins, 1)
+            continue
         real = ctx.real.get((jid, sid), 0.0)
         if real > 0:
             loads[session["fecha"]] += real
@@ -373,17 +393,23 @@ def fetch_session_load_context(supabase, equipo_id: str, since: date) -> Session
         if not session_rows:
             return empty
         ids = [str(s["id"]) for s in session_rows if s.get("id")]
-        try:
-            attendance = _rows_in(
-                supabase,
-                "asistencias_sesion",
-                "sesion_id, jugador_id, presente",
-                "sesion_id",
-                ids,
-            )
-        except Exception as e:
-            logger.warning("asistencia para carga %s: %s", equipo_id, e)
-            attendance = []
+        attendance = []
+        for columns in (
+            "sesion_id, jugador_id, presente, tipo_participacion",
+            "sesion_id, jugador_id, presente",
+        ):
+            try:
+                attendance = _rows_in(
+                    supabase,
+                    "asistencias_sesion",
+                    columns,
+                    "sesion_id",
+                    ids,
+                )
+                break
+            except Exception as e:
+                logger.warning("asistencia para carga %s: %s", equipo_id, e)
+                attendance = []
         try:
             rpe_rows = _rows_in(
                 supabase,
@@ -395,7 +421,18 @@ def fetch_session_load_context(supabase, equipo_id: str, since: date) -> Session
         except Exception as e:
             logger.warning("rpe para carga %s: %s", equipo_id, e)
             rpe_rows = []
-        return build_session_load_context(session_rows, attendance, rpe_rows)
+        ctx = build_session_load_context(session_rows, attendance, rpe_rows)
+        try:
+            from app.services.rpe_sync import minute_overrides_for_sessions
+
+            overrides = minute_overrides_for_sessions(supabase, ids, attendance)
+            for session in ctx.sessions:
+                custom = overrides.get(session["id"])
+                if custom:
+                    session["player_minutes"] = custom
+        except Exception as e:
+            logger.warning("minutos parciales para carga %s: %s", equipo_id, e)
+        return ctx
     except Exception as e:
         logger.error("Error armando contexto de carga %s: %s", equipo_id, e)
         return empty

@@ -50,6 +50,7 @@ class EntrenamientoMargenTareaCreate(BaseModel):
     titulo_custom: Optional[str] = Field(None, max_length=255)
     descripcion_custom: Optional[str] = None
     duracion: Optional[int] = Field(None, ge=1)
+    minutos_efectivos: Optional[int] = Field(None, ge=0)
     series: int = Field(default=1, ge=1)
     repeticiones: Optional[str] = Field(None, max_length=50)
     descanso: Optional[str] = Field(None, max_length=50)
@@ -66,6 +67,7 @@ class EntrenamientoMargenTareaResponse(BaseModel):
     titulo_custom: Optional[str] = None
     descripcion_custom: Optional[str] = None
     duracion: Optional[int] = None
+    minutos_efectivos: Optional[int] = None
     series: int = 1
     repeticiones: Optional[str] = None
     descanso: Optional[str] = None

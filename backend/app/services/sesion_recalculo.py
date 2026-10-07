@@ -22,6 +22,19 @@ def foster_carga(rpe: Any, minutos: Any) -> Optional[float]:
     return round(r * m, 1)
 
 
+def resolve_player_rpe_minutes(live_minutes: Any, requested: Any, *, parcial: bool = False) -> int:
+    """Parcial: 0 minutos es real (no hizo tareas nombradas ni margen).
+
+    Sesión completa sin ejercicios conserva el minutaje provisional.
+    """
+    if parcial:
+        try:
+            return max(0, int(live_minutes or 0))
+        except (TypeError, ValueError):
+            return 0
+    return resolve_rpe_minutes(live_minutes, requested)
+
+
 def resolve_rpe_minutes(live_minutes: Any, requested: Any) -> int:
     """Minutos que entran en Foster al guardar un RPE de sesión.
 

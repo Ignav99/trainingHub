@@ -6,7 +6,10 @@ El trabajo (`minutos_efectivos`) es lo que entra en carga interna/externa.
 
 from __future__ import annotations
 
+import re
 from typing import Any, Optional
+
+_MARGEN_EFE_RE = re.compile(r"\n?\[\[efe:(\d+)\]\]\s*$")
 
 COMPENSATORIO_MIN_LANES = 2
 COMPENSATORIO_MAX_LANES = 8
@@ -156,20 +159,109 @@ def player_compensatorio_fases(estructura: list | None, jugador_id: str) -> set[
     return fases
 
 
-def player_session_minutes(
-    sesion_tareas: list[dict],
-    estructura: list | None,
-    jugador_id: str,
-) -> int:
-    """Minutos efectivos que ese jugador trabajó (lanes paralelos no se suman al resto)."""
-    fases = player_compensatorio_fases(estructura, jugador_id)
+def is_partial_participation(tipos: Any) -> bool:
+    """Margen o fisio sin hacer la sesión entera.
+
+    Vacío, «sesion» o «presente» cuentan el bloque completo. Sesión + margen
+    sigue siendo sesión entera (los minutos de margen se suman aparte).
+    """
+    cleaned = [str(t) for t in (tipos or []) if t]
+    if not cleaned or "sesion" in cleaned or "presente" in cleaned:
+        return False
+    return "margen" in cleaned or "fisio" in cleaned
+
+
+def margin_minutes_for_tipos(tipos: Any, plan_minutes: Any) -> int:
+    """Minutos del plan al margen que entran en la carga de ese jugador."""
+    try:
+        plan = max(0, int(plan_minutes or 0))
+    except (TypeError, ValueError):
+        plan = 0
+    cleaned = [str(t) for t in (tipos or []) if t]
+    if "margen" in cleaned or is_partial_participation(cleaned):
+        return plan
+    return 0
+
+
+def minutos_plan_margen(tareas: list | None, duracion_estimada: Any = None) -> int:
+    """Tiempo efectivo del trabajo al margen.
+
+    Si hay ejercicios, suma su tiempo efectivo (o la duración si no se asignó).
+    Sin ejercicios, vale la duración estimada del plan. No se suman las dos.
+    """
+    rows = [t for t in (tareas or []) if isinstance(t, dict)]
+    if rows:
+        total = 0
+        for tarea in rows:
+            raw = tarea.get("minutos_efectivos")
+            if raw is not None and raw != "":
+                try:
+                    total += max(0, int(raw))
+                    continue
+                except (TypeError, ValueError):
+                    pass
+            try:
+                total += max(0, int(tarea.get("duracion") or 0))
+            except (TypeError, ValueError):
+                pass
+        return total
+    try:
+        return max(0, int(duracion_estimada or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def named_players_on_task(st: dict) -> list:
+    """Ids marcados en la columna o, si aún no existe, dentro de la formación."""
+    raw = st.get("jugadores_margen") or []
+    if not isinstance(raw, list) or not raw:
+        form = st.get("formacion_equipos")
+        if isinstance(form, dict):
+            raw = form.get("jugadores_margen") or []
+    if not isinstance(raw, list):
+        return []
+    return [x for x in raw if x]
+
+
+def player_named_on_task(st: dict, jugador_id: str) -> bool:
+    jid = str(jugador_id)
+    return any(str(x) == jid for x in named_players_on_task(st))
+
+
+def split_margen_efectivo(notas: Any, minutos_efectivos: Any = None) -> tuple[Optional[str], Optional[int]]:
+    """Separa el marcador [[efe:N]] de las notas del ejercicio al margen.
+
+    Sirve mientras la columna minutos_efectivos no está en la base.
+    """
+    text = "" if notas is None else str(notas)
+    match = _MARGEN_EFE_RE.search(text)
+    parsed = int(match.group(1)) if match else None
+    clean = _MARGEN_EFE_RE.sub("", text).strip()
+    efectivos = minutos_efectivos
+    if efectivos is None or efectivos == "":
+        efectivos = parsed
+    try:
+        efectivos_n = None if efectivos is None or efectivos == "" else max(0, int(efectivos))
+    except (TypeError, ValueError):
+        efectivos_n = parsed
+    return (clean or None), efectivos_n
+
+
+def stamp_margen_notas(notas: Any, minutos_efectivos: Any) -> Optional[str]:
+    clean, _ = split_margen_efectivo(notas, None)
+    if minutos_efectivos is None or minutos_efectivos == "":
+        return clean
+    try:
+        n = max(0, int(minutos_efectivos))
+    except (TypeError, ValueError):
+        return clean
+    base = clean or ""
+    return f"{base}\n[[efe:{n}]]".strip()
+
+
+def _partido_minutes(estructura: list | None, jugador_id: str) -> int:
     total = 0
-    for st in sesion_tareas or []:
-        fase = st.get("fase_sesion")
-        if is_compensatorio_fase(fase):
-            if fase not in fases:
-                continue
-        total += minutos_carga_sesion_tarea(st)
+    jid = str(jugador_id)
     for bloque in estructura or []:
         if not isinstance(bloque, dict) or bloque.get("tipo") != "partido_condicionado":
             continue
@@ -179,11 +271,46 @@ def player_session_minutes(
         peto = list((partido.get("equipo_peto") or {}).values())
         sin = list((partido.get("equipo_sin_peto") or {}).values())
         ids = {str(x) for x in peto + sin if x}
-        if str(jugador_id) in ids:
-            try:
-                total += int(partido.get("duracion_min") or bloque.get("duracion_objetivo") or 0)
-            except (TypeError, ValueError):
-                pass
+        if jid not in ids:
+            continue
+        try:
+            total += int(partido.get("duracion_min") or bloque.get("duracion_objetivo") or 0)
+        except (TypeError, ValueError):
+            pass
+    return total
+
+
+def player_session_minutes(
+    sesion_tareas: list[dict],
+    estructura: list | None,
+    jugador_id: str,
+    *,
+    parcial: bool = False,
+    minutos_margen: int = 0,
+) -> int:
+    """Minutos efectivos que ese jugador trabajó (lanes paralelos no se suman al resto).
+
+    Un jugador parcial (margen o fisio, sin sesión completa) solo suma las tareas
+    en las que está nombrado, más el tiempo de su trabajo al margen.
+    """
+    jid = str(jugador_id)
+    total = 0
+    if parcial:
+        for st in sesion_tareas or []:
+            if player_named_on_task(st, jid):
+                total += minutos_carga_sesion_tarea(st)
+    else:
+        fases = player_compensatorio_fases(estructura, jid)
+        for st in sesion_tareas or []:
+            fase = st.get("fase_sesion")
+            if is_compensatorio_fase(fase) and fase not in fases:
+                continue
+            total += minutos_carga_sesion_tarea(st)
+    total += _partido_minutes(estructura, jid)
+    try:
+        total += max(0, int(minutos_margen or 0))
+    except (TypeError, ValueError):
+        pass
     return total
 
 

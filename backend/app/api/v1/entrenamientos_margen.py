@@ -3,9 +3,13 @@ TrainingHub Pro - Router de Entrenamientos al Margen
 CRUD para entrenamientos personalizados de jugadores al margen.
 """
 
+import logging
+
 from fastapi import APIRouter, HTTPException, Depends, status
 from typing import List
 from uuid import UUID
+
+logger = logging.getLogger(__name__)
 
 from app.models.entrenamiento_margen import (
     EntrenamientoMargenCreate,
@@ -15,10 +19,47 @@ from app.models.entrenamiento_margen import (
     EntrenamientoMargenTareaResponse,
 )
 from app.database import get_supabase
+from app.services.duracion_efectiva import split_margen_efectivo, stamp_margen_notas
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
 
 router = APIRouter()
+
+
+def _present_margen_tarea(row: dict) -> dict:
+    row = dict(row or {})
+    clean, efectivos = split_margen_efectivo(row.get("notas"), row.get("minutos_efectivos"))
+    row["notas"] = clean
+    if efectivos is not None:
+        row["minutos_efectivos"] = efectivos
+    return row
+
+
+def _prepare_margen_tarea(tarea_data: dict) -> dict:
+    data = dict(tarea_data)
+    data["notas"] = stamp_margen_notas(data.get("notas"), data.get("minutos_efectivos"))
+    return data
+
+
+def _insert_margen_tarea(supabase, tarea_data: dict):
+    try:
+        return supabase.table("entrenamientos_margen_tareas").insert(tarea_data).execute()
+    except Exception as e:
+        if "minutos_efectivos" in str(e).lower() and "minutos_efectivos" in tarea_data:
+            slim = {k: v for k, v in tarea_data.items() if k != "minutos_efectivos"}
+            return supabase.table("entrenamientos_margen_tareas").insert(slim).execute()
+        raise
+
+
+def _touch_sesion_carga(supabase, sesion_id) -> None:
+    """El tiempo al margen entra en la carga del jugador."""
+    if not sesion_id:
+        return
+    try:
+        from app.api.v1.sesiones import _recalc_sesion_carga
+        _recalc_sesion_carga(supabase, str(sesion_id))
+    except Exception as e:
+        logger.warning("recálculo tras margen %s: %s", sesion_id, e)
 
 
 def _enrich_entrenamiento(ent: dict, tareas: list = None, jugador: dict = None) -> dict:
@@ -47,7 +88,7 @@ def _fetch_tareas(supabase, entrenamiento_id: str) -> list:
         tarea_lib = t.pop("tareas", None)
         if tarea_lib:
             t["tarea"] = tarea_lib
-        tareas.append(t)
+        tareas.append(_present_margen_tarea(t))
     return tareas
 
 
@@ -126,14 +167,15 @@ async def create_entrenamiento_margen(
         if tarea_data.get("tarea_id"):
             tarea_data["tarea_id"] = str(tarea_data["tarea_id"])
 
-        t_res = supabase.table("entrenamientos_margen_tareas").insert(tarea_data).execute()
-        tareas_created.append(t_res.data[0])
+        t_res = _insert_margen_tarea(supabase, _prepare_margen_tarea(tarea_data))
+        tareas_created.append(_present_margen_tarea(t_res.data[0]))
 
     # Fetch jugador
     jug_res = supabase.table("jugadores").select(
         "id, nombre, apellidos, dorsal, posicion_principal, foto_url"
     ).eq("id", str(data.jugador_id)).single().execute()
 
+    _touch_sesion_carga(supabase, data.sesion_id)
     return _enrich_entrenamiento(created, tareas_created, jug_res.data)
 
 
@@ -195,6 +237,7 @@ async def update_entrenamiento_margen(
     jugador = ent.pop("jugadores", None)
     tareas = _fetch_tareas(supabase, ent["id"])
 
+    _touch_sesion_carga(supabase, ent.get("sesion_id"))
     return _enrich_entrenamiento(ent, tareas, jugador)
 
 
@@ -207,9 +250,14 @@ async def delete_entrenamiento_margen(
 ):
     """Elimina un entrenamiento al margen (CASCADE elimina tareas)."""
     supabase = get_supabase()
+    parent = supabase.table("entrenamientos_margen").select("sesion_id").eq(
+        "id", str(entrenamiento_id)
+    ).maybe_single().execute()
+    sesion_id = (parent.data or {}).get("sesion_id") if parent else None
     supabase.table("entrenamientos_margen").delete().eq(
         "id", str(entrenamiento_id)
     ).execute()
+    _touch_sesion_carga(supabase, sesion_id)
 
 
 # ─── REPLACE TAREAS (BATCH) ───────────────────────────────
@@ -224,7 +272,7 @@ async def replace_tareas(
     supabase = get_supabase()
 
     # Verify parent exists
-    parent_res = supabase.table("entrenamientos_margen").select("id").eq(
+    parent_res = supabase.table("entrenamientos_margen").select("id, sesion_id").eq(
         "id", str(entrenamiento_id)
     ).single().execute()
     if not parent_res.data:
@@ -244,7 +292,8 @@ async def replace_tareas(
         if tarea_data.get("tarea_id"):
             tarea_data["tarea_id"] = str(tarea_data["tarea_id"])
 
-        t_res = supabase.table("entrenamientos_margen_tareas").insert(tarea_data).execute()
-        created.append(t_res.data[0])
+        t_res = _insert_margen_tarea(supabase, _prepare_margen_tarea(tarea_data))
+        created.append(_present_margen_tarea(t_res.data[0]))
 
+    _touch_sesion_carga(supabase, parent_res.data.get("sesion_id"))
     return created

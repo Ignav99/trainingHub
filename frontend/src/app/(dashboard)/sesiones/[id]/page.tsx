@@ -58,6 +58,7 @@ import { SesionDefinirForm } from '@/components/sesiones/SesionDefinirForm'
 import { SesionMaterialPanel } from '@/components/sesiones/SesionMaterialPanel'
 import { SesionBloquesPanel } from '@/components/sesiones/SesionBloquesPanel'
 import { sesionesApi, SesionUpdateData } from '@/lib/api/sesiones'
+import { isPartialParticipation } from '@/lib/participacionSesion'
 import { microciclosApi } from '@/lib/api/microciclos'
 import { jugadoresApi } from '@/lib/api/jugadores'
 import {
@@ -523,6 +524,7 @@ export default function SesionDetailPage() {
         minutos_efectivos: t.minutos_efectivos ?? undefined,
         notas: t.notas || undefined,
         responsable: t.responsable || undefined,
+        jugadores_margen: t.jugadores_margen || [],
       }))
       const updated = await sesionesApi.batchUpdateTareas(sesionId, batch)
       setSesion(updated)
@@ -618,6 +620,20 @@ export default function SesionDetailPage() {
     )
     allTareasRef.current = newAll
     setSesion((prev) => (prev ? { ...prev, tareas: newAll } : prev))
+  }
+
+  const handleToggleMargenJugador = (tareaId: string, jugadorId: string) => {
+    const newAll = allTareasRef.current.map((t) => {
+      if (t.id !== tareaId) return t
+      const current = t.jugadores_margen || []
+      const next = current.includes(jugadorId)
+        ? current.filter((id) => id !== jugadorId)
+        : [...current, jugadorId]
+      return { ...t, jugadores_margen: next }
+    })
+    allTareasRef.current = newAll
+    setSesion((prev) => (prev ? { ...prev, tareas: newAll } : prev))
+    debouncedSaveTareasBatch(newAll)
   }
 
   const handleCommitTareaEfectivos = async (tareaId: string) => {
@@ -1155,6 +1171,15 @@ export default function SesionDetailPage() {
     return tipos.includes('sesion')
   }).length
 
+  const jugadoresParciales = useMemo(() => {
+    return jugadoresEnConvocatoria.flatMap((j) => {
+      const a = asistencias.get(j.id)
+      if (!a?.presente || !isPartialParticipation(a.tipo_participacion)) return []
+      const nombre = (j.apodo || j.nombre || '').trim()
+      return [{ id: j.id, nombre: nombre || 'Jugador' }]
+    })
+  }, [jugadoresEnConvocatoria, asistencias])
+
   // ============ Derived ============
   const completedBloques = bloquesResueltos.filter((b) => {
     if (b.tipo === 'videoanalisis') {
@@ -1482,6 +1507,8 @@ export default function SesionDetailPage() {
             onToggleFormacion={openFormacionDialog}
             onSaveEdit={handleInlineSaveEdit}
             onAiEdit={handleInlineAiEdit}
+            jugadoresParciales={jugadoresParciales}
+            onToggleMargenJugador={handleToggleMargenJugador}
           />
 
           {/* Resumen trabajo al margen (linkeado desde convocatoria) */}
@@ -1498,7 +1525,7 @@ export default function SesionDetailPage() {
                 Trabajo al margen · {margenMap.size} jugador{margenMap.size === 1 ? '' : 'es'}
               </p>
               <p className="text-xs text-amber-800/80 mt-0.5">
-                {Array.from(margenMap.values()).reduce((n, e) => n + (e.tareas?.length || 0), 0)} ejercicios asignados · Abrir pestaña en convocatoria
+                {Array.from(margenMap.values()).reduce((n, e) => n + (e.tareas?.length || 0), 0)} ejercicios asignados · En cada tarea marcas quién entra · Abrir pestaña en convocatoria
               </p>
             </button>
           )}

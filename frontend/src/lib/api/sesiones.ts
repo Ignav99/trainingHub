@@ -134,6 +134,7 @@ export const sesionesApi = {
     minutos_efectivos?: number | null
     notas?: string
     responsable?: string
+    jugadores_margen?: string[]
   }): Promise<Sesion> {
     return api.put<Sesion>(`/sesiones/${sesionId}/tareas/${sesionTareaId}`, data)
   },
@@ -146,6 +147,7 @@ export const sesionesApi = {
     minutos_efectivos?: number | null
     notas?: string
     responsable?: string
+    jugadores_margen?: string[]
   }[]): Promise<Sesion> {
     return api.put<Sesion>(`/sesiones/${sesionId}/tareas-batch`, { tareas })
   },

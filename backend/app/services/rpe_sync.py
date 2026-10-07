@@ -6,11 +6,19 @@ import logging
 from typing import Optional
 from uuid import UUID
 
-from app.services.duracion_efectiva import player_session_minutes
+from app.services.duracion_efectiva import (
+    is_partial_participation,
+    margin_minutes_for_tipos,
+    minutos_plan_margen,
+    named_players_on_task,
+    player_session_minutes,
+    split_margen_efectivo,
+)
 from app.services.load_calculation_service import recalculate_player_load
 from app.services.sesion_recalculo import (
     apply_minutes_to_rpe_rows,
     foster_carga,
+    resolve_player_rpe_minutes,
     resolve_rpe_minutes,
     rpe_fields_for_minutes,
     should_rewrite_session_rpe,
@@ -21,8 +29,11 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "apply_minutes_to_rpe_rows",
     "foster_carga",
+    "load_participation_by_player",
     "load_sesion_tareas_rows",
+    "minute_overrides_for_sessions",
     "player_minutes_for_sesion",
+    "resolve_player_rpe_minutes",
     "present_player_ids",
     "recalc_jugador_safe",
     "refresh_completed_session_loads",
@@ -269,41 +280,205 @@ def recalc_jugador_safe(jugador_id: str) -> None:
         logger.warning("recalc load %s: %s", jugador_id, e)
 
 
-def load_sesion_tareas_rows(supabase, sesion_id: str) -> list[dict]:
-    try:
-        tareas = (
-            supabase.table("sesion_tareas")
-            .select(
-                "id, duracion_override, minutos_efectivos, fase_sesion, "
-                "tareas(duracion_total, tiempo_descanso, num_series)"
-            )
-            .eq("sesion_id", str(sesion_id))
+_TAREA_SELECTS = (
+    "id, sesion_id, duracion_override, minutos_efectivos, fase_sesion, jugadores_margen, formacion_equipos, "
+    "tareas(duracion_total, tiempo_descanso, num_series)",
+    "id, sesion_id, duracion_override, minutos_efectivos, fase_sesion, formacion_equipos, "
+    "tareas(duracion_total, tiempo_descanso, num_series)",
+    "id, sesion_id, duracion_override, fase_sesion, formacion_equipos, "
+    "tareas(duracion_total, tiempo_descanso, num_series)",
+)
+
+
+def _rows_in(supabase, table: str, columns: str, column: str, ids: list) -> list[dict]:
+    rows: list[dict] = []
+    clean = [str(i) for i in ids if i]
+    for offset in range(0, len(clean), 80):
+        chunk = clean[offset:offset + 80]
+        resp = (
+            supabase.table(table)
+            .select(columns)
+            .in_(column, chunk)
             .execute()
         )
-    except Exception:
-        tareas = (
-            supabase.table("sesion_tareas")
-            .select(
-                "id, duracion_override, fase_sesion, "
-                "tareas(duracion_total, tiempo_descanso, num_series)"
-            )
-            .eq("sesion_id", str(sesion_id))
-            .execute()
-        )
+        rows.extend(resp.data or [])
+    return rows
+
+
+def _tarea_rows_from_raw(raw_rows: list) -> list[dict]:
     rows = []
-    for st in tareas.data or []:
+    for st in raw_rows or []:
         tarea = st.get("tareas") or {}
         if not isinstance(tarea, dict):
             tarea = {}
         rows.append({
             "id": st.get("id"),
+            "sesion_id": st.get("sesion_id"),
             "duracion_override": st.get("duracion_override"),
             "minutos_efectivos": st.get("minutos_efectivos"),
             "fase_sesion": st.get("fase_sesion"),
+            "formacion_equipos": st.get("formacion_equipos"),
+            "jugadores_margen": named_players_on_task(st),
             "tarea": tarea,
             "tareas": tarea,
         })
     return rows
+
+
+def _select_tarea_rows(supabase, *, sesion_id: str | None = None, sesion_ids: list | None = None) -> list[dict]:
+    last_error: Exception | None = None
+    for columns in _TAREA_SELECTS:
+        try:
+            query = supabase.table("sesion_tareas").select(columns)
+            if sesion_id:
+                resp = query.eq("sesion_id", str(sesion_id)).execute()
+                return _tarea_rows_from_raw(resp.data or [])
+            return _tarea_rows_from_raw(_rows_in(supabase, "sesion_tareas", columns, "sesion_id", sesion_ids or []))
+        except Exception as e:
+            last_error = e
+            continue
+    if last_error:
+        logger.warning("sesion_tareas para minutos: %s", last_error)
+    return []
+
+
+def load_sesion_tareas_rows(supabase, sesion_id: str) -> list[dict]:
+    return _select_tarea_rows(supabase, sesion_id=sesion_id)
+
+
+def _tipos(raw) -> list[str]:
+    if isinstance(raw, list):
+        return [str(t) for t in raw if t]
+    return []
+
+
+def _margin_minutes_by_player(supabase, sesion_ids: list[str]) -> dict[tuple[str, str], int]:
+    """(sesion_id, jugador_id) → minutos efectivos del plan al margen."""
+    if not sesion_ids:
+        return {}
+    try:
+        plans = _rows_in(
+            supabase,
+            "entrenamientos_margen",
+            "id, sesion_id, jugador_id, duracion_estimada",
+            "sesion_id",
+            sesion_ids,
+        )
+    except Exception as e:
+        logger.warning("planes al margen: %s", e)
+        return {}
+    plan_ids = [p.get("id") for p in plans if p.get("id")]
+    tareas_by_plan: dict[str, list] = {}
+    if plan_ids:
+        raw_tareas: list = []
+        for columns in (
+            "entrenamiento_margen_id, duracion, minutos_efectivos, notas",
+            "entrenamiento_margen_id, duracion, notas",
+        ):
+            try:
+                raw_tareas = _rows_in(
+                    supabase,
+                    "entrenamientos_margen_tareas",
+                    columns,
+                    "entrenamiento_margen_id",
+                    plan_ids,
+                )
+                break
+            except Exception as e:
+                logger.warning("tareas al margen (%s): %s", columns, e)
+                raw_tareas = []
+        for tarea in raw_tareas:
+            pid = str(tarea.get("entrenamiento_margen_id") or "")
+            if not pid:
+                continue
+            if tarea.get("minutos_efectivos") is None:
+                _, efectivos = split_margen_efectivo(tarea.get("notas"), None)
+                if efectivos is not None:
+                    tarea["minutos_efectivos"] = efectivos
+            tareas_by_plan.setdefault(pid, []).append(tarea)
+    out: dict[tuple[str, str], int] = {}
+    for plan in plans:
+        sid = str(plan.get("sesion_id") or "")
+        jid = str(plan.get("jugador_id") or "")
+        if not sid or not jid:
+            continue
+        out[(sid, jid)] = minutos_plan_margen(
+            tareas_by_plan.get(str(plan.get("id"))),
+            plan.get("duracion_estimada"),
+        )
+    return out
+
+
+def load_participation_by_player(supabase, sesion_id: str) -> dict[str, dict]:
+    """Presentes de la sesión: si son parciales y cuántos minutos de margen suman."""
+    try:
+        asist = (
+            supabase.table("asistencias_sesion")
+            .select("jugador_id, presente, tipo_participacion")
+            .eq("sesion_id", str(sesion_id))
+            .execute()
+        )
+    except Exception as e:
+        logger.warning("participación %s: %s", sesion_id, e)
+        return {}
+    present: list[tuple[str, list[str]]] = []
+    for row in asist.data or []:
+        if not row.get("presente") or not row.get("jugador_id"):
+            continue
+        present.append((str(row["jugador_id"]), _tipos(row.get("tipo_participacion"))))
+    if not present:
+        return {}
+    margin = _margin_minutes_by_player(supabase, [str(sesion_id)])
+    out: dict[str, dict] = {}
+    for jid, tipos in present:
+        out[jid] = {
+            "parcial": is_partial_participation(tipos),
+            "minutos_margen": margin_minutes_for_tipos(tipos, margin.get((str(sesion_id), jid), 0)),
+            "tipos": tipos,
+        }
+    return out
+
+
+def minute_overrides_for_sessions(supabase, session_ids: list, attendance: list) -> dict[str, dict[str, int]]:
+    """Minutos propios de quien no hace la sesión entera. 0 es un resultado real."""
+    relevant: dict[str, list[tuple[str, list[str]]]] = {}
+    wanted = {str(s) for s in session_ids if s}
+    for row in attendance or []:
+        if not row.get("presente"):
+            continue
+        sid = str(row.get("sesion_id") or "")
+        jid = str(row.get("jugador_id") or "")
+        if not sid or not jid or (wanted and sid not in wanted):
+            continue
+        tipos = _tipos(row.get("tipo_participacion"))
+        if is_partial_participation(tipos):
+            relevant.setdefault(sid, []).append((jid, tipos))
+    if not relevant:
+        return {}
+    sids = list(relevant.keys())
+    tareas = _select_tarea_rows(supabase, sesion_ids=sids)
+    by_session: dict[str, list] = {}
+    for row in tareas:
+        by_session.setdefault(str(row.get("sesion_id") or ""), []).append(row)
+    estructura_by: dict[str, list] = {}
+    try:
+        for ses in _rows_in(supabase, "sesiones", "id, estructura_fases", "id", sids):
+            estructura = ses.get("estructura_fases") or []
+            estructura_by[str(ses.get("id"))] = estructura if isinstance(estructura, list) else []
+    except Exception as e:
+        logger.warning("estructura para minutos parciales: %s", e)
+    margin = _margin_minutes_by_player(supabase, sids)
+    overrides: dict[str, dict[str, int]] = {}
+    for sid, players in relevant.items():
+        for jid, tipos in players:
+            overrides.setdefault(sid, {})[jid] = player_session_minutes(
+                by_session.get(sid) or [],
+                estructura_by.get(sid) or [],
+                jid,
+                parcial=True,
+                minutos_margen=margin_minutes_for_tipos(tipos, margin.get((sid, jid), 0)),
+            )
+    return overrides
 
 
 def player_minutes_for_sesion(
@@ -312,6 +487,7 @@ def player_minutes_for_sesion(
     jugador_id: str,
     estructura: list | None = None,
     rows: list | None = None,
+    participation: dict | None = None,
 ) -> int:
     if rows is None:
         rows = load_sesion_tareas_rows(supabase, sesion_id)
@@ -329,4 +505,13 @@ def player_minutes_for_sesion(
             estructura = []
     if not isinstance(estructura, list):
         estructura = []
-    return player_session_minutes(rows, estructura, str(jugador_id))
+    if participation is None:
+        participation = load_participation_by_player(supabase, sesion_id)
+    part = (participation or {}).get(str(jugador_id)) or {}
+    return player_session_minutes(
+        rows,
+        estructura,
+        str(jugador_id),
+        parcial=bool(part.get("parcial")),
+        minutos_margen=int(part.get("minutos_margen") or 0),
+    )
