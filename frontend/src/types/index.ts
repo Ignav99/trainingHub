@@ -368,7 +368,7 @@ export interface SesionTarea {
   notas?: string
   responsable?: string
   carga_calculada?: number
-  /** Jugadores al margen o con fisio que entran en esta tarea. */
+  /** Jugadores con margen y sesión que entran en esta tarea. */
   jugadores_margen?: string[]
   created_at: string
   // Relación

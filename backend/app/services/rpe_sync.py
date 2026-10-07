@@ -7,10 +7,10 @@ from typing import Optional
 from uuid import UUID
 
 from app.services.duracion_efectiva import (
-    is_partial_participation,
     margin_minutes_for_tipos,
     minutos_plan_margen,
     named_players_on_task,
+    participation_kind,
     player_session_minutes,
     split_margen_efectivo,
 )
@@ -30,6 +30,7 @@ __all__ = [
     "apply_minutes_to_rpe_rows",
     "foster_carga",
     "load_participation_by_player",
+    "minutes_are_exact",
     "load_sesion_tareas_rows",
     "minute_overrides_for_sessions",
     "player_minutes_for_sesion",
@@ -431,17 +432,26 @@ def load_participation_by_player(supabase, sesion_id: str) -> dict[str, dict]:
     margin = _margin_minutes_by_player(supabase, [str(sesion_id)])
     out: dict[str, dict] = {}
     for jid, tipos in present:
+        kind = participation_kind(tipos)
         out[jid] = {
-            "parcial": is_partial_participation(tipos),
+            "parcial": kind == "parcial",
+            "solo_margen": kind == "solo_margen",
+            "sin_campo": kind == "sin_campo",
             "minutos_margen": margin_minutes_for_tipos(tipos, margin.get((str(sesion_id), jid), 0)),
             "tipos": tipos,
         }
     return out
 
 
+def minutes_are_exact(part: dict | None) -> bool:
+    """0 minutos es real: no hereda la sesión entera ni el minutaje provisional."""
+    data = part or {}
+    return bool(data.get("parcial") or data.get("solo_margen") or data.get("sin_campo"))
+
+
 def minute_overrides_for_sessions(supabase, session_ids: list, attendance: list) -> dict[str, dict[str, int]]:
     """Minutos propios de quien no hace la sesión entera. 0 es un resultado real."""
-    relevant: dict[str, list[tuple[str, list[str]]]] = {}
+    relevant: dict[str, list[tuple[str, list[str], str]]] = {}
     wanted = {str(s) for s in session_ids if s}
     for row in attendance or []:
         if not row.get("presente"):
@@ -451,8 +461,10 @@ def minute_overrides_for_sessions(supabase, session_ids: list, attendance: list)
         if not sid or not jid or (wanted and sid not in wanted):
             continue
         tipos = _tipos(row.get("tipo_participacion"))
-        if is_partial_participation(tipos):
-            relevant.setdefault(sid, []).append((jid, tipos))
+        kind = participation_kind(tipos)
+        if kind == "completa":
+            continue
+        relevant.setdefault(sid, []).append((jid, tipos, kind))
     if not relevant:
         return {}
     sids = list(relevant.keys())
@@ -470,12 +482,14 @@ def minute_overrides_for_sessions(supabase, session_ids: list, attendance: list)
     margin = _margin_minutes_by_player(supabase, sids)
     overrides: dict[str, dict[str, int]] = {}
     for sid, players in relevant.items():
-        for jid, tipos in players:
+        for jid, tipos, kind in players:
             overrides.setdefault(sid, {})[jid] = player_session_minutes(
                 by_session.get(sid) or [],
                 estructura_by.get(sid) or [],
                 jid,
-                parcial=True,
+                parcial=kind == "parcial",
+                solo_margen=kind == "solo_margen",
+                sin_campo=kind == "sin_campo",
                 minutos_margen=margin_minutes_for_tipos(tipos, margin.get((sid, jid), 0)),
             )
     return overrides
@@ -513,5 +527,7 @@ def player_minutes_for_sesion(
         estructura,
         str(jugador_id),
         parcial=bool(part.get("parcial")),
+        solo_margen=bool(part.get("solo_margen")),
+        sin_campo=bool(part.get("sin_campo")),
         minutos_margen=int(part.get("minutos_margen") or 0),
     )

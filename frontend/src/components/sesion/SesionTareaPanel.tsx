@@ -72,7 +72,7 @@ function MargenEnTarea({
     <div className="px-3 pb-2">
       <p
         className="text-[10px] font-medium text-muted-foreground mb-1"
-        title="La carga de estos jugadores suma el tiempo efectivo de las tareas marcadas y el de su trabajo al margen."
+        title="Jugadores marcados con margen y sesión. Su carga suma las tareas marcadas y el tiempo de su trabajo al margen."
       >
         Al margen en esta tarea
       </p>

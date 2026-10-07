@@ -214,7 +214,7 @@ class SesionTareaBase(BaseModel):
     notas: Optional[str] = None
     responsable: Optional[str] = None
     carga_calculada: Optional[float] = None
-    # Jugadores al margen o con fisio que entran en esta tarea
+    # Jugadores con margen y sesión que entran en esta tarea
     jugadores_margen: List[UUID] = Field(default_factory=list)
 
 

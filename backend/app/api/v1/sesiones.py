@@ -243,6 +243,7 @@ from app.services.notification_service import notify_sesion_created
 from app.services.duracion_efectiva import player_session_minutes
 from app.services.rpe_sync import (
     load_participation_by_player,
+    minutes_are_exact,
     present_player_ids,
     refresh_completed_session_loads,
     rpe_fields_for_minutes,
@@ -346,11 +347,13 @@ def _sync_rpe_durations_for_sesion(supabase, sesion_id: str, rows: list, estruct
             estructura,
             jid,
             parcial=bool(part.get("parcial")),
+            solo_margen=bool(part.get("solo_margen")),
+            sin_campo=bool(part.get("sin_campo")),
             minutos_margen=int(part.get("minutos_margen") or 0),
         )
-        # Sin ejercicios se deja el minutaje ya apuntado. En un jugador parcial,
-        # 0 es real: solo cuenta lo nombrado y su trabajo al margen.
-        if mins > 0 or part.get("parcial"):
+        # Sin ejercicios se deja el minutaje ya apuntado. Quien no hizo la
+        # sesión entera conserva el 0: tareas nombradas, plan al margen, o nada.
+        if mins > 0 or minutes_are_exact(part):
             payload = rpe_fields_for_minutes(row.get("rpe"), mins)
             supabase.table("registros_rpe").update(payload).eq("id", row["id"]).execute()
         touched.add(jid)
@@ -1342,7 +1345,7 @@ async def batch_save_asistencias(
 
     log_update(auth.user_id, "sesion", str(sesion_id), datos_nuevos={"asistencias_batch": len(batch.asistencias)})
 
-    # Pasar a margen/fisio cambia los minutos de cada jugador y, si ya hay RPE, su Foster.
+    # Cambiar sesión, margen o fisio cambia los minutos de cada jugador y, si ya hay RPE, su Foster.
     _recalc_sesion_carga(supabase, str(sesion_id))
 
     return await get_asistencias(sesion_id, auth)

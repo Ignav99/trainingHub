@@ -1525,7 +1525,7 @@ export default function SesionDetailPage() {
                 Trabajo al margen · {margenMap.size} jugador{margenMap.size === 1 ? '' : 'es'}
               </p>
               <p className="text-xs text-amber-800/80 mt-0.5">
-                {Array.from(margenMap.values()).reduce((n, e) => n + (e.tareas?.length || 0), 0)} ejercicios asignados · En cada tarea marcas quién entra · Abrir pestaña en convocatoria
+                {Array.from(margenMap.values()).reduce((n, e) => n + (e.tareas?.length || 0), 0)} ejercicios asignados · En cada tarea marcas quién estuvo en margen y en sesión · Abrir pestaña en convocatoria
               </p>
             </button>
           )}
