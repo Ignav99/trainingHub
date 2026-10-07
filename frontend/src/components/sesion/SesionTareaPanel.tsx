@@ -368,7 +368,7 @@ export default function SesionTareaPanel({
         </label>
         <label
           className="flex items-center gap-1 shrink-0 text-[10px] text-muted-foreground"
-          title="Tiempo efectivo = reloj − descansos. Editable. Si cambias esto con la sesión completada, se recalcula la carga."
+          title="Tiempo efectivo = reloj − descansos. Editable. Al guardarlo se recalculan la carga y el RPE de esta sesión."
         >
           <span className="hidden sm:inline">efe.</span>
           <Input

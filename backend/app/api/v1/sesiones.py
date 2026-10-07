@@ -242,6 +242,12 @@ from app.services.audit_service import log_create, log_update, log_delete
 from app.services.notification_service import notify_sesion_created
 from app.services.load_calculation_service import recalculate_player_load
 from app.services.duracion_efectiva import player_session_minutes
+from app.services.rpe_sync import (
+    present_player_ids,
+    refresh_completed_session_loads,
+    rpe_fields_for_minutes,
+    should_rewrite_session_rpe,
+)
 from app.services.jugador_tipo import is_filial
 from app.config import get_settings
 
@@ -250,7 +256,12 @@ router = APIRouter()
 
 
 def _sync_rpe_durations_for_sesion(supabase, sesion_id: str, rows: list, estructura: list) -> None:
-    """Foster (RPE × minutos efectivos del jugador) tras editar tareas de una sesión completada."""
+    """Foster (RPE × minutos efectivos) tras editar la sesión, aunque ya haya pasado.
+
+    El RPE guardado el martes con 25′ pasa a los minutos reales cuando el
+    miércoles se meten los ejercicios. Si la sesión está completada, también
+    se recalculan las cargas de quienes asistieron (con y sin RPE).
+    """
     ses = (
         supabase.table("sesiones")
         .select("id, estado, equipo_id")
@@ -258,7 +269,7 @@ def _sync_rpe_durations_for_sesion(supabase, sesion_id: str, rows: list, estruct
         .maybe_single()
         .execute()
     )
-    if not ses.data or ses.data.get("estado") != "completada":
+    if not ses.data or not should_rewrite_session_rpe(ses.data.get("estado")):
         return
     rpes = (
         supabase.table("registros_rpe")
@@ -267,25 +278,22 @@ def _sync_rpe_durations_for_sesion(supabase, sesion_id: str, rows: list, estruct
         .execute()
     )
     equipo_id = ses.data.get("equipo_id")
-    seen: set[str] = set()
+    touched: set[str] = set()
     for row in rpes.data or []:
         if (row.get("tipo") or "sesion") not in ("sesion", None, ""):
             continue
         jid = str(row.get("jugador_id") or "")
-        if not jid:
+        if not jid or not row.get("id"):
             continue
         mins = player_session_minutes(rows, estructura, jid)
-        rpe_val = row.get("rpe")
-        payload: dict = {"duracion_percibida": mins}
-        if rpe_val and mins:
-            payload["carga_sesion"] = round(float(rpe_val) * mins, 1)
-        supabase.table("registros_rpe").update(payload).eq("id", row["id"]).execute()
-        if jid not in seen and equipo_id:
-            seen.add(jid)
-            try:
-                recalculate_player_load(UUID(jid), UUID(equipo_id))
-            except Exception as e:
-                logger.warning("recalc load %s tras sync RPE: %s", jid, e)
+        # Sin ejercicios se deja el minutaje ya apuntado; al meterlos, se sustituye.
+        if mins > 0:
+            payload = rpe_fields_for_minutes(row.get("rpe"), mins)
+            supabase.table("registros_rpe").update(payload).eq("id", row["id"]).execute()
+        touched.add(jid)
+    if ses.data.get("estado") == "completada" and equipo_id:
+        touched |= present_player_ids(supabase, sesion_id)
+        refresh_completed_session_loads(supabase, sesion_id, str(equipo_id), touched)
 
 
 def _recalc_sesion_carga(supabase, sesion_id: str) -> dict:
@@ -365,35 +373,36 @@ def _recalc_sesion_carga(supabase, sesion_id: str) -> dict:
 
         carga_sesion, intensidad, duracion_total = aggregate_sesion_carga(rows, estructura)
 
-        # Si la sesión ya está jugada, Foster de cada RPE usa los minutos
-        # efectivos nuevos (lanes compensatorio incluidos).
+        # Foster de cada RPE sigue los minutos efectivos nuevos, también si
+        # la sesión ya pasó y el RPE se apuntó antes de meter los ejercicios.
         try:
             _sync_rpe_durations_for_sesion(supabase, sesion_id, rows, estructura)
         except Exception as e:
             logger.warning("sync RPE tras recálculo de %s falló: %s", sesion_id, e)
 
-        # 1) siempre intentar duración
-        try:
-            supabase.table("sesiones").update({
-                "duracion_total": duracion_total
-            }).eq("id", sesion_id).execute()
-        except Exception as e:
-            logger.warning("No se pudo actualizar duracion_total: %s", e)
-
-        # 2) columnas 063 (opcionales hasta migración)
-        try:
-            supabase.table("sesiones").update({
-                "carga_sesion": carga_sesion,
-                "intensidad_calculada": intensidad,
-                "intensidad_objetivo": intensidad,
-            }).eq("id", sesion_id).execute()
-        except Exception:
+        # Sin ejercicios no se pisa la duración ni la carga provisionales.
+        # En cuanto hay tareas, ambas pasan a ser las de esos ejercicios.
+        if rows or duracion_total > 0:
             try:
                 supabase.table("sesiones").update({
+                    "duracion_total": duracion_total
+                }).eq("id", sesion_id).execute()
+            except Exception as e:
+                logger.warning("No se pudo actualizar duracion_total: %s", e)
+
+            try:
+                supabase.table("sesiones").update({
+                    "carga_sesion": carga_sesion,
+                    "intensidad_calculada": intensidad,
                     "intensidad_objetivo": intensidad,
                 }).eq("id", sesion_id).execute()
             except Exception:
-                pass
+                try:
+                    supabase.table("sesiones").update({
+                        "intensidad_objetivo": intensidad,
+                    }).eq("id", sesion_id).execute()
+                except Exception:
+                    pass
 
         return {
             "duracion_total": duracion_total,
@@ -663,15 +672,10 @@ async def completar_sesiones_vencidas(
         supabase.table("sesiones").update({
             "estado": EstadoSesion.COMPLETADA.value
         }).eq("id", sid).execute()
+        # Minutos efectivos actuales (aunque las tareas se metieran después)
+        # y cargas de quienes asistieron, con o sin RPE.
         try:
-            asist = supabase.table("asistencias_sesion").select(
-                "jugador_id, presente"
-            ).eq("sesion_id", sid).eq("presente", True).execute()
-            for a in (asist.data or []):
-                try:
-                    recalculate_player_load(a["jugador_id"], UUID(s["equipo_id"]))
-                except Exception:
-                    pass
+            _recalc_sesion_carga(supabase, str(sid))
         except Exception as e:
             logger.warning("Error aplicando cargas al completar %s: %s", sid, e)
         completadas.append(sid)
@@ -1018,7 +1022,11 @@ async def update_sesion(
 
     log_update(auth.user_id, "sesion", str(sesion_id), datos_nuevos=update_data)
 
-    if "estructura_fases" in update_data:
+    became_completed = (
+        str(update_data.get("estado") or "") == EstadoSesion.COMPLETADA.value
+        and existing.data.get("estado") != EstadoSesion.COMPLETADA.value
+    )
+    if "estructura_fases" in update_data or became_completed:
         _recalc_sesion_carga(supabase, str(sesion_id))
         refreshed = (
             supabase.table("sesiones")
