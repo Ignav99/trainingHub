@@ -108,6 +108,7 @@ export default function MargenPanel({
             titulo_custom: t.titulo_custom || t.tarea?.titulo,
             descripcion_custom: t.descripcion_custom,
             duracion: t.duracion,
+            minutos_efectivos: t.minutos_efectivos ?? undefined,
             series: t.series,
             repeticiones: t.repeticiones,
             descanso: t.descanso,
@@ -416,7 +417,9 @@ export default function MargenPanel({
                               </span>
                             )}
                             {t.tipo_ejercicio && <span>{t.tipo_ejercicio}</span>}
-                            {t.duracion && <span>{t.duracion}&apos;</span>}
+                            {(t.minutos_efectivos != null || t.duracion) ? (
+                              <span className="tabular-nums">{t.minutos_efectivos ?? t.duracion}&apos; efect.</span>
+                            ) : null}
                             {t.series && <span>{t.series} series</span>}
                             {t.repeticiones && <span>{t.repeticiones} reps</span>}
                           </div>
@@ -472,7 +475,7 @@ export default function MargenPanel({
                       <input
                         type="number"
                         min={1}
-                        className="w-full h-9 rounded-lg border border-input bg-background px-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                        className="w-full h-9 rounded-lg border border-input bg-background px-2.5 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
                         value={form.duracion_estimada ?? ''}
                         onChange={(e) =>
                           setForm((f) => ({
@@ -481,6 +484,9 @@ export default function MargenPanel({
                           }))
                         }
                       />
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        Si no hay ejercicios, estos minutos entran en la carga.
+                      </p>
                     </Field>
                   </div>
 
@@ -553,7 +559,9 @@ export default function MargenPanel({
                               onChange={(e) => updateTarea(idx, { titulo_custom: e.target.value })}
                               placeholder="Nombre del ejercicio"
                             />
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                              <label className="block">
+                              <span className="text-[10px] text-muted-foreground">Tipo</span>
                               <select
                                 className="w-full h-9 rounded-lg border border-input bg-background px-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                                 value={t.tipo_ejercicio || ''}
@@ -570,36 +578,62 @@ export default function MargenPanel({
                                   </option>
                                 ))}
                               </select>
-                              <input
-                                type="number"
-                                min={1}
-                                className="w-full h-9 rounded-lg border border-input bg-background px-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                                placeholder="Min"
-                                value={t.duracion ?? ''}
-                                onChange={(e) =>
-                                  updateTarea(idx, {
-                                    duracion: e.target.value ? parseInt(e.target.value) : undefined,
-                                  })
-                                }
-                              />
-                              <input
-                                type="number"
-                                min={1}
-                                className="w-full h-9 rounded-lg border border-input bg-background px-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                                placeholder="Series"
-                                value={t.series ?? ''}
-                                onChange={(e) =>
-                                  updateTarea(idx, {
-                                    series: e.target.value ? parseInt(e.target.value) : undefined,
-                                  })
-                                }
-                              />
-                              <input
-                                className="w-full h-9 rounded-lg border border-input bg-background px-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                                placeholder="Reps"
-                                value={t.repeticiones || ''}
-                                onChange={(e) => updateTarea(idx, { repeticiones: e.target.value })}
-                              />
+                              </label>
+                              <label className="block">
+                                <span className="text-[10px] text-muted-foreground">Min</span>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  className="w-full h-9 rounded-lg border border-input bg-background px-2.5 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+                                  value={t.duracion ?? ''}
+                                  onChange={(e) =>
+                                    updateTarea(idx, {
+                                      duracion: e.target.value ? parseInt(e.target.value) : undefined,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="block">
+                                <span className="text-[10px] text-muted-foreground">Efectivo</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  title="Minutos que entran en la carga. Vacío = la duración del ejercicio."
+                                  className="w-full h-9 rounded-lg border border-input bg-background px-2.5 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+                                  value={t.minutos_efectivos ?? ''}
+                                  onChange={(e) =>
+                                    updateTarea(idx, {
+                                      minutos_efectivos: (() => {
+                                        if (e.target.value === '') return undefined
+                                        const n = parseInt(e.target.value, 10)
+                                        return Number.isNaN(n) ? undefined : n
+                                      })(),
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="block">
+                                <span className="text-[10px] text-muted-foreground">Series</span>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  className="w-full h-9 rounded-lg border border-input bg-background px-2.5 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+                                  value={t.series ?? ''}
+                                  onChange={(e) =>
+                                    updateTarea(idx, {
+                                      series: e.target.value ? parseInt(e.target.value) : undefined,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="block">
+                                <span className="text-[10px] text-muted-foreground">Reps</span>
+                                <input
+                                  className="w-full h-9 rounded-lg border border-input bg-background px-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                                  value={t.repeticiones || ''}
+                                  onChange={(e) => updateTarea(idx, { repeticiones: e.target.value })}
+                                />
+                              </label>
                             </div>
                             <div className="grid grid-cols-3 gap-2">
                               <input

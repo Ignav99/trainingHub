@@ -25,10 +25,11 @@ from app.security.permissions import Permission
 from app.services.notification_service import notify_rpe_alerta
 from app.services.load_calculation_service import recalculate_player_load
 from app.services.rpe_sync import (
+    load_participation_by_player,
     load_sesion_tareas_rows,
     player_minutes_for_sesion,
     refresh_completed_session_loads,
-    resolve_rpe_minutes,
+    resolve_player_rpe_minutes,
     rpe_fields_for_minutes,
     upsert_rpe_sesion,
 )
@@ -51,14 +52,30 @@ def _recalc_jugador(jugador_id: str):
         logger.error("Error in auto-recalc for %s: %s", jugador_id, e)
 
 
+def _live_minutes_for_player(supabase, sesion_id: str, jugador_id: str, requested) -> int:
+    participation = load_participation_by_player(supabase, sesion_id)
+    live = player_minutes_for_sesion(
+        supabase,
+        sesion_id,
+        jugador_id,
+        participation=participation,
+    )
+    parcial = bool((participation.get(str(jugador_id)) or {}).get("parcial"))
+    return resolve_player_rpe_minutes(live, requested, parcial=parcial)
+
+
 def _apply_live_session_minutes(supabase, data: dict) -> dict:
     """Un RPE de sesión usa el tiempo efectivo actual de los ejercicios."""
     tipo = data.get("tipo") or "sesion"
     sesion_id = data.get("sesion_id")
     if tipo != "sesion" or not sesion_id or not data.get("jugador_id"):
         return data
-    live = player_minutes_for_sesion(supabase, str(sesion_id), str(data["jugador_id"]))
-    mins = resolve_rpe_minutes(live, data.get("duracion_percibida"))
+    mins = _live_minutes_for_player(
+        supabase,
+        str(sesion_id),
+        str(data["jugador_id"]),
+        data.get("duracion_percibida"),
+    )
     data.update(rpe_fields_for_minutes(data.get("rpe"), mins))
     return data
 
@@ -270,6 +287,7 @@ def _sesion_rpe_jugadores(supabase, sesion_id: str) -> RPESesionAssignResponse:
         estructura = []
     fecha = ses.data.get("fecha")
     rows = load_sesion_tareas_rows(supabase, sesion_id)
+    participation = load_participation_by_player(supabase, sesion_id)
 
     asist = (
         supabase.table("asistencias_sesion")
@@ -285,7 +303,7 @@ def _sesion_rpe_jugadores(supabase, sesion_id: str) -> RPESesionAssignResponse:
             continue
         presente_ids.add(jid)
         tipos = a.get("tipo_participacion") or ["sesion"]
-        if not tipos or "sesion" in tipos or "margen" in tipos:
+        if not tipos or any(t in tipos for t in ("sesion", "margen", "fisio", "presente")):
             sesion_ids.add(jid)
 
     assigned: set[str] = set()
@@ -346,7 +364,12 @@ def _sesion_rpe_jugadores(supabase, sesion_id: str) -> RPESesionAssignResponse:
             continue
         rec = rpe_map.get(jid) or {}
         mins = player_minutes_for_sesion(
-            supabase, sesion_id, jid, estructura=estructura, rows=rows
+            supabase,
+            sesion_id,
+            jid,
+            estructura=estructura,
+            rows=rows,
+            participation=participation,
         )
         items.append(
             RPESesionJugador(
@@ -636,10 +659,12 @@ async def update_rpe(
     sesion_id = existing.data.get("sesion_id")
     if tipo == "sesion" and sesion_id:
         requested = update_data.get("duracion_percibida", existing.data.get("duracion_percibida"))
-        live = player_minutes_for_sesion(
-            supabase, str(sesion_id), str(existing.data.get("jugador_id"))
+        mins = _live_minutes_for_player(
+            supabase,
+            str(sesion_id),
+            str(existing.data.get("jugador_id")),
+            requested,
         )
-        mins = resolve_rpe_minutes(live, requested)
         update_data.update(rpe_fields_for_minutes(new_rpe, mins))
     else:
         new_dur = update_data.get("duracion_percibida", existing.data.get("duracion_percibida"))

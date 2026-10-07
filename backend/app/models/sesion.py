@@ -192,6 +192,20 @@ class FormacionEquiposUpdate(BaseModel):
 class SesionTareaBase(BaseModel):
     """Schema base para tarea dentro de sesión."""
     tarea_id: UUID
+
+    @model_validator(mode="before")
+    @classmethod
+    def lift_jugadores_margen(cls, data):
+        """La lista vive en la columna y, si esa columna aún no está, en la formación."""
+        if not isinstance(data, dict) or data.get("jugadores_margen"):
+            return data
+        form = data.get("formacion_equipos")
+        if isinstance(form, dict) and form.get("jugadores_margen"):
+            data = dict(data)
+            data["jugadores_margen"] = form["jugadores_margen"]
+            form = {k: v for k, v in form.items() if k != "jugadores_margen"}
+            data["formacion_equipos"] = form or None
+        return data
     orden: int = Field(..., ge=1)
     # Opcional en el nuevo diseño libre; default DB-compatible
     fase_sesion: Optional[FaseSesion] = FaseSesion.DESARROLLO_1
@@ -200,6 +214,8 @@ class SesionTareaBase(BaseModel):
     notas: Optional[str] = None
     responsable: Optional[str] = None
     carga_calculada: Optional[float] = None
+    # Jugadores al margen o con fisio que entran en esta tarea
+    jugadores_margen: List[UUID] = Field(default_factory=list)
 
 
 class SesionTareaCreate(SesionTareaBase):
@@ -243,6 +259,7 @@ class SesionTareaUpdate(BaseModel):
     minutos_efectivos: Optional[int] = Field(None, ge=0)
     notas: Optional[str] = None
     responsable: Optional[str] = None
+    jugadores_margen: Optional[List[UUID]] = None
 
 
 class SesionTareasBatchUpdate(BaseModel):

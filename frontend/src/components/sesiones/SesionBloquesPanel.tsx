@@ -110,6 +110,8 @@ export interface SesionBloquesPanelProps {
   onToggleFormacion: (stId: string) => void
   onSaveEdit: (stId: string, form: Record<string, unknown>) => void | Promise<void>
   onAiEdit: (stId: string, instruction: string) => void | Promise<void>
+  jugadoresParciales?: { id: string; nombre: string }[]
+  onToggleMargenJugador?: (tareaId: string, jugadorId: string) => void
 }
 
 export function SesionBloquesPanel({
@@ -133,6 +135,8 @@ export function SesionBloquesPanel({
   onToggleFormacion,
   onSaveEdit,
   onAiEdit,
+  jugadoresParciales = [],
+  onToggleMargenJugador,
 }: SesionBloquesPanelProps) {
   const tareas = sesion.tareas || []
 
@@ -359,6 +363,8 @@ export function SesionBloquesPanel({
                       onToggleFormacion={() => onToggleFormacion(st.id)}
                       onSaveEdit={async (form) => { await onSaveEdit(st.id, form) }}
                       onAiEdit={async (instruction) => { await onAiEdit(st.id, instruction) }}
+                      jugadoresParciales={jugadoresParciales}
+                      onToggleMargenJugador={(jugadorId) => onToggleMargenJugador?.(st.id, jugadorId)}
                     />
                   ))}
                 </div>
@@ -389,6 +395,8 @@ export function SesionBloquesPanel({
                   onToggleFormacion={() => onToggleFormacion(st.id)}
                   onSaveEdit={async (form) => { await onSaveEdit(st.id, form) }}
                   onAiEdit={async (instruction) => { await onAiEdit(st.id, instruction) }}
+                  jugadoresParciales={jugadoresParciales}
+                  onToggleMargenJugador={(jugadorId) => onToggleMargenJugador?.(st.id, jugadorId)}
                 />
               </div>
             ))}

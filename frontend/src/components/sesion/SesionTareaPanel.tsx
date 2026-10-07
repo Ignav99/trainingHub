@@ -53,6 +53,52 @@ export interface SesionTareaPanelProps {
   onToggleFormacion: () => void
   onSaveEdit: (form: Record<string, any>) => Promise<void>
   onAiEdit: (instruction: string) => Promise<void>
+  jugadoresParciales?: { id: string; nombre: string }[]
+  onToggleMargenJugador?: (jugadorId: string) => void
+}
+
+function MargenEnTarea({
+  jugadores,
+  selected,
+  onToggle,
+}: {
+  jugadores: { id: string; nombre: string }[]
+  selected: string[]
+  onToggle?: (jugadorId: string) => void
+}) {
+  if (!jugadores.length) return null
+  const marked = new Set(selected)
+  return (
+    <div className="px-3 pb-2">
+      <p
+        className="text-[10px] font-medium text-muted-foreground mb-1"
+        title="La carga de estos jugadores suma el tiempo efectivo de las tareas marcadas y el de su trabajo al margen."
+      >
+        Al margen en esta tarea
+      </p>
+      <div className="flex flex-wrap gap-1">
+        {jugadores.map((p) => {
+          const on = marked.has(p.id)
+          return (
+            <button
+              key={p.id}
+              type="button"
+              aria-pressed={on}
+              onClick={() => onToggle?.(p.id)}
+              className={cn(
+                'h-7 px-2 rounded-md border text-xs',
+                on
+                  ? 'border-amber-400 bg-amber-100 text-amber-950'
+                  : 'border-border bg-background text-muted-foreground hover:bg-muted'
+              )}
+            >
+              {p.nombre}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 function gruposResumen(formacion?: FormacionEquipos | null) {
@@ -113,6 +159,8 @@ export default function SesionTareaPanel({
   onToggleFormacion,
   onSaveEdit,
   onAiEdit,
+  jugadoresParciales = [],
+  onToggleMargenJugador,
 }: SesionTareaPanelProps) {
   const tarea = st.tarea
   const esMadre = isTareaMadre(tarea)
@@ -440,6 +488,12 @@ export default function SesionTareaPanel({
           </button>
         </div>
       </div>
+
+      <MargenEnTarea
+        jugadores={jugadoresParciales}
+        selected={st.jugadores_margen || []}
+        onToggle={onToggleMargenJugador}
+      />
 
       <div className="px-3 pb-3 space-y-3">
         {editing && esMadre && (

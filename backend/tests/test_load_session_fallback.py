@@ -88,6 +88,11 @@ def test_present_player_without_rpe_gets_the_session_mean_and_real_rpe_is_kept()
     assert player_session_loads(ctx, "p1")[date(2026, 9, 22)] == 640
     assert player_session_loads(ctx, "p2")[date(2026, 9, 22)] == 640.0
     assert date(2026, 9, 22) not in player_session_loads(ctx, "p3")
+    # 21 de 84 minutos: no hereda los 640 de quien hizo la sesión entera.
+    ctx.sessions[0]["player_minutes"] = {"p2": 21, "p3": 0}
+    assert player_session_loads(ctx, "p1")[date(2026, 9, 22)] == 640
+    assert player_session_loads(ctx, "p2")[date(2026, 9, 22)] == 160.0
+    assert date(2026, 9, 22) not in player_session_loads(ctx, "p3")
 
 
 def test_historical_session_without_any_rpe_uses_relative_average():

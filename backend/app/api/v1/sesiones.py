@@ -240,9 +240,9 @@ from app.services.pdf_service import generate_sesion_pdf, generate_sesion_pdf_v2
 from app.services.storage_service import upload_file
 from app.services.audit_service import log_create, log_update, log_delete
 from app.services.notification_service import notify_sesion_created
-from app.services.load_calculation_service import recalculate_player_load
 from app.services.duracion_efectiva import player_session_minutes
 from app.services.rpe_sync import (
+    load_participation_by_player,
     present_player_ids,
     refresh_completed_session_loads,
     rpe_fields_for_minutes,
@@ -253,6 +253,60 @@ from app.config import get_settings
 
 
 router = APIRouter()
+
+
+def _uuid_list(values) -> list[str]:
+    return [str(x) for x in (values or []) if x]
+
+
+def _insert_sesion_tarea(supabase, data: dict):
+    """Inserta la fila. Si la columna de participación aún no existe, la omite."""
+    try:
+        return supabase.table("sesion_tareas").insert(data).execute()
+    except Exception as e:
+        if "jugadores_margen" in str(e).lower() and "jugadores_margen" in data:
+            slim = {k: v for k, v in data.items() if k != "jugadores_margen"}
+            return supabase.table("sesion_tareas").insert(slim).execute()
+        raise
+
+
+def _formacion_with_margen(saved, named: list[str]):
+    """Guarda quién entra en la tarea dentro de la formación, que ya es JSON."""
+    form = dict(saved) if isinstance(saved, dict) else {}
+    form["jugadores_margen"] = named
+    has_formation = any(key != "jugadores_margen" for key in form)
+    if has_formation or named:
+        return form
+    return None
+
+
+def _keep_margen_on_formacion(existing: dict | None, formacion: dict | None):
+    prev = (existing or {}).get("formacion_equipos")
+    named = []
+    if isinstance(prev, dict):
+        named = [str(x) for x in (prev.get("jugadores_margen") or []) if x]
+    if not named:
+        named = [str(x) for x in ((existing or {}).get("jugadores_margen") or []) if x]
+    if formacion is None:
+        return {"jugadores_margen": named} if named else None
+    merged = dict(formacion)
+    if named:
+        merged["jugadores_margen"] = named
+    return merged
+
+
+def _sesion_tarea_row(sesion_id: str, tarea) -> dict:
+    return {
+        "sesion_id": str(sesion_id),
+        "tarea_id": str(tarea.tarea_id),
+        "orden": tarea.orden,
+        "fase_sesion": (tarea.fase_sesion.value if tarea.fase_sesion else "desarrollo_1"),
+        "duracion_override": tarea.duracion_override,
+        "minutos_efectivos": tarea.minutos_efectivos,
+        "notas": tarea.notas,
+        "responsable": tarea.responsable,
+        "jugadores_margen": _uuid_list(tarea.jugadores_margen),
+    }
 
 
 def _sync_rpe_durations_for_sesion(supabase, sesion_id: str, rows: list, estructura: list) -> None:
@@ -278,6 +332,7 @@ def _sync_rpe_durations_for_sesion(supabase, sesion_id: str, rows: list, estruct
         .execute()
     )
     equipo_id = ses.data.get("equipo_id")
+    participation = load_participation_by_player(supabase, sesion_id)
     touched: set[str] = set()
     for row in rpes.data or []:
         if (row.get("tipo") or "sesion") not in ("sesion", None, ""):
@@ -285,9 +340,17 @@ def _sync_rpe_durations_for_sesion(supabase, sesion_id: str, rows: list, estruct
         jid = str(row.get("jugador_id") or "")
         if not jid or not row.get("id"):
             continue
-        mins = player_session_minutes(rows, estructura, jid)
-        # Sin ejercicios se deja el minutaje ya apuntado; al meterlos, se sustituye.
-        if mins > 0:
+        part = participation.get(jid) or {}
+        mins = player_session_minutes(
+            rows,
+            estructura,
+            jid,
+            parcial=bool(part.get("parcial")),
+            minutos_margen=int(part.get("minutos_margen") or 0),
+        )
+        # Sin ejercicios se deja el minutaje ya apuntado. En un jugador parcial,
+        # 0 es real: solo cuenta lo nombrado y su trabajo al margen.
+        if mins > 0 or part.get("parcial"):
             payload = rpe_fields_for_minutes(row.get("rpe"), mins)
             supabase.table("registros_rpe").update(payload).eq("id", row["id"]).execute()
         touched.add(jid)
@@ -304,17 +367,24 @@ def _recalc_sesion_carga(supabase, sesion_id: str) -> dict:
     try:
         try:
             tareas = supabase.table("sesion_tareas").select(
-                "id, duracion_override, minutos_efectivos, fase_sesion, "
+                "id, duracion_override, minutos_efectivos, fase_sesion, jugadores_margen, formacion_equipos, "
                 "tareas(duracion_total, tiempo_descanso, num_series, densidad, "
                 "num_jugadores_min, num_jugadores_max, categorias_tarea(codigo, nombre_corto))"
             ).eq("sesion_id", sesion_id).execute()
         except Exception:
             # Fallback sin join de categoría (compat / schema parcial)
-            tareas = supabase.table("sesion_tareas").select(
-                "id, duracion_override, minutos_efectivos, fase_sesion, "
-                "tareas(duracion_total, tiempo_descanso, num_series, densidad, "
-                "num_jugadores_min, num_jugadores_max)"
-            ).eq("sesion_id", sesion_id).execute()
+            try:
+                tareas = supabase.table("sesion_tareas").select(
+                    "id, duracion_override, minutos_efectivos, fase_sesion, formacion_equipos, "
+                    "tareas(duracion_total, tiempo_descanso, num_series, densidad, "
+                    "num_jugadores_min, num_jugadores_max)"
+                ).eq("sesion_id", sesion_id).execute()
+            except Exception:
+                tareas = supabase.table("sesion_tareas").select(
+                    "id, duracion_override, fase_sesion, formacion_equipos, "
+                    "tareas(duracion_total, tiempo_descanso, num_series, densidad, "
+                    "num_jugadores_min, num_jugadores_max)"
+                ).eq("sesion_id", sesion_id).execute()
 
         rows = []
         for st in (tareas.data or []):
@@ -332,6 +402,16 @@ def _recalc_sesion_carga(supabase, sesion_id: str) -> dict:
                 "duracion_override": st.get("duracion_override"),
                 "minutos_efectivos": st.get("minutos_efectivos"),
                 "fase_sesion": st.get("fase_sesion"),
+                "formacion_equipos": st.get("formacion_equipos"),
+                "jugadores_margen": (
+                    st.get("jugadores_margen")
+                    or (
+                        (st.get("formacion_equipos") or {}).get("jugadores_margen")
+                        if isinstance(st.get("formacion_equipos"), dict)
+                        else []
+                    )
+                    or []
+                ),
                 "tarea": tarea,
                 "tareas": tarea,
             }
@@ -1088,19 +1168,7 @@ async def add_tarea_to_sesion(
             detail="Sesión no encontrada"
         )
 
-    fase = tarea_data.fase_sesion.value if tarea_data.fase_sesion else "desarrollo_1"
-    data = {
-        "sesion_id": str(sesion_id),
-        "tarea_id": str(tarea_data.tarea_id),
-        "orden": tarea_data.orden,
-        "fase_sesion": fase,
-        "duracion_override": tarea_data.duracion_override,
-        "minutos_efectivos": tarea_data.minutos_efectivos,
-        "notas": tarea_data.notas,
-        "responsable": tarea_data.responsable,
-    }
-
-    supabase.table("sesion_tareas").insert(data).execute()
+    _insert_sesion_tarea(supabase, _sesion_tarea_row(str(sesion_id), tarea_data))
     _recalc_sesion_carga(supabase, str(sesion_id))
     return await get_sesion(sesion_id, auth)
 
@@ -1139,10 +1207,22 @@ async def update_sesion_tarea(
 
     if "fase_sesion" in update_data and update_data["fase_sesion"]:
         update_data["fase_sesion"] = update_data["fase_sesion"].value
+    if "jugadores_margen" in update_data:
+        update_data["jugadores_margen"] = _uuid_list(update_data["jugadores_margen"])
 
-    supabase.table("sesion_tareas").update(update_data).eq(
-        "id", str(sesion_tarea_id)
-    ).eq("sesion_id", str(sesion_id)).execute()
+    try:
+        supabase.table("sesion_tareas").update(update_data).eq(
+            "id", str(sesion_tarea_id)
+        ).eq("sesion_id", str(sesion_id)).execute()
+    except Exception as e:
+        if "jugadores_margen" in str(e).lower() and "jugadores_margen" in update_data:
+            update_data.pop("jugadores_margen", None)
+            if update_data:
+                supabase.table("sesion_tareas").update(update_data).eq(
+                    "id", str(sesion_tarea_id)
+                ).eq("sesion_id", str(sesion_id)).execute()
+        else:
+            raise
 
     _recalc_sesion_carga(supabase, str(sesion_id))
     return await get_sesion(sesion_id, auth)
@@ -1178,21 +1258,13 @@ async def batch_update_tareas(
 
     # Insert new tareas (restoring saved formations)
     for tarea in batch.tareas:
-        data = {
-            "sesion_id": str(sesion_id),
-            "tarea_id": str(tarea.tarea_id),
-            "orden": tarea.orden,
-            "fase_sesion": (tarea.fase_sesion.value if tarea.fase_sesion else "desarrollo_1"),
-            "duracion_override": tarea.duracion_override,
-            "minutos_efectivos": tarea.minutos_efectivos,
-            "notas": tarea.notas,
-            "responsable": tarea.responsable,
-        }
-        # Restore formation if it existed for this tarea
-        saved_formacion = formaciones_map.get(str(tarea.tarea_id))
-        if saved_formacion:
-            data["formacion_equipos"] = saved_formacion
-        supabase.table("sesion_tareas").insert(data).execute()
+        data = _sesion_tarea_row(str(sesion_id), tarea)
+        # La formación se conserva, y dentro va quién del margen entra en la tarea.
+        data["formacion_equipos"] = _formacion_with_margen(
+            formaciones_map.get(str(tarea.tarea_id)),
+            data["jugadores_margen"],
+        )
+        _insert_sesion_tarea(supabase, data)
 
     _recalc_sesion_carga(supabase, str(sesion_id))
 
@@ -1270,16 +1342,8 @@ async def batch_save_asistencias(
 
     log_update(auth.user_id, "sesion", str(sesion_id), datos_nuevos={"asistencias_batch": len(batch.asistencias)})
 
-    # Trigger load recalculation for present players if session is completed
-    try:
-        sesion_data = supabase.table("sesiones").select("estado, equipo_id").eq("id", str(sesion_id)).maybe_single().execute()
-        if sesion_data and sesion_data.data and sesion_data.data.get("estado") == "completada":
-            equipo_id = sesion_data.data["equipo_id"]
-            for a in batch.asistencias:
-                if a.presente:
-                    recalculate_player_load(a.jugador_id, UUID(equipo_id))
-    except Exception as e:
-        logger.warning(f"Error recalculating load after attendance: {e}")
+    # Pasar a margen/fisio cambia los minutos de cada jugador y, si ya hay RPE, su Foster.
+    _recalc_sesion_carga(supabase, str(sesion_id))
 
     return await get_asistencias(sesion_id, auth)
 
@@ -2085,7 +2149,9 @@ async def generar_equipos_tarea(
         criterio=request.criterio,
     )
 
-    # Save to DB
+    # Save to DB sin perder quién del margen está marcado en esta tarea
+    existing = st_response.data or {}
+    formacion = _keep_margen_on_formacion(existing, formacion)
     supabase.table("sesion_tareas").update({
         "formacion_equipos": formacion
     }).eq("id", str(sesion_tarea_id)).execute()
@@ -2104,7 +2170,7 @@ async def update_formacion_tarea(
     supabase = get_supabase()
 
     # Verify sesion_tarea exists
-    st_response = supabase.table("sesion_tareas").select("id").eq(
+    st_response = supabase.table("sesion_tareas").select("id, formacion_equipos").eq(
         "id", str(sesion_tarea_id)
     ).eq("sesion_id", str(sesion_id)).maybe_single().execute()
 
@@ -2113,6 +2179,7 @@ async def update_formacion_tarea(
 
     formacion_dict = formacion.model_dump()
     formacion_dict["auto_generado"] = False  # Manual edit
+    formacion_dict = _keep_margen_on_formacion(st_response.data, formacion_dict)
 
     supabase.table("sesion_tareas").update({
         "formacion_equipos": formacion_dict
@@ -2129,9 +2196,13 @@ async def delete_formacion_tarea(
 ):
     """Limpia la formacion de equipos de una tarea."""
     supabase = get_supabase()
+    existing = supabase.table("sesion_tareas").select("formacion_equipos").eq(
+        "id", str(sesion_tarea_id)
+    ).eq("sesion_id", str(sesion_id)).maybe_single().execute()
+    kept = _keep_margen_on_formacion((existing.data if existing else None), None)
 
     supabase.table("sesion_tareas").update({
-        "formacion_equipos": None
+        "formacion_equipos": kept
     }).eq("id", str(sesion_tarea_id)).eq("sesion_id", str(sesion_id)).execute()
 
     return None
