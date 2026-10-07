@@ -26,6 +26,7 @@ from app.services.notification_service import notify_rpe_alerta
 from app.services.load_calculation_service import recalculate_player_load
 from app.services.rpe_sync import (
     load_participation_by_player,
+    minutes_are_exact,
     load_sesion_tareas_rows,
     player_minutes_for_sesion,
     refresh_completed_session_loads,
@@ -60,8 +61,8 @@ def _live_minutes_for_player(supabase, sesion_id: str, jugador_id: str, requeste
         jugador_id,
         participation=participation,
     )
-    parcial = bool((participation.get(str(jugador_id)) or {}).get("parcial"))
-    return resolve_player_rpe_minutes(live, requested, parcial=parcial)
+    part = participation.get(str(jugador_id)) or {}
+    return resolve_player_rpe_minutes(live, requested, parcial=minutes_are_exact(part))
 
 
 def _apply_live_session_minutes(supabase, data: dict) -> dict:
@@ -303,7 +304,7 @@ def _sesion_rpe_jugadores(supabase, sesion_id: str) -> RPESesionAssignResponse:
             continue
         presente_ids.add(jid)
         tipos = a.get("tipo_participacion") or ["sesion"]
-        if not tipos or any(t in tipos for t in ("sesion", "margen", "fisio", "presente")):
+        if not tipos or any(t in tipos for t in ("sesion", "margen", "presente")):
             sesion_ids.add(jid)
 
     assigned: set[str] = set()

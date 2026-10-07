@@ -100,14 +100,46 @@ def test_margin_plan_minutes_prefer_effective_then_duration_then_estimate():
 
 
 def test_partial_flag():
-    assert duracion.is_partial_participation(["margen"]) is True
-    assert duracion.is_partial_participation(["fisio"]) is True
-    assert duracion.is_partial_participation(["sesion", "margen"]) is False
+    assert duracion.is_partial_participation(["sesion", "margen"]) is True
+    assert duracion.is_partial_participation(["sesion", "margen", "fisio"]) is True
+    assert duracion.is_partial_participation(["margen"]) is False
+    assert duracion.is_partial_participation(["fisio"]) is False
+    assert duracion.is_partial_participation(["fisio", "margen"]) is False
+    assert duracion.is_partial_participation(["sesion"]) is False
+    assert duracion.is_partial_participation(["sesion", "fisio"]) is False
     assert duracion.is_partial_participation([]) is False
     assert duracion.is_partial_participation(["presente"]) is False
+    assert duracion.participation_kind(["margen"]) == "solo_margen"
+    assert duracion.participation_kind(["fisio"]) == "sin_campo"
+    assert duracion.participation_kind(["sesion", "fisio"]) == "completa"
     assert duracion.margin_minutes_for_tipos(["margen"], 20) == 20
+    assert duracion.margin_minutes_for_tipos(["sesion", "margen"], 20) == 20
     assert duracion.margin_minutes_for_tipos(["sesion"], 20) == 0
-    assert duracion.margin_minutes_for_tipos(["fisio"], 9) == 9
+    assert duracion.margin_minutes_for_tipos(["fisio"], 9) == 0
+
+
+def test_solo_margen_ignores_field_ticks_and_partido():
+    tareas = [
+        _tarea("activacion", 10, ["x"]),
+        _tarea("desarrollo_1", 20),
+    ]
+    estructura = [
+        {
+            "tipo": "partido_condicionado",
+            "duracion_objetivo": 12,
+            "partido": {
+                "duracion_min": 12,
+                "equipo_peto": {"1": "x"},
+                "equipo_sin_peto": {},
+            },
+        }
+    ]
+    assert duracion.player_session_minutes(
+        tareas, estructura, "x", solo_margen=True, minutos_margen=14
+    ) == 14
+    assert duracion.player_session_minutes(
+        tareas, estructura, "x", sin_campo=True, minutos_margen=14
+    ) == 0
 
 
 def test_named_players_can_live_inside_formacion():

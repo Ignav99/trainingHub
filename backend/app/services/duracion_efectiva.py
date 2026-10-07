@@ -159,26 +159,43 @@ def player_compensatorio_fases(estructura: list | None, jugador_id: str) -> set[
     return fases
 
 
-def is_partial_participation(tipos: Any) -> bool:
-    """Margen o fisio sin hacer la sesión entera.
+def _cleaned_tipos(tipos: Any) -> list[str]:
+    return [str(t) for t in (tipos or []) if t]
 
-    Vacío, «sesion» o «presente» cuentan el bloque completo. Sesión + margen
-    sigue siendo sesión entera (los minutos de margen se suman aparte).
+
+def participation_kind(tipos: Any) -> str:
+    """Cómo cuenta el tiempo de campo de un jugador presente.
+
+    - parcial: marcado con sesión y margen. Solo las tareas en las que se le nombra,
+      más el trabajo al margen. El fisio no cambia el grupo.
+    - solo_margen: margen sin sesión. No entra en las tareas; solo su plan al margen.
+    - completa: sesión (con o sin fisio), presente o sin tipo. El bloque entero.
+    - sin_campo: fisio u otro trabajo fuera del campo. No hereda los minutos de la sesión.
     """
-    cleaned = [str(t) for t in (tipos or []) if t]
-    if not cleaned or "sesion" in cleaned or "presente" in cleaned:
-        return False
-    return "margen" in cleaned or "fisio" in cleaned
+    cleaned = _cleaned_tipos(tipos)
+    has_sesion = "sesion" in cleaned
+    has_margen = "margen" in cleaned
+    if has_sesion and has_margen:
+        return "parcial"
+    if has_margen:
+        return "solo_margen"
+    if not cleaned or "presente" in cleaned or has_sesion:
+        return "completa"
+    return "sin_campo"
+
+
+def is_partial_participation(tipos: Any) -> bool:
+    """Sesión y margen a la vez: estuvo al margen y en parte de la sesión."""
+    return participation_kind(tipos) == "parcial"
 
 
 def margin_minutes_for_tipos(tipos: Any, plan_minutes: Any) -> int:
-    """Minutos del plan al margen que entran en la carga de ese jugador."""
+    """Minutos del plan al margen. Solo si el jugador está marcado con margen."""
     try:
         plan = max(0, int(plan_minutes or 0))
     except (TypeError, ValueError):
         plan = 0
-    cleaned = [str(t) for t in (tipos or []) if t]
-    if "margen" in cleaned or is_partial_participation(cleaned):
+    if "margen" in _cleaned_tipos(tipos):
         return plan
     return 0
 
@@ -287,12 +304,23 @@ def player_session_minutes(
     *,
     parcial: bool = False,
     minutos_margen: int = 0,
+    solo_margen: bool = False,
+    sin_campo: bool = False,
 ) -> int:
     """Minutos efectivos que ese jugador trabajó (lanes paralelos no se suman al resto).
 
-    Un jugador parcial (margen o fisio, sin sesión completa) solo suma las tareas
-    en las que está nombrado, más el tiempo de su trabajo al margen.
+    Parcial (sesión y margen): solo las tareas en las que está nombrado, más el
+    tiempo de su trabajo al margen. Solo margen: ese plan, sin el campo.
+    Fuera de campo (fisio): no suma la sesión ni el plan al margen.
     """
+    try:
+        extra = max(0, int(minutos_margen or 0))
+    except (TypeError, ValueError):
+        extra = 0
+    if solo_margen:
+        return extra
+    if sin_campo:
+        return 0
     jid = str(jugador_id)
     total = 0
     if parcial:
@@ -307,11 +335,7 @@ def player_session_minutes(
                 continue
             total += minutos_carga_sesion_tarea(st)
     total += _partido_minutes(estructura, jid)
-    try:
-        total += max(0, int(minutos_margen or 0))
-    except (TypeError, ValueError):
-        pass
-    return total
+    return total + extra
 
 
 def _tarea_dict(st: dict) -> dict:
