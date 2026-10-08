@@ -26,6 +26,7 @@ import {
   slimShowForSync,
   type DossierShow,
 } from '@/lib/dossierShow'
+import { isSlideNavKey, isVideoSafeTarget, swipeSlideDelta } from '@/lib/presentacionGestos'
 import { captureHostVideo, captureVideoJpeg, directoSalaPath } from '@/lib/directoSala'
 import {
   IDENTITY_ZOOM,
@@ -574,11 +575,19 @@ export function PresentacionSala({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault()
+        if (videoFullscreen) {
+          toggleVideoFullscreen({ clip_id: clipId, slide: indexRef.current })
+          return
+        }
         if (directoHost && qrOpenRef.current) {
           setQrOpen(false)
           return
         }
         onClose?.()
+        return
+      }
+      if (videoFullscreen && isSlideNavKey(e.key)) {
+        e.preventDefault()
         return
       }
       if (e.key === 'ArrowRight' || e.key === 'PageDown') {
@@ -608,7 +617,7 @@ export function PresentacionSala({
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [go, goTo, onClose, slide?.kind])
+  }, [clipId, go, goTo, onClose, slide?.kind, toggleVideoFullscreen, videoFullscreen])
 
   const salaPath = directoLive ? directoSalaPath(code, guestPass) : `/revision/${code}`
   const salaUrl = typeof window !== 'undefined' && code ? `${window.location.origin}${salaPath}` : ''
@@ -639,9 +648,11 @@ export function PresentacionSala({
   }
 
   const total = slides.length
-  const hint = isVideo
-    ? 'Espacio reproduce · ← → pasa diapositiva · Esc cierra'
-    : '← → pasa diapositiva · Espacio siguiente · Esc cierra'
+  const hint = videoFullscreen
+    ? 'Pantalla completa: pintar no cambia de diapositiva · Esc sale'
+    : isVideo
+      ? 'Espacio reproduce · ← → pasa diapositiva · Esc cierra'
+      : '← → pasa diapositiva · Espacio siguiente · Esc cierra'
 
   return createPortal(
     <div
@@ -655,17 +666,23 @@ export function PresentacionSala({
       style={{ background: '#08110F', color: '#F3EFE6' }}
       onTouchStart={(e) => {
         if (directoLive) return
+        if (videoFullscreen || isVideoSafeTarget(e.target)) {
+          touchStartX.current = null
+          return
+        }
         touchStartX.current = e.changedTouches[0]?.clientX ?? null
       }}
       onTouchEnd={(e) => {
         if (directoLive) return
         const start = touchStartX.current
         touchStartX.current = null
-        const end = e.changedTouches[0]?.clientX
-        if (start == null || end == null) return
-        const delta = end - start
-        if (Math.abs(delta) < 60) return
-        go(delta < 0 ? 1 : -1)
+        const delta = swipeSlideDelta({
+          startX: start,
+          endX: e.changedTouches[0]?.clientX ?? null,
+          videoSafe: videoFullscreen || isVideoSafeTarget(e.target),
+        })
+        if (delta === 0) return
+        go(delta)
       }}
     >
       <style>{`
@@ -782,6 +799,9 @@ export function PresentacionSala({
                 <div
                   ref={videoPaneRef}
                   data-testid="sala-video-pane"
+                  data-video-safe=""
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => e.stopPropagation()}
                   className={
                     videoTheater
                       ? 'fixed inset-0 z-[120] isolate overflow-hidden bg-black'

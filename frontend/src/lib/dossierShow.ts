@@ -137,6 +137,8 @@ export type ShowSlide =
       section?: ShowSection
       kind: 'video'
       fase: ShowVideoSlot
+      /** Creación, bloque alto, … cuando el clip va justo después de esa diapositiva. */
+      subfase?: string
       kicker: string
       title: string
       src: string
@@ -160,7 +162,12 @@ export interface RevisionPackLike {
     status?: string
     fase?: string | null
   }>
-  folders?: Array<{ id: string; fase?: string | null }>
+  folders?: Array<{
+    id: string
+    fase?: string | null
+    nombre?: string | null
+    parent_id?: string | null
+  }>
   links?: Array<{
     clip_id: string
     folder_id?: string | null
@@ -335,20 +342,23 @@ export function attachRevisionPack(show: DossierShow, pack?: RevisionPackLike | 
     const src = playableClipUrl(clip.url_play ?? undefined) ?? playableClipUrl(clip.url ?? undefined)
     if (!src) continue
     if (used.has(clip.id) || used.has(src)) continue
-    const slot = slotForRevisionClip(clip, linksByClip.get(clip.id) ?? [], folderById)
-    if (!slot) continue
+    const placement = resolveClipPlacement(clip, linksByClip.get(clip.id) ?? [], folderById)
+    if (!placement) continue
     const video: Extract<ShowSlide, { kind: 'video' }> = {
       id: `video:rev:${clip.id}`,
       kind: 'video',
-      fase: slot,
-      kicker: slot === 'once_probable' ? 'Once probable' : SHOW_FASE_LABELS[slot],
+      fase: placement.fase,
+      subfase: placement.subfase,
+      kicker: placement.fase === 'once_probable'
+        ? 'Once probable'
+        : (placement.subfase ? subfaseLabel(placement.subfase, false) : SHOW_FASE_LABELS[placement.fase]),
       title: (clip.titulo || '').trim() || 'Clip',
       src,
       clipId: clip.id,
     }
-    const list = bySlot.get(slot) ?? []
+    const list = bySlot.get(placement.fase) ?? []
     list.push(video)
-    bySlot.set(slot, list)
+    bySlot.set(placement.fase, list)
     used.add(clip.id)
     used.add(src)
   }
@@ -357,9 +367,17 @@ export function attachRevisionPack(show: DossierShow, pack?: RevisionPackLike | 
 
   const slides = [...show.slides]
   for (const [slot, videos] of Array.from(bySlot.entries())) {
-    if (slot === 'once_probable') insertOnceVideos(slides, videos)
-    else insertPhaseVideos(slides, slot, videos)
+    if (slot === 'once_probable') {
+      insertOnceVideos(slides, videos)
+      continue
+    }
+    const anchored = videos.filter((video) => video.subfase)
+    const loose = videos.filter((video) => !video.subfase)
+    for (const video of anchored) insertSubfaseVideo(slides, video)
+    if (loose.length > 0) insertPhaseVideos(slides, slot, loose)
   }
+  spreadPhaseVideosAfterSubfases(slides, 'ataque_organizado')
+  spreadPhaseVideosAfterSubfases(slides, 'defensa_organizada')
   return { ...show, slides }
 }
 
@@ -668,24 +686,165 @@ function phaseBlock(
       clipId: clip.id || `${fase}-${index}`,
     })
   })
+  if (isOrganizedFase(fase)) spreadPhaseVideosAfterSubfases(slides, fase)
   return slides
 }
 
-function slotForRevisionClip(
+const SUBFASE_LABEL_KEYS: Record<string, string> = {
+  creacion: 'creacion',
+  progresion: 'progresion',
+  finalizacion: 'finalizacion',
+  'bloque alto': 'bloque_alto',
+  'bloque medio': 'bloque_medio',
+  'bloque mixto': 'bloque_medio',
+  'bloque bajo': 'bloque_bajo',
+}
+
+function subfaseKeyFromLabel(value?: string | null): string | null {
+  if (!value) return null
+  const spaced = value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return SUBFASE_LABEL_KEYS[spaced] ?? null
+}
+
+function parentOfSubfase(key: string): 'ataque_organizado' | 'defensa_organizada' | null {
+  if (key === 'creacion' || key === 'progresion' || key === 'finalizacion') return 'ataque_organizado'
+  if (key === 'bloque_alto' || key === 'bloque_medio' || key === 'bloque_bajo') return 'defensa_organizada'
+  return null
+}
+
+function subfaseKeyFromSlideId(id: string, fase: 'ataque_organizado' | 'defensa_organizada'): string | null {
+  const marker = `fase:${fase}:`
+  const idx = id.lastIndexOf(marker)
+  if (idx < 0) return null
+  const rest = id.slice(idx + marker.length)
+  if (!rest || rest.includes(':')) return null
+  return parentOfSubfase(rest) === fase ? rest : null
+}
+
+function resolveClipPlacement(
   clip: { fase?: string | null },
   links: Array<{ folder_id?: string | null; slot_tipo?: string }>,
-  folderById: Map<string, { fase?: string | null }>,
-): ShowVideoSlot | null {
-  const fromClip = normalizeShowSlot(clip.fase)
-  if (fromClip) return fromClip
+  folderById: Map<string, { fase?: string | null; nombre?: string | null; parent_id?: string | null }>,
+): { fase: ShowVideoSlot; subfase?: string } | null {
   for (const link of links) {
-    if (link.slot_tipo === 'once_jugador') return 'once_probable'
-    if (link.folder_id) {
-      const fromFolder = normalizeShowSlot(folderById.get(link.folder_id)?.fase)
-      if (fromFolder) return fromFolder
+    if (link.slot_tipo === 'once_jugador') return { fase: 'once_probable' }
+  }
+
+  let fase: ShowVideoSlot | null = null
+  let subfase: string | undefined
+  const consider = (value?: string | null) => {
+    if (!value) return
+    const sub = subfaseKeyFromLabel(value)
+    if (sub) {
+      if (!subfase) subfase = sub
+      if (!fase) fase = parentOfSubfase(sub)
+      return
+    }
+    const slot = normalizeShowSlot(value)
+    if (slot && !fase) fase = slot
+  }
+
+  consider(clip.fase)
+  for (const link of links) {
+    let folderId = link.folder_id ?? null
+    const seen = new Set<string>()
+    while (folderId && !seen.has(folderId)) {
+      seen.add(folderId)
+      const folder = folderById.get(folderId)
+      if (!folder) break
+      consider(folder.nombre)
+      consider(folder.fase)
+      folderId = folder.parent_id ?? null
     }
   }
-  return null
+
+  if (subfase) {
+    const parent = parentOfSubfase(subfase)
+    if (parent) fase = parent
+  }
+  const resolved = fase as ShowVideoSlot | null
+  if (!resolved) return null
+  if (resolved === 'once_probable') return { fase: 'once_probable' }
+  return { fase: resolved, subfase }
+}
+
+function insertSubfaseVideo(slides: ShowSlide[], video: Extract<ShowSlide, { kind: 'video' }>) {
+  const subfase = video.subfase
+  const fase = video.fase
+  if (!subfase || (fase !== 'ataque_organizado' && fase !== 'defensa_organizada')) {
+    if (fase === 'once_probable') insertOnceVideos(slides, [video])
+    else insertPhaseVideos(slides, fase, [{ ...video, subfase: undefined }])
+    return
+  }
+  let last = -1
+  for (let i = 0; i < slides.length; i += 1) {
+    const slide = slides[i]
+    if (slide.kind === 'fase' && slide.fase === fase && subfaseKeyFromSlideId(slide.id, fase) === subfase) last = i
+    if (slide.kind === 'video' && slide.fase === fase && slide.subfase === subfase) last = i
+  }
+  if (last < 0) {
+    insertPhaseVideos(slides, fase, [{ ...video, subfase: undefined }])
+    return
+  }
+  const anchor = slides[last]
+  slides.splice(last + 1, 0, {
+    ...video,
+    kicker: anchor.kind === 'fase' ? anchor.title : video.kicker,
+  })
+}
+
+/** Clips of the parent phase play after creación, progresión and finalización — and the same for the defensive blocks. */
+function spreadPhaseVideosAfterSubfases(
+  slides: ShowSlide[],
+  fase: 'ataque_organizado' | 'defensa_organizada',
+) {
+  const loose: Extract<ShowSlide, { kind: 'video' }>[] = []
+  for (let i = slides.length - 1; i >= 0; i -= 1) {
+    const slide = slides[i]
+    if (slide.kind === 'video' && slide.fase === fase && !slide.subfase) {
+      loose.push(slide)
+      slides.splice(i, 1)
+    }
+  }
+  if (loose.length === 0) return
+  loose.reverse()
+
+  const subIndexes: number[] = []
+  for (let i = 0; i < slides.length; i += 1) {
+    const slide = slides[i]
+    if (slide.kind === 'fase' && slide.fase === fase && subfaseKeyFromSlideId(slide.id, fase)) {
+      subIndexes.push(i)
+    }
+  }
+  if (subIndexes.length === 0) {
+    insertPhaseVideos(slides, fase, loose)
+    return
+  }
+
+  for (let s = subIndexes.length - 1; s >= 0; s -= 1) {
+    const anchor = slides[subIndexes[s]]
+    if (anchor.kind !== 'fase') continue
+    const key = subfaseKeyFromSlideId(anchor.id, fase)
+    if (!key) continue
+    let insertAt = subIndexes[s] + 1
+    while (insertAt < slides.length) {
+      const next = slides[insertAt]
+      if (next.kind !== 'video' || next.fase !== fase) break
+      insertAt += 1
+    }
+    slides.splice(insertAt, 0, ...loose.map((video) => ({
+      ...video,
+      id: `${video.id}:${key}`,
+      subfase: key,
+      kicker: anchor.title,
+    })))
+  }
 }
 
 function normalizeShowSlot(value?: string | null): ShowVideoSlot | null {
