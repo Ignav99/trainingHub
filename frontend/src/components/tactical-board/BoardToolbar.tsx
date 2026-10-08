@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useSyncExternalStore } from 'react'
 import {
   Trash2, RotateCcw, MousePointer, Square, Circle as CircleIcon, Ruler,
   Undo2, Redo2, Type, Copy, ClipboardPaste, Group, Ungroup,
@@ -10,6 +10,11 @@ import {
 import { BoardTool, ZONE_COLORS } from './types'
 import { FORMATIONS } from '@/lib/formations'
 import { useTacticalBoardStore } from '@/stores/useTacticalBoardStore'
+import {
+  pizarraHasContent,
+  readPizarraClipboard,
+  subscribePizarraClipboard,
+} from '@/lib/pizarraClipboard'
 import { ELEMENT_TOOLS, FICHA_COLORS, SymbolPreview, fichaColor } from './BoardSymbols'
 import { ARROW_STYLES, ARROW_TYPE_ORDER, arrowGeometry, arrowHeadPoints, arrowBarPoints } from './arrowPaths'
 import type { ArrowType } from '@/components/tarea-editor/types'
@@ -125,6 +130,11 @@ export default function BoardToolbar({
   const redo = useTacticalBoardStore((s) => s.redo)
   const copySelected = useTacticalBoardStore((s) => s.copySelected)
   const pasteClipboard = useTacticalBoardStore((s) => s.pasteClipboard)
+  const copyWholeBoard = useTacticalBoardStore((s) => s.copyWholeBoard)
+  const pasteWholeBoard = useTacticalBoardStore((s) => s.pasteWholeBoard)
+  const keyframes = useTacticalBoardStore((s) => s.keyframes)
+  const tipo = useTacticalBoardStore((s) => s.tipo)
+  const copiedBoard = useSyncExternalStore(subscribePizarraClipboard, readPizarraClipboard, () => null)
   const duplicateSelected = useTacticalBoardStore((s) => s.duplicateSelected)
   const transformSelection = useTacticalBoardStore((s) => s.transformSelection)
   const groupSelection = useTacticalBoardStore((s) => s.groupSelection)
@@ -134,6 +144,19 @@ export default function BoardToolbar({
   const selectionCount = new Set([...selectedElementIds, ...(selectedElementId ? [selectedElementId] : [])]).size
   const hasSelection = selectionCount > 0
   const hasClipboard = !!clipboard && (clipboard.elements.length + clipboard.arrows.length + clipboard.zones.length) > 0
+  const canCopyBoard = pizarraHasContent({ elements, arrows, zones, tipo, frames: keyframes })
+  const canPasteBoard = pizarraHasContent(copiedBoard)
+
+  const handlePasteBoard = () => {
+    if (!canPasteBoard) return
+    if (
+      canCopyBoard &&
+      !window.confirm('Esta pizarra tiene dibujo. Se sustituye por la pizarra copiada.')
+    ) {
+      return
+    }
+    pasteWholeBoard()
+  }
 
   const jugadores = ELEMENT_TOOLS.filter((t) => t.grupo === 'jugadores')
   const material = ELEMENT_TOOLS.filter((t) => t.grupo === 'material')
@@ -251,6 +274,29 @@ export default function BoardToolbar({
         <span className="text-[10px] text-gray-400 whitespace-nowrap hidden xl:inline">
           {elements.length} elem · {arrows.length} mov · {zones.length} zonas
         </span>
+
+        <button
+          type="button"
+          onClick={() => copyWholeBoard()}
+          disabled={!canCopyBoard}
+          title="Copia esta pizarra entera, con sus fases, para pegarla en otra"
+          className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          Copiar pizarra
+        </button>
+        <button
+          type="button"
+          onClick={handlePasteBoard}
+          disabled={!canPasteBoard}
+          title="Pega en este campo la pizarra copiada, con sus fases"
+          className={`px-2.5 py-1.5 text-xs font-medium rounded-lg border disabled:opacity-40 disabled:cursor-not-allowed ${
+            canPasteBoard
+              ? 'border-blue-600 bg-blue-50 text-blue-800 hover:bg-blue-100'
+              : 'border-gray-200 bg-white text-gray-700'
+          }`}
+        >
+          Pegar pizarra
+        </button>
 
         <button
           type="button"
@@ -413,7 +459,7 @@ export default function BoardToolbar({
       )}
       {!colapsada && activeTool === 'select' && (
         <div className="text-[11px] text-gray-400">
-          Arrastra sobre el campo para englobar varios elementos · Ctrl+C/V copiar y pegar · Ctrl+Shift+V pegar invertido · Ctrl+G agrupar · [ ] girar · H invertir
+          Arrastra sobre el campo para englobar varios elementos · Ctrl+C/V copia la selección · Copiar pizarra lleva el campo entero, con sus fases, a otra pizarra
         </div>
       )}
     </div>
