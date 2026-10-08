@@ -14,6 +14,13 @@ import {
   Position,
 } from '@/components/tactical-board/types'
 import { compactKeyframes } from '@/components/tactical-board/interpolate'
+import {
+  clonePizarra,
+  pizarraHasContent,
+  readPizarraClipboard,
+  writePizarraClipboard,
+  type CopiedPizarra,
+} from '@/lib/pizarraClipboard'
 import { fichaColor } from '@/components/tactical-board/BoardSymbols'
 import { FORMATIONS } from '@/lib/formations'
 import { metersToUnits } from '@/lib/tacticalMetrics'
@@ -248,6 +255,10 @@ interface TacticalBoardState {
   copySelected: () => void
   cutSelected: () => void
   pasteClipboard: (transform?: SelectionTransform) => void
+  /** Copia el campo entero, con sus fases, para pegarlo en otra pizarra. */
+  copyWholeBoard: () => boolean
+  /** Sustituye esta pizarra por la copiada. Devuelve false si no hay copia. */
+  pasteWholeBoard: () => boolean
   duplicateSelected: () => void
   transformSelection: (transform: SelectionTransform) => void
   groupSelection: () => void
@@ -681,6 +692,64 @@ export const useTacticalBoardStore = create<TacticalBoardState>((set, get) => ({
   cutSelected: () => {
     get().copySelected()
     get().deleteSelected()
+  },
+
+  copyWholeBoard: () => {
+    const state = get()
+    const canvas = {
+      elements: cloneJson(state.elements),
+      arrows: cloneJson(state.arrows),
+      zones: cloneJson(state.zones),
+    }
+    let frames = state.keyframes.map((kf, i) =>
+      i === state.activeKeyframeIndex ? { ...cloneJson(kf), ...canvas } : cloneJson(kf),
+    )
+    if (state.tipo === 'animated' && frames.length === 0 && pizarraHasContent(canvas)) {
+      frames = [{
+        id: generateId(),
+        orden: 0,
+        nombre: 'Frame 1',
+        duration_ms: 2000,
+        ...canvas,
+        transition_type: 'linear' as const,
+      }]
+    }
+    const board: CopiedPizarra = {
+      ...(state.tipo === 'animated' && frames[0] ? frames[0] : canvas),
+      pitchType: state.pitchType === 'half' ? 'half' : 'full',
+      tipo: state.tipo === 'animated' ? 'animated' : 'static',
+      frames: state.tipo === 'animated' ? frames : [],
+      campoRoles: cloneJson(state.campoRoles),
+    }
+    if (!pizarraHasContent(board)) return false
+    writePizarraClipboard(board)
+    return true
+  },
+
+  pasteWholeBoard: () => {
+    const copied = readPizarraClipboard()
+    if (!copied) return false
+    const next = clonePizarra(copied, generateId)
+    const frames = next.tipo === 'animated' ? compactKeyframes(next.frames) : []
+    const start = frames[0]
+    set({
+      elements: cloneJson(start?.elements ?? next.elements),
+      arrows: cloneJson(start?.arrows ?? next.arrows),
+      zones: cloneJson(start?.zones ?? next.zones),
+      keyframes: frames.map((kf, i) => ({ ...kf, orden: i })),
+      activeKeyframeIndex: 0,
+      tipo: next.tipo,
+      pitchType: next.pitchType,
+      campoRoles: next.campoRoles,
+      isDirty: true,
+      isPlaying: false,
+      selectedElementId: null,
+      selectedElementIds: [],
+      activeTool: 'select',
+      history: [],
+      historyIndex: -1,
+    })
+    return true
   },
 
   pasteClipboard: (transform) => {
