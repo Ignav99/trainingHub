@@ -115,6 +115,18 @@ describe('dossier live show builder', () => {
     assert.equal(fases[1].kind === 'fase' && fases[1].board, creacion)
     assert.equal(fases[2].kind === 'fase' && fases[2].board, progresion)
     assert.equal(fases[3].kind === 'fase' && fases[3].board, finalizacion)
+    assert.deepEqual(
+      show.slides.slice(1).map((slide) => (slide.kind === 'video' ? `video:${slide.title}` : slide.title)),
+      [
+        'Ataque organizado',
+        'Creación',
+        'video:Salida',
+        'Progresión',
+        'video:Salida',
+        'Finalización',
+        'video:Salida',
+      ]
+    )
     assert.equal(show.slides.at(-1)?.kind, 'video')
     assert.equal(show.slides.at(-1)?.kind === 'video' && show.slides.at(-1)?.title, 'Salida')
 
@@ -153,9 +165,90 @@ describe('dossier live show builder', () => {
     const chapters = showChapters(show.slides)
     const ataque = chapters.find((chapter) => chapter.id === 'fase:ataque_organizado')
     assert.equal(ataque?.label, 'Ataque organizado')
-    assert.equal(ataque?.slideCount, 5)
-    assert.equal(ataque?.videoCount, 1)
+    assert.equal(ataque?.slideCount, 7)
+    assert.equal(ataque?.videoCount, 3)
     assert.equal(chapters.some((chapter) => chapter.label.includes('Finalización') || chapter.label.includes('Creación')), false)
+  })
+
+  it('keeps a creación clip on that slide and repeats parent-phase clips after every organized block', () => {
+    const show = buildInformeShow({
+      fases: [
+        {
+          fase: 'ataque_organizado',
+          comentario_general: 'Salida corta.',
+          fortalezas: [],
+          debilidades: [],
+          clips: [],
+          subfases: {
+            creacion: { notas: 'Portero más dos', fortalezas: [], debilidades: [] },
+            progresion: { notas: 'Interior', fortalezas: [], debilidades: [] },
+            finalizacion: { notas: 'Centro', fortalezas: [], debilidades: [] },
+          },
+        },
+        {
+          fase: 'defensa_organizada',
+          comentario_general: 'Bloque que espera.',
+          fortalezas: [],
+          debilidades: [],
+          clips: [],
+          subfases: {
+            bloque_alto: { notas: 'Presionan', fortalezas: [], debilidades: [] },
+            bloque_medio: { notas: 'Saltan', fortalezas: [], debilidades: [] },
+            bloque_bajo: { notas: 'Cierre', fortalezas: [], debilidades: [] },
+          },
+        },
+      ],
+    })
+    const withVideos = attachRevisionPack(show, {
+      clips: [
+        { id: 'padre', titulo: 'Ataque entero', url_play: 'https://cdn.example/padre.mp4', status: 'hot', fase: 'ataque_organizado' },
+        { id: 'crea', titulo: 'Solo creación', url_play: 'https://cdn.example/crea.mp4', status: 'hot', fase: 'creacion' },
+        { id: 'bajo', titulo: 'Bloque bajo', url_play: 'https://cdn.example/bajo.mp4', status: 'hot' },
+        { id: 'def', titulo: 'Defensa entera', url_play: 'https://cdn.example/def.mp4', status: 'hot', fase: 'defensa_organizada' },
+      ],
+      folders: [
+        { id: 'ao', fase: 'ataque_organizado', nombre: 'Ataque organizado' },
+        { id: 'crea', parent_id: 'ao', nombre: 'Creación' },
+        { id: 'def', fase: 'defensa_organizada', nombre: 'Defensa organizada' },
+        { id: 'bajo', parent_id: 'def', nombre: 'Bloque bajo' },
+      ],
+      links: [
+        { clip_id: 'padre', folder_id: 'ao', slot_tipo: 'folder' },
+        { clip_id: 'crea', folder_id: 'crea', slot_tipo: 'folder' },
+        { clip_id: 'bajo', folder_id: 'bajo', slot_tipo: 'folder' },
+        { clip_id: 'def', folder_id: 'def', slot_tipo: 'folder' },
+      ],
+    })
+    const ataque = withVideos.slides.filter((slide) => 'fase' in slide && slide.fase === 'ataque_organizado')
+    assert.deepEqual(
+      ataque.map((slide) => (slide.kind === 'video' ? `video:${slide.title}` : slide.title)),
+      [
+        'Ataque organizado',
+        'Creación',
+        'video:Solo creación',
+        'video:Ataque entero',
+        'Progresión',
+        'video:Ataque entero',
+        'Finalización',
+        'video:Ataque entero',
+      ]
+    )
+    const defensa = withVideos.slides.filter((slide) => 'fase' in slide && slide.fase === 'defensa_organizada')
+    assert.deepEqual(
+      defensa.map((slide) => (slide.kind === 'video' ? `video:${slide.title}` : slide.title)),
+      [
+        'Defensa organizada',
+        'Bloque alto',
+        'video:Defensa entera',
+        'Bloque medio',
+        'video:Defensa entera',
+        'Bloque bajo',
+        'video:Bloque bajo',
+        'video:Defensa entera',
+      ]
+    )
+    const ids = withVideos.slides.map((slide) => slide.id)
+    assert.equal(new Set(ids).size, ids.length)
   })
 
   it('skips empty phases and still shows a title slide when a phase only has video', () => {

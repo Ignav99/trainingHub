@@ -17,6 +17,7 @@ import {
   type DossierShow,
   type ShowSlide,
 } from '@/lib/dossierShow'
+import { isSlideNavKey, isVideoSafeTarget, swipeSlideDelta } from '@/lib/presentacionGestos'
 
 interface DossierPresenterProps {
   show: DossierShow
@@ -72,9 +73,19 @@ export function DossierPresenter({ show, onClose }: DossierPresenterProps) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const videoLocked = document.fullscreenElement instanceof Element
+        && Boolean(document.fullscreenElement.closest('[data-video-safe]'))
       if (e.key === 'Escape') {
         e.preventDefault()
+        if (videoLocked) {
+          void document.exitFullscreen()
+          return
+        }
         onClose()
+        return
+      }
+      if (videoLocked && isSlideNavKey(e.key)) {
+        e.preventDefault()
         return
       }
       if (e.key === 'ArrowRight' || e.key === 'PageDown') {
@@ -124,16 +135,22 @@ export function DossierPresenter({ show, onClose }: DossierPresenterProps) {
       className="fixed inset-0 z-[100] flex flex-col outline-none"
       style={{ background: '#08110F', color: '#F3EFE6' }}
       onTouchStart={(e) => {
+        if (isVideoSafeTarget(e.target)) {
+          touchStartX.current = null
+          return
+        }
         touchStartX.current = e.changedTouches[0]?.clientX ?? null
       }}
       onTouchEnd={(e) => {
         const start = touchStartX.current
         touchStartX.current = null
-        const end = e.changedTouches[0]?.clientX
-        if (start == null || end == null) return
-        const delta = end - start
-        if (Math.abs(delta) < 60) return
-        go(delta < 0 ? 1 : -1)
+        const delta = swipeSlideDelta({
+          startX: start,
+          endX: e.changedTouches[0]?.clientX ?? null,
+          videoSafe: isVideoSafeTarget(e.target),
+        })
+        if (delta === 0) return
+        go(delta)
       }}
     >
       <style>{`
@@ -278,7 +295,13 @@ function VideoSlide({
           {slide.kicker}
         </span>
       </div>
-      <div className="relative min-h-0 flex-1 overflow-hidden rounded-md" style={{ background: '#000' }}>
+      <div
+        data-video-safe=""
+        className="relative min-h-0 flex-1 overflow-hidden rounded-md"
+        style={{ background: '#000' }}
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+      >
         {failed ? (
           <div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center">
             <p className="text-xl font-bold" style={{ fontFamily: DISPLAY_FONT, color: '#E35D4A' }}>
