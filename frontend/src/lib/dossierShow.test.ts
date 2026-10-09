@@ -120,9 +120,7 @@ describe('dossier live show builder', () => {
       [
         'Ataque organizado',
         'Creación',
-        'video:Salida',
         'Progresión',
-        'video:Salida',
         'Finalización',
         'video:Salida',
       ]
@@ -165,12 +163,12 @@ describe('dossier live show builder', () => {
     const chapters = showChapters(show.slides)
     const ataque = chapters.find((chapter) => chapter.id === 'fase:ataque_organizado')
     assert.equal(ataque?.label, 'Ataque organizado')
-    assert.equal(ataque?.slideCount, 7)
-    assert.equal(ataque?.videoCount, 3)
+    assert.equal(ataque?.slideCount, 5)
+    assert.equal(ataque?.videoCount, 1)
     assert.equal(chapters.some((chapter) => chapter.label.includes('Finalización') || chapter.label.includes('Creación')), false)
   })
 
-  it('keeps a creación clip on that slide and repeats parent-phase clips after every organized block', () => {
+  it('places each revision clip on its subfase and keeps the phase clip once at the end', () => {
     const show = buildInformeShow({
       fases: [
         {
@@ -226,9 +224,7 @@ describe('dossier live show builder', () => {
         'Ataque organizado',
         'Creación',
         'video:Solo creación',
-        'video:Ataque entero',
         'Progresión',
-        'video:Ataque entero',
         'Finalización',
         'video:Ataque entero',
       ]
@@ -239,9 +235,7 @@ describe('dossier live show builder', () => {
       [
         'Defensa organizada',
         'Bloque alto',
-        'video:Defensa entera',
         'Bloque medio',
-        'video:Defensa entera',
         'Bloque bajo',
         'video:Bloque bajo',
         'video:Defensa entera',

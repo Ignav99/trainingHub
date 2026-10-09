@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dialog'
 import { peekRevisionFolders, prefetchRevisionFolders, revisionApi, type RevisionAmbito, type RevisionPack } from '@/lib/api/revision'
 import { extractClipRange } from '@/components/video-analyzer/extractClip'
-import { matchRevisionFolderId } from '@/components/video-analyzer/videoDesk'
+import { matchRevisionFolderId, revisionFolderChoices } from '@/components/video-analyzer/videoDesk'
 import { packQueryForDestino, pickDestinoId, type RevisionDestinoPartido } from '@/lib/revisionDestino'
 
 interface SendToRevisionDialogProps {
@@ -87,7 +87,7 @@ export function SendToRevisionDialog({
   const batch = clips && clips.length > 1 ? clips : null
 
   const folders = useMemo(
-    () => (pack?.folders || []).filter((f) => !f.parent_id).sort((a, b) => a.orden - b.orden),
+    () => revisionFolderChoices(pack?.folders || []),
     [pack]
   )
 
@@ -198,7 +198,7 @@ export function SendToRevisionDialog({
         <div className="space-y-3">
           <p className="text-xs text-muted-foreground">
             Se recorta aquí y solo sube ese fragmento (máx. 3 min). El archivo del partido no sale de este ordenador.
-            Elige el partido de destino y una de las tres carpetas, aunque el vídeo sea de otro partido.
+            Elige la fase y, en ataque o defensa organizada, la subfase: ese vídeo sale solo ahí.
           </p>
           <div className="space-y-1">
             <Label htmlFor="revision-destino-partido">Partido</Label>
@@ -248,15 +248,16 @@ export function SendToRevisionDialog({
             </Button>
           </div>
           <div className="space-y-1">
-            <Label>Carpeta / fase</Label>
+            <Label htmlFor="revision-fase-subfase">Fase y subfase</Label>
             <select
+              id="revision-fase-subfase"
               className="w-full h-9 rounded-md border bg-background px-2 text-sm"
               value={folderId}
               onChange={(e) => setFolderId(e.target.value)}
               disabled={loadingPack}
             >
               {folders.map((f) => (
-                <option key={f.id} value={f.id}>{f.nombre}</option>
+                <option key={f.id} value={f.id}>{f.label}</option>
               ))}
             </select>
           </div>

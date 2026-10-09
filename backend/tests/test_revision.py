@@ -10,6 +10,7 @@ from app.services.revision_service import (
     MAX_CLIP_BYTES,
     WARN_DAYS,
     default_folders_for,
+    subfase_folders_to_create,
     drive_connected,
     drive_ready,
     ensure_video_bucket,
@@ -57,6 +58,24 @@ class TestDefaultFolders:
         fases = [f[0] for f in folders]
         assert "once_probable" in fases
         assert "transicion_ofensiva" in fases
+
+    def test_missing_subfases_keep_an_existing_creacion(self):
+        existing = [
+            {"id": "ao", "fase": "ataque_organizado", "nombre": "Ataque organizado", "parent_id": None},
+            {"id": "crea", "parent_id": "ao", "fase": "creacion", "nombre": "Creación"},
+            {"id": "def", "fase": "defensa_organizada", "nombre": "Defensa organizada", "parent_id": None},
+            {"id": "hecho", "parent_id": "ao", "fase": None, "nombre": "Progresión"},
+            {"id": "mixto", "parent_id": "def", "fase": None, "nombre": "Bloque Mixto"},
+        ]
+        missing = subfase_folders_to_create(existing)
+        pairs = [(row["parent_id"], row["fase"]) for row in missing]
+        assert ("ao", "creacion") not in pairs
+        assert ("ao", "progresion") not in pairs
+        assert ("ao", "finalizacion") in pairs
+        assert pairs.count(("def", "bloque_alto")) == 1
+        assert ("def", "bloque_medio") not in pairs
+        assert ("def", "bloque_bajo") in pairs
+        assert all(row["parent_id"] in {"ao", "def"} for row in missing)
 
 
 class TestRetention:

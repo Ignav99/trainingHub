@@ -36,6 +36,7 @@ from app.services.revision_service import (
     archive_expired_clips,
     default_folders_for,
     delete_clip_storage,
+    subfase_folders_to_create,
     earliest_clip_created,
     ensure_video_bucket,
     generate_session_code,
@@ -93,20 +94,26 @@ def _ensure_default_folders(supabase, pack: dict) -> list[dict]:
         .execute()
     )
     rows = existing.data or []
-    if rows:
+    if not rows:
+        defaults = default_folders_for(pack["ambito"])
+        inserts = [
+            {
+                "pack_id": pack["id"],
+                "nombre": nombre,
+                "fase": fase,
+                "orden": i,
+            }
+            for i, (fase, nombre) in enumerate(defaults)
+        ]
+        created = supabase.table("revision_folders").insert(inserts).execute()
+        rows = created.data or []
+    missing = subfase_folders_to_create(rows)
+    if not missing:
         return rows
-    defaults = default_folders_for(pack["ambito"])
-    inserts = [
-        {
-            "pack_id": pack["id"],
-            "nombre": nombre,
-            "fase": fase,
-            "orden": i,
-        }
-        for i, (fase, nombre) in enumerate(defaults)
-    ]
-    created = supabase.table("revision_folders").insert(inserts).execute()
-    return created.data or []
+    created_kids = supabase.table("revision_folders").insert(
+        [{**item, "pack_id": pack["id"]} for item in missing]
+    ).execute()
+    return [*rows, *(created_kids.data or [])]
 
 
 def _load_clips_and_links(supabase, pack_id: str) -> tuple[list[dict], list[dict]]:

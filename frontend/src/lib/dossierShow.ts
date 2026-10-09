@@ -376,8 +376,6 @@ export function attachRevisionPack(show: DossierShow, pack?: RevisionPackLike | 
     for (const video of anchored) insertSubfaseVideo(slides, video)
     if (loose.length > 0) insertPhaseVideos(slides, slot, loose)
   }
-  spreadPhaseVideosAfterSubfases(slides, 'ataque_organizado')
-  spreadPhaseVideosAfterSubfases(slides, 'defensa_organizada')
   return { ...show, slides }
 }
 
@@ -686,7 +684,6 @@ function phaseBlock(
       clipId: clip.id || `${fase}-${index}`,
     })
   })
-  if (isOrganizedFase(fase)) spreadPhaseVideosAfterSubfases(slides, fase)
   return slides
 }
 
@@ -797,54 +794,6 @@ function insertSubfaseVideo(slides: ShowSlide[], video: Extract<ShowSlide, { kin
     ...video,
     kicker: anchor.kind === 'fase' ? anchor.title : video.kicker,
   })
-}
-
-/** Clips of the parent phase play after creación, progresión and finalización — and the same for the defensive blocks. */
-function spreadPhaseVideosAfterSubfases(
-  slides: ShowSlide[],
-  fase: 'ataque_organizado' | 'defensa_organizada',
-) {
-  const loose: Extract<ShowSlide, { kind: 'video' }>[] = []
-  for (let i = slides.length - 1; i >= 0; i -= 1) {
-    const slide = slides[i]
-    if (slide.kind === 'video' && slide.fase === fase && !slide.subfase) {
-      loose.push(slide)
-      slides.splice(i, 1)
-    }
-  }
-  if (loose.length === 0) return
-  loose.reverse()
-
-  const subIndexes: number[] = []
-  for (let i = 0; i < slides.length; i += 1) {
-    const slide = slides[i]
-    if (slide.kind === 'fase' && slide.fase === fase && subfaseKeyFromSlideId(slide.id, fase)) {
-      subIndexes.push(i)
-    }
-  }
-  if (subIndexes.length === 0) {
-    insertPhaseVideos(slides, fase, loose)
-    return
-  }
-
-  for (let s = subIndexes.length - 1; s >= 0; s -= 1) {
-    const anchor = slides[subIndexes[s]]
-    if (anchor.kind !== 'fase') continue
-    const key = subfaseKeyFromSlideId(anchor.id, fase)
-    if (!key) continue
-    let insertAt = subIndexes[s] + 1
-    while (insertAt < slides.length) {
-      const next = slides[insertAt]
-      if (next.kind !== 'video' || next.fase !== fase) break
-      insertAt += 1
-    }
-    slides.splice(insertAt, 0, ...loose.map((video) => ({
-      ...video,
-      id: `${video.id}:${key}`,
-      subfase: key,
-      kicker: anchor.title,
-    })))
-  }
 }
 
 function normalizeShowSlot(value?: string | null): ShowVideoSlot | null {

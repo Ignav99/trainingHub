@@ -503,15 +503,52 @@ export function acceptedFasesFor(fase?: string | null): Set<string> {
   return set
 }
 
+const SUBFASE_FASES = new Set([
+  'creacion',
+  'progresion',
+  'finalizacion',
+  'bloque_alto',
+  'bloque_medio',
+  'bloque_bajo',
+])
+
 export function matchRevisionFolderId(
   folders: Pick<RevisionFolder, 'id' | 'fase' | 'parent_id'>[],
   preferredFase?: string | null
 ): string {
   const roots = folders.filter((f) => !f.parent_id)
   if (!preferredFase) return roots[0]?.id || folders[0]?.id || ''
+  if (SUBFASE_FASES.has(preferredFase)) {
+    const child = folders.find((f) => f.parent_id && f.fase === preferredFase)
+    if (child) return child.id
+  }
   const accepted = acceptedFasesFor(preferredFase)
   const hit = roots.find((f) => f.fase && accepted.has(f.fase))
   return hit?.id || roots[0]?.id || folders[0]?.id || ''
+}
+
+export function revisionFolderChoices(
+  folders: Pick<RevisionFolder, 'id' | 'nombre' | 'parent_id' | 'orden'>[]
+): { id: string; label: string }[] {
+  const roots = folders.filter((f) => !f.parent_id).slice().sort((a, b) => a.orden - b.orden)
+  const rootIds = new Set(roots.map((folder) => folder.id))
+  const choices: { id: string; label: string }[] = []
+  for (const root of roots) {
+    choices.push({ id: root.id, label: root.nombre })
+    const kids = folders
+      .filter((folder) => folder.parent_id === root.id)
+      .slice()
+      .sort((a, b) => a.orden - b.orden)
+    for (const kid of kids) {
+      choices.push({ id: kid.id, label: `${root.nombre} · ${kid.nombre}` })
+    }
+  }
+  for (const folder of folders) {
+    if (!folder.parent_id || rootIds.has(folder.parent_id)) continue
+    if (choices.some((choice) => choice.id === folder.id)) continue
+    choices.push({ id: folder.id, label: folder.nombre })
+  }
+  return choices
 }
 
 export interface DeskFolderGroup {
