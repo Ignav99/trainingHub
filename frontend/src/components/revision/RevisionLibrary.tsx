@@ -38,6 +38,7 @@ import {
   type RevisionFolder,
   type RevisionPack,
 } from '@/lib/api/revision'
+import { revisionFolderChoices } from '@/components/video-analyzer/videoDesk'
 import { SalaHostDialog } from './SalaHostDialog'
 import { downloadRevisionPackZip } from '@/lib/revisionPackZip'
 import { revisionPackLookup } from '@/lib/revisionDestino'
@@ -178,6 +179,37 @@ export function RevisionLibrary({
     }
   }
 
+  const folderChoices = useMemo(() => revisionFolderChoices(folders), [folders])
+
+  const clipFolderId = (clipId: string) => {
+    const inView = links.find((link) => link.clip_id === clipId && link.slot_tipo === 'folder' && link.folder_id === folderId)
+    if (inView?.folder_id) return inView.folder_id
+    return links.find((link) => link.clip_id === clipId && link.slot_tipo === 'folder')?.folder_id || ''
+  }
+
+  const handleMoveClip = async (clip: RevisionClip, targetFolderId: string) => {
+    if (!targetFolderId) return
+    const folderLinks = links.filter((link) => link.clip_id === clip.id && link.slot_tipo === 'folder')
+    if (folderLinks.length === 1 && folderLinks[0].folder_id === targetFolderId) return
+    const folder = folders.find((item) => item.id === targetFolderId)
+    try {
+      for (const link of folderLinks) {
+        if (link.folder_id === targetFolderId) continue
+        await revisionApi.deleteLink(link.id)
+      }
+      const already = folderLinks.some((link) => link.folder_id === targetFolderId)
+      if (!already) {
+        await revisionApi.addLink(clip.id, { folder_id: targetFolderId, slot_tipo: 'folder' })
+      }
+      if (folder?.fase) await revisionApi.updateClip(clip.id, { fase: folder.fase })
+      toast.success(`Recorte en ${folder?.nombre || 'la carpeta'}`)
+      mutate()
+    } catch {
+      toast.error('No se pudo mover el recorte')
+      mutate()
+    }
+  }
+
   const handleDeleteClip = async (clip: RevisionClip) => {
     if (!confirm(`¿Eliminar el recorte «${clip.titulo}»?`)) return
     try {
@@ -256,6 +288,7 @@ export function RevisionLibrary({
 
       <p className="text-xs text-muted-foreground">
         Recortes cortos para la charla. El partido entero se queda en el ordenador (Video Análisis).
+        Asigna cada recorte a su subfase: en la presentación sale solo con esa subfase.
         A los 30 días del partido se borran de la app y de Cloudflare.
       </p>
 
@@ -336,6 +369,9 @@ export function RevisionLibrary({
                   <ClipCard
                     key={clip.id}
                     clip={clip}
+                    folderChoices={folderChoices}
+                    currentFolderId={clipFolderId(clip.id)}
+                    onMove={(targetId) => handleMoveClip(clip, targetId)}
                     onPlay={() => setPlaying(clip)}
                     onPresent={() => setSalaClip(clip)}
                     onDelete={() => handleDeleteClip(clip)}
@@ -517,11 +553,17 @@ function FolderRow({
 
 function ClipCard({
   clip,
+  folderChoices,
+  currentFolderId,
+  onMove,
   onPlay,
   onPresent,
   onDelete,
 }: {
   clip: RevisionClip
+  folderChoices: { id: string; label: string }[]
+  currentFolderId: string
+  onMove: (folderId: string) => void
   onPlay: () => void
   onPresent: () => void
   onDelete: () => void
@@ -551,6 +593,25 @@ function ClipCard({
       {clip.archive_warning && (
         <p className="text-[11px] text-amber-700">{clip.archive_warning}</p>
       )}
+      {folderChoices.length > 0 ? (
+        <div className="space-y-1">
+          <label htmlFor={`clip-folder-${clip.id}`} className="text-[11px] text-muted-foreground">
+            Carpeta
+          </label>
+          <select
+            id={`clip-folder-${clip.id}`}
+            aria-label="Carpeta del recorte"
+            className="w-full h-8 rounded-md border bg-background px-2 text-xs"
+            value={currentFolderId}
+            onChange={(e) => onMove(e.target.value)}
+          >
+            {currentFolderId ? null : <option value="">Elige carpeta</option>}
+            {folderChoices.map((choice) => (
+              <option key={choice.id} value={choice.id}>{choice.label}</option>
+            ))}
+          </select>
+        </div>
+      ) : null}
       <div className="flex items-center gap-1">
         <Button size="sm" variant="outline" onClick={onPlay} disabled={!clipPlaySrc(clip) || clip.status !== 'hot'}>
           Ver

@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import secrets
 import string
+import unicodedata
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -58,6 +59,72 @@ def default_folders_for(ambito: str) -> list[tuple[str, str]]:
     if ambito in ("rival", "partido_plan"):
         return list(FOLDERS_RIVAL)
     return list(FOLDERS_PARTIDO)
+
+
+ORGANIZED_SUBFASES: dict[str, list[tuple[str, str]]] = {
+    "ataque_organizado": [
+        ("creacion", "Creación"),
+        ("progresion", "Progresión"),
+        ("finalizacion", "Finalización"),
+    ],
+    "defensa_organizada": [
+        ("bloque_alto", "Bloque alto"),
+        ("bloque_medio", "Bloque medio"),
+        ("bloque_bajo", "Bloque bajo"),
+    ],
+}
+
+
+def _fold_folder_label(value: str | None) -> str:
+    if not value:
+        return ""
+    text = unicodedata.normalize("NFD", value)
+    text = "".join(ch for ch in text if unicodedata.category(ch) != "Mn")
+    text = text.lower().replace("_", " ").replace("-", " ")
+    return " ".join(text.split())
+
+
+def subfase_folders_to_create(existing: list[dict]) -> list[dict]:
+    """Carpetas hijas que faltan bajo ataque o defensa organizada.
+
+    Cada fila es parent_id, fase, nombre y orden. Una hija ya cuenta si su
+    fase coincide o si el nombre pliega igual (Creación / creacion).
+    """
+    by_parent: dict[str, list[dict]] = {}
+    for row in existing:
+        parent = row.get("parent_id")
+        if parent:
+            by_parent.setdefault(parent, []).append(row)
+
+    missing: list[dict] = []
+    for row in existing:
+        if row.get("parent_id"):
+            continue
+        children_spec = ORGANIZED_SUBFASES.get(row.get("fase") or "")
+        parent_id = row.get("id")
+        if not children_spec or not parent_id:
+            continue
+        present: set[str] = set()
+        for kid in by_parent.get(parent_id, []):
+            kid_fase = kid.get("fase")
+            if kid_fase:
+                present.add(kid_fase)
+            folded = _fold_folder_label(kid.get("nombre"))
+            if folded == "bloque mixto":
+                present.add("bloque_medio")
+            for key, nombre in children_spec:
+                if folded and folded in {_fold_folder_label(nombre), _fold_folder_label(key)}:
+                    present.add(key)
+        for index, (key, nombre) in enumerate(children_spec):
+            if key in present:
+                continue
+            missing.append({
+                "parent_id": parent_id,
+                "fase": key,
+                "nombre": nombre,
+                "orden": index,
+            })
+    return missing
 
 
 def _aware(value: datetime) -> datetime:

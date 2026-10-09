@@ -18,6 +18,7 @@ import {
   phaseFolderLabel,
   planDeskZip,
   matchRevisionFolderId,
+  revisionFolderChoices,
   groupClipsByButton,
   lanesWithEvents,
   moveLane,
@@ -190,6 +191,25 @@ describe('video desk coding', () => {
     ]
     assert.equal(matchRevisionFolderId(folders, 'abp_ofensiva'), 'a')
     assert.equal(matchRevisionFolderId(folders, 'ataque_organizado'), 'b')
+    const withChild = [
+      ...folders,
+      { id: 'c', fase: 'creacion', parent_id: 'b' },
+    ]
+    assert.equal(matchRevisionFolderId(withChild, 'creacion'), 'c')
+    assert.equal(matchRevisionFolderId(withChild, 'ataque_organizado'), 'b')
+  })
+
+  it('lists a subfase as its own revision destination', () => {
+    const choices = revisionFolderChoices([
+      { id: 'b', nombre: 'Ataque organizado', fase: 'ataque_organizado', parent_id: null, orden: 0 },
+      { id: 'c', nombre: 'Creación', fase: 'creacion', parent_id: 'b', orden: 0 },
+      { id: 'd', nombre: 'Defensa organizada', fase: 'defensa_organizada', parent_id: null, orden: 1 },
+    ])
+    assert.deepEqual(choices.map((choice) => choice.label), [
+      'Ataque organizado',
+      'Ataque organizado · Creación',
+      'Defensa organizada',
+    ])
   })
 
   it('groups clips under the button that created them', () => {
