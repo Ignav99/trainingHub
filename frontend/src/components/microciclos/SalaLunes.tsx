@@ -320,7 +320,7 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       {/* Recordatorio mejora partido anterior */}
       {reflexionAnterior?.texto && (
         <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 flex gap-3 items-start">
@@ -354,7 +354,7 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
 
       {/* ============ Header ============ */}
       <div className="rounded-xl border bg-card p-5 space-y-4">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <CalendarDays className="h-5 w-5 text-primary shrink-0" />
             <div>
@@ -548,7 +548,8 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
 
       {/* ============ Rival + Plan de Partido (solo si aplica) ============ */}
       {showRivalPlan ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid min-w-0 grid-cols-1 items-start gap-6 lg:grid-cols-2">
+          <div className="min-w-0">
           <RivalScout
             data={planCT.rival_scout ?? {}}
             rivalNombre={linkedRival?.nombre}
@@ -563,7 +564,8 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
             onChange={(d) => updatePlanCT({ rival_scout: d })}
             getPlanForCharla={() => planCT.plan_partido ?? {}}
           />
-          <div className="space-y-2">
+          </div>
+          <div className="min-w-0 space-y-2">
             <div className="flex items-center justify-between gap-2">
               <PlanTramoToggle
                 value={planTramo}

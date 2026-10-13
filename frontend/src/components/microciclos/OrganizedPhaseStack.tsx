@@ -206,13 +206,13 @@ function PhaseTagList({
           </span>
         ))}
       </div>
-      <div className="flex gap-1">
+      <div className="flex min-w-0 gap-1">
         <Input
           value={inputValue}
           onChange={(e) => onInputChange(e.target.value)}
           onKeyDown={onKey}
           placeholder="Añadir..."
-          className="h-7 text-xs"
+          className="h-7 min-w-0 flex-1 text-xs"
           aria-label={title}
         />
         <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={onAdd}>

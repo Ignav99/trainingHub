@@ -136,10 +136,10 @@ export function PlanPartido({
   }
 
   return (
-    <Card>
+    <Card className="min-w-0 max-w-full">
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base">
+        <div className="flex min-w-0 w-full flex-col gap-2">
+          <CardTitle className="min-w-0 text-base">
             Plan de Partido{tramo === 'vuelta' ? ' · Vuelta' : tramo === 'ida' ? ' · Ida' : ''}
           </CardTitle>
           <ExportDossierMenu
@@ -294,7 +294,7 @@ export function PlanPartido({
         </div>
 
         <Tabs value={tabActual} onValueChange={(v) => setActiveTab(v as PlanTab)}>
-          <TabsList className="flex flex-wrap h-auto gap-1">
+          <TabsList className="flex h-auto w-full min-w-0 max-w-full flex-wrap justify-start gap-1">
             {fasesVisibles.map((f) => (
               <TabsTrigger key={f.fase} value={f.fase} className="text-[10px] px-2 py-1">
                 {f.label}
