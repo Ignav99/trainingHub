@@ -39,8 +39,8 @@ export function DossierTacticalBoard({
 
   return (
     <div className="space-y-1.5">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+        <p className="min-w-0 text-xs text-muted-foreground">
           {animated ? 'Pizarra animada · campo entero · se reproduce en bucle' : 'Pizarra táctica · mismo editor que las tareas'}
         </p>
         <button

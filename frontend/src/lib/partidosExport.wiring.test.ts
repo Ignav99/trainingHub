@@ -120,4 +120,17 @@ describe('partidos workspace and dossier export', () => {
     assert.match(panel, /batchUpdateStats/)
     assert.match(rivalPage, /searchParams.get\('tab'\)/)
   })
+
+  it('keeps informe and plan actions inside their sala lunes column', () => {
+    const sala = readFileSync(join(src, 'components/microciclos/SalaLunes.tsx'), 'utf8')
+    const scout = readFileSync(join(src, 'components/microciclos/RivalScout.tsx'), 'utf8')
+    const plan = readFileSync(join(src, 'components/microciclos/PlanPartido.tsx'), 'utf8')
+    const menu = readFileSync(join(src, 'components/rivales/ExportDossierMenu.tsx'), 'utf8')
+    assert.match(sala, /grid min-w-0 grid-cols-1 items-start gap-6 lg:grid-cols-2/)
+    assert.match(sala, /<div className="min-w-0">/)
+    assert.match(scout, /w-full min-w-0 max-w-full/)
+    assert.equal(scout.includes('gap-2 shrink-0'), false)
+    assert.match(plan, /min-w-0 max-w-full/)
+    assert.match(menu, /w-full min-w-0 max-w-full flex-wrap/)
+  })
 })

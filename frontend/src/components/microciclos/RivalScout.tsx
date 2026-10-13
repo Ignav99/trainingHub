@@ -201,15 +201,15 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
   )
 
   return (
-    <Card className="w-full">
+    <Card className="w-full min-w-0 max-w-full">
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between gap-3">
-          <div>
+        <div className="flex min-w-0 w-full flex-col gap-2">
+          <div className="min-w-0">
             <CardTitle className="text-base">Informe Rival</CardTitle>
-            {rivalNombre && <p className="text-sm text-muted-foreground font-medium">{rivalNombre}</p>}
+            {rivalNombre && <p className="truncate text-sm font-medium text-muted-foreground">{rivalNombre}</p>}
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <OpenVideoTabLink variant="text" />
+          <div className="flex min-w-0 w-full max-w-full flex-wrap items-center justify-end gap-2">
+            <OpenVideoTabLink variant="text" className="max-w-full" />
             <ExportDossierMenu
             exporting={exportingDeck}
             presenting={presenting}
@@ -325,7 +325,7 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
 
       <CardContent className="space-y-5">
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabValue)}>
-          <TabsList className="flex flex-wrap h-auto gap-1">
+          <TabsList className="flex h-auto w-full min-w-0 max-w-full flex-wrap justify-start gap-1">
             <TabsTrigger value="contexto" className="text-[10px] px-2 py-1">
               Contexto
             </TabsTrigger>
@@ -653,12 +653,12 @@ function PhaseEditor({
         <div className="space-y-2">
           {(phase.clips ?? []).map((clip) => (
             <div key={clip.id} className="rounded-md border bg-muted/30 p-2.5 space-y-2">
-              <div className="flex items-center gap-2">
+              <div className="flex min-w-0 items-center gap-2">
                 <Input
                   value={clip.titulo}
                   onChange={(e) => onUpdateClip(fase, clip.id, { titulo: e.target.value })}
                   placeholder="Título del clip"
-                  className="h-7 text-xs flex-1"
+                  className="h-7 min-w-0 flex-1 text-xs"
                 />
                 {clip.size && (
                   <span className="text-[10px] text-muted-foreground whitespace-nowrap">{formatSize(clip.size)}</span>
@@ -804,7 +804,7 @@ function ClipUpload({ fase, rivalId, microcicloId, existingSize, onUploaded }: C
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
       <input
         ref={fileInputRef}
         type="file"

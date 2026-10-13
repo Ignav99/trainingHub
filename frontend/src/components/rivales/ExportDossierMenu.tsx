@@ -38,7 +38,7 @@ export function ExportDossierMenu({
   const busy = Boolean(presenting || presentingTodo)
 
   return (
-    <div className="flex flex-wrap items-center justify-end gap-2">
+    <div className="flex w-full min-w-0 max-w-full flex-wrap items-center justify-end gap-1.5">
       {onPresentar && (
         <Button
           type="button"

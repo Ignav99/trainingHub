@@ -258,7 +258,7 @@ export default function MicrocicloDetallePage() {
             </div>
           </div>
 
-          <div className="flex gap-2 shrink-0">
+          <div className="flex min-w-0 flex-wrap gap-2">
             <ExportarInformeButton tipo="microciclo" microcicloId={id} label="Exportar semana" />
             <Button variant="outline" size="sm" onClick={openEdit}>
               <Edit3 className="h-4 w-4 mr-1" /> Editar
