@@ -140,6 +140,10 @@ class Settings(BaseSettings):
     RFAF_FETCH_MAX_RETRIES: int = 5
     RFAF_SESSION_MAX_AGE_SEC: int = 1800
 
+    # Scheduler de tareas programadas (sync RFAF, recalculo de carga, archivo de clips).
+    # Poner a false en desarrollo/staging para no ejecutar los jobs.
+    ENABLE_SCHEDULER: bool = True
+
     class Config:
         env_file = ".env"
         case_sensitive = True

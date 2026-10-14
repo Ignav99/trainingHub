@@ -52,19 +52,23 @@ async def lifespan(app: FastAPI):
 
     # Start RFAF scraping scheduler
     from app.services.rfef_scheduler_service import start_scheduler, stop_scheduler
-    try:
-        start_scheduler()
-        print("✅ RFAF scheduler started")
-    except Exception as e:
-        print(f"⚠️ RFAF scheduler failed to start: {e}")
+    if settings.ENABLE_SCHEDULER:
+        try:
+            start_scheduler()
+            print("✅ RFAF scheduler started")
+        except Exception as e:
+            print(f"⚠️ RFAF scheduler failed to start: {e}")
+    else:
+        print("⏸️ Scheduler disabled (ENABLE_SCHEDULER=false)")
 
     yield
 
     # Shutdown
-    try:
-        stop_scheduler()
-    except Exception:
-        pass
+    if settings.ENABLE_SCHEDULER:
+        try:
+            stop_scheduler()
+        except Exception:
+            pass
     print("Shutting down...")
 
 
