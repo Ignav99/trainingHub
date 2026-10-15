@@ -265,22 +265,17 @@ export function VideoAnalyzer({
         return
       }
       if (e.key === 'Escape') {
+        // Accidental and repeated: never leave the video desk. Cerrar does that.
         if (document.fullscreenElement) return
         e.preventDefault()
         if (extractOpen) {
           setExtractOpen(false)
           return
         }
-        if (stage) {
-          setStage(null)
-          return
-        }
         if (armedButtonId) {
           rangeArmRef.current = null
           setArmedButtonId(null)
-          return
         }
-        onClose()
         return
       }
       if (isClipDeleteKey(e)) {
@@ -317,7 +312,7 @@ export function VideoAnalyzer({
     }
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
-  }, [armedButtonId, buttons, deleteSelectedClips, extractOpen, onClose, pressButton, stage])
+  }, [armedButtonId, buttons, deleteSelectedClips, extractOpen, pressButton, stage])
 
   const patchClip = useCallback((clip: CodeEvent, startTime: number, endTime: number) => {
     updateEvent(videoKey, clip.id, { startTime, endTime }, duration)
