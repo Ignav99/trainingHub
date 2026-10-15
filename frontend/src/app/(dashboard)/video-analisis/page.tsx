@@ -65,6 +65,20 @@ export default function VideoAnalisisPage() {
   const directoClipsRef = useRef<{ src: string; title: string }[]>([])
   const directoRoomRef = useRef<{ code: string; pass: string } | null>(null)
   const directoShareRef = useRef(false)
+  const analyzerOpenRef = useRef(false)
+  const escapeGuardRef = useRef<() => void>(() => {})
+  analyzerOpenRef.current = Boolean(analyzerFile && source)
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || !analyzerOpenRef.current) return
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      escapeGuardRef.current()
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [])
 
   useEffect(() => () => {
     for (const clip of directoClipsRef.current) URL.revokeObjectURL(clip.src)
@@ -483,6 +497,7 @@ export default function VideoAnalisisPage() {
             watchMode={watchMode || undefined}
             watchedOpponent={opponentNote}
             rivalName={selectedPartido ? rivalName : undefined}
+            escapeGuardRef={escapeGuardRef}
             onClose={() => {
               setAnalyzerFile(null)
               setLocalVideoId(null)
