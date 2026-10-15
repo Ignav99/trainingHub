@@ -41,6 +41,8 @@ interface VideoAnalyzerProps {
   watchedOpponent?: string
   rivalName?: string
   onClose: () => void
+  /** La página lo llama al pulsar Escape, antes de que cualquier otro listener cierre el vídeo. */
+  escapeGuardRef?: React.MutableRefObject<() => void>
 }
 
 export function VideoAnalyzer({
@@ -57,6 +59,7 @@ export function VideoAnalyzer({
   watchedOpponent,
   rivalName,
   onClose,
+  escapeGuardRef,
 }: VideoAnalyzerProps) {
   const playerRef = useRef<VideoPlayerHandle>(null)
   const botoneraEditRef = useRef<BotoneraEditGate>({ on: false, cancel: () => {} })
@@ -257,25 +260,40 @@ export function VideoAnalyzer({
     toast.success(`${btn.label} · ${timingsLabel(btn)}`)
   }, [duration, recordEvent, setActiveButtonId])
 
+  const stayOnEscape = useCallback(() => {
+    if (botoneraEditRef.current.on) {
+      botoneraEditRef.current.cancel()
+      return
+    }
+    if (extractOpen) {
+      setExtractOpen(false)
+      return
+    }
+    if (rangeArmRef.current) {
+      rangeArmRef.current = null
+      setArmedButtonId(null)
+    }
+  }, [extractOpen])
+
+  useEffect(() => {
+    if (!escapeGuardRef) return
+    escapeGuardRef.current = stayOnEscape
+    return () => {
+      escapeGuardRef.current = () => {}
+    }
+  }, [escapeGuardRef, stayOnEscape])
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        stayOnEscape()
+        return
+      }
       if (isTypingTarget(e.target)) return
       if (botoneraEditRef.current.on) {
         e.preventDefault()
-        return
-      }
-      if (e.key === 'Escape') {
-        // Accidental and repeated: never leave the video desk. Cerrar does that.
-        if (document.fullscreenElement) return
-        e.preventDefault()
-        if (extractOpen) {
-          setExtractOpen(false)
-          return
-        }
-        if (armedButtonId) {
-          rangeArmRef.current = null
-          setArmedButtonId(null)
-        }
         return
       }
       if (isClipDeleteKey(e)) {
@@ -312,7 +330,7 @@ export function VideoAnalyzer({
     }
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
-  }, [armedButtonId, buttons, deleteSelectedClips, extractOpen, pressButton, stage])
+  }, [buttons, deleteSelectedClips, pressButton, stage, stayOnEscape])
 
   const patchClip = useCallback((clip: CodeEvent, startTime: number, endTime: number) => {
     updateEvent(videoKey, clip.id, { startTime, endTime }, duration)
