@@ -583,6 +583,7 @@ export function PresentacionSala({
           setQrOpen(false)
           return
         }
+        if (isVideo || directoLive) return
         onClose?.()
         return
       }
@@ -617,7 +618,7 @@ export function PresentacionSala({
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [clipId, go, goTo, onClose, slide?.kind, toggleVideoFullscreen, videoFullscreen])
+  }, [clipId, directoLive, go, goTo, isVideo, onClose, slide?.kind, toggleVideoFullscreen, videoFullscreen])
 
   const salaPath = directoLive ? directoSalaPath(code, guestPass) : `/revision/${code}`
   const salaUrl = typeof window !== 'undefined' && code ? `${window.location.origin}${salaPath}` : ''
@@ -650,8 +651,8 @@ export function PresentacionSala({
   const total = slides.length
   const hint = videoFullscreen
     ? 'Pantalla completa: pintar no cambia de diapositiva · Esc sale'
-    : isVideo
-      ? 'Espacio reproduce · ← → pasa diapositiva · Esc cierra'
+    : isVideo || directoLive
+      ? 'Espacio reproduce · ← → pasa diapositiva'
       : '← → pasa diapositiva · Espacio siguiente · Esc cierra'
 
   return createPortal(

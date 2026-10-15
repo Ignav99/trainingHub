@@ -81,6 +81,7 @@ export function DossierPresenter({ show, onClose }: DossierPresenterProps) {
           void document.exitFullscreen()
           return
         }
+        if (slide?.kind === 'video') return
         onClose()
         return
       }
@@ -121,7 +122,7 @@ export function DossierPresenter({ show, onClose }: DossierPresenterProps) {
 
   const hint =
     slide.kind === 'video'
-      ? 'Espacio reproduce · ← → pasa diapositiva · Esc cierra'
+      ? 'Espacio reproduce · ← → pasa diapositiva'
       : '← → pasa diapositiva · Espacio siguiente · Esc cierra'
 
   return createPortal(
