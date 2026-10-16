@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -47,6 +47,18 @@ import {
   tipoDesdePlan,
 } from '@/lib/sesionMicrociclo'
 import { rivalDesdeMicrociclo } from '@/lib/sesionContextoRival'
+import {
+  canPersistDraft,
+  clearCreacion,
+  creacionAsistida,
+  markCreacion,
+  pasoToWizardStep,
+  persistedTaskRows,
+  readCreacionPaso,
+  taskSyncKey,
+  wizardStepToPaso,
+  type CreacionPaso,
+} from '@/lib/sesionBorrador'
 
 function newClientSesionId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -149,6 +161,32 @@ export default function NuevaSesionPage() {
   const rivalTouched = useRef(false)
   const creatingRef = useRef(false)
   const clientSesionIdRef = useRef(newClientSesionId())
+  const draftReadyRef = useRef(false)
+  const faseNotasRef = useRef<Record<string, string>>({})
+  const tasksSyncedRef = useRef('')
+  const hydratingRef = useRef(searchParams.get('continuar') != null)
+  const persistChainRef = useRef(Promise.resolve())
+  const [draftState, setDraftState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const snapshotRef = useRef({
+    formData,
+    estructuraFases,
+    tareasEnSesion,
+    step,
+    isAssisted,
+    equipoId: equipoActivo?.id as string | undefined,
+    microcicloIdFromQuery,
+    planPartidoIdFromQuery,
+  })
+  snapshotRef.current = {
+    formData,
+    estructuraFases,
+    tareasEnSesion,
+    step,
+    isAssisted,
+    equipoId: equipoActivo?.id,
+    microcicloIdFromQuery,
+    planPartidoIdFromQuery,
+  }
 
   // Recomendador asistido
   const [aiRecommendations, setAiRecommendations] = useState<AIRecomendadorOutput | null>(null)
@@ -307,33 +345,79 @@ export default function NuevaSesionPage() {
     }
   }
 
+  const persistDraft = useCallback((paso?: CreacionPaso | null, opts?: { force?: boolean }) => {
+    const run = async () => {
+      if (creatingRef.current && !opts?.force) return
+      const snap = snapshotRef.current
+      if (!canPersistDraft(snap.formData)) return
+      const resolvedPaso = paso === undefined
+        ? wizardStepToPaso(snap.step, snap.isAssisted)
+        : paso
+      const fase_notas = resolvedPaso
+        ? markCreacion(faseNotasRef.current, resolvedPaso, snap.isAssisted)
+        : clearCreacion(faseNotasRef.current)
+      const { rival_id: _omitRivalId, ...rest } = snap.formData
+      const body = {
+        ...rest,
+        equipo_id: rest.equipo_id || snap.equipoId || undefined,
+        microciclo_id: snap.microcicloIdFromQuery || rest.microciclo_id || undefined,
+        plan_partido_id: snap.planPartidoIdFromQuery || rest.plan_partido_id || undefined,
+        estructura_fases: snap.estructuraFases,
+        competicion: rest.competicion || 'liga',
+        rival: rest.rival || undefined,
+        fase_notas,
+      }
+      setDraftState('saving')
+      try {
+        if (!draftReadyRef.current) {
+          const sesion = await sesionesApi.create({
+            ...body,
+            id: clientSesionIdRef.current,
+          })
+          draftReadyRef.current = true
+          clientSesionIdRef.current = sesion.id
+          faseNotasRef.current = (sesion.fase_notas as Record<string, string>) || fase_notas
+        } else {
+          const sesion = await sesionesApi.update(clientSesionIdRef.current, body)
+          faseNotasRef.current = (sesion.fase_notas as Record<string, string>) || fase_notas
+        }
+        const rows = persistedTaskRows(snap.tareasEnSesion)
+        const key = taskSyncKey(rows)
+        if (key !== tasksSyncedRef.current) {
+          await sesionesApi.batchUpdateTareas(clientSesionIdRef.current, rows)
+          tasksSyncedRef.current = key
+        }
+        setDraftState('saved')
+      } catch (err) {
+        setDraftState('error')
+        if (opts?.force) throw err
+      }
+    }
+
+    const next = persistChainRef.current.then(run, run)
+    persistChainRef.current = next.then(() => undefined, () => undefined)
+    return next
+  }, [])
+
   const handleSubmit = async (attendanceOverride?: PlayerAttendance[] | null) => {
     if (creatingRef.current) return
+    if (!canPersistDraft(formData)) {
+      setError('Pon un título de al menos 3 letras, la fecha y el match day.')
+      return
+    }
     creatingRef.current = true
     setLoading(true)
     setError(null)
 
     try {
-      const dataToSend = {
-        ...formData,
-        id: clientSesionIdRef.current,
-        equipo_id: formData.equipo_id || equipoActivo?.id || undefined,
-        microciclo_id: microcicloIdFromQuery || formData.microciclo_id || undefined,
-        plan_partido_id: planPartidoIdFromQuery || formData.plan_partido_id || undefined,
-        estructura_fases: estructuraFases.length > 0 ? estructuraFases : undefined,
-        competicion: formData.competicion || 'liga',
-        rival: formData.rival || undefined,
-        rival_id: undefined,
-      }
-
-      const sesion = await sesionesApi.create(dataToSend)
+      await persistDraft(null, { force: true })
+      const sesionId = clientSesionIdRef.current
 
       const attendance = attendanceOverride !== undefined ? attendanceOverride : attendanceData
-      // Save attendance batch if we have it
       if (attendance && attendance.length > 0) {
         try {
           await sesionesApi.saveAsistenciasBatch(
-            sesion.id,
+            sesionId,
             attendance.map((a) => ({
               jugador_id: a.jugador_id,
               presente: a.presente,
@@ -348,28 +432,123 @@ export default function NuevaSesionPage() {
         }
       }
 
-      // Añadir tareas a la sesión (no bloquear si alguna falla: la sesión ya existe)
-      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-      for (const t of tareasEnSesion) {
-        if (!t.tarea?.id || !uuidRe.test(t.tarea.id)) continue
-        try {
-          await sesionesApi.addTarea(sesion.id, {
-            tarea_id: t.tarea.id,
-            orden: t.orden,
-            fase_sesion: t.fase,
-          })
-        } catch (err) {
-          console.warn('addTarea failed', t.tarea.id, err)
-        }
-      }
-
-      router.push(`/sesiones/${sesion.id}`)
+      router.push(`/sesiones/${sesionId}`)
     } catch (err: any) {
       creatingRef.current = false
       setLoading(false)
-      setError(err.message || 'Error al crear la sesión')
+      setError(err.message || 'Error al guardar la sesión')
     }
   }
+
+  const continuarId = searchParams.get('continuar')
+
+  useEffect(() => {
+    if (!continuarId) {
+      hydratingRef.current = false
+      return
+    }
+    let cancelled = false
+    sesionesApi.get(continuarId).then((sesion) => {
+      if (cancelled) return
+      clientSesionIdRef.current = sesion.id
+      draftReadyRef.current = true
+      const notas = (sesion.fase_notas || {}) as Record<string, string>
+      faseNotasRef.current = notas
+      if (creacionAsistida(notas) && !isAssisted) {
+        router.replace(`/sesiones/nueva?continuar=${sesion.id}&mode=assisted`)
+        return
+      }
+      const paso = readCreacionPaso(notas)
+      const assisted = creacionAsistida(notas) || isAssisted
+      if (sesion.rival) rivalTouched.current = true
+      if (sesion.match_day) matchDayTouched.current = true
+      if (sesion.contexto_periodo) contextoTouched.current = true
+      setFormData((prev) => ({
+        ...prev,
+        titulo: sesion.titulo || prev.titulo,
+        fecha: sesion.fecha || prev.fecha,
+        hora: sesion.hora,
+        lugar: sesion.lugar,
+        match_day: sesion.match_day || prev.match_day,
+        rival: sesion.rival || '',
+        competicion: sesion.competicion || 'liga',
+        objetivo_principal: sesion.objetivo_principal || '',
+        fase_juego_principal: sesion.fase_juego_principal || '',
+        principio_tactico_principal: sesion.principio_tactico_principal || '',
+        intensidad_objetivo: sesion.intensidad_objetivo || prev.intensidad_objetivo,
+        duracion_total: sesion.duracion_total || prev.duracion_total,
+        notas_pre: sesion.notas_pre || '',
+        plan_partido_id: sesion.plan_partido_id,
+        fase_plan: sesion.fase_plan || '',
+        equipo_id: sesion.equipo_id,
+        microciclo_id: sesion.microciclo_id,
+        espacio_disponible: sesion.espacio_disponible || prev.espacio_disponible,
+        jugadores_campo: sesion.jugadores_campo,
+        numero_sesion: sesion.numero_sesion,
+        objetivos: sesion.objetivos || [],
+        contenidos_ofensivos: sesion.contenidos_ofensivos || [],
+        contenidos_defensivos: sesion.contenidos_defensivos || [],
+        fases_juego: sesion.fases_juego || [],
+        subfases: sesion.subfases || [],
+        abp_config: sesion.abp_config || null,
+        contenidos_tecnicos_of: sesion.contenidos_tecnicos_of || [],
+        contenidos_tecnicos_def: sesion.contenidos_tecnicos_def || [],
+        keywords: sesion.keywords || [],
+        objetivo_fisico: sesion.objetivo_fisico || '',
+        objetivo_psicologico: sesion.objetivo_psicologico || '',
+        contexto_periodo: sesion.contexto_periodo || 'competicion',
+        es_pretemporada: !!sesion.es_pretemporada,
+        dia_carga: sesion.dia_carga,
+        partido_id: sesion.partido_id,
+      }))
+      setEstructuraFases((sesion.estructura_fases || []) as SesionBloque[])
+      const tareas = (sesion.tareas || []).flatMap((st) => {
+        if (!st.tarea?.id) return []
+        return [{
+          tarea: st.tarea,
+          fase: st.fase_sesion || 'desarrollo_1',
+          orden: st.orden || 1,
+        }]
+      })
+      setTareasEnSesion(tareas)
+      tasksSyncedRef.current = taskSyncKey(persistedTaskRows(tareas))
+      setStep(pasoToWizardStep(paso, assisted))
+      setDraftState('saved')
+      hydratingRef.current = false
+    }).catch(() => {
+      if (cancelled) return
+      hydratingRef.current = false
+      setError('No se pudo abrir el borrador de la sesión')
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [continuarId, isAssisted])
+
+  useEffect(() => {
+    if (hydratingRef.current) return
+    if (!canPersistDraft(formData)) return
+    const timer = setTimeout(() => {
+      void persistDraft()
+    }, 700)
+    return () => clearTimeout(timer)
+  }, [formData, estructuraFases, tareasEnSesion, step, isAssisted, persistDraft])
+
+  useEffect(() => {
+    const hide = () => {
+      void persistDraft()
+    }
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') void persistDraft()
+    }
+    window.addEventListener('pagehide', hide)
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      window.removeEventListener('pagehide', hide)
+      document.removeEventListener('visibilitychange', onVis)
+      void persistDraft()
+    }
+  }, [persistDraft])
 
   function handleAttendanceConfirm(attendance: PlayerAttendance[]) {
     setAttendanceData(attendance)
@@ -415,9 +594,9 @@ export default function NuevaSesionPage() {
   const canGoNext = () => {
     switch (step) {
       case 0:
-        return !!(formData.titulo && formData.fecha && formData.match_day)
+        return canPersistDraft(formData)
       case 1:
-        return isAssisted ? true : true // tareas opcionales al crear (se completan en detalle)
+        return true
       case 2:
         return true
       default:
@@ -427,10 +606,12 @@ export default function NuevaSesionPage() {
 
   const handleNext = () => {
     if (creatingRef.current || loading) return
+    const next = step + 1
     if (isAssisted && step === 0) {
-      generateRecommendations()
+      void generateRecommendations()
     }
-    setStep(step + 1)
+    setStep(next)
+    void persistDraft(wizardStepToPaso(next, isAssisted))
   }
 
   const stepLabels = isAssisted
@@ -444,6 +625,7 @@ export default function NuevaSesionPage() {
       <div className="flex items-center gap-4 mb-6">
         <Link
           href="/sesiones"
+          onClick={() => { void persistDraft() }}
           className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
         >
           <ArrowLeft className="h-5 w-5" />
@@ -458,7 +640,12 @@ export default function NuevaSesionPage() {
               </span>
             )}
           </div>
-          <p className="text-gray-500">{stepLabels[step] || `Paso ${step + 1} de ${totalSteps}`}</p>
+          <p className="text-gray-500">
+            {stepLabels[step] || `Paso ${step + 1} de ${totalSteps}`}
+            {draftState === 'saving' ? ' · Guardando borrador…' : ''}
+            {draftState === 'saved' ? ' · Borrador guardado' : ''}
+            {draftState === 'error' ? ' · No se pudo guardar el borrador' : ''}
+          </p>
         </div>
       </div>
 
@@ -705,8 +892,8 @@ export default function NuevaSesionPage() {
               </div>
             </div>
             <p className="text-sm text-gray-500 -mt-2 mb-4">
-              Añade bloques y tareas si quieres. También puedes dejarlo vacío y completarlo después
-              en el detalle de la sesión.
+              Añade bloques y tareas si quieres. Si sales ahora, la sesión queda en Sesiones
+              como borrador sin terminar y la retomas en este punto.
             </p>
             <SesionBloquesDraftPanel
               bloques={estructuraFases}
@@ -755,7 +942,11 @@ export default function NuevaSesionPage() {
           {step > 0 ? (
             <button
               type="button"
-              onClick={() => setStep(step - 1)}
+              onClick={() => {
+                const prev = Math.max(0, step - 1)
+                setStep(prev)
+                void persistDraft(wizardStepToPaso(prev, isAssisted))
+              }}
               className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
             >
               Anterior

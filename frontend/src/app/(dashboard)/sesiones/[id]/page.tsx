@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import useSWR, { mutate } from 'swr'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   ArrowLeft,
@@ -52,7 +52,7 @@ import { emptyDiagramData } from '@/components/tarea-editor/types'
 import { TacticalBoardMini } from '@/components/task-preview'
 import { FormacionEquiposDialog } from '@/components/sesion/FormacionEquiposDialog'
 import GKTrainingSection from '@/components/portero/GKTrainingSection'
-import { SesionPhaseNav, type SesionPhase } from '@/components/sesiones/SesionPhaseNav'
+import { SesionPhaseNav, normalizeSesionPhase, type SesionPhase } from '@/components/sesiones/SesionPhaseNav'
 import { SesionCierrePanel } from '@/components/sesiones/SesionCierrePanel'
 import { SesionDefinirForm } from '@/components/sesiones/SesionDefinirForm'
 import { SesionMaterialPanel } from '@/components/sesiones/SesionMaterialPanel'
@@ -98,6 +98,13 @@ import {
 } from '@/lib/campogramaEstimado'
 import { duracionBloquePartido, faseSesionFromBloque, isPartidoCondicionado, resolveEstructura } from '@/lib/sesionEstructura'
 import { tipoDesdePlan } from '@/lib/sesionMicrociclo'
+import {
+  clearCreacion,
+  continuarWizardHref,
+  pasoToPhase,
+  PASO_LABEL,
+  readCreacionPaso,
+} from '@/lib/sesionBorrador'
 
 const MATCH_DAY_COLORS: Record<string, string> = {
   'MD+1': 'bg-green-100 text-green-800',
@@ -223,6 +230,7 @@ function useAutoSave(sesionId: string, delay = 800) {
 export default function SesionDetailPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const sesionId = params.id as string
 
   // Core data fetching via SWR
@@ -252,7 +260,9 @@ export default function SesionDetailPage() {
   const [generatingPdf, setGeneratingPdf] = useState(false)
   const [previewingPdf, setPreviewingPdf] = useState(false)
   const [savingTareas, setSavingTareas] = useState(false)
-  const [phase, setPhase] = useState<SesionPhase>('definir')
+  const [phase, setPhase] = useState<SesionPhase>(() => normalizeSesionPhase(searchParams.get('fase') || 'definir'))
+  const phaseTouchedRef = useRef(false)
+  const phaseAppliedRef = useRef(false)
   const [asistenciaSavedOnce, setAsistenciaSavedOnce] = useState(false)
 
   // Task picker
@@ -419,8 +429,12 @@ export default function SesionDetailPage() {
   // ============ Estado ============
   const handleUpdateEstado = async (nuevoEstado: EstadoSesion) => {
     try {
-      await sesionesApi.update(sesionId, { estado: nuevoEstado } as SesionUpdateData)
-      setSesion((prev) => prev ? { ...prev, estado: nuevoEstado } : prev)
+      const fase_notas = nuevoEstado === 'borrador' ? undefined : clearCreacion(sesion?.fase_notas)
+      await sesionesApi.update(sesionId, {
+        estado: nuevoEstado,
+        ...(fase_notas ? { fase_notas } : {}),
+      } as SesionUpdateData)
+      setSesion((prev) => prev ? { ...prev, estado: nuevoEstado, ...(fase_notas ? { fase_notas } : {}) } : prev)
       mutate((key: string) => typeof key === 'string' && key.includes('/sesiones'), undefined, { revalidate: true })
     } catch (err) {
       console.error('Error updating estado:', err)
@@ -846,6 +860,7 @@ export default function SesionDetailPage() {
   }
 
   const handlePhaseChange = (next: SesionPhase) => {
+    phaseTouchedRef.current = true
     setPhase(next)
     if (next === 'convocatoria' || next === 'diseno' || next === 'cierre') {
       loadJugadores()
@@ -854,6 +869,15 @@ export default function SesionDetailPage() {
       loadMargen()
     }
   }
+
+  useEffect(() => {
+    if (phaseAppliedRef.current || phaseTouchedRef.current || !sesion) return
+    phaseAppliedRef.current = true
+    const requested = searchParams.get('fase')
+    const paso = sesion.estado === 'borrador' ? readCreacionPaso(sesion.fase_notas) : null
+    if (requested) setPhase(normalizeSesionPhase(requested))
+    else if (paso) setPhase(pasoToPhase(paso))
+  }, [sesion, searchParams])
 
   // Abrir en convocatoria: precargar plantilla / asistencia
   useEffect(() => {
@@ -1221,6 +1245,7 @@ export default function SesionDetailPage() {
   }
 
   const estadoConfig = ESTADO_CONFIG[sesion.estado] || ESTADO_CONFIG.borrador
+  const creacionPaso = sesion.estado === 'borrador' ? readCreacionPaso(sesion.fase_notas) : null
 
   // Group jugadores by position for asistencia (filial solo si se añadió a mano)
   const jugadoresVisibles = jugadoresEnConvocatoria
@@ -1353,6 +1378,21 @@ export default function SesionDetailPage() {
           </Button>
         </div>
       </div>
+
+      {creacionPaso ? (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <p className="font-medium">Creación sin terminar</p>
+          <p className="mt-0.5">
+            Te quedaste en {PASO_LABEL[creacionPaso]}. Sigue desde aquí: lo que cambies se guarda solo.
+          </p>
+          <Link
+            href={continuarWizardHref(sesion.id, sesion.fase_notas)}
+            className="mt-2 inline-block font-medium underline"
+          >
+            Volver al asistente
+          </Link>
+        </div>
+      ) : null}
 
       {/* Phase timeline */}
       <div className="mb-6 space-y-3">
@@ -2011,7 +2051,9 @@ export default function SesionDetailPage() {
           shareUrl={sesion.share_token ? `${typeof window !== 'undefined' ? window.location.origin : ''}/share/sesiones/${sesion.share_token}` : null}
           onCerrarPlanificacion={async () => {
             const updated = await sesionesApi.cerrarPlanificacion(sesionId)
-            setSesion(updated)
+            const fase_notas = clearCreacion(updated.fase_notas || sesion.fase_notas)
+            const saved = await sesionesApi.update(sesionId, { fase_notas })
+            setSesion(saved)
             mutate(`/api/v1/sesiones/${sesionId}`)
           }}
           onEnableShare={async () => {
