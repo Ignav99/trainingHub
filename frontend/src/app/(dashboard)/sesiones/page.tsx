@@ -34,6 +34,7 @@ import { FASES_JUEGO, MATERIALES } from '@/lib/catalogos/canonico'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { AsignarRpeDialog } from '@/components/sesiones/AsignarRpeDialog'
+import { continueHref, PASO_LABEL, readCreacionPaso } from '@/lib/sesionBorrador'
 
 // Badge de Match Day
 function MatchDayBadge({ matchDay }: { matchDay: string }) {
@@ -55,7 +56,19 @@ function MatchDayBadge({ matchDay }: { matchDay: string }) {
 }
 
 // Badge de estado
-function EstadoBadge({ estado }: { estado: string }) {
+function EstadoBadge({ estado, creacionPaso }: { estado: string; creacionPaso?: string | null }) {
+  if (creacionPaso && estado === 'borrador') {
+    const lugar = PASO_LABEL[creacionPaso as keyof typeof PASO_LABEL] || creacionPaso
+    return (
+      <span className="inline-flex flex-col items-start gap-0.5">
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-900 border border-amber-200">
+          Sin terminar
+        </span>
+        <span className="text-[10px] leading-tight text-amber-800">{lugar}</span>
+      </span>
+    )
+  }
+
   const config: Record<string, { bg: string; text: string; label: string }> = {
     borrador: { bg: 'bg-gray-100', text: 'text-gray-700', label: 'Borrador' },
     planificada: { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Planificada' },
@@ -490,18 +503,23 @@ export default function SesionesPage() {
               >
                 <button
                   type="button"
-                  onClick={() => router.push(`/sesiones/${sesion.id}`)}
+                  onClick={() => router.push(continueHref(sesion.id, sesion.fase_notas, sesion.estado))}
                   className="w-full text-left min-w-0"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-gray-900 break-words">{sesion.titulo}</p>
+                      {readCreacionPaso(sesion.fase_notas) && sesion.estado === 'borrador' ? (
+                        <p className="text-xs text-amber-800 mt-0.5">
+                          Te quedaste en {PASO_LABEL[readCreacionPaso(sesion.fase_notas)!]}
+                        </p>
+                      ) : null}
                       <p className="text-xs text-gray-500 mt-0.5">
                         {formatDate(sesion.fecha)}
                         {sesion.rival ? ` · vs ${sesion.rival}` : ''}
                       </p>
                     </div>
-                    <EstadoBadge estado={sesion.estado} />
+                    <EstadoBadge estado={sesion.estado} creacionPaso={readCreacionPaso(sesion.fase_notas)} />
                   </div>
                   <div className="flex flex-wrap items-center gap-2 mt-2">
                     <MatchDayBadge matchDay={sesion.match_day} />
@@ -547,11 +565,11 @@ export default function SesionesPage() {
                   {activeMenu === sesion.id && (
                     <div className="absolute left-0 right-0 top-10 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
                       <Link
-                        href={`/sesiones/${sesion.id}`}
+                        href={continueHref(sesion.id, sesion.fase_notas, sesion.estado)}
                         className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                       >
                         <Eye className="h-4 w-4" />
-                        Ver detalle
+                        {readCreacionPaso(sesion.fase_notas) && sesion.estado === 'borrador' ? 'Continuar' : 'Ver detalle'}
                       </Link>
                       <button
                         onClick={(e) => handleGeneratePdf(sesion.id, e, sesion.fecha, 'reducido')}
@@ -625,7 +643,7 @@ export default function SesionesPage() {
                 {sesiones.map((sesion) => (
                   <tr
                     key={sesion.id}
-                    onClick={() => router.push(`/sesiones/${sesion.id}`)}
+                    onClick={() => router.push(continueHref(sesion.id, sesion.fase_notas, sesion.estado))}
                     className="row-hover cursor-pointer"
                   >
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -642,6 +660,11 @@ export default function SesionesPage() {
                     <td className="px-6 py-4">
                       <div>
                         <p className="text-sm font-medium text-gray-900">{sesion.titulo}</p>
+                        {readCreacionPaso(sesion.fase_notas) && sesion.estado === 'borrador' ? (
+                          <p className="text-xs text-amber-800 mt-0.5">
+                            Te quedaste en {PASO_LABEL[readCreacionPaso(sesion.fase_notas)!]}
+                          </p>
+                        ) : null}
                         <div className="flex flex-wrap items-center gap-1 mt-0.5">
                           {sesion.numero_sesion ? (
                             <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
@@ -683,7 +706,7 @@ export default function SesionesPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <EstadoBadge estado={sesion.estado} />
+                      <EstadoBadge estado={sesion.estado} creacionPaso={readCreacionPaso(sesion.fase_notas)} />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       <div className="relative inline-block" onClick={(e) => e.stopPropagation()}>
@@ -700,12 +723,12 @@ export default function SesionesPage() {
                         {activeMenu === sesion.id && (
                           <div className="absolute right-0 top-8 w-52 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
                             <Link
-                              href={`/sesiones/${sesion.id}`}
+                              href={continueHref(sesion.id, sesion.fase_notas, sesion.estado)}
                               className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <Eye className="h-4 w-4" />
-                              Ver detalle
+                              {readCreacionPaso(sesion.fase_notas) && sesion.estado === 'borrador' ? 'Continuar' : 'Ver detalle'}
                             </Link>
                             <button
                               onClick={(e) => handleGeneratePdf(sesion.id, e, sesion.fecha, 'reducido')}
