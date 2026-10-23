@@ -155,6 +155,11 @@ interface VideoPlayerProps {
   onToggleFullscreen?: () => void
   /** Zoom del recuadro de vídeo (sala). No afecta a la barra de controles. */
   contentTransform?: { transform: string; transformOrigin: string }
+  /**
+   * Presentación: el vídeo ocupa el recuadro. La barra de saltos se esconde
+   * y solo queda un play grande, siempre visible.
+   */
+  playOnlyChrome?: boolean
 }
 
 export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
@@ -180,6 +185,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     isFullscreen: fullscreenProp,
     onToggleFullscreen,
     contentTransform,
+    playOnlyChrome = false,
   }, ref) {
     const videoRef = useRef<HTMLVideoElement>(null as unknown as HTMLVideoElement)
     const containerRef = useRef<HTMLDivElement>(null)
@@ -968,7 +974,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           <video
             ref={videoRef}
             src={!src || src.includes('.m3u8') || srcObject ? undefined : src}
-            preload="auto"
+            preload={playOnlyChrome ? 'metadata' : 'auto'}
             muted={elementMuted}
             playsInline
             className={
@@ -979,6 +985,20 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             style={contentTransform}
             onClick={togglePlay}
           />
+          {playOnlyChrome && (
+            <button
+              type="button"
+              data-testid="presentacion-play"
+              className="absolute bottom-4 left-4 z-[80] flex h-16 w-16 items-center justify-center rounded-md bg-black/80 text-white shadow-lg hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              onClick={(e) => {
+                e.stopPropagation()
+                togglePlay()
+              }}
+              aria-label={playing ? 'Pausa' : 'Reproducir'}
+            >
+              {playing ? <Pause className="h-8 w-8" /> : <Play className="h-8 w-8 fill-current" />}
+            </button>
+          )}
           <canvas
             ref={overlayRef}
             className="pointer-events-none absolute inset-0 h-full w-full object-contain opacity-0"
@@ -987,6 +1007,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         </div>
 
         {/* Controls: skip bar + seek bar + [Play] [Rewind] [-5] [<f] [f>] [+5] | time | mute | speed */}
+        {!playOnlyChrome && (
         <div className="bg-black/80 text-white text-xs relative z-10 shrink-0">
           <div className="flex items-center justify-between gap-2 px-2 pt-1" aria-label="Saltos de tiempo">
             <div className="flex items-center gap-1">
@@ -1206,6 +1227,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           )}
           </div>
         </div>
+        )}
       </div>
     )
 

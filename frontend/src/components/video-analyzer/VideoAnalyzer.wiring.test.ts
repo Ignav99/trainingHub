@@ -173,7 +173,12 @@ describe('video desk wiring', () => {
     assert.match(player, /object-contain/)
     assert.match(player, /presenterEmbed/)
     assert.match(player, /fillFrame/)
+    assert.match(player, /playOnlyChrome/)
+    assert.match(player, /presentacion-play/)
     assert.match(sala, /DrawingOverlay/)
+    assert.match(sala, /Pantalla completa/)
+    assert.match(sala, /Herramientas/)
+    assert.match(sala, /playOnlyChrome/)
     assert.match(stage, /DrawingOverlay/)
   })
 

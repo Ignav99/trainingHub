@@ -5,6 +5,10 @@ export const SALA_RETRY_MS = 350
 export const SALA_RETRY_MAX = 12
 export const SALA_RECONNECT_BASE_MS = 400
 export const SALA_RECONNECT_MAX_MS = 8_000
+/** Por encima de esto el canal directo está atascado: el control sale por la nube. */
+export const SALA_DC_BUFFER_LIMIT = 64 * 1024
+
+export type SalaSendChannel = 'dc' | 'ws'
 
 export const SALA_ICE_SERVERS: RTCIceServer[] = [
   { urls: ['stun:stun.l.google.com:19302'] },
@@ -59,6 +63,31 @@ export function salaSocketMode(input: {
   if (input.accessToken && input.equipoId) return 'jwt'
   if (code) return 'guest'
   return 'off'
+}
+
+/**
+ * Un mensaje fiable sale por el canal directo y por el websocket.
+ * Si el directo está abierto pero el buffer no baja (datos móviles), no se usa.
+ */
+export function salaSendTargets(input: {
+  reliable: boolean
+  dcOpen: boolean
+  dcBuffered: number
+  wsOpen: boolean
+}): SalaSendChannel[] {
+  const buffered = Number.isFinite(input.dcBuffered) ? input.dcBuffered : SALA_DC_BUFFER_LIMIT
+  const dcHealthy = input.dcOpen && buffered < SALA_DC_BUFFER_LIMIT
+  if (!input.reliable) {
+    if (dcHealthy) return ['dc']
+    if (input.wsOpen) return ['ws']
+    if (input.dcOpen) return ['dc']
+    return []
+  }
+  const targets: SalaSendChannel[] = []
+  if (dcHealthy) targets.push('dc')
+  if (input.wsOpen) targets.push('ws')
+  if (targets.length === 0 && input.dcOpen) targets.push('dc')
+  return targets
 }
 
 export function wrapSalaEnvelope(

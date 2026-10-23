@@ -7,7 +7,7 @@ import { ChevronLeft, ChevronRight, Film, Loader2, VolumeX, X } from 'lucide-rea
 import { useAuthStore } from '@/stores/authStore'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { revisionApi, type RevisionSession } from '@/lib/api/revision'
-import { VideoPlayer, VIDEO_PLAYER_CHROME_CLASS, type VideoPlayerHandle } from '@/components/video-analyzer/VideoPlayer'
+import { VideoPlayer, type VideoPlayerHandle } from '@/components/video-analyzer/VideoPlayer'
 import { DrawingOverlay } from '@/components/video-analyzer/DrawingOverlay'
 import { useDrawingEngine } from '@/components/video-analyzer/useDrawingEngine'
 import { useUndoRedo } from '@/components/video-analyzer/useUndoRedo'
@@ -28,6 +28,11 @@ import {
 } from '@/lib/dossierShow'
 import { isSlideNavKey, isVideoSafeTarget, swipeSlideDelta } from '@/lib/presentacionGestos'
 import { captureHostVideo, captureVideoJpeg, directoSalaPath } from '@/lib/directoSala'
+import {
+  enterPresentationFullscreen,
+  exitPaneFullscreen,
+  presentationIsFullscreen,
+} from '@/lib/salaMedia'
 import {
   IDENTITY_ZOOM,
   JOG_SECONDS,
@@ -94,6 +99,10 @@ export function PresentacionSala({
   const [fillOpacity, setFillOpacity] = useState(0.22)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [mediaError, setMediaError] = useState(false)
+  const [videoAttempt, setVideoAttempt] = useState(0)
+  const [toolsOpen, setToolsOpen] = useState(false)
+  const [videosOpen, setVideosOpen] = useState(false)
+  const [deckFullscreen, setDeckFullscreen] = useState(false)
   const [playing, setPlaying] = useState(false)
   const [zoomMode, setZoomMode] = useState(false)
   const [zoom, setZoom] = useState<ZoomState>(IDENTITY_ZOOM)
@@ -107,6 +116,8 @@ export function PresentacionSala({
   const playerRef = useRef<VideoPlayerHandle>(null)
   const applyingRemote = useRef(false)
   const leaderRef = useRef(false)
+  const droveRef = useRef(false)
+  const videoAttemptRef = useRef(0)
   const showRef = useRef<DossierShow | null>(show)
   showRef.current = show
   const indexRef = useRef(index)
@@ -208,6 +219,7 @@ export function PresentacionSala({
     fullscreen: videoFullscreen,
     theater: videoTheater,
     toggleFullscreen: toggleVideoFullscreen,
+    leaveFullscreen: leaveVideoFullscreen,
     handleMutedChange,
     applyRemoteShare,
   } = useSalaVideoShare(sendSync)
@@ -239,6 +251,7 @@ export function PresentacionSala({
     setZoomMode(false)
     reset([])
     if (broadcast) {
+      droveRef.current = true
       const next = showRef.current.slides[to]
       send({
         slide: to,
@@ -277,6 +290,7 @@ export function PresentacionSala({
         setShow(msg.show as DossierShow)
       }
       if (typeof msg.slide === 'number') {
+        droveRef.current = false
         setIndex(msg.slide)
         setMediaError(false)
       }
@@ -320,6 +334,46 @@ export function PresentacionSala({
     const timer = window.setInterval(push, 2000)
     return () => window.clearInterval(timer)
   }, [isHost, wsOk, peerReady, deckReady])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (!droveRef.current) return
+      const current = showRef.current
+      if (!current || current.slides.length === 0) return
+      const i = indexRef.current
+      const next = current.slides[i]
+      if (!next) return
+      const v = next.kind === 'video' ? playerRef.current?.getVideoElement() : null
+      const payload: Record<string, unknown> = {
+        slide: i,
+        clip_id: next.kind === 'video' ? next.clipId : null,
+        paused: v ? v.paused : true,
+      }
+      if (v && Number.isFinite(v.currentTime)) payload.t = v.currentTime
+      send(payload, { reliable: true })
+    }, 2000)
+    return () => window.clearInterval(timer)
+  }, [send])
+
+  useEffect(() => {
+    videoAttemptRef.current = 0
+    setVideoAttempt(0)
+    setMediaError(false)
+  }, [playSrc])
+
+  useEffect(() => {
+    if (!isVideo) setToolsOpen(false)
+  }, [isVideo])
+
+  const onVideoError = useCallback(() => {
+    if (mirrorRef.current) return
+    if (videoAttemptRef.current >= 2) {
+      setMediaError(true)
+      return
+    }
+    videoAttemptRef.current += 1
+    setVideoAttempt(videoAttemptRef.current)
+  }, [])
 
   useEffect(() => {
     if (skipOverlaySend.current) {
@@ -460,7 +514,12 @@ export function PresentacionSala({
   }
 
   const sendTabletAction = (payload: Record<string, unknown>) => {
-    sendSync({ ...payload, slide: indexRef.current, clip_id: clipId })
+    droveRef.current = true
+    send({
+      ...payload,
+      clip_id: clipId,
+      slide: typeof payload.slide === 'number' ? payload.slide : indexRef.current,
+    }, { reliable: true })
   }
 
   const onFrame = (direction: 1 | -1) => {
@@ -572,8 +631,31 @@ export function PresentacionSala({
   }, [mounted])
 
   useEffect(() => {
+    const sync = () => setDeckFullscreen(presentationIsFullscreen(rootRef.current))
+    document.addEventListener('fullscreenchange', sync)
+    document.addEventListener('webkitfullscreenchange', sync)
+    return () => {
+      document.removeEventListener('fullscreenchange', sync)
+      document.removeEventListener('webkitfullscreenchange', sync)
+    }
+  }, [])
+
+  const toggleDeckFullscreen = useCallback(async () => {
+    if (presentationIsFullscreen(rootRef.current)) {
+      await exitPaneFullscreen()
+      return
+    }
+    if (videoFullscreen) {
+      await leaveVideoFullscreen({ clip_id: clipId, slide: indexRef.current })
+    }
+    const ok = await enterPresentationFullscreen(rootRef.current)
+    if (!ok) toast('Este navegador no ocultó la barra. Pulsa otra vez el botón de pantalla completa.')
+  }, [clipId, leaveVideoFullscreen, videoFullscreen])
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (presentationIsFullscreen(rootRef.current)) return
         e.preventDefault()
         if (videoFullscreen) {
           toggleVideoFullscreen({ clip_id: clipId, slide: indexRef.current })
@@ -690,8 +772,16 @@ export function PresentacionSala({
         @import url('https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@600;700;800&display=swap');
       `}</style>
 
-      <header className="flex items-center gap-3 px-4 py-3 sm:px-6">
-        {directoLive ? (
+      <header className={
+        isVideo && !toolsOpen
+          ? 'absolute inset-x-0 top-0 z-40 flex flex-wrap items-center gap-2 bg-gradient-to-b from-black/85 via-black/45 to-transparent px-3 py-2 sm:px-4'
+          : 'flex shrink-0 flex-wrap items-center gap-2 px-3 py-2 sm:px-4'
+      }>
+        {isVideo && slide?.kind === 'video' ? (
+          <p className="min-w-0 flex-1 truncate text-xs" style={{ color: '#E7E2D6' }}>
+            {slide.title}
+          </p>
+        ) : directoLive ? (
           <p
             className="text-[11px] font-semibold uppercase tracking-[0.22em]"
             style={{ color: '#F0C35A', fontFamily: DISPLAY_FONT }}
@@ -722,11 +812,45 @@ export function PresentacionSala({
             QR sala
           </button>
         )}
-        <div className="h-px flex-1" style={{ background: '#2A3A34' }} />
+        {!isVideo && <div className="h-px flex-1" style={{ background: '#2A3A34' }} />}
         {total > 0 && (
           <p className="tabular-nums text-xs" style={{ color: '#9AA59B' }}>
             {index + 1} / {total}
           </p>
+        )}
+        <button
+          type="button"
+          data-testid="presentacion-pantalla-completa"
+          onClick={() => { void toggleDeckFullscreen() }}
+          className="inline-flex h-9 items-center rounded-md px-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#F3EFE6] hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F0C35A]"
+        >
+          {deckFullscreen ? 'Salir' : 'Pantalla completa'}
+        </button>
+        {isVideo && (
+          <button
+            type="button"
+            data-testid="presentacion-herramientas"
+            aria-pressed={toolsOpen}
+            onClick={() => setToolsOpen((open) => {
+              if (open) setZoomMode(false)
+              return !open
+            })}
+            className="inline-flex h-9 items-center rounded-md px-2 text-[11px] font-semibold uppercase tracking-[0.12em] hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F0C35A]"
+            style={{ color: toolsOpen ? '#08110F' : '#F3EFE6', background: toolsOpen ? '#F0C35A' : 'transparent' }}
+          >
+            {toolsOpen ? 'Listo' : 'Herramientas'}
+          </button>
+        )}
+        {directoTablet && (
+          <button
+            type="button"
+            data-testid="presentacion-videos"
+            aria-pressed={videosOpen}
+            onClick={() => setVideosOpen((open) => !open)}
+            className="inline-flex h-9 items-center rounded-md px-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#F3EFE6] hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F0C35A]"
+          >
+            {videosOpen ? 'Ocultar' : 'Vídeos'}
+          </button>
         )}
         <button
           type="button"
@@ -758,7 +882,7 @@ export function PresentacionSala({
         )}
       </header>
 
-      {!isHost && (
+      {!isHost && !isVideo && (
         <div className="px-4 py-1 text-[11px] flex items-center gap-1" style={{ color: '#9AA59B' }}>
           <VolumeX className="h-3 w-3" /> Audio en el PC · mute aquí también lo corta allí
         </div>
@@ -775,7 +899,7 @@ export function PresentacionSala({
               : (wsOk ? 'Esperando al presentador…' : 'Reconectando con el ordenador…')}
           </div>
         ) : (
-          <div className="dossier-slide flex h-full min-h-0 flex-col overflow-hidden px-3 pb-1 sm:px-6">
+          <div className={`dossier-slide flex h-full min-h-0 flex-col overflow-hidden ${isVideo ? '' : 'px-3 pb-1 sm:px-6'}`}>
             {slide && slide.kind !== 'video' && (
               <FitSlideStage>
                 <StaticSlideBody
@@ -787,16 +911,6 @@ export function PresentacionSala({
             )}
             {slide?.kind === 'video' && (
               <div data-testid="dossier-slide-video" className="flex h-full min-h-0 flex-col">
-                {!directoLive && (
-                <div className="mb-2 flex items-end justify-between gap-3">
-                  <h2 className="font-extrabold tracking-tight" style={{ fontFamily: DISPLAY_FONT, fontSize: 'clamp(1.5rem, calc(1.2rem + 1.8vh), 2.6rem)' }}>
-                    {slide.title}
-                  </h2>
-                  <span className="text-[11px] uppercase tracking-[0.2em]" style={{ color: '#9AA59B' }}>
-                    {slide.kicker}
-                  </span>
-                </div>
-                )}
                 <div
                   ref={videoPaneRef}
                   data-testid="sala-video-pane"
@@ -812,7 +926,7 @@ export function PresentacionSala({
                 >
                   {pictureReady || directoTablet ? (
                     <VideoPlayer
-                      key={directoHost ? 'directo-host' : directoTablet ? 'directo-tablet' : playSrc}
+                      key={directoHost ? `directo-host-${videoAttempt}` : directoTablet ? 'directo-tablet' : `${playSrc}-${videoAttempt}`}
                       ref={playerRef}
                       src={directoTablet ? '' : (playSrc || '')}
                       srcObject={directoTablet ? remoteStream : null}
@@ -820,7 +934,8 @@ export function PresentacionSala({
                       onMirrorToggle={onToggle}
                       standalonePreview={isHost}
                       presenterEmbed
-                      fillFrame={directoLive}
+                      fillFrame
+                      playOnlyChrome
                       playbackMuted={!isHost}
                       muted={audioMuted}
                       onMutedChange={(next) => handleMutedChange(next, { clip_id: clipId, slide: indexRef.current })}
@@ -829,7 +944,7 @@ export function PresentacionSala({
                       contentTransform={zoomCss(zoom)}
                       onPlayStateChange={handlePlayState}
                       onSeeked={handleSeeked}
-                      onError={() => { if (!directoTablet) setMediaError(true) }}
+                      onError={onVideoError}
                     />
                   ) : (
                     <div className="flex h-full items-center justify-center px-6 text-center text-sm" style={{ color: '#9AA59B' }}>
@@ -851,7 +966,7 @@ export function PresentacionSala({
                         : 'Conectando el vídeo del ordenador…'}
                     </div>
                   )}
-                  {pictureReady && (!isHost || directoHost) && (
+                  {toolsOpen && pictureReady && (!isHost || directoHost) && (
                     <div className="absolute left-2 top-16 z-[70] flex flex-col gap-1">
                       <button type="button" className="h-10 rounded-md bg-black/70 px-2 text-[11px] font-bold text-white" onClick={() => onFrame(-1)}>1 fot</button>
                       <button type="button" className="h-10 rounded-md bg-black/70 px-2 text-[11px] font-bold text-white" onClick={() => onJog(-0.5)}>0,5 s</button>
@@ -860,28 +975,31 @@ export function PresentacionSala({
                     </div>
                   )}
                   {pictureReady && (
-                    <div className={`absolute left-0 right-0 top-0 ${VIDEO_PLAYER_CHROME_CLASS} overflow-hidden`}>
+                    <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
                       <div className="absolute inset-0" style={zoomCss(zoom)}>
                         <DrawingOverlay
                           elements={elements}
                           preview={preview}
                           selectedId={selectedId}
-                          interactive={!zoomMode}
+                          interactive={!zoomMode && toolsOpen}
                           tool={tool}
                           onPointerDown={handlePointerDown}
                           onPointerMove={handlePointerMove}
                           onPointerUp={handlePointerUp}
                         />
                       </div>
-                      {zoomMode && (
-                        <SalaZoomCatcher
-                          zoom={zoom}
-                          onChange={(next) => applyZoom(next)}
-                          onCommit={() => sendZoom(zoomRef.current)}
-                        />
+                      {zoomMode && toolsOpen && (
+                        <div className="pointer-events-auto absolute inset-0">
+                          <SalaZoomCatcher
+                            zoom={zoom}
+                            onChange={(next) => applyZoom(next)}
+                            onCommit={() => sendZoom(zoomRef.current)}
+                          />
+                        </div>
                       )}
                     </div>
                   )}
+                  {toolsOpen && (
                   <SalaFloatingChrome>
                     <WhiteboardBar
                       tool={tool}
@@ -918,6 +1036,7 @@ export function PresentacionSala({
                       onToggleFullscreen={() => toggleVideoFullscreen({ clip_id: clipId, slide: indexRef.current })}
                     />
                   </SalaFloatingChrome>
+                  )}
                   {mediaError && (
                     <div className="absolute inset-x-4 top-24 z-[60] rounded-md bg-black/80 text-amber-200 text-xs p-3">
                       Este recorte no se pudo reproducir. Pasa a la siguiente diapositiva.
@@ -929,7 +1048,7 @@ export function PresentacionSala({
           </div>
         )}
         </div>
-        {directoLive && (
+        {directoLive && (!directoTablet || videosOpen) && (
           <aside
             className="flex w-44 shrink-0 flex-col border-l sm:w-60"
             style={{ borderColor: '#2A3A34', background: '#0C1814' }}
@@ -988,7 +1107,7 @@ export function PresentacionSala({
         )}
       </div>
 
-      {!directoLive && (
+      {!directoLive && !isVideo && (
       <footer className="shrink-0 px-3 pb-3 pt-1 sm:px-5">
         <div
           className="flex items-center gap-1 overflow-x-auto pb-1"
