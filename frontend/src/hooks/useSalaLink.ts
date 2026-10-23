@@ -9,6 +9,7 @@ import {
   SALA_RETRY_MS,
   orderVideoCodecs,
   reconnectDelay,
+  salaSendTargets,
   salaSocketMode,
   sameSalaCode,
   shouldApplySeq,
@@ -115,30 +116,34 @@ export function useSalaLink({
     pcRef.current = null
   }, [])
 
-  const transmit = useCallback((envelope: Record<string, unknown>): boolean => {
+  const transmit = useCallback((envelope: Record<string, unknown>, reliable = false): boolean => {
     const raw = JSON.stringify(envelope)
     const dc = dcRef.current
-    if (dc && dc.readyState === 'open') {
+    const ws = wsRef.current
+    const targets = salaSendTargets({
+      reliable,
+      dcOpen: !!dc && dc.readyState === 'open',
+      dcBuffered: dc?.bufferedAmount ?? 0,
+      wsOpen: !!ws && ws.readyState === WebSocket.OPEN,
+    })
+    let sent = false
+    for (const target of targets) {
       try {
-        dc.send(raw)
-        return true
+        if (target === 'dc') dc?.send(raw)
+        else ws?.send(raw)
+        sent = true
       } catch {
-        /* fall through to WS */
+        /* el otro canal sigue */
       }
     }
-    const ws = wsRef.current
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(raw)
-      return true
-    }
-    return false
+    return sent
   }, [])
 
   const flushPending = useCallback(() => {
     const pending = pendingRef.current
     if (!pending) return
     pending.tries += 1
-    transmit(pending.envelope)
+    transmit(pending.envelope, true)
   }, [transmit])
 
   const send = useCallback((
@@ -154,12 +159,12 @@ export function useSalaLink({
     }
     const envelope = wrapSalaEnvelope('sala_sync', codeRef.current, roleRef.current, extra)
     if (reliable) pendingRef.current = { seq: seqRef.current, envelope, tries: 0 }
-    transmit(envelope)
+    transmit(envelope, reliable)
   }, [disabled, transmit])
 
   const requestSync = useCallback(() => {
     if (disabled) return
-    transmit(wrapSalaEnvelope('sala_sync_request', codeRef.current, roleRef.current, {}))
+    transmit(wrapSalaEnvelope('sala_sync_request', codeRef.current, roleRef.current, {}), true)
   }, [disabled, transmit])
 
   const sendFrame = useCallback((jpeg: string, t: number, slide: number) => {
@@ -402,17 +407,26 @@ export function useSalaLink({
     onMessageRef.current(msg)
   }
 
-  function ackSeq(seq: unknown, viaDc: boolean) {
+  function ackSeq(seq: unknown, _viaDc: boolean) {
     if (typeof seq !== 'number') return
     const envelope = wrapSalaEnvelope('sala_sync_ack', codeRef.current, roleRef.current, { seq })
-    if (viaDc && dcRef.current?.readyState === 'open') {
-      try {
-        dcRef.current.send(JSON.stringify(envelope))
-        return
-      } catch { /* fall through */ }
-    }
+    const dc = dcRef.current
     const ws = wsRef.current
-    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(envelope))
+    const targets = salaSendTargets({
+      reliable: true,
+      dcOpen: !!dc && dc.readyState === 'open',
+      dcBuffered: dc?.bufferedAmount ?? 0,
+      wsOpen: !!ws && ws.readyState === WebSocket.OPEN,
+    })
+    const raw = JSON.stringify(envelope)
+    for (const target of targets) {
+      try {
+        if (target === 'dc') dc?.send(raw)
+        else ws?.send(raw)
+      } catch {
+        /* el otro canal confirma */
+      }
+    }
   }
 
   const socketMode = salaSocketMode({

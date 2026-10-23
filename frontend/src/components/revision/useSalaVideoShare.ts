@@ -37,6 +37,13 @@ export function useSalaVideoShare(sendSync: (payload: Record<string, unknown>) =
     void applyFullscreen(next)
   }, [applyFullscreen, audioMuted, fullscreen, sendSync])
 
+  const leaveFullscreen = useCallback(async (extra?: Record<string, unknown>) => {
+    if (!fullscreen) return
+    sendSync({ fullscreen: false, muted: audioMuted, ...extra })
+    setTheater(false)
+    await exitPaneFullscreen()
+  }, [audioMuted, fullscreen, sendSync])
+
   const handleMutedChange = useCallback((next: boolean, extra?: Record<string, unknown>) => {
     setAudioMuted(next)
     sendSync({ muted: next, ...extra })
@@ -53,6 +60,7 @@ export function useSalaVideoShare(sendSync: (payload: Record<string, unknown>) =
     fullscreen,
     theater,
     toggleFullscreen,
+    leaveFullscreen,
     handleMutedChange,
     applyRemoteShare,
   }

@@ -4,10 +4,12 @@ import {
   orderVideoCodecs,
   reconnectDelay,
   salaLinkLabel,
+  salaSendTargets,
   salaSocketMode,
   sameSalaCode,
   shouldApplySeq,
   wrapSalaEnvelope,
+  SALA_DC_BUFFER_LIMIT,
   SALA_RECONNECT_MAX_MS,
 } from './salaLink.ts'
 import { trainingHubSalaGuestUrl } from './wsUrl.ts'
@@ -88,6 +90,51 @@ describe('sala link helpers', () => {
     assert.equal(sameSalaCode('ab12cd', 'AB12CD'), true)
     assert.equal(sameSalaCode('OTRA', 'AB12CD'), false)
     assert.equal(sameSalaCode('', 'AB12CD'), true)
+  })
+
+  it('sends a reliable slide on the direct link and the cloud socket', () => {
+    assert.deepEqual(salaSendTargets({
+      reliable: true,
+      dcOpen: true,
+      dcBuffered: 0,
+      wsOpen: true,
+    }), ['dc', 'ws'])
+  })
+
+  it('skips a direct link that is open but stuck on mobile data', () => {
+    assert.deepEqual(salaSendTargets({
+      reliable: true,
+      dcOpen: true,
+      dcBuffered: SALA_DC_BUFFER_LIMIT,
+      wsOpen: true,
+    }), ['ws'])
+    assert.deepEqual(salaSendTargets({
+      reliable: true,
+      dcOpen: true,
+      dcBuffered: SALA_DC_BUFFER_LIMIT,
+      wsOpen: false,
+    }), ['dc'])
+  })
+
+  it('keeps playhead ticks on one healthy channel', () => {
+    assert.deepEqual(salaSendTargets({
+      reliable: false,
+      dcOpen: true,
+      dcBuffered: 0,
+      wsOpen: true,
+    }), ['dc'])
+    assert.deepEqual(salaSendTargets({
+      reliable: false,
+      dcOpen: true,
+      dcBuffered: SALA_DC_BUFFER_LIMIT + 1,
+      wsOpen: true,
+    }), ['ws'])
+    assert.deepEqual(salaSendTargets({
+      reliable: true,
+      dcOpen: false,
+      dcBuffered: 0,
+      wsOpen: false,
+    }), [])
   })
 
   it('opens the sala websocket with the QR code and without a user token', () => {
