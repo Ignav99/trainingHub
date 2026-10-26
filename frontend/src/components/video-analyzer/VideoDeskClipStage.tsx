@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { BookmarkPlus, ChevronLeft, ChevronRight, Send, Trash2, X } from 'lucide-react'
+import { BookmarkPlus, ChevronLeft, ChevronRight, Library, Send, Trash2, X } from 'lucide-react'
 import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
 import type { CodeButton, CodeEvent } from './types'
 import { clipDisplayTitle, type DeskPlaylist } from './videoDesk'
@@ -55,6 +55,7 @@ export function VideoDeskClipStage({
   onRename,
   onToggleRevision,
   onSendRevision,
+  onSaveBiblioteca,
   onDelete,
 }: {
   src: string
@@ -66,6 +67,7 @@ export function VideoDeskClipStage({
   onRename?: (clip: CodeEvent, title: string) => void
   onToggleRevision?: (clip: CodeEvent) => void
   onSendRevision?: () => void
+  onSaveBiblioteca?: (clips: CodeEvent[]) => void
   onDelete?: (clip: CodeEvent) => void
 }) {
   const playerRef = useRef<VideoPlayerHandle>(null)
@@ -151,6 +153,20 @@ export function VideoDeskClipStage({
               >
                 <BookmarkPlus size={14} />
                 {marked ? 'Quitar de revisión' : 'Marcar a revisión'}
+              </button>
+            ) : null}
+            {onSaveBiblioteca ? (
+              <button
+                type="button"
+                className="vd-btn"
+                title="Copia este recorte a la biblioteca. Ahí no caduca."
+                onClick={() => {
+                  const marked = clips.filter((item) => revisionIds.includes(item.id))
+                  onSaveBiblioteca(marked.length ? marked : [clip])
+                }}
+              >
+                <Library size={14} />
+                Guardar en biblioteca
               </button>
             ) : null}
             <button

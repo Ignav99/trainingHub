@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, useRef, lazy, Suspense } from 'react'
+import Link from 'next/link'
 import useSWR from 'swr'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { useClubStore } from '@/stores/clubStore'
@@ -248,6 +249,11 @@ export default function VideoAnalisisPage() {
       <PageHeader
         title="Video Análisis"
         description="Elige el partido que vais a jugar y si el vídeo es el vuestro o del rival contra otro equipo"
+        actions={
+          <Button variant="outline" asChild>
+            <Link href="/biblioteca-cortes">Biblioteca de cortes</Link>
+          </Button>
+        }
       />
 
       <input

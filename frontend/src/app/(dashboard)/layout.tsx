@@ -27,6 +27,7 @@ import {
   UtensilsCrossed,
   PenTool,
   FileStack,
+  Library,
   Watch,
 } from 'lucide-react'
 import { OpenVideoTabLink } from '@/components/video-analyzer/OpenVideoTabLink'
@@ -97,6 +98,7 @@ const saludNavigation: NavItem[] = [
 const toolsNavigation: NavItem[] = [
   { name: 'Anotador', href: '/anotador', icon: Watch },
   { name: 'Video Análisis', href: '/video-analisis', icon: ScanSearch },
+  { name: 'Biblioteca de cortes', href: '/biblioteca-cortes', icon: Library },
   { name: 'Pizarra Táctica', href: '/pizarra-tactica', icon: PenTool },
   { name: 'Estadísticas', href: '/estadisticas', icon: BarChart3 },
   { name: 'Informes', href: '/informes', icon: FileStack },

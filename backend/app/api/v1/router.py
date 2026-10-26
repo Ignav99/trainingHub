@@ -46,6 +46,7 @@ from app.api.v1 import (
     portero_tareas,
     videos,
     revision,
+    biblioteca_cortes,
     video_anotaciones,
     video_tag_categories,
     video_tags,
@@ -346,6 +347,12 @@ api_router.include_router(
     revision.router,
     prefix="/revision",
     tags=["Revisión de vídeo"]
+)
+
+api_router.include_router(
+    biblioteca_cortes.router,
+    prefix="/biblioteca-cortes",
+    tags=["Biblioteca de cortes"]
 )
 
 api_router.include_router(

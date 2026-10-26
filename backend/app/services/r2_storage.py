@@ -144,6 +144,66 @@ def put_file(signed_url: str, local_path: str, mime: str) -> None:
         raise RuntimeError(f"R2 PUT {res.status_code}: {res.text[:200]}")
 
 
+def copy_object(src_path: str, dest_path: str) -> None:
+    """Copia dentro del bucket. El original de la biblioteca no se mueve."""
+    if not r2_enabled() or not src_path or not dest_path:
+        raise RuntimeError("R2 no está configurado")
+    s = get_settings()
+    now = datetime.now(timezone.utc)
+    amz_date = now.strftime("%Y%m%dT%H%M%SZ")
+    datestamp = now.strftime("%Y%m%d")
+    host = _host(s.R2_ACCOUNT_ID or "")
+    bucket = s.R2_BUCKET or ""
+    src_key = src_path.lstrip("/")
+    dest_key = dest_path.lstrip("/")
+    copy_source = "/" + bucket + "/" + _uri_encode(src_key, slash=True)
+    canonical_uri = "/" + _uri_encode(bucket, slash=True) + "/" + _uri_encode(dest_key, slash=True)
+    canonical_headers = (
+        f"host:{host}\n"
+        "x-amz-content-sha256:UNSIGNED-PAYLOAD\n"
+        f"x-amz-copy-source:{copy_source}\n"
+        f"x-amz-date:{amz_date}\n"
+    )
+    signed_headers = "host;x-amz-content-sha256;x-amz-copy-source;x-amz-date"
+    canonical_request = "\n".join([
+        "PUT",
+        canonical_uri,
+        "",
+        canonical_headers,
+        signed_headers,
+        "UNSIGNED-PAYLOAD",
+    ])
+    scope = f"{datestamp}/{_REGION}/{_SERVICE}/aws4_request"
+    string_to_sign = "\n".join([
+        "AWS4-HMAC-SHA256",
+        amz_date,
+        scope,
+        hashlib.sha256(canonical_request.encode("utf-8")).hexdigest(),
+    ])
+    signature = hmac.new(
+        _sign_key(s.R2_SECRET_ACCESS_KEY or "", datestamp),
+        string_to_sign.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    auth = (
+        f"AWS4-HMAC-SHA256 Credential={s.R2_ACCESS_KEY_ID}/{scope}, "
+        f"SignedHeaders={signed_headers}, Signature={signature}"
+    )
+    res = requests.put(
+        f"https://{host}{canonical_uri}",
+        headers={
+            "Authorization": auth,
+            "x-amz-date": amz_date,
+            "x-amz-content-sha256": "UNSIGNED-PAYLOAD",
+            "x-amz-copy-source": copy_source,
+            "Host": host,
+        },
+        timeout=60,
+    )
+    if res.status_code not in (200, 201):
+        raise RuntimeError(f"R2 COPY {res.status_code}: {res.text[:200]}")
+
+
 def delete_object(storage_path: str) -> None:
     if not r2_enabled() or not storage_path:
         return

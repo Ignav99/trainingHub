@@ -15,6 +15,7 @@ import {
   Trash2,
   Upload,
   Folder,
+  Library,
   Loader2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -38,6 +39,7 @@ import {
   type RevisionFolder,
   type RevisionPack,
 } from '@/lib/api/revision'
+import { bibliotecaCortesApi } from '@/lib/api/bibliotecaCortes'
 import { revisionFolderChoices } from '@/components/video-analyzer/videoDesk'
 import { SalaHostDialog } from './SalaHostDialog'
 import { downloadRevisionPackZip } from '@/lib/revisionPackZip'
@@ -222,6 +224,19 @@ export function RevisionLibrary({
     }
   }
 
+  const keepInLibrary = async (clip: RevisionClip) => {
+    if (clip.status !== 'hot') {
+      toast.error('Este recorte ya no está en Cloudflare')
+      return
+    }
+    try {
+      await bibliotecaCortesApi.desdeRevision(equipoId, clip.id)
+      toast.success('Copiado a la biblioteca. Ahí no caduca.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo copiar a la biblioteca')
+    }
+  }
+
   const handleDownloadPack = async (): Promise<boolean> => {
     if (!pack) return false
     setArchiveBusy('zip')
@@ -290,6 +305,7 @@ export function RevisionLibrary({
         Recortes cortos para la charla. El partido entero se queda en el ordenador (Video Análisis).
         Asigna cada recorte a su subfase: en la presentación sale solo con esa subfase.
         A los 30 días del partido se borran de la app y de Cloudflare.
+        Si quieres conservarlos, cópialos a la biblioteca: ahí no caducan.
       </p>
 
       {pack && (pack.retention?.hot_count || 0) > 0 && (
@@ -374,6 +390,7 @@ export function RevisionLibrary({
                     onMove={(targetId) => handleMoveClip(clip, targetId)}
                     onPlay={() => setPlaying(clip)}
                     onPresent={() => setSalaClip(clip)}
+                    onKeep={() => { void keepInLibrary(clip) }}
                     onDelete={() => handleDeleteClip(clip)}
                   />
                 ))}
@@ -558,6 +575,7 @@ function ClipCard({
   onMove,
   onPlay,
   onPresent,
+  onKeep,
   onDelete,
 }: {
   clip: RevisionClip
@@ -566,6 +584,7 @@ function ClipCard({
   onMove: (folderId: string) => void
   onPlay: () => void
   onPresent: () => void
+  onKeep: () => void
   onDelete: () => void
 }) {
   const enDrive = clip.status === 'en_drive'
@@ -619,6 +638,10 @@ function ClipCard({
         <Button size="sm" onClick={onPresent} disabled={!clipPlaySrc(clip) || clip.status !== 'hot'}>
           <MonitorPlay className="h-3.5 w-3.5 mr-1" />
           Presentar
+        </Button>
+        <Button size="sm" variant="outline" onClick={onKeep} disabled={clip.status !== 'hot'} title="Copia permanente en la biblioteca">
+          <Library className="h-3.5 w-3.5 mr-1" />
+          A biblioteca
         </Button>
         <Button size="icon" variant="ghost" className="h-8 w-8 ml-auto text-destructive" onClick={onDelete}>
           <Trash2 className="h-3.5 w-3.5" />
