@@ -24,6 +24,7 @@ import {
   X,
   UtensilsCrossed,
   CalendarDays,
+  Film,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { DetailPageSkeleton } from '@/components/ui/page-skeletons'
@@ -42,6 +43,7 @@ import { jugadoresApi, POSICIONES, ESTADOS_JUGADOR } from '@/lib/api/jugadores'
 import type { Jugador, JugadorUpdate } from '@/lib/api/jugadores'
 import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import { FichaClinicaPanel, UltimaAntropometria } from '@/components/ficha-clinica/FichaClinicaPanel'
+import { BibliotecaCortesPanel } from '@/components/biblioteca/BibliotecaCortesPanel'
 import { cargaApi } from '@/lib/api/carga'
 import { wellnessApi } from '@/lib/api/wellness'
 import { convocatoriasApi } from '@/lib/api/convocatorias'
@@ -72,7 +74,13 @@ export default function JugadorDetailPage() {
   const searchParams = useSearchParams()
   const [saving, setSaving] = useState(false)
   const [isEditing, setIsEditing] = useState(searchParams.get('edit') === 'true')
-  const [activeTab, setActiveTab] = useState<'datos' | 'estadisticas' | 'carga' | 'ficha_clinica' | 'nutricion'>('datos')
+  const [activeTab, setActiveTab] = useState<'datos' | 'estadisticas' | 'carga' | 'ficha_clinica' | 'nutricion' | 'videos'>(
+    searchParams.get('tab') === 'videos' ? 'videos' : 'datos'
+  )
+
+  useEffect(() => {
+    if (searchParams.get('tab') === 'videos') setActiveTab('videos')
+  }, [searchParams])
 
   // Form state
   const [formData, setFormData] = useState<JugadorUpdate>({})
@@ -282,7 +290,7 @@ export default function JugadorDetailPage() {
       />
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+      <div className="flex gap-1 overflow-x-auto bg-gray-100 rounded-lg p-1">
         <button
           onClick={() => setActiveTab('datos')}
           className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
@@ -342,7 +350,22 @@ export default function JugadorDetailPage() {
           <UtensilsCrossed className="h-4 w-4" />
           Nutrición
         </button>
+        <button
+          onClick={() => setActiveTab('videos')}
+          className={`shrink-0 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+            activeTab === 'videos'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Film className="h-4 w-4" />
+          Vídeos
+        </button>
       </div>
+
+      {activeTab === 'videos' && jugador?.equipo_id && (
+        <BibliotecaCortesPanel equipoId={jugador.equipo_id} jugadorId={String(jugador.id)} compact />
+      )}
 
       {/* Tab: Datos */}
       {activeTab === 'datos' && (

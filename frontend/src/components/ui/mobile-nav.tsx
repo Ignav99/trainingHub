@@ -19,6 +19,7 @@ import {
   Activity,
   UtensilsCrossed,
   FileStack,
+  Library,
   X,
 } from 'lucide-react'
 import { OpenVideoTabLink } from '@/components/video-analyzer/OpenVideoTabLink'
@@ -37,6 +38,7 @@ const moreTabs = [
   { name: 'RPE', href: '/rpe', icon: Activity },
   { name: 'Nutrición', href: '/nutricion', icon: UtensilsCrossed },
   { name: 'Video', href: '/video-analisis', icon: ScanSearch },
+  { name: 'Biblioteca', href: '/biblioteca-cortes', icon: Library },
   { name: 'Pizarra', href: '/pizarra-tactica', icon: PenTool },
   { name: 'Estadísticas', href: '/estadisticas', icon: BarChart3 },
   { name: 'Informes', href: '/informes', icon: FileStack },

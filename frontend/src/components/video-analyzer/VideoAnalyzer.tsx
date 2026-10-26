@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Download, Maximize, Minimize, Send, Trash2, X } from 'lucide-react'
+import { Download, Library, Maximize, Minimize, Send, Trash2, X } from 'lucide-react'
 import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
 import { useCodeWindowStore } from './useCodeWindowStore'
 import { SendToRevisionDialog } from '@/components/revision/SendToRevisionDialog'
+import { GuardarEnBibliotecaDialog, type BibliotecaClipIn } from '@/components/biblioteca/GuardarEnBibliotecaDialog'
 import { prefetchRevisionFolders, type RevisionAmbito } from '@/lib/api/revision'
 import { packQueryForDestino, pickDestinoId, type RevisionDestinoPartido } from '@/lib/revisionDestino'
 import type { VideoWatchMode } from './videoAnalisisPicker'
@@ -75,6 +76,8 @@ export function VideoAnalyzer({
   const [selectedClipIds, setSelectedClipIds] = useState<string[]>([])
   const [selectedLaneId, setSelectedLaneId] = useState<string | null>(null)
   const [sendClipId, setSendClipId] = useState<string | null>(null)
+  const [biblioOpen, setBiblioOpen] = useState(false)
+  const [biblioClips, setBiblioClips] = useState<BibliotecaClipIn[]>([])
   const [progress, setProgress] = useState<string | null>(null)
   const [objectUrl, setObjectUrl] = useState('')
   const [armedButtonId, setArmedButtonId] = useState<string | null>(null)
@@ -135,6 +138,17 @@ export function VideoAnalyzer({
     .map((id) => events.find((e) => e.id === id))
     .filter((e): e is CodeEvent => !!e)
   const canSendToRevision = destinos.length > 0 || Boolean(partidoId || rivalId)
+
+  const openBiblioteca = useCallback((clips: CodeEvent[]) => {
+    if (!clips.length) return
+    setBiblioClips(clips.map((clip) => ({
+      title: clipDisplayTitle(clip, buttons.find((button) => button.id === clip.buttonId)),
+      startTime: clip.startTime,
+      endTime: clip.endTime,
+      fase: buttons.find((button) => button.id === clip.buttonId)?.fase,
+    })))
+    setBiblioOpen(true)
+  }, [buttons])
 
   useEffect(() => {
     const destino = destinos.find((item) => item.id === destinoInicialId)
@@ -484,6 +498,16 @@ export function VideoAnalyzer({
           </button>
           <button
             type="button"
+            className="vd-btn"
+            disabled={revisionClips.length === 0}
+            title="Guarda los recortes marcados en la biblioteca. Se quedan en Cloudflare."
+            onClick={() => openBiblioteca(revisionClips)}
+          >
+            <Library size={14} />
+            {revisionClips.length > 1 ? `A biblioteca (${revisionClips.length})` : 'A biblioteca'}
+          </button>
+          <button
+            type="button"
             className="vd-btn vd-btn-accent"
             disabled={revisionClips.length === 0 || !canSendToRevision}
             title={!canSendToRevision ? 'Asocia un partido para enviar a Revisión' : 'Enviar los recortes marcados en el previsualizador o con ⌘+clic.'}
@@ -620,6 +644,7 @@ export function VideoAnalyzer({
           onRename={renameClip}
           onToggleRevision={toggleRevision}
           onSendRevision={canSendToRevision && selectedClipIds.length > 0 ? () => setSendClipId(selectedClipIds[0]) : undefined}
+          onSaveBiblioteca={openBiblioteca}
           onDelete={(clip) => deleteClips([clip.id])}
         />
       ) : null}
@@ -648,6 +673,19 @@ export function VideoAnalyzer({
           }))}
           sourceVideoId={videoId}
           preferredFase={sendButton?.fase}
+        />
+      ) : null}
+
+      {biblioOpen && biblioClips.length > 0 ? (
+        <GuardarEnBibliotecaDialog
+          open
+          onOpenChange={(open) => { if (!open) setBiblioOpen(false) }}
+          equipoId={equipoId}
+          partidoId={partidoId}
+          videoElement={playerRef.current?.getVideoElement() || null}
+          sourceFile={localFile}
+          sourceVideoId={videoId}
+          clips={biblioClips}
         />
       ) : null}
     </div>
