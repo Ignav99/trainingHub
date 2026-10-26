@@ -20,6 +20,7 @@ import { TeamCrest } from '@/components/ui/team-crest'
 import { microciclosApi } from '@/lib/api/microciclos'
 import { rivalesApi, partidosApi } from '@/lib/api/partidos'
 import { extractPersistentScout, mergeScoutOnLoad } from '@/lib/rivalScoutSync'
+import { shouldPersistOwnedDoc, weeklyFallbackForRival } from '@/lib/ownedDocument'
 import { extractPersistentPlanPartido, mergePlanPartidoOnLoad } from '@/lib/rivalPlanPartidoSync'
 import {
   inferPlanTramo,
@@ -199,10 +200,18 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
 
   // Hidratar informe rival desde el perfil persistente del rival (7 semanas antes, etc.)
   const hydratedRivalRef = useRef<string | null>(null)
+  const displayedRivalRef = useRef<string | null>(micro.rival_id ?? null)
+  const scoutDirtyRef = useRef(false)
+  const planDirtyRef = useRef(false)
   useEffect(() => {
     const rivalId = micro.rival_id
     if (!rivalId || hydratedRivalRef.current === rivalId) return
+    const switching = hydratedRivalRef.current != null
     hydratedRivalRef.current = rivalId
+    displayedRivalRef.current = null
+    scoutDirtyRef.current = false
+    planDirtyRef.current = false
+    let cancelled = false
 
     Promise.all([
       rivalesApi.getScoutManual(rivalId),
@@ -218,23 +227,37 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
         : Promise.resolve({ data: [] }),
     ])
       .then(([persistentScout, persistentPlan, partidos]) => {
+        if (cancelled) return
         const store = unwrapPlanTramos(persistentPlan)
         const tramo = inferPlanTramo(partidos.data || [], micro.partidos?.fecha)
         planStoreRef.current = store
         setPlanTramo(tramo)
+        displayedRivalRef.current = rivalId
         setPlanCT((prev) => {
           const next = { ...prev }
-          if (persistentScout && (persistentScout.fases?.length || persistentScout.estrategia)) {
-            next.rival_scout = mergeScoutOnLoad(persistentScout, prev.rival_scout)
+          const localScout = weeklyFallbackForRival(switching, prev.rival_scout)
+          const localPlan = weeklyFallbackForRival(switching, prev.plan_partido)
+          if (switching || (persistentScout && (persistentScout.fases?.length || persistentScout.estrategia))) {
+            next.rival_scout = mergeScoutOnLoad(persistentScout, localScout)
           }
           const persistentForTramo = store[tramo]
-          if (tramoHasContent(persistentForTramo)) {
-            next.plan_partido = mergePlanPartidoOnLoad(persistentForTramo, prev.plan_partido)
+          if (switching || tramoHasContent(persistentForTramo)) {
+            next.plan_partido = mergePlanPartidoOnLoad(persistentForTramo, localPlan)
           }
           return next
         })
       })
-      .catch((err) => console.error('Error cargando perfil del rival:', err))
+      .catch((err) => {
+        if (cancelled) return
+        console.error('Error cargando perfil del rival:', err)
+        displayedRivalRef.current = rivalId
+        if (switching) {
+          setPlanCT((prev) => ({ ...prev, rival_scout: {}, plan_partido: {} }))
+        }
+      })
+    return () => {
+      cancelled = true
+    }
   }, [micro.rival_id, micro.equipo_id, micro.partidos?.fecha])
 
   // Auto-save
@@ -248,17 +271,32 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
 
     setSaveStatus('pending')
 
+    const rivalId = micro.rival_id
     saveTimerRef.current = setTimeout(async () => {
+      if (rivalId && displayedRivalRef.current !== rivalId) {
+        setSaveStatus('idle')
+        return
+      }
       try {
         await microciclosApi.patchPlanCT(microcicloId, planCT)
-        if (micro.rival_id && planCT.rival_scout) {
-          await rivalesApi.putScoutManual(micro.rival_id, extractPersistentScout(planCT.rival_scout))
+        if (
+          rivalId &&
+          planCT.rival_scout &&
+          shouldPersistOwnedDoc(displayedRivalRef.current, rivalId, scoutDirtyRef.current)
+        ) {
+          await rivalesApi.putScoutManual(rivalId, extractPersistentScout(planCT.rival_scout))
+          if (displayedRivalRef.current === rivalId) scoutDirtyRef.current = false
         }
-        if (micro.rival_id && planCT.plan_partido) {
+        if (
+          rivalId &&
+          planCT.plan_partido &&
+          shouldPersistOwnedDoc(displayedRivalRef.current, rivalId, planDirtyRef.current)
+        ) {
           const store = { ...planStoreRef.current }
           store[planTramoRef.current] = extractPersistentPlanPartido(planCT.plan_partido)
           planStoreRef.current = store
-          await rivalesApi.putPlanPartidoManual(micro.rival_id, wrapPlanTramos(store))
+          await rivalesApi.putPlanPartidoManual(rivalId, wrapPlanTramos(store))
+          if (displayedRivalRef.current === rivalId) planDirtyRef.current = false
         }
         setSaveStatus('saved')
         idleTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000)
@@ -561,7 +599,11 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
             fecha={data.microciclo.partidos?.fecha}
             jornada={data.microciclo.partidos?.jornada}
             tramo={planTramo}
-            onChange={(d) => updatePlanCT({ rival_scout: d })}
+            onChange={(d) => {
+              if (displayedRivalRef.current !== data.microciclo.rival_id) return
+              scoutDirtyRef.current = true
+              updatePlanCT({ rival_scout: d })
+            }}
             getPlanForCharla={() => planCT.plan_partido ?? {}}
           />
           </div>
@@ -596,7 +638,11 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
               campoPartido={linkedRival?.estadio || undefined}
               localia={data.microciclo.partidos?.localia}
               tramo={planTramo}
-              onChange={(d) => updatePlanCT({ plan_partido: d })}
+              onChange={(d) => {
+                if (displayedRivalRef.current !== data.microciclo.rival_id) return
+                planDirtyRef.current = true
+                updatePlanCT({ plan_partido: d })
+              }}
               getInformeForCharla={() => planCT.rival_scout ?? {}}
             />
           </div>

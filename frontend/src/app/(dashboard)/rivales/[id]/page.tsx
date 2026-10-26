@@ -236,6 +236,7 @@ export default function RivalDetailPage() {
 
       {activeTab === 'informe' && (
         <RivalInformeTab
+          key={id}
           rivalId={id}
           rivalNombre={rival.nombre}
           rivalEscudoUrl={rival.escudo_url}
@@ -245,6 +246,7 @@ export default function RivalDetailPage() {
 
       {activeTab === 'plan_partido' && (
         <RivalPlanPartidoTab
+          key={id}
           rivalId={id}
           rivalNombre={rival.nombre}
           rivalEscudoUrl={rival.escudo_url}

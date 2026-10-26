@@ -26,7 +26,8 @@ def test_merge_scout_prefers_saved_comentarios_over_empty_weekly():
 
 def test_informe_autosave_uses_persistent_extract():
     tab = (ROOT / "frontend/src/components/rivales/RivalInformeTab.tsx").read_text()
-    assert "extractPersistentScout(scout)" in tab
+    assert "extractPersistentScout(scoutRef.current)" in tab
+    assert "shouldPersistOwnedDoc" in tab
     scout_ui = (ROOT / "frontend/src/components/microciclos/RivalScout.tsx").read_text()
     assert "Comentarios Rival" in scout_ui
     assert "estrategia.notas" in scout_ui

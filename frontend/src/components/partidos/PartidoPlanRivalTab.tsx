@@ -41,6 +41,7 @@ export function PartidoPlanRivalTab({ partido, equipoId }: PartidoPlanRivalTabPr
         </Link>
       </div>
       <RivalInformeTab
+        key={rivalId}
         rivalId={rivalId}
         rivalNombre={rivalNombre}
         rivalEscudoUrl={partido.rival?.escudo_url}

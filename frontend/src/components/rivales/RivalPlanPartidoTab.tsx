@@ -16,6 +16,7 @@ import {
   type PlanTramo,
 } from '@/lib/planPartidoTramos'
 import { planMatchIdForTramo } from '@/lib/revisionDestino'
+import { shouldPersistOwnedDoc } from '@/lib/ownedDocument'
 
 interface RivalPlanPartidoTabProps {
   rivalId: string
@@ -35,14 +36,27 @@ export function RivalPlanPartidoTab({ rivalId, rivalNombre, rivalEscudoUrl, esta
   })
   const [partidos, setPartidos] = useState<Array<{ id: string; fecha?: string | null; competicion?: string | null }>>([])
   const [loaded, setLoaded] = useState(false)
+  const [ownerId, setOwnerId] = useState(rivalId)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const isMountedRef = useRef(false)
+  const loadedOwnerRef = useRef<string | null>(null)
+  const dirtyRef = useRef(false)
   const plansRef = useRef(plans)
   plansRef.current = plans
 
+  if (ownerId !== rivalId) {
+    setOwnerId(rivalId)
+    setPlans({ ida: {}, vuelta: {} })
+    setPartidos([])
+    setLoaded(false)
+    loadedOwnerRef.current = null
+    dirtyRef.current = false
+  }
+
   useEffect(() => {
     let cancelled = false
+    loadedOwnerRef.current = null
+    dirtyRef.current = false
     Promise.all([
       rivalesApi.getPlanPartidoManual(rivalId),
       equipoActivo?.id
@@ -58,13 +72,17 @@ export function RivalPlanPartidoTab({ rivalId, rivalNombre, rivalEscudoUrl, esta
       .then(([raw, partidos]) => {
         if (cancelled) return
         const store = unwrapPlanTramos(raw)
+        loadedOwnerRef.current = rivalId
         setPlans(store)
         setPartidos(partidos.data || [])
         setTramo(inferPlanTramo(partidos.data || []))
         setLoaded(true)
       })
       .catch(() => {
-        if (!cancelled) setLoaded(true)
+        if (cancelled) return
+        loadedOwnerRef.current = rivalId
+        setPlans({ ida: {}, vuelta: {} })
+        setLoaded(true)
       })
     return () => {
       cancelled = true
@@ -72,25 +90,28 @@ export function RivalPlanPartidoTab({ rivalId, rivalNombre, rivalEscudoUrl, esta
   }, [rivalId, equipoActivo?.id])
 
   useEffect(() => {
-    if (!loaded || !isMountedRef.current) {
-      isMountedRef.current = true
-      return
-    }
+    if (!shouldPersistOwnedDoc(loadedOwnerRef.current, rivalId, dirtyRef.current)) return
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    const owner = rivalId
     setSaveStatus('pending')
 
     saveTimerRef.current = setTimeout(async () => {
+      if (!shouldPersistOwnedDoc(loadedOwnerRef.current, owner, dirtyRef.current)) return
       try {
         await rivalesApi.putPlanPartidoManual(
-          rivalId,
+          owner,
           wrapPlanTramos({
             ida: extractPersistentPlanPartido(plansRef.current.ida),
             vuelta: extractPersistentPlanPartido(plansRef.current.vuelta),
           })
         )
-        setSaveStatus('saved')
-        setTimeout(() => setSaveStatus('idle'), 2000)
+        if (loadedOwnerRef.current === owner) {
+          dirtyRef.current = false
+          setSaveStatus('saved')
+          setTimeout(() => setSaveStatus('idle'), 2000)
+        }
       } catch (err: unknown) {
+        if (loadedOwnerRef.current !== owner) return
         setSaveStatus('error')
         toast.error(err instanceof Error ? err.message : 'Error al guardar plan de partido')
       }
@@ -138,7 +159,11 @@ export function RivalPlanPartidoTab({ rivalId, rivalNombre, rivalEscudoUrl, esta
         rivalEscudoUrl={rivalEscudoUrl}
         campoPartido={estadio}
         tramo={tramo}
-        onChange={(next) => setPlans((prev) => ({ ...prev, [tramo]: next }))}
+        onChange={(next) => {
+          if (loadedOwnerRef.current !== rivalId) return
+          dirtyRef.current = true
+          setPlans((prev) => ({ ...prev, [tramo]: next }))
+        }}
       />
     </div>
   )
