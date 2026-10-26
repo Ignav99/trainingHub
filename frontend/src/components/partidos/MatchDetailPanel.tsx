@@ -77,7 +77,7 @@ import { AnotacionesImportDialog } from './AnotacionesImportDialog'
 import { ConvocatoriaCartelDialog } from './ConvocatoriaCartelDialog'
 import type { AnotacionesPlan, PlayerStatRow } from '@/lib/partidoAnotacionesJson'
 import { periodReportFromNotasPre, parseNotasPre, informeFromSnapshot, hasAnotadorLiveData, resolveGolDetalleNames, remapFormationSlots } from '@/lib/anotador'
-import { hydrateLineup, mergeLineupIntoNotasPre, shouldPersistLineup } from '@/lib/lineupPersistence'
+import { hydrateLineup, lineupNeedsKickoffRepair, lineupSlotsFilled, mergeLineupIntoNotasPre, shouldPersistLineup } from '@/lib/lineupPersistence'
 
 const PartidoPlanTab = dynamic(() => import('./PartidoPlanTab').then(m => ({ default: m.PartidoPlanTab })), {
   loading: () => <div className="animate-pulse space-y-4 p-4"><div className="h-8 bg-muted rounded w-1/3" /><div className="h-32 bg-muted rounded" /><div className="h-32 bg-muted rounded" /></div>
@@ -186,6 +186,7 @@ export function MatchDetailPanel({
   const [openLineupSlot, setOpenLineupSlot] = useState<string | null>(null)
   const [savingLineup, setSavingLineup] = useState(false)
   const lineupDirtyRef = useRef(false)
+  const kickoffRepairAttempted = useRef(new Set<string>())
 
   // ---- Informe state ----
   const [showResult, setShowResult] = useState(false)
@@ -349,6 +350,41 @@ export function MatchDetailPanel({
     })
     setSelectedFormation(next.formation)
     setSlotAssignments(next.slots)
+  }, [lineupSourceKey, selectedPartido, convocados, loadingConv])
+
+  // El anotador guardaba como titulares a quien acababa en el campo.
+  // Si el acta aún tiene los cambios, se reescribe el once del saque.
+  useEffect(() => {
+    if (!selectedPartido || loadingConv || convocados.length === 0 || lineupDirtyRef.current) return
+    const plan = lineupNeedsKickoffRepair({
+      notasPre: selectedPartido.notas_pre,
+      convocados,
+    })
+    if (!plan || !lineupSlotsFilled(plan.slots)) return
+    const signature = Object.entries(plan.slots).sort((a, b) => a[0].localeCompare(b[0])).map(([slot, id]) => `${slot}:${id}`).join('|')
+    const key = `${selectedPartido.id}:${signature}`
+    if (kickoffRepairAttempted.current.has(key)) return
+    kickoffRepairAttempted.current.add(key)
+    const partidoId = selectedPartido.id
+    const notasPre = selectedPartido.notas_pre
+    void (async () => {
+      try {
+        const assigned = new Map(Object.entries(plan.slots).map(([slot, id]) => [id, slot]))
+        await convocatoriasApi.batchUpdateStats(convocados.map((conv) => {
+          const pos = assigned.get(conv.id)
+          if (pos) return { id: conv.id, posicion_asignada: pos, titular: true }
+          return { id: conv.id, titular: false }
+        }))
+        const merged = mergeLineupIntoNotasPre(notasPre, plan.formation || '4-3-3', plan.slots)
+        await partidosApi.update(partidoId, { notas_pre: merged })
+        toast.success('Once titular recuperado del saque. Los cambios siguen en el anotador.')
+        mutate((swrKey: string) => typeof swrKey === 'string' && (swrKey.includes('/convocatorias') || swrKey.includes('/partidos')), undefined, { revalidate: true })
+      } catch (err) {
+        kickoffRepairAttempted.current.delete(key)
+        console.error(err)
+        toast.error('No se ha podido recuperar el once titular')
+      }
+    })()
   }, [lineupSourceKey, selectedPartido, convocados, loadingConv])
 
   const activeFormation = FORMATIONS.find((f) => f.name === selectedFormation) || null

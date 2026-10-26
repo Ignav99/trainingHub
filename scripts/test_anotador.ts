@@ -40,6 +40,8 @@ import {
   effectiveMatchMinute,
   informeMatchMinute,
   resolveGolDetalleNames,
+  startingLineupSlots,
+  formacionSlotsForAnotadorSave,
   type AnotadorSnapshot,
 } from '../frontend/src/lib/anotador.ts'
 
@@ -521,4 +523,76 @@ test('el volcado del informe incluye faltas del mapa y amarilla rival', () => {
   const payload = statsPeriodosPayload(dumped.snap)
   assert.equal(payload['1'].faltas_cometidas, 2)
   assert.equal(payload.total.faltas_cometidas, 2)
+})
+
+test('el once del saque no es quien acaba tras los cambios', () => {
+  const snap: AnotadorSnapshot = {
+    ...DEFAULT_ANOTADOR,
+    started: true,
+    slots: { POR: 'gk', DC: 'suplente' },
+    events: [
+      { id: 'c1', minute: 60, half: 2, type: 'cambio', convId: 'delantero', relatedConvId: 'suplente', slotId: 'DC' },
+    ],
+  }
+  assert.equal(startingLineupSlots(snap).DC, 'delantero')
+  assert.equal(startingLineupSlots(snap).POR, 'gk')
+  const saved = {
+    formacion: '4-3-3',
+    formacion_slots: { POR: 'gk', DC: 'suplente' },
+    anotador: snap,
+  }
+  const next = formacionSlotsForAnotadorSave(saved, snap)
+  assert.equal(next.DC, 'delantero')
+  assert.equal(next.POR, 'gk')
+  const merged = parseNotasPre(mergeNotasPre(saved, snap))
+  assert.equal(merged.formacion_slots?.DC, 'delantero')
+  assert.equal(merged.anotador?.slots.DC, 'suplente')
+})
+
+test('una corrección manual del once no se pisa con el campo final', () => {
+  const snap: AnotadorSnapshot = {
+    ...DEFAULT_ANOTADOR,
+    started: true,
+    slots: { POR: 'gk', DC: 'suplente' },
+    events: [
+      { id: 'c1', minute: 60, half: 2, type: 'cambio', convId: 'delantero', relatedConvId: 'suplente', slotId: 'DC' },
+    ],
+  }
+  const corrected = formacionSlotsForAnotadorSave(
+    { formacion: '4-3-3', formacion_slots: { POR: 'gk', DC: 'otro' } },
+    snap,
+  )
+  assert.equal(corrected.DC, 'otro')
+})
+
+test('antes del saque el campo actual sigue siendo el once', () => {
+  const snap: AnotadorSnapshot = {
+    ...DEFAULT_ANOTADOR,
+    slots: { POR: 'gk', DC: 'nueve' },
+    events: [],
+  }
+  const next = formacionSlotsForAnotadorSave(
+    { formacion_slots: { POR: 'viejo' } },
+    snap,
+  )
+  assert.equal(next.POR, 'gk')
+  assert.equal(next.DC, 'nueve')
+})
+
+test('expulsión y cambio rebobinan al titular del saque', () => {
+  const snap: AnotadorSnapshot = {
+    ...DEFAULT_ANOTADOR,
+    started: true,
+    slots: { POR: 'gk' },
+    events: [
+      { id: 'c1', minute: 30, half: 1, type: 'cambio', convId: 'a', relatedConvId: 'b', slotId: 'DC' },
+      { id: 'r1', minute: 70, half: 2, type: 'roja', side: 'us', convId: 'b', slotId: 'DC' },
+    ],
+  }
+  assert.equal(startingLineupSlots(snap).DC, 'a')
+  assert.equal(startingLineupSlots(snap).POR, 'gk')
+  const rows = computePlayerRows(snap, ['gk', 'a', 'b'], 90)
+  assert.equal(rows.a.minutos_jugados, 30)
+  assert.equal(rows.b.minutos_jugados, 40)
+  assert.equal(rows.gk.minutos_jugados, 90)
 })
