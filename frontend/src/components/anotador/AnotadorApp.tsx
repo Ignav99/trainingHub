@@ -239,11 +239,16 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
     if (!opts?.silent) persistBusy.current = true
     if (!opts?.silent) setSaving(true)
     try {
-      const notas = mergeNotasPre(match.notas_pre, { ...current, running: false })
+      let sourceNotas: unknown = match.notas_pre
+      try {
+        const latest = await partidosApi.get(match.id)
+        if (latest?.notas_pre != null) sourceNotas = latest.notas_pre
+      } catch { /* el acta ya cargada sigue siendo la base */ }
+      const notas = mergeNotasPre(sourceNotas, { ...current, running: false })
       await partidosApi.update(match.id, { notas_pre: notas })
       partidoRef.current = { ...match, notas_pre: notas }
 
-      const xiSlots = formacionSlotsForAnotadorSave(match.notas_pre, current)
+      const xiSlots = formacionSlotsForAnotadorSave(sourceNotas, current)
       const assigned = new Map<string, string>()
       for (const [slotId, convId] of Object.entries(xiSlots)) {
         if (convId) assigned.set(convId, slotId)

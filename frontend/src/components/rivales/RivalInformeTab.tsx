@@ -9,6 +9,7 @@ import { apiKey } from '@/lib/swr'
 import type { RFEFCompeticion } from '@/lib/api/rfef'
 import type { RivalScoutData } from '@/types'
 import { extractPersistentScout } from '@/lib/rivalScoutSync'
+import { shouldPersistOwnedDoc } from '@/lib/ownedDocument'
 
 interface RivalInformeTabProps {
   rivalId: string
@@ -26,9 +27,21 @@ type SaveStatus = 'idle' | 'pending' | 'saved' | 'error'
 export function RivalInformeTab({ rivalId, rivalNombre, rivalEscudoUrl, equipoId, fecha, jornada, localia, tramo }: RivalInformeTabProps) {
   const [scout, setScout] = useState<Partial<RivalScoutData>>({})
   const [loaded, setLoaded] = useState(false)
+  const [ownerId, setOwnerId] = useState(rivalId)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const isMountedRef = useRef(false)
+  const loadedOwnerRef = useRef<string | null>(null)
+  const dirtyRef = useRef(false)
+  const scoutRef = useRef(scout)
+  scoutRef.current = scout
+
+  if (ownerId !== rivalId) {
+    setOwnerId(rivalId)
+    setScout({})
+    setLoaded(false)
+    loadedOwnerRef.current = null
+    dirtyRef.current = false
+  }
 
   const { data: rfefRes } = useSWR<{ data: RFEFCompeticion[] }>(
     equipoId ? apiKey('/rfef/competiciones', { equipo_id: equipoId }) : null
@@ -37,16 +50,21 @@ export function RivalInformeTab({ rivalId, rivalNombre, rivalEscudoUrl, equipoId
 
   useEffect(() => {
     let cancelled = false
+    loadedOwnerRef.current = null
+    dirtyRef.current = false
     rivalesApi
       .getScoutManual(rivalId)
       .then((data) => {
-        if (!cancelled) {
-          setScout(data ?? {})
-          setLoaded(true)
-        }
+        if (cancelled) return
+        loadedOwnerRef.current = rivalId
+        setScout(data ?? {})
+        setLoaded(true)
       })
       .catch(() => {
-        if (!cancelled) setLoaded(true)
+        if (cancelled) return
+        loadedOwnerRef.current = rivalId
+        setScout({})
+        setLoaded(true)
       })
     return () => {
       cancelled = true
@@ -54,19 +72,22 @@ export function RivalInformeTab({ rivalId, rivalNombre, rivalEscudoUrl, equipoId
   }, [rivalId])
 
   useEffect(() => {
-    if (!loaded || !isMountedRef.current) {
-      isMountedRef.current = true
-      return
-    }
+    if (!shouldPersistOwnedDoc(loadedOwnerRef.current, rivalId, dirtyRef.current)) return
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    const owner = rivalId
     setSaveStatus('pending')
 
     saveTimerRef.current = setTimeout(async () => {
+      if (!shouldPersistOwnedDoc(loadedOwnerRef.current, owner, dirtyRef.current)) return
       try {
-        await rivalesApi.putScoutManual(rivalId, extractPersistentScout(scout))
-        setSaveStatus('saved')
-        setTimeout(() => setSaveStatus('idle'), 2000)
+        await rivalesApi.putScoutManual(owner, extractPersistentScout(scoutRef.current))
+        if (loadedOwnerRef.current === owner) {
+          dirtyRef.current = false
+          setSaveStatus('saved')
+          setTimeout(() => setSaveStatus('idle'), 2000)
+        }
       } catch (err: unknown) {
+        if (loadedOwnerRef.current !== owner) return
         setSaveStatus('error')
         toast.error(err instanceof Error ? err.message : 'Error al guardar informe rival')
       }
@@ -102,7 +123,11 @@ export function RivalInformeTab({ rivalId, rivalNombre, rivalEscudoUrl, equipoId
         jornada={jornada}
         localia={localia}
         tramo={tramo}
-        onChange={setScout}
+        onChange={(next) => {
+          if (loadedOwnerRef.current !== rivalId) return
+          dirtyRef.current = true
+          setScout(next)
+        }}
       />
     </div>
   )

@@ -12,6 +12,7 @@ import {
   type PartidoPlanContext,
 } from '@/lib/partidoPlanContext'
 import { PLAN_TRAMO_LABEL } from '@/lib/planPartidoTramos'
+import { shouldPersistOwnedDoc } from '@/lib/ownedDocument'
 
 interface PartidoPlanTabProps {
   partido: Partido
@@ -24,20 +25,34 @@ export function PartidoPlanTab({ partido, equipoId }: PartidoPlanTabProps) {
   const [plan, setPlan] = useState<Partial<PlanPartidoData>>({})
   const [context, setContext] = useState<PartidoPlanContext>({ microcicloId: null, source: 'empty', tramo: 'ida' })
   const [loading, setLoading] = useState(true)
+  const [ownerId, setOwnerId] = useState(partido.id)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const contextRef = useRef(context)
-  const isMountedRef = useRef(false)
+  const planRef = useRef(plan)
+  const loadedOwnerRef = useRef<string | null>(null)
+  const dirtyRef = useRef(false)
   contextRef.current = context
+  planRef.current = plan
+
+  if (ownerId !== partido.id) {
+    setOwnerId(partido.id)
+    setPlan({})
+    setLoading(true)
+    loadedOwnerRef.current = null
+    dirtyRef.current = false
+  }
 
   useEffect(() => {
-    isMountedRef.current = false
     let cancelled = false
+    loadedOwnerRef.current = null
+    dirtyRef.current = false
     setLoading(true)
     loadPartidoPlan(partido.id, equipoId, partido.rival_id, partido.fecha)
       .then(({ plan: loaded, context: ctx }) => {
         if (cancelled) return
+        loadedOwnerRef.current = partido.id
         setPlan(loaded)
         setContext(ctx)
       })
@@ -52,24 +67,26 @@ export function PartidoPlanTab({ partido, equipoId }: PartidoPlanTabProps) {
     return () => {
       cancelled = true
     }
-  }, [partido.id, partido.rival_id, equipoId])
+  }, [partido.id, partido.rival_id, equipoId, partido.fecha])
 
   useEffect(() => {
-    if (loading) return
-    if (!isMountedRef.current) {
-      isMountedRef.current = true
-      return
-    }
+    if (loading || !shouldPersistOwnedDoc(loadedOwnerRef.current, partido.id, dirtyRef.current)) return
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
 
+    const matchId = partido.id
+    const rivalId = partido.rival_id
     setSaveStatus('pending')
     saveTimerRef.current = setTimeout(async () => {
+      if (!shouldPersistOwnedDoc(loadedOwnerRef.current, matchId, dirtyRef.current)) return
       try {
-        await savePartidoPlan(plan, contextRef.current, partido.rival_id)
+        await savePartidoPlan(planRef.current, contextRef.current, rivalId)
+        if (loadedOwnerRef.current !== matchId) return
+        dirtyRef.current = false
         setSaveStatus('saved')
         idleTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000)
       } catch (err) {
+        if (loadedOwnerRef.current !== matchId) return
         setSaveStatus('error')
         toast.error(err instanceof Error ? err.message : 'Error al guardar plan de partido')
       }
@@ -79,7 +96,7 @@ export function PartidoPlanTab({ partido, equipoId }: PartidoPlanTabProps) {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
     }
-  }, [plan, loading, partido.rival_id])
+  }, [plan, loading, partido.id, partido.rival_id])
 
   if (loading) {
     return (
@@ -130,7 +147,11 @@ export function PartidoPlanTab({ partido, equipoId }: PartidoPlanTabProps) {
 
       <PlanPartido
         data={plan}
-        onChange={setPlan}
+        onChange={(next) => {
+          if (loadedOwnerRef.current !== partido.id) return
+          dirtyRef.current = true
+          setPlan(next)
+        }}
         rivalId={partido.rival_id}
         microcicloId={context.microcicloId ?? undefined}
         partidoId={partido.id}
