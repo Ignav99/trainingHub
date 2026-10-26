@@ -1,4 +1,10 @@
-import { assignTitularesToSlots, notasPreRecord, parseNotasPre } from './anotador'
+import {
+  assignTitularesToSlots,
+  formacionSlotsForAnotadorSave,
+  notasPreRecord,
+  parseNotasPre,
+  snapshotHasLineChanges,
+} from './anotador'
 import { FORMATIONS } from './formations'
 
 export type LineupConvocado = {
@@ -18,6 +24,10 @@ export function hydrateLineup(args: {
   convocados?: LineupConvocado[]
 }): { formation: string | null; slots: Record<string, string> } {
   const parsed = parseNotasPre(args.notasPre)
+  const kickoff = args.notasPre != null && parsed.anotador && snapshotHasLineChanges(parsed.anotador)
+    ? formacionSlotsForAnotadorSave(args.notasPre, parsed.anotador)
+    : null
+  const slotSource = kickoff && lineupSlotsFilled(kickoff) ? kickoff : parsed.formacion_slots
   const named = parsed.formacion && FORMATIONS.some((f) => f.name === parsed.formacion)
     ? parsed.formacion
     : null
@@ -25,14 +35,14 @@ export function hydrateLineup(args: {
   const formationName = named || (titulares.length > 0 ? '4-3-3' : null)
   const form = FORMATIONS.find((f) => f.name === formationName) || null
 
-  if (form && lineupSlotsFilled(parsed.formacion_slots)) {
+  if (form && lineupSlotsFilled(slotSource)) {
     const slots: Record<string, string> = {}
     for (const slot of form.slots) {
-      const value = parsed.formacion_slots?.[slot.id]
+      const value = slotSource?.[slot.id]
       if (value) slots[slot.id] = value
     }
     if (Object.keys(slots).length === 0) {
-      for (const [id, value] of Object.entries(parsed.formacion_slots || {})) {
+      for (const [id, value] of Object.entries(slotSource || {})) {
         if (value) slots[id] = value
       }
     }
@@ -49,9 +59,9 @@ export function hydrateLineup(args: {
     }
   }
 
-  if (lineupSlotsFilled(parsed.formacion_slots)) {
+  if (lineupSlotsFilled(slotSource)) {
     const slots: Record<string, string> = {}
-    for (const [id, value] of Object.entries(parsed.formacion_slots || {})) {
+    for (const [id, value] of Object.entries(slotSource || {})) {
       if (value) slots[id] = value
     }
     return { formation: named, slots }
@@ -69,6 +79,37 @@ export function mergeLineupIntoNotasPre(
   if (formation) data.formacion = formation
   data.formacion_slots = slots
   return JSON.stringify(data)
+}
+
+function samePlayers(slots: Record<string, string>, ids: Set<string>): boolean {
+  const values = Object.values(slots).filter(Boolean)
+  if (values.length !== ids.size) return false
+  return values.every((id) => ids.has(id))
+}
+
+/**
+ * El acta del anotador sigue teniendo los cambios. Si el 11 guardado
+ * es quien acabó en el campo, hay que volver a escribir el saque.
+ */
+export function lineupNeedsKickoffRepair(args: {
+  notasPre?: unknown
+  convocados?: LineupConvocado[]
+}): { formation: string | null; slots: Record<string, string> } | null {
+  if (args.notasPre == null) return null
+  const parsed = parseNotasPre(args.notasPre)
+  if (!parsed.anotador || !snapshotHasLineChanges(parsed.anotador)) return null
+  const next = hydrateLineup(args)
+  if (!lineupSlotsFilled(next.slots)) return null
+  const stored = parsed.formacion_slots || {}
+  const storedKeys = Object.keys(stored)
+  const storedDiffers = storedKeys.length !== Object.keys(next.slots).length
+    || storedKeys.some((key) => stored[key] !== next.slots[key])
+  const titularIds = new Set(
+    (args.convocados || []).filter((c) => c.titular && c.id).map((c) => c.id),
+  )
+  const titularesDiffer = !samePlayers(next.slots, titularIds)
+  if (!storedDiffers && !titularesDiffer) return null
+  return next
 }
 
 export function shouldPersistLineup(

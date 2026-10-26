@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { mergeNotasPre, parseNotasPre } from './anotador.ts'
 import {
   hydrateLineup,
+  lineupNeedsKickoffRepair,
   mergeLineupIntoNotasPre,
   shouldPersistLineup,
 } from './lineupPersistence.ts'
@@ -92,6 +93,50 @@ describe('lineup persistence', () => {
     const parsed = parseNotasPre({ formacion: '3-5-2', formacion_slots: { POR: 'c-por' } })
     assert.equal(parsed.formacion, '3-5-2')
     assert.equal(parsed.formacion_slots?.POR, 'c-por')
+  })
+
+  it('shows the kickoff XI when the saved slots are the players who finished', () => {
+    const notasPre = {
+      formacion: '4-3-3',
+      formacion_slots: { POR: 'c-por', DC: 'c-sub' },
+      anotador: {
+        events: [
+          { id: 'c1', minute: 55, half: 2, type: 'cambio', convId: 'c-dc', relatedConvId: 'c-sub', slotId: 'DC' },
+        ],
+        slots: { POR: 'c-por', DC: 'c-sub' },
+      },
+    }
+    const next = hydrateLineup({
+      notasPre,
+      convocados: [
+        { id: 'c-por', titular: true, posicion_asignada: 'POR' },
+        { id: 'c-sub', titular: true, posicion_asignada: 'DC' },
+        { id: 'c-dc', titular: false },
+      ],
+    })
+    assert.equal(next.slots.POR, 'c-por')
+    assert.equal(next.slots.DC, 'c-dc')
+    const repair = lineupNeedsKickoffRepair({
+      notasPre,
+      convocados: [
+        { id: 'c-por', titular: true },
+        { id: 'c-sub', titular: true },
+        { id: 'c-dc', titular: false },
+      ],
+    })
+    assert.equal(repair?.slots.DC, 'c-dc')
+    const already = lineupNeedsKickoffRepair({
+      notasPre: {
+        ...notasPre,
+        formacion_slots: { POR: 'c-por', DC: 'c-dc' },
+      },
+      convocados: [
+        { id: 'c-por', titular: true },
+        { id: 'c-dc', titular: true },
+        { id: 'c-sub', titular: false },
+      ],
+    })
+    assert.equal(already, null)
   })
 
   it('anotador merge keeps a saved XI if the snapshot slots are empty', () => {

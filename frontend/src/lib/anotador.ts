@@ -445,10 +445,8 @@ export function mergeNotasPre(
   existingRaw: unknown,
   snapshot: AnotadorSnapshot,
 ): string {
+  const nextSlots = formacionSlotsForAnotadorSave(existingRaw, snapshot)
   const parsed = parseNotasPre(existingRaw)
-  const nextSlots = Object.values(snapshot.slots || {}).some(Boolean)
-    ? snapshot.slots
-    : parsed.formacion_slots || snapshot.slots || {}
   return JSON.stringify({
     ...parsed.rest,
     formacion: snapshot.form || parsed.formacion,
@@ -907,27 +905,85 @@ export function informeMatchMinute(snapshot: AnotadorSnapshot): number {
   return live
 }
 
-function sortedCambios(snapshot: AnotadorSnapshot): AnotadorEvent[] {
+function filledSlotMap(
+  slots?: Record<string, string | null | undefined> | null,
+): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const [slot, id] of Object.entries(slots || {})) {
+    if (id) out[slot] = id
+  }
+  return out
+}
+
+function sameSlotMap(a: Record<string, string>, b: Record<string, string>): boolean {
+  const keys = Object.keys(a)
+  if (keys.length !== Object.keys(b).length) return false
+  return keys.every((key) => a[key] === b[key])
+}
+
+/** Cambios y expulsiones que mueven el campo. La roja sin hueco no se puede rebobinar. */
+function lineChangeEvents(snapshot: AnotadorSnapshot): AnotadorEvent[] {
   return (snapshot.events || [])
-    .filter((ev) => ev.type === 'cambio' && ev.convId && ev.relatedConvId)
+    .filter((ev) => (
+      (ev.type === 'cambio' && ev.convId && ev.relatedConvId)
+      || (ev.type === 'roja' && ev.side !== 'rival' && Boolean(ev.convId) && Boolean(ev.slotId))
+    ))
     .slice()
     .sort((a, b) => (a.minute - b.minute) || String(a.id).localeCompare(String(b.id)))
 }
 
+export function snapshotHasLineChanges(snapshot: AnotadorSnapshot): boolean {
+  return lineChangeEvents(snapshot).length > 0
+}
+
+/**
+ * Huecos del saque. Los cambios y las expulsiones se deshacen sobre el campo
+ * actual: quien entra no sustituye al titular.
+ */
+export function startingLineupSlots(snapshot: AnotadorSnapshot): Record<string, string> {
+  const field = filledSlotMap(snapshot.slots)
+  const events = lineChangeEvents(snapshot)
+  if (events.length === 0) return field
+  for (const ev of [...events].reverse()) {
+    if (ev.slotId && ev.convId) {
+      field[ev.slotId] = ev.convId
+      continue
+    }
+    if (ev.type === 'cambio' && ev.relatedConvId && ev.convId) {
+      const slot = Object.entries(field).find(([, id]) => id === ev.relatedConvId)?.[0]
+      if (slot) field[slot] = ev.convId
+    }
+  }
+  return filledSlotMap(field)
+}
+
+/**
+ * Slots que deben quedar como 11 titular en la convocatoria.
+ * Antes del saque, el campo actual es el once.
+ * Con cambios, no se pisa un once ya distinto del campo final
+ * (corrección hecha a mano). Si el guardado coincide con quien acabó,
+ * se recupera el saque.
+ */
+export function formacionSlotsForAnotadorSave(
+  existingRaw: unknown,
+  snapshot: AnotadorSnapshot,
+): Record<string, string> {
+  const parsed = parseNotasPre(existingRaw)
+  const live = filledSlotMap(snapshot.slots)
+  const stored = filledSlotMap(parsed.formacion_slots)
+  if (!snapshotHasLineChanges(snapshot)) {
+    return Object.keys(live).length ? live : stored
+  }
+  const start = startingLineupSlots(snapshot)
+  if (Object.keys(stored).length && !sameSlotMap(stored, live)) return stored
+  if (Object.keys(start).length) return start
+  return Object.keys(live).length ? live : stored
+}
+
 /** Once inicial rebobinando los cambios sobre el once actual. */
 export function startingLineupIds(snapshot: AnotadorSnapshot): Set<string> {
-  const cambios = sortedCambios(snapshot)
-  if (cambios.length > 0) {
-    const field: Record<string, string> = { ...(snapshot.slots || {}) }
-    for (const sub of [...cambios].reverse()) {
-      if (sub.slotId) {
-        if (sub.convId) field[sub.slotId] = sub.convId
-      } else if (sub.relatedConvId) {
-        const slot = Object.entries(field).find(([, id]) => id === sub.relatedConvId)?.[0]
-        if (slot && sub.convId) field[slot] = sub.convId
-      }
-    }
-    return new Set(Object.values(field).filter(Boolean))
+  if (snapshotHasLineChanges(snapshot)) {
+    return new Set(Object.values(startingLineupSlots(snapshot)))
   }
   const starters = new Set<string>()
   for (const [id, entered] of Object.entries(snapshot.enteredAt || {})) {

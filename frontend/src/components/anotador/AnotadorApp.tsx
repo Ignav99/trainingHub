@@ -34,6 +34,7 @@ import {
   effectiveMatchMinute,
   emptyTeamStats,
   eventLabel,
+  formacionSlotsForAnotadorSave,
   formatClock,
   golesPorPeriodoFromEvents,
   hasAnotadorLiveData,
@@ -242,13 +243,10 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
       await partidosApi.update(match.id, { notas_pre: notas })
       partidoRef.current = { ...match, notas_pre: notas }
 
+      const xiSlots = formacionSlotsForAnotadorSave(match.notas_pre, current)
       const assigned = new Map<string, string>()
-      const formDef = FORMATIONS.find((f) => f.name === current.form)
-      if (formDef) {
-        for (const slot of formDef.slots) {
-          const convId = current.slots[slot.id]
-          if (convId) assigned.set(convId, slot.position)
-        }
+      for (const [slotId, convId] of Object.entries(xiSlots)) {
+        if (convId) assigned.set(convId, slotId)
       }
       if (!opts?.silent) {
         await Promise.all(convocados.map(async (c) => {
@@ -1157,7 +1155,7 @@ function OnceTab({
           )
         })}
       </div>
-      <p className="text-xs text-zinc-500 px-1">Antes del saque: toca un dorsal en Acta y un hueco aquí. En juego, los cambios van con Sale.</p>
+      <p className="text-xs text-zinc-500 px-1">Antes del saque: toca un dorsal en Acta y un hueco aquí. En juego, los cambios van con Sale. La convocatoria conserva el 11 del saque.</p>
     </div>
   )
 }
