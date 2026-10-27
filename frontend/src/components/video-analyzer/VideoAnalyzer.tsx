@@ -16,6 +16,7 @@ import { VideoDeskTimeline } from './VideoDeskTimeline'
 import { VideoDeskDownloadMenu } from './VideoDeskDownloadMenu'
 import { VideoDeskClipStage, type ClipStagePlaylist } from './VideoDeskClipStage'
 import { extractAndDownloadDeskClips, type DeskDownloadKind } from './videoDeskDownload'
+import { splitFase } from '@/lib/bibliotecaCortes'
 import {
   clipDisplayTitle,
   clipsOnLane,
@@ -141,12 +142,17 @@ export function VideoAnalyzer({
 
   const openBiblioteca = useCallback((clips: CodeEvent[]) => {
     if (!clips.length) return
-    setBiblioClips(clips.map((clip) => ({
-      title: clipDisplayTitle(clip, buttons.find((button) => button.id === clip.buttonId)),
-      startTime: clip.startTime,
-      endTime: clip.endTime,
-      fase: buttons.find((button) => button.id === clip.buttonId)?.fase,
-    })))
+    setBiblioClips(clips.map((clip) => {
+      const button = buttons.find((item) => item.id === clip.buttonId)
+      const parts = splitFase(button?.fase)
+      return {
+        title: clipDisplayTitle(clip, button),
+        startTime: clip.startTime,
+        endTime: clip.endTime,
+        fase: parts.fase,
+        subfase: parts.subfase,
+      }
+    }))
     setBiblioOpen(true)
   }, [buttons])
 
@@ -495,6 +501,16 @@ export function VideoAnalyzer({
           >
             <Trash2 size={14} />
             Eliminar
+          </button>
+          <button
+            type="button"
+            className="vd-btn"
+            disabled={events.length === 0}
+            title="Copia todos los recortes de este partido a la biblioteca. Cada uno lleva la fase con la que lo marcaste."
+            onClick={() => openBiblioteca(events)}
+          >
+            <Library size={14} />
+            Pasar todos a biblioteca
           </button>
           <button
             type="button"

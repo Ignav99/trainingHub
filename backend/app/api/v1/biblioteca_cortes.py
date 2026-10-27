@@ -20,6 +20,7 @@ from app.services.biblioteca_cortes import (
     extension_for,
     make_biblioteca_storage_path,
     minute_ok,
+    resolve_clip_fase,
     split_fase,
 )
 from app.services.revision_service import (
@@ -208,6 +209,47 @@ def _replace_jugadores(supabase, equipo_id: str, corte_id: str, jugador_ids: lis
         supabase.table("biblioteca_corte_jugadores").insert(
             [{"corte_id": corte_id, "jugador_id": jug} for jug in unique]
         ).execute()
+
+
+def _fase_del_recorte(supabase, clip: dict) -> str | None:
+    """Fase guardada en el recorte o, si no hay, la de su carpeta (y la carpeta padre)."""
+    folder_fases: list[str | None] = []
+    links = (
+        supabase.table("revision_clip_links")
+        .select("folder_id")
+        .eq("clip_id", clip["id"])
+        .eq("slot_tipo", "folder")
+        .execute()
+    )
+    folder_ids = [row["folder_id"] for row in (links.data or []) if row.get("folder_id")]
+    if folder_ids:
+        folders = (
+            supabase.table("revision_folders")
+            .select("id, fase, parent_id")
+            .in_("id", folder_ids)
+            .execute()
+        )
+        by_id = {row["id"]: row for row in (folders.data or [])}
+        pending = [row.get("parent_id") for row in by_id.values() if row.get("parent_id") and row.get("parent_id") not in by_id]
+        if pending:
+            parents = (
+                supabase.table("revision_folders")
+                .select("id, fase, parent_id")
+                .in_("id", pending)
+                .execute()
+            )
+            for row in parents.data or []:
+                by_id[row["id"]] = row
+        for folder_id in folder_ids:
+            current = folder_id
+            seen: set[str] = set()
+            while current and current not in seen:
+                seen.add(current)
+                folder = by_id.get(current) or {}
+                if folder.get("fase"):
+                    folder_fases.append(folder.get("fase"))
+                current = folder.get("parent_id")
+    return resolve_clip_fase(clip.get("fase"), folder_fases)
 
 
 def _partido_etiqueta(supabase, partido_id: str | None) -> str | None:
@@ -528,7 +570,7 @@ async def desde_revision(
     mime = clip.get("mime_type") or "video/mp4"
     dest = make_biblioteca_storage_path(equipo, corte_id, None, mime)
     _copy_storage(supabase, clip["storage_path"], dest, mime)
-    fase, subfase = split_fase(clip.get("fase"))
+    fase, subfase = split_fase(_fase_del_recorte(supabase, clip))
     partido_id = pack_row.get("partido_id")
     row = {
         "id": corte_id,

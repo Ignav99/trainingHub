@@ -13,13 +13,10 @@ import { bibliotecaCortesApi, type BibliotecaCorte } from '@/lib/api/bibliotecaC
 import { jugadoresApi, jugadorNombreVisible, type Jugador } from '@/lib/api/jugadores'
 import { partidosApi } from '@/lib/api/partidos'
 import { FASES_JUEGO, SUBFASES_ATAQUE, SUBFASES_DEFENSA, subfasesForFase } from '@/lib/catalogos/canonico'
-import { minuteLabel } from '@/lib/bibliotecaCortes'
+import { faseLabel, minuteLabel } from '@/lib/bibliotecaCortes'
 import { EditarCorteDialog } from '@/components/biblioteca/EditarCorteDialog'
 import { EnviarCorteDialog } from '@/components/biblioteca/EnviarCorteDialog'
 import type { Partido } from '@/types'
-
-const faseNombre = (codigo?: string | null) =>
-  FASES_JUEGO.find((fase) => fase.codigo === codigo)?.nombre || codigo || ''
 
 const subfaseNombre = (codigo?: string | null) =>
   [...SUBFASES_ATAQUE, ...SUBFASES_DEFENSA].find((item) => item.codigo === codigo)?.nombre || codigo || ''
@@ -229,7 +226,7 @@ export function BibliotecaCortesPanel({
                   <p className="truncate text-sm font-medium">{corte.titulo}</p>
                   {corte.descripcion && <p className="line-clamp-2 text-xs text-muted-foreground">{corte.descripcion}</p>}
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    {[corte.partido_etiqueta, minuteLabel(corte.minuto_inicio, corte.minuto_fin), faseNombre(corte.fase), subfaseNombre(corte.subfase), corte.size_label]
+                    {[corte.partido_etiqueta, minuteLabel(corte.minuto_inicio, corte.minuto_fin), faseLabel(corte.fase), subfaseNombre(corte.subfase), corte.size_label]
                       .filter(Boolean)
                       .join(' · ')}
                   </p>

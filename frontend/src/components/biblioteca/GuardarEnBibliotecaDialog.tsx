@@ -12,6 +12,7 @@ import { bibliotecaCortesApi } from '@/lib/api/bibliotecaCortes'
 import { jugadoresApi, jugadorNombreVisible, type Jugador } from '@/lib/api/jugadores'
 import { partidosApi } from '@/lib/api/partidos'
 import { FASES_JUEGO, subfasesForFase } from '@/lib/catalogos/canonico'
+import { faseLabel, labelsForLibraryClip } from '@/lib/bibliotecaCortes'
 import { extractClipRange } from '@/components/video-analyzer/extractClip'
 import type { Partido } from '@/types'
 
@@ -20,6 +21,7 @@ export interface BibliotecaClipIn {
   startTime: number
   endTime: number
   fase?: string
+  subfase?: string
 }
 
 export function GuardarEnBibliotecaDialog({
@@ -79,8 +81,15 @@ export function GuardarEnBibliotecaDialog({
     partidosApi.list({ equipo_id: equipoId, orden: 'fecha', direccion: 'desc', limit: 80 })
       .then((res) => setPartidos(res.data || []))
       .catch(() => setPartidos([]))
-    jugadoresApi.list({ equipo_id: equipoId })
-      .then((res) => setJugadores(res.data || []))
+    jugadoresApi.list({ equipo_id: equipoId, solo_plantilla: true })
+      .then((res) => {
+        const plantilla = (res.data || []).filter((jugador) => (
+          jugador.tipo_jugador ? jugador.tipo_jugador === 'plantilla' : !jugador.es_invitado
+        ))
+        const ids = new Set(plantilla.map((jugador) => jugador.id))
+        setJugadores(plantilla)
+        setJugadorIds((curr) => curr.filter((id) => ids.has(id)))
+      })
       .catch(() => setJugadores([]))
   }, [open, equipoId, partidoId, clipKey, batch])
 
@@ -119,8 +128,7 @@ export function GuardarEnBibliotecaDialog({
           partido_etiqueta: etiqueta,
           minuto_inicio: batch || minutoInicio === '' ? Math.floor(item.startTime / 60) : Number(minutoInicio),
           minuto_fin: batch || minutoFin === '' ? Math.ceil(item.endTime / 60) : Number(minutoFin),
-          fase: fase || item.fase || undefined,
-          subfase: subfase || undefined,
+          ...labelsForLibraryClip(batch, { fase, subfase }, item),
           duration_ms: Math.round((item.endTime - item.startTime) * 1000),
           start_ms: Math.round(item.startTime * 1000),
           end_ms: Math.round(item.endTime * 1000),
@@ -144,14 +152,26 @@ export function GuardarEnBibliotecaDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Guardar en la biblioteca</DialogTitle>
+          <DialogTitle>{batch ? 'Pasar a la biblioteca' : 'Guardar en la biblioteca'}</DialogTitle>
         </DialogHeader>
         <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-1">
           <p className="text-xs text-muted-foreground">
             El recorte se queda en Cloudflare. El partido entero no sale de este ordenador.
           </p>
           {batch ? (
-            <p className="text-sm">{clips.length} cortes. Cada uno conserva su título.</p>
+            <div className="space-y-2">
+              <p className="text-sm">
+                {clips.length} cortes de este partido. Cada uno se guarda con la fase del recorte.
+              </p>
+              <ul className="max-h-36 space-y-1 overflow-y-auto text-xs">
+                {clips.map((item) => (
+                  <li key={`${item.title}-${item.startTime}`} className="flex items-baseline justify-between gap-3 border-b py-1">
+                    <span className="min-w-0 truncate">{item.title}</span>
+                    <span className="shrink-0 text-muted-foreground">{faseLabel(item.subfase || item.fase) || 'Sin fase'}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : (
             <div className="space-y-1">
               <Label>Título</Label>
@@ -174,17 +194,19 @@ export function GuardarEnBibliotecaDialog({
                 ))}
               </select>
             </div>
-            <div className="space-y-1">
-              <Label>Fase</Label>
-              <select className="h-9 w-full rounded-md border bg-background px-2 text-sm" value={fase} onChange={(e) => { setFase(e.target.value); setSubfase('') }}>
-                <option value="">Sin fase</option>
-                {FASES_JUEGO.map((item) => (
-                  <option key={item.codigo} value={item.codigo}>{item.nombre}</option>
-                ))}
-              </select>
-            </div>
+            {batch ? null : (
+              <div className="space-y-1">
+                <Label>Fase</Label>
+                <select className="h-9 w-full rounded-md border bg-background px-2 text-sm" value={fase} onChange={(e) => { setFase(e.target.value); setSubfase('') }}>
+                  <option value="">Sin fase</option>
+                  {FASES_JUEGO.map((item) => (
+                    <option key={item.codigo} value={item.codigo}>{item.nombre}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
-          {subfases.length > 0 && (
+          {!batch && subfases.length > 0 && (
             <div className="space-y-1">
               <Label>Subfase</Label>
               <select className="h-9 w-full rounded-md border bg-background px-2 text-sm" value={subfase} onChange={(e) => setSubfase(e.target.value)}>
@@ -210,7 +232,8 @@ export function GuardarEnBibliotecaDialog({
             </div>
           )}
           <div className="space-y-1">
-            <Label>Protagonistas</Label>
+            <Label>Plantilla</Label>
+            <p className="text-[11px] text-muted-foreground">Solo jugadores de la plantilla de este equipo.</p>
             <div className="flex max-h-28 flex-wrap gap-1 overflow-y-auto">
               {jugadores.map((jugador) => {
                 const on = jugadorIds.includes(jugador.id)
@@ -234,7 +257,7 @@ export function GuardarEnBibliotecaDialog({
         <DialogFooter>
           <Button onClick={() => { void submit() }} disabled={busy}>
             {busy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Library className="mr-1 h-4 w-4" />}
-            Guardar
+            {batch ? 'Pasar a biblioteca' : 'Guardar'}
           </Button>
         </DialogFooter>
       </DialogContent>

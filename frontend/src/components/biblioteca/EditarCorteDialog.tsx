@@ -53,8 +53,15 @@ export function EditarCorteDialog({
     partidosApi.list({ equipo_id: equipoId, orden: 'fecha', direccion: 'desc', limit: 80 })
       .then((res) => setPartidos(res.data || []))
       .catch(() => setPartidos([]))
-    jugadoresApi.list({ equipo_id: equipoId })
-      .then((res) => setJugadores(res.data || []))
+    jugadoresApi.list({ equipo_id: equipoId, solo_plantilla: true })
+      .then((res) => {
+        const plantilla = (res.data || []).filter((jugador) => (
+          jugador.tipo_jugador ? jugador.tipo_jugador === 'plantilla' : !jugador.es_invitado
+        ))
+        const ids = new Set(plantilla.map((jugador) => jugador.id))
+        setJugadores(plantilla)
+        setJugadorIds((curr) => curr.filter((id) => ids.has(id)))
+      })
       .catch(() => setJugadores([]))
   }, [open, corte, equipoId])
 
@@ -155,7 +162,8 @@ export function EditarCorteDialog({
             </div>
           </div>
           <div className="space-y-1">
-            <Label>Protagonistas</Label>
+            <Label>Plantilla</Label>
+            <p className="text-[11px] text-muted-foreground">Solo jugadores de la plantilla de este equipo.</p>
             <div className="flex max-h-28 flex-wrap gap-1 overflow-y-auto">
               {jugadores.map((jugador) => {
                 const on = jugadorIds.includes(jugador.id)
