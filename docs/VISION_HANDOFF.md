@@ -1,6 +1,7 @@
 # Visión — pausa y handoff
 
-**Estado:** pausado el 11 sep 2026. No hay UI ni worker en producción.  
+**Estado:** plan reabierto el 27 oct 2026. Sigue sin UI ni worker en producción.  
+**Ahora:** módulo 1, homografía y tracking entre un inicio y un final. Los módulos 2 (dibujo tipo Sportscode) y 3 (eventos y recortes) están escritos en el plan y no se construyen.  
 **Retomar:** leer este archivo + `docs/VISION_PLAN.md`. El chat largo no hace falta.
 
 Nombre en producto: **Visión**. Vive dentro de Video Análisis (`/video-analisis`), no es una app ni una ruta nueva.
@@ -21,18 +22,15 @@ MP4 local  →  worker Python en 127.0.0.1  →  JSON kabine.vision.v0
 
 ### Pedimos, en este orden
 
-1. Tracking + homografía (al menos los nuestros).
-2. Eventing de lo que se pueda extraer.
-3. Recortes automáticos (situaciones / solos / por jugador).
-4. Eventos ligados a jugadores cuando el track esté cerca.
-5. Colecciones automáticas por fase.
-6. Distancias y físico **visible** (no GPS). Error típico ~20 %. Solo lo que entra en cuadro.
+1. **Módulo 1, ahora.** Los dos equipos, cada jugador, el balón y la homografía automática, del inicio al final que marque el entrenador. Metros solo de lo que se ve.
+2. **Módulo 2, después.** Sala de pintar sobre copias de nuestros cortes, con el dibujo pegado al césped (Sportscode Studio: calibración, Track Full, línea de conducción).
+3. **Módulo 3, después y sin estudiarlo ahora.** Eventos, recortes automáticos, fases y colecciones.
 
-### No hacemos (hasta que el probe de 60 s convenza)
+### No hacemos (hasta que el módulo 1 se vea en una parte)
 
 - Subir el MP4 a la API.
 - Sustituir la botonera humana.
-- Dibujar en el vídeo desde la mesa (sigue en la sala de presentación).
+- Construir el módulo 2 o el 3.
 - Fuera de juego, xG, orbis, dorsales como identidad principal.
 - Entrenar SoccerNet / GSR en la VM cloud (no hay GPU de usuario ahí).
 
@@ -152,7 +150,9 @@ $PY vision_bench.py --video ./partido.mp4 --max-seconds 60 --stride 6 --backend 
 | 20–90 s | Una noche | Seguir; no comprar nada |
 | \> 2 min o sin RAM | Mini PC NVIDIA una vez | No alquilar GPU |
 
-### 2. Código de producto (fase 0+1)
+### 2. Código de producto (módulo 1)
+
+Inicio y final en la mesa. Detector RF-DETR. Tracker BoT-SORT, con una prueba de McByte en el mismo tramo de 60 s antes de cambiarlo. Homografía suavizada; se descarta la que cae fuera del campo.
 
 Paquete `vision-worker/` (Python 3.11+, MPS):
 
@@ -160,15 +160,15 @@ Paquete `vision-worker/` (Python 3.11+, MPS):
 - `POST /jobs` `{ path, start_s, end_s, our_team }` — **path local, no URL**
 - `GET /jobs/:id` → status + ruta del JSON
 
-UI en la mesa: toggle **Visión**, «Analizar 60 s» alrededor del cabezal. Si `/health` falla, card «Instala Visión en este PC». Sin worker la botonera sigue igual.
+UI en la mesa: toggle **Visión** e inicio y final del tramo. El primer disparo de prueba sigue siendo 60 s. Si `/health` falla, card «Instala Visión en este PC». Sin worker la botonera sigue igual.
 
 Pesos en `~/.cache/kabine-vision/`, no en git.
 
 Detector de producto: **RF-DETR Apache**, no Ultralytics.
 
-### 3. Fases después (detalle en `VISION_PLAN.md`)
+### 3. Lo que queda guardado y no se abre
 
-0 cascarón → 1 cuerpos + “estos son los nuestros” (blanco) → 2 auto clips vía botonera → 3 spotting 17 clases con confirmar → 4 fases + metros visibles → 5 ball actions densas. TrackLab/GSR más tarde.
+Módulo 2: dibujo con homografía mantenida, sobre copias de los cortes. Módulo 3: el eventing y los recortes automáticos de las fases 2–5 del plan. TrackLab/GSR más tarde. El mercado de ago–sep 2026 (Veo Analytics 2, Hudl Tracking Data, Studio Notes, TactiVision, McByte) está resumido en `VISION_PLAN.md`.
 
 ---
 
@@ -176,7 +176,7 @@ Detector de producto: **RF-DETR Apache**, no Ultralytics.
 
 | Ruta | Qué es |
 |---|---|
-| `docs/VISION_HANDOFF.md` | Este documento (pausa) |
+| `docs/VISION_HANDOFF.md` | Este documento |
 | `docs/VISION_PLAN.md` | Plan técnico vivo |
 | `docs/VIDEO_TOOL_ARCHITECTURE.md` | Mesa local; Veo 4–5 GB no se sube |
 | `scripts/vision_bench.py` | Cronómetro Mac ↔ VM |
@@ -193,4 +193,4 @@ Un archivo por partido, `schema: kabine.vision.v0`. La mesa solo lee; el worker 
 
 ---
 
-Cuando se reabra: no repetir el PDF, el stack ni el bench de 21 s. Empezar por `ls` de `VEO/` y 60 s del partido de 4–5 GB.
+Cuando se escriba código: no repetir el PDF, el stack ni el bench de 21 s. Empezar por `ls` de `VEO/` y 60 s del partido de 4–5 GB, y construir solo el módulo 1.

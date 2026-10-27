@@ -226,4 +226,4 @@ video_playlists
 
 ## Visión (análisis automático)
 
-Plan de computer vision **local** en la misma mesa: `docs/VISION_PLAN.md`. El partido no se sube; un worker Python en el PC escribe JSON y la botonera recorta. No implementado todavía.
+Plan de computer vision **local** en la misma mesa: `docs/VISION_PLAN.md`. El partido no se sube. El módulo en curso es homografía y tracking entre un inicio y un final. El dibujo tipo Sportscode y los recortes automáticos están en el plan y no se construyen todavía.
