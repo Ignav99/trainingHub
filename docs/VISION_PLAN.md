@@ -1,10 +1,66 @@
 # Visión — plan de análisis automático en Video Análisis
 
-> **Pausa (11 sep 2026).** Handoff para retomar: [`docs/VISION_HANDOFF.md`](./VISION_HANDOFF.md). El siguiente paso es 60 s del partido Veo 4–5 GB, no repetir el bench de 21 s.
+> **Reapertura (27 oct 2026).** Tres módulos. Ahora solo el 1: homografía y tracking automático entre un inicio y un final. El 2 (dibujo tipo Sportscode) y el 3 (eventos y recortes automáticos) quedan escritos aquí y no se construyen todavía. Handoff: [`docs/VISION_HANDOFF.md`](./VISION_HANDOFF.md).
+>
+> El PDF de 8 páginas (*Open-Source Computer Vision Stack for Soccer Video Analysis, 2025-2026*) se leyó en septiembre y **no está en `docs/`**: vivía en `_inbox/` (gitignore). Este archivo es el plan.
 
-Modo **Visión** dentro de la mesa de `/video-analisis`. No es una app aparte. Empieza pequeño y se apila complejidad.
+Modo **Visión** dentro de la mesa de `/video-analisis`. No es una app aparte.
 
-Modo **Visión** dentro de la mesa de `/video-analisis`. No es una app aparte. Empieza pequeño y se apila complejidad.
+---
+
+## Módulos
+
+El partido sigue sin salir del PC. El worker escribe JSON; la mesa lo lee.
+
+### 1 — Homografía y tracking (el que se hace ahora)
+
+El entrenador marca **inicio y final** en el vídeo (una parte, un tramo, o el partido) y Visión recorre ese intervalo entero.
+
+Lee los **dos equipos**, cada futbolista, el balón y el árbitro. Mantiene el mismo id cuando la cámara de Veo panea. Calcula la **homografía sola**, frame a frame, y la suaviza. Si un frame cae fuera del campo, se descarta esa homografía y se arrastra la última válida (la misma regla que Hudl Tracking Data aplicó el 13 may 2026: rechazar calibraciones fuera del césped).
+
+Sale en el JSON: `tracks` de los dos equipos, `ball`, `homography`, y metros **visibles** por track (solo lo que entra en cuadro, con la etiqueta de error ~20 %). Las velocidades imposibles se tiran y la posición se suaviza (Hudl, 13 ago 2026). No hay eventos, no hay recortes automáticos y no hay pizarra en este módulo.
+
+La puerta de ingeniería no cambia: antes de una parte entera, 60 s de un partido Veo de 4–5 GB. El botón de producto ya no es «60 s alrededor del cabezal»: es inicio y final.
+
+Tracker de salida: **BoT-SORT** en `roboflow/trackers` (Apache 2.0), que ya compensa el paneo. En el mismo paquete está **McByte** (también Apache, compensación de cámara encendida). En su propia tabla, McByte sube el HOTA de SoccerNet de 84,5 a 85,0 y el de SportsMOT de 73,8 a 76,5, pero pide máscaras y puede alargar la noche en el Mac. Se prueba en el mismo clip de 60 s y solo sustituye a BoT-SORT si el id aguanta los cruces y el tiempo sigue siendo de una noche. McByte++ (arXiv 2608.15688, ago 2026) queda fuera hasta que el código exista y la licencia sea Apache o MIT.
+
+### 2 — Dibujo con homografía (después; no ahora)
+
+Cuando el módulo 1 dé una homografía estable, una sala de pintar al estilo **Hudl Sportscode Studio**. No es otra mesa de análisis. Recibe **copias** de los cortes que ya hacemos (vídeo análisis, revisión o biblioteca). Borrar o retocar el corte de origen no borra el dibujo: Studio lo separó así el 22 jul 2026.
+
+Dos capas:
+
+- Dibujo pegado al fotograma (flecha, círculo, texto).
+- Dibujo pegado al césped (zona, línea de conducción, flecha de pase). La homografía del módulo 1 lo mantiene mientras Veo panea. Si la homografía falla, el entrenador arrastra unos puntos a las líneas («calibration frame» de Studio) y se guarda para ese corte.
+
+Seguir a un jugador es elegir su track y pulsar el equivalente de **Track Full**: el gráfico lo acompaña el tramo del corte. Los colores salen de la plantilla de Kabine, no de un catálogo externo. Presets de estilo para no redibujar el mismo lenguaje cada semana.
+
+La sala de presentación sigue siendo la sala de presentación. Pintar es esta sala, sobre el corte, con el campo ya calibrado.
+
+### 3 — Eventos y recortes automáticos (después; no se estudia ahora)
+
+Cuando el tracking se crea, se monta el eventing y los recortes solos. El detalle viejo (spotting, fases, físico fino) sigue más abajo en «Fases de implementación» 2–5. No se abre esa línea hasta que el módulo 1 se vea bien en una parte.
+
+El mercado ya lo vende (Veo Analytics 2, 19 ago 2026: distancia, velocidad, sprints, entradas y pases desde la Veo, sin wearables). SoccerNet 2026 midió anticipación de acciones y el mejor `mAP` medio fue 24: no da para cortar el vídeo del entrenador solo. Por eso el módulo 3 espera.
+
+---
+
+## Qué ha salido desde la pausa del 11 sep 2026
+
+| Fecha | Qué | Qué nos llevamos |
+|---|---|---|
+| 13 may 2026 | Hudl Tracking Data v1.1.0 | Tirar homografías que caen fuera del campo. |
+| 22 jul 2026 | Sportscode Studio Notes 01 | Cortes independientes, línea de conducción, colores de equipo automáticos, captura del fotograma. |
+| 13 ago 2026 | Hudl Tracking Data v2.0.4 | Suavizar posiciones y corregir velocidades imposibles. |
+| 13 ago 2026 | Nacsport 10.1 | Presentaciones en directo desde el etiquetado. Idea para el módulo 3, no para ahora. |
+| 19 ago 2026 | Veo Analytics 2 | Una sola Veo ya da ficha por jugador. Nuestro listón de «metros visibles». El vídeo de ellos sale a su nube; el nuestro no. |
+| ago 2026 | McByte++ (arXiv 2608.15688) | Tracking largo sin reentrenar. Esperar código y licencia. |
+| 3 sep 2026 | TactiVision, muestra UCL | Una cámara táctica → tracks, identidad, homografía, mapas. Misma forma que el módulo 1. No es dependencia. |
+| 22 sep 2026 | Hudl Tracking Data v2.0.5 | Si cambia la ficha del partido, se puede reprocesar el tracking. El JSON de Visión se puede volver a tirar sobre el mismo MP4. |
+| 24 sep 2026 | Nacsport en macOS Golden Gate | Nada de visión. El worker del Mac tiene que seguir en Apple Silicon. |
+| 2026 | SoccerNet Challenges (arXiv 2607.07320) | Cinco tareas nuevas: anticipar la acción, asignarla a dorsal, vista nueva, localizar en un campo ya calibrado y preguntas. La localización Synloc asume cámara fija y calibración dada: no sustituye nuestra homografía de Veo. |
+
+Piezas que se leen y no se copian si arrastran YOLO AGPL: [Falcon](https://github.com/duarteprazeres/falcon) (el pipeline más parecido a Veo: flujo óptico, Kalman del balón 10 frames, unir tracks por color, homografía manual si fallan los keypoints) y el demo de `roboflow/sports`. [TactiFootVision](https://github.com/RedHot099/TactiFootVision) dice Apache 2.0 y ya encadena RF-DETR, tracking, equipos y homografía: se mira el mapa de fases antes de escribir el worker, y se deja fuera si mete Ultralytics.
 
 > PDF **leído** (8 páginas): *Open-Source Computer Vision Stack for Soccer Video Analysis: Tools, Models, and Licensing Guide (2025-2026)*. TL;DR del propio informe: Roboflow (`sports` MIT + `trackers` Apache + `supervision` MIT) y detector **RF-DETR Apache 2.0**; no Ultralytics AGPL en producto cerrado; SoccerNet GSR es el SOTA académico (GPL + NDA de vídeos).
 >
@@ -30,13 +86,11 @@ Los pesos se descargan una vez al cache local del worker. No van en git.
 
 ## Qué pedimos, en orden
 
-1. Tracking + homografía (al menos los nuestros).
-2. Eventing de lo que se pueda extraer; luego situaciones más complejas.
-3. Recortes automáticos de situaciones / solos / por jugador.
-4. Datos de evento por partido, asociados a jugadores cuando el track esté cerca.
-5. Colecciones automáticas por fase de juego.
-6. Distancias y físico **visible** (no GPS).
-7. Familias de métricas: eventing, tracking, físico, fases/táctica.
+El orden de producto es el de los tres módulos de arriba. El detalle histórico:
+
+1. **Ahora.** Tracking de los dos equipos, jugadores y balón, más homografía automática, entre un inicio y un final. Metros visibles como consecuencia.
+2. **Después.** Dibujo pegado al césped, sobre copias de nuestros cortes.
+3. **Después, y sin estudiarlo ahora.** Eventos, recortes automáticos, fases y colecciones.
 
 La TV muestra &lt;50 % de la actividad. Metros y km son solo de lo que entra en cuadro. Error típico ~20 %. No prometemos fuera de juego, xG ni físico de 90 min.
 
@@ -195,7 +249,7 @@ La botonera, la cinta, las carpetas y `extractClip` **no se tocan**. Visión esc
 | Selecciona línea y zip | Colección auto “nuestros en ataque” |
 | Envía a Revisión | Igual: solo el recorte corto, nunca el partido |
 
-Dibujar sigue en la sala de presentación. Visión no abre pizarra sobre el partido.
+Pintar sobre el césped es el módulo 2, cuando la homografía aguante. Hasta entonces la sala de presentación no se convierte en pizarra de vídeo.
 
 Nombre en UI: **Visión**. Panel al lado de la botonera, no una ruta nueva.
 
@@ -234,17 +288,19 @@ Un archivo por partido, junto al MP4 (o en `~/.kabine/vision/<matchId>/`). La me
 
 ## Fases de implementación
 
+Las fases 0 y 1 son el módulo 1. La fase 2 en adelante es el módulo 3 y no se abre ahora. El módulo 2 (dibujo) no tenía fase propia: queda descrito arriba y se hace entre el 1 y el 3.
+
 ### 0 — Cascarón (primer merge)
 
 - Toggle **Visión** en la mesa.
 - Job `idle | running | done | error`.
-- Botón **Analizar 60 s** alrededor del cabezal (no el partido entero).
+- El entrenador marca **inicio y final**. El primer disparo de prueba sigue siendo 60 s; el control de producto es el tramo.
 - Worker local: HTTP `127.0.0.1` o cola en disco. Si no está instalado, la UI dice cómo levantarlo. Render no ejecuta inferencia.
 - Escribir JSON vacío + status.
 
 ### 1 — Cuerpos en el césped
 
-- YOLO + ByteTrack + keypoints + homography suavizado + minimapa.
+- RF-DETR + BoT-SORT (prueba McByte en el mismo tramo) + keypoints + homography suavizada + minimapa.
 - “Estos son los nuestros”: kit **blanco** por defecto; el usuario confirma el cluster (blanco vs rival).
 - Overlay: elipses por track, id, color de equipo. Minimapa en una esquina del panel Visión, no encima de toda la mesa.
 - Probe 60 s tiene que verse bien antes de un tiempo completo.
@@ -337,14 +393,14 @@ El chip (M1/M2/M3/M4 + GB) sigue ayudando a estimar, pero **el JSON de 60 s mand
 
 ---
 
-## Fuera de alcance (hasta que el probe de 60 s convenza)
+## Fuera de alcance (hasta que el módulo 1 se vea)
 
 - Subir el MP4 a la API.
 - Entrenar SoccerNet en este entorno (no hay GPU de usuario aquí).
 - xG, orbis, fuera de juego automático.
 - Sustituir la botonera humana.
-- Dibujar en el vídeo desde la mesa (sigue en la sala).
-- Leer dorsales como identidad principal.
+- Construir el módulo 2 (dibujo) o el módulo 3 (eventos y recortes) antes de que el tracking de una parte se crea.
+- Leer dorsales como identidad principal. El dorsal llega con el módulo 3, si llega.
 
 ---
 
@@ -362,7 +418,7 @@ Este agente **no ve** `/Users/User/Desktop` ni el disco del Mac. Corre en una VM
 
 El PDF y `prueba 2.mp4` ya se leyeron desde `_inbox/` (upload a GitHub). Siguientes clips: mismo `_inbox/` **sin commit**, o un recorte aún más corto.
 
-## Preguntas abiertas (no bloquean la fase 0)
+## Preguntas abiertas (no bloquean el módulo 1)
 
 1. ~~Cámara~~ → **Veo** (clip de prueba).
 2. ~~Mac~~ → arm64, **MPS**. 21 s a 5 fps = 9,2 s (~40 min / 90 min solo cajas). Falta 60 s del partido 4–5 GB.
