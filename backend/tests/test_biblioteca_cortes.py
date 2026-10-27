@@ -36,6 +36,13 @@ def test_search_drops_wildcard_characters():
     assert not mod.minute_ok(200)
 
 
+def test_library_uses_the_cut_phase_before_the_folder():
+    assert mod.resolve_clip_fase("defensa_organizada", ["ataque_organizado"]) == "defensa_organizada"
+    assert mod.resolve_clip_fase("", ["creacion"]) == "creacion"
+    assert mod.resolve_clip_fase(None, [None, "bloque_bajo"]) == "bloque_bajo"
+    assert mod.resolve_clip_fase("  ", []) is None
+
+
 def test_subfase_code_splits_from_parent_phase():
     assert mod.split_fase("creacion") == ("ataque_organizado", "creacion")
     assert mod.split_fase("bloque_mixto") == ("defensa_organizada", "bloque_mixto")

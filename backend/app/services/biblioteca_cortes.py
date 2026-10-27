@@ -85,6 +85,18 @@ _SUBFASE_PARENT = {
 }
 
 
+def resolve_clip_fase(clip_fase: str | None, folder_fases: list[str | None]) -> str | None:
+    """La fase del recorte manda. Si no tiene, vale la de la carpeta en la que está."""
+    direct = (clip_fase or "").strip()
+    if direct:
+        return direct
+    for value in folder_fases:
+        text = (value or "").strip()
+        if text:
+            return text
+    return None
+
+
 def split_fase(value: str | None) -> tuple[str | None, str | None]:
     """Si el código es una subfase, devuelve (fase, subfase). Si no, (fase, None)."""
     code = (value or "").strip() or None

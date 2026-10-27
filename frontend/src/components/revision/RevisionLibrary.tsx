@@ -111,6 +111,7 @@ export function RevisionLibrary({
   const [renaming, setRenaming] = useState<RevisionFolder | null>(null)
   const [uploadOpen, setUploadOpen] = useState(false)
   const [archiveBusy, setArchiveBusy] = useState<'zip' | 'purge' | null>(null)
+  const [libraryBusy, setLibraryBusy] = useState(false)
 
   const folders = pack?.folders || []
   const rootFolders = folders.filter((f) => !f.parent_id).sort((a, b) => a.orden - b.orden)
@@ -224,6 +225,38 @@ export function RevisionLibrary({
     }
   }
 
+  const passAllToLibrary = async () => {
+    const hot = (pack?.clips || []).filter((clip) => clip.status === 'hot')
+    if (!hot.length) {
+      toast.error('No hay recortes en Cloudflare para copiar')
+      return
+    }
+    const ok = confirm(`¿Pasar los ${hot.length} recortes de este partido a la biblioteca? Cada uno conserva la fase con la que está categorizado.`)
+    if (!ok) return
+    setLibraryBusy(true)
+    let copied = 0
+    let failed = 0
+    try {
+      for (const clip of hot) {
+        try {
+          await bibliotecaCortesApi.desdeRevision(equipoId, clip.id)
+          copied += 1
+        } catch {
+          failed += 1
+        }
+      }
+      if (copied) {
+        toast.success(failed
+          ? `${copied} cortes en la biblioteca. ${failed} no se pudieron copiar.`
+          : `${copied} cortes en la biblioteca, con el partido y la fase de cada recorte.`)
+      } else {
+        toast.error('No se pudo copiar ningún recorte')
+      }
+    } finally {
+      setLibraryBusy(false)
+    }
+  }
+
   const keepInLibrary = async (clip: RevisionClip) => {
     if (clip.status !== 'hot') {
       toast.error('Este recorte ya no está en Cloudflare')
@@ -289,7 +322,13 @@ export function RevisionLibrary({
           <Clapperboard className="h-4 w-4" />
           Revisión
         </h4>
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center justify-end gap-1">
+          {(pack?.clips || []).some((clip) => clip.status === 'hot') && (
+            <Button variant="outline" size="sm" disabled={libraryBusy} onClick={() => { void passAllToLibrary() }}>
+              {libraryBusy ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Library className="h-3.5 w-3.5 mr-1" />}
+              Pasar todos a biblioteca
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => { setNewFolderParent(folderId); setNewFolderOpen(true) }}>
             <FolderPlus className="h-3.5 w-3.5 mr-1" />
             Carpeta
