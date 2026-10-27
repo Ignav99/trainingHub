@@ -334,6 +334,8 @@ TrackLab / GSR entra cuando 1–4 estén en uso real. No en el primer sprint.
 
 Paquete `vision-worker/` (Python 3.11+, opcional MPS/CUDA).
 
+Ya está el paso de después del detector: `kabine_vision.run_span` acepta o sostiene la homografía, separa los dos equipos, sostiene el balón hasta 10 fotogramas y no suma metros por encima de 12 m/s. Probado con cajas sintéticas. Aún no están el HTTP, los pesos ni la mesa.
+
 - `GET /health`
 - `POST /jobs` `{ path, start_s, end_s, our_team }` — path de archivo local, no URL.
 - `GET /jobs/:id` → status + ruta del JSON.
