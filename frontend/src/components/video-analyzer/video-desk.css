@@ -1198,6 +1198,91 @@
   border-color: var(--vd-line);
 }
 
+.vd-vision {
+  width: min(720px, 100%);
+}
+
+.vd-vision-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.vd-vision-meta {
+  margin: 0;
+  font-family: var(--vd-mono);
+  font-size: 11px;
+  color: var(--vd-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.vd-vision-warn {
+  margin: 0;
+  color: #f0c7b4;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.vd-vision-pitch {
+  width: 100%;
+  height: auto;
+  background: #1d4a28;
+}
+
+.vd-vision-grass {
+  fill: #1d4a28;
+  stroke: #d5e2c4;
+  stroke-width: 0.5;
+}
+
+.vd-vision-pitch line,
+.vd-vision-pitch circle,
+.vd-vision-pitch rect:not(.vd-vision-grass) {
+  fill: none;
+  stroke: #d5e2c4;
+  stroke-width: 0.4;
+}
+
+.vd-vision-dot-ours circle { fill: #f4f1e6; stroke: #1a1a1a; }
+.vd-vision-dot-rival circle { fill: #2f5f98; stroke: none; }
+.vd-vision-dot-referee circle { fill: #e0c84a; stroke: none; }
+.vd-vision-dot-ball circle { fill: #f7f7f7; stroke: #111; stroke-width: 0.3; }
+
+.vd-vision-play {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vd-vision-play input[type="range"] {
+  flex: 1;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+
+.vd-vision-metres {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 12px;
+  font-family: var(--vd-mono);
+  font-size: 11px;
+  color: var(--vd-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 720px) {
+  .vd-vision-grid,
+  .vd-vision-metres {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .vd-code-btn,
   .vd-btn {

@@ -15,6 +15,7 @@ import { VideoDeskFolders } from './VideoDeskFolders'
 import { VideoDeskTimeline } from './VideoDeskTimeline'
 import { VideoDeskDownloadMenu } from './VideoDeskDownloadMenu'
 import { VideoDeskClipStage, type ClipStagePlaylist } from './VideoDeskClipStage'
+import { VisionProbe } from './VisionProbe'
 import { extractAndDownloadDeskClips, type DeskDownloadKind } from './videoDeskDownload'
 import { splitFase } from '@/lib/bibliotecaCortes'
 import {
@@ -85,6 +86,7 @@ export function VideoAnalyzer({
   const [stage, setStage] = useState<ClipStagePlaylist | null>(null)
   const [videoFullscreen, setVideoFullscreen] = useState(false)
   const [extractOpen, setExtractOpen] = useState(false)
+  const [visionOpen, setVisionOpen] = useState(false)
   const [extractName, setExtractName] = useState('')
 
   const buttons = useCodeWindowStore((s) => s.buttons)
@@ -281,6 +283,10 @@ export function VideoAnalyzer({
   }, [duration, recordEvent, setActiveButtonId])
 
   const stayOnEscape = useCallback(() => {
+    if (visionOpen) {
+      setVisionOpen(false)
+      return
+    }
     if (botoneraEditRef.current.on) {
       botoneraEditRef.current.cancel()
       return
@@ -293,7 +299,7 @@ export function VideoAnalyzer({
       rangeArmRef.current = null
       setArmedButtonId(null)
     }
-  }, [extractOpen])
+  }, [extractOpen, visionOpen])
 
   useEffect(() => {
     if (!escapeGuardRef) return
@@ -312,6 +318,7 @@ export function VideoAnalyzer({
         return
       }
       if (isTypingTarget(e.target)) return
+      if (visionOpen) return
       if (botoneraEditRef.current.on) {
         e.preventDefault()
         return
@@ -350,7 +357,7 @@ export function VideoAnalyzer({
     }
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
-  }, [buttons, deleteSelectedClips, pressButton, stage, stayOnEscape])
+  }, [buttons, deleteSelectedClips, pressButton, stage, stayOnEscape, visionOpen])
 
   const patchClip = useCallback((clip: CodeEvent, startTime: number, endTime: number) => {
     updateEvent(videoKey, clip.id, { startTime, endTime }, duration)
@@ -470,6 +477,14 @@ export function VideoAnalyzer({
           </div>
         </div>
         <div className="vd-header-actions">
+          <button
+            type="button"
+            className="vd-btn"
+            title="Prueba unos segundos o unos fotogramas en este PC"
+            onClick={() => setVisionOpen(true)}
+          >
+            Probar Visión
+          </button>
           <button
             type="button"
             className="vd-btn"
@@ -614,6 +629,14 @@ export function VideoAnalyzer({
         onPlayClip={playClip}
         onTrim={patchClip}
       />
+
+      {visionOpen ? (
+        <VisionProbe
+          localFile={localFile}
+          currentTime={currentTime}
+          onClose={() => setVisionOpen(false)}
+        />
+      ) : null}
 
       {extractOpen ? (
         <form

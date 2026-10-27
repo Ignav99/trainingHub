@@ -1,6 +1,6 @@
 # Visión — pausa y handoff
 
-**Estado:** 27 oct 2026. El núcleo posterior al detector está en `vision-worker/` y se probó con cajas sintéticas. Sigue sin UI, sin RF-DETR y sin el bench de 60 s de un Veo.  
+**Estado:** 27 oct 2026. El núcleo y una prueba corta (segundos, fotogramas o un vídeo de hasta 40 MB) están en `vision-worker/` y en el botón **Probar Visión** de la mesa. Sigue sin RF-DETR y sin el bench de 60 s de un Veo. El programa local es `python3 scripts/vision_server.py` en el puerto 8765.  
 **Ahora:** módulo 1, homografía y tracking entre un inicio y un final. Los módulos 2 (dibujo tipo Sportscode) y 3 (eventos y recortes) están escritos en el plan y no se construyen.  
 **Retomar:** leer este archivo + `docs/VISION_PLAN.md`. El chat largo no hace falta.
 
@@ -67,14 +67,15 @@ Cámara: **Veo**, 3/4 de campo, paneo. Partido típico **4–5 GB**.
 | Leer el PDF de licencias | Hecho |
 | Plan vivo `docs/VISION_PLAN.md` | Hecho |
 | Contrato JSON `kabine.vision.v0` (tracks, ball, H, phases, physical) | El tramo inicio–final ya lo escribe `run_span`. `events` y `phases` salen vacíos |
-| Fases 0–5 del worker/UI | Fase 0 de geometría e identidad en `vision-worker/`. HTTP, pesos y mesa: no |
+| Fases 0–5 del worker/UI | Prueba corta en la mesa y en `127.0.0.1:8765`. Pesos RF-DETR: no |
 | Probe CPU en la VM (`yolo11n` COCO, no RF-DETR) | Hecho |
 | Script `scripts/vision_bench.py` | Hecho (en `main`) |
 | Bench en el Mac (Apple Silicon, Metal) | Hecho — clip 21 s |
 | 60 s / 10 min / partido entero 4–5 GB | **No hecho** |
-| Panel Visión en la mesa | **No hecho** |
+| Panel Visión en la mesa | Botón **Probar Visión**: ejemplo de 2 s, o un archivo de hasta 40 MB, o una ruta local |
+| `python3 scripts/vision_server.py` | Hecho. Escucha solo en 127.0.0.1:8765 |
 | `vision-worker/` homografía, equipos, balón, filtro de 12 m/s | Hecho y probado con un partido sintético (`python3 tests/test_module1.py`) |
-| `vision-worker/` HTTP 127.0.0.1 | **No hecho** |
+| `vision-worker/` HTTP 127.0.0.1 | Hecho para la prueba corta (`/health`, `/fixture`, `/preview`, `/preview-file`) |
 
 ### Clip de prueba
 
