@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { faseLabel, formatStorageBytes, labelsForLibraryClip, minuteLabel, splitFase } from './bibliotecaCortes.ts'
+import { faseLabel, formatStorageBytes, inicioMarca, labelsForLibraryClip, minuteLabel, playlistFromIds, splitFase } from './bibliotecaCortes.ts'
 
 describe('biblioteca de cortes', () => {
   it('etiqueta el espacio ocupado en español', () => {
@@ -35,5 +35,19 @@ describe('biblioteca de cortes', () => {
       labelsForLibraryClip(false, { fase: 'abp_ofensiva' }, { fase: 'defensa_organizada' }),
       { fase: 'abp_ofensiva', subfase: undefined },
     )
+  })
+
+  it('reproduce la selección en el orden marcado y nombra el inicio de cada corte', () => {
+    const rows = [
+      { id: 'a', titulo: 'Presión' },
+      { id: 'b', titulo: 'Salida' },
+      { id: 'c', titulo: 'Centro' },
+    ]
+    assert.deepEqual(
+      playlistFromIds(rows, ['c', 'a']).map((row) => row.id),
+      ['c', 'a'],
+    )
+    assert.equal(inicioMarca(0, 2, 'Centro'), 'Inicio · 1 de 2 · Centro')
+    assert.equal(inicioMarca(1, 2, '  '), 'Inicio · 2 de 2 · Corte')
   })
 })

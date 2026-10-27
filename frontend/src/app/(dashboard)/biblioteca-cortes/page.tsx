@@ -13,7 +13,7 @@ export default function BibliotecaCortesPage() {
     <div className="mx-auto max-w-6xl space-y-4">
       <PageHeader
         title="Biblioteca de cortes"
-        description="Recortes etiquetados que se quedan en Cloudflare. Búscalos por partido, minuto, fase o jugador y mándalos a un informe o a un plan."
+        description="Recortes con miniatura y etiquetas. Ábrelos para verlos y editarlos, o marca varios y reprodúcelos seguidos."
         actions={
           <Button variant="outline" asChild>
             <Link href="/video-analisis">Abrir Video Análisis</Link>
