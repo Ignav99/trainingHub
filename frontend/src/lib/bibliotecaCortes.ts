@@ -63,6 +63,22 @@ export function faseLabel(codigo?: string | null): string {
  * En un lote, cada recorte conserva su propia fase.
  * Una fase elegida a mano solo vale para un corte suelto.
  */
+export function playlistFromIds<T extends { id: string }>(rows: T[], ids: string[]): T[] {
+  const byId = new Map(rows.map((row) => [row.id, row]))
+  return ids.flatMap((id) => {
+    const row = byId.get(id)
+    return row ? [row] : []
+  })
+}
+
+/** Marca visible al empezar cada corte de una selección. */
+export function inicioMarca(index: number, total: number, titulo: string): string {
+  const n = Math.max(1, index + 1)
+  const safeTotal = Math.max(total, n)
+  const name = titulo.trim() || 'Corte'
+  return `Inicio · ${n} de ${safeTotal} · ${name}`
+}
+
 export function labelsForLibraryClip(
   batch: boolean,
   shared: { fase?: string; subfase?: string },
