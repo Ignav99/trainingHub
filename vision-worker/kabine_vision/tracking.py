@@ -60,6 +60,8 @@ def assign_teams(tracks: list[Track], our_kit: str = "white") -> None:
         return
     colors = np.array([track.rgb for track in players], dtype=float)
     labels = _two_means(colors)
+    if not (labels == 0).any() or not (labels == 1).any():
+        return
     luminance = colors.mean(axis=1)
     group_luma = [float(luminance[labels == 0].mean()), float(luminance[labels == 1].mean())]
     if our_kit == "white":
