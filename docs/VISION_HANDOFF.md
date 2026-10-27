@@ -1,6 +1,6 @@
 # Visión — pausa y handoff
 
-**Estado:** plan reabierto el 27 oct 2026. Sigue sin UI ni worker en producción.  
+**Estado:** 27 oct 2026. El núcleo posterior al detector está en `vision-worker/` y se probó con cajas sintéticas. Sigue sin UI, sin RF-DETR y sin el bench de 60 s de un Veo.  
 **Ahora:** módulo 1, homografía y tracking entre un inicio y un final. Los módulos 2 (dibujo tipo Sportscode) y 3 (eventos y recortes) están escritos en el plan y no se construyen.  
 **Retomar:** leer este archivo + `docs/VISION_PLAN.md`. El chat largo no hace falta.
 
@@ -66,13 +66,14 @@ Cámara: **Veo**, 3/4 de campo, paneo. Partido típico **4–5 GB**.
 |---|---|
 | Leer el PDF de licencias | Hecho |
 | Plan vivo `docs/VISION_PLAN.md` | Hecho |
-| Contrato JSON `kabine.vision.v0` (tracks, ball, H, events con `confirmed`, phases, physical) | Diseñado, no implementado |
-| Fases 0–5 del worker/UI | Diseñadas, **cero código de producto** |
+| Contrato JSON `kabine.vision.v0` (tracks, ball, H, phases, physical) | El tramo inicio–final ya lo escribe `run_span`. `events` y `phases` salen vacíos |
+| Fases 0–5 del worker/UI | Fase 0 de geometría e identidad en `vision-worker/`. HTTP, pesos y mesa: no |
 | Probe CPU en la VM (`yolo11n` COCO, no RF-DETR) | Hecho |
 | Script `scripts/vision_bench.py` | Hecho (en `main`) |
 | Bench en el Mac (Apple Silicon, Metal) | Hecho — clip 21 s |
 | 60 s / 10 min / partido entero 4–5 GB | **No hecho** |
 | Panel Visión en la mesa | **No hecho** |
+| `vision-worker/` homografía, equipos, balón, filtro de 12 m/s | Hecho y probado con un partido sintético (`python3 tests/test_module1.py`) |
 | `vision-worker/` HTTP 127.0.0.1 | **No hecho** |
 
 ### Clip de prueba
@@ -154,7 +155,7 @@ $PY vision_bench.py --video ./partido.mp4 --max-seconds 60 --stride 6 --backend 
 
 Inicio y final en la mesa. Detector RF-DETR. Tracker BoT-SORT, con una prueba de McByte en el mismo tramo de 60 s antes de cambiarlo. Homografía suavizada; se descarta la que cae fuera del campo.
 
-Paquete `vision-worker/` (Python 3.11+, MPS):
+Paquete `vision-worker/` (Python 3.11+, numpy). Hoy: `kabine_vision.run_span` convierte cajas de un tramo en el JSON. Mañana, en el Mac: HTTP y RF-DETR.
 
 - `GET /health`
 - `POST /jobs` `{ path, start_s, end_s, our_team }` — **path local, no URL**
@@ -179,6 +180,7 @@ Módulo 2: dibujo con homografía mantenida, sobre copias de los cortes. Módulo
 | `docs/VISION_HANDOFF.md` | Este documento |
 | `docs/VISION_PLAN.md` | Plan técnico vivo |
 | `docs/VIDEO_TOOL_ARCHITECTURE.md` | Mesa local; Veo 4–5 GB no se sube |
+| `vision-worker/` | Núcleo del módulo 1. Prueba: `python3 tests/test_module1.py` |
 | `scripts/vision_bench.py` | Cronómetro Mac ↔ VM |
 | `scripts/vision_probe.py` | Probe con cajas anotadas (CPU, YOLO COCO) |
 | `_inbox/` | Gitignore. PDF + clip de prueba **no** van a GitHub |
@@ -193,4 +195,4 @@ Un archivo por partido, `schema: kabine.vision.v0`. La mesa solo lee; el worker 
 
 ---
 
-Cuando se escriba código: no repetir el PDF, el stack ni el bench de 21 s. Empezar por `ls` de `VEO/` y 60 s del partido de 4–5 GB, y construir solo el módulo 1.
+El siguiente paso en el Mac es `ls` de `VEO/` y 60 s del partido de 4–5 GB, con RF-DETR. No repetir el PDF, el stack ni el bench de 21 s. El módulo 2 y el 3 siguen cerrados.
