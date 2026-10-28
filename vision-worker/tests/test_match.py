@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from kabine_vision.blobs import detect_blobs, write_fixture
 from kabine_vision.library import choose_video, native_picker, program_copy_for, recall_video, remember
-from kabine_vision.match import analyze_match, file_summary, ordered_whistles, pitch_check, sidecar_for
+from kabine_vision.match import analyze_match, file_summary, load_sidecar, ordered_whistles, pitch_check, sidecar_for
 from kabine_vision.preview import PreviewError
 from kabine_vision.server import start_match_job
 
@@ -118,7 +118,7 @@ class MatchWhistleTests(unittest.TestCase):
         self.assertGreaterEqual(opened["summary"]["players"], 4)
         self.assertGreater(opened["summary"]["samples"], 0)
         self.assertEqual(opened["document"]["schema"], "kabine.vision.v0")
-        full = file_summary(json.loads(sidecar_for(video).read_text(encoding="utf-8")), sidecar_for(video))
+        full = file_summary(load_sidecar(sidecar_for(video)), sidecar_for(video))
         self.assertEqual(full["samples"], opened["summary"]["samples"])
 
     def test_the_pitch_check_is_shorter_than_the_file(self) -> None:
