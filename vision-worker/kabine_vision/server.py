@@ -123,6 +123,8 @@ class Handler(BaseHTTPRequestHandler):
             str(payload.get("path") or ""),
             payload.get("whistles") or {},
             sample_fps=payload.get("sample_fps") or 10,
+            kits=payload.get("kits"),
+            roster=payload.get("roster"),
         )
 
     def _from_path(self) -> dict:
@@ -208,8 +210,15 @@ _jobs: dict[str, dict] = {}
 _jobs_lock = threading.Lock()
 
 
-def start_match_job(raw_path: str, whistles: dict, sample_fps: float = 10) -> dict:
+def start_match_job(
+    raw_path: str,
+    whistles: dict,
+    sample_fps: float = 10,
+    kits: dict | None = None,
+    roster: dict | None = None,
+) -> dict:
     from .blobs import detect_blobs
+    from .field import detect_field
     from .match import analyze_match, ordered_whistles, sidecar_for
 
     video = Path(os.path.expanduser(raw_path.strip())).resolve()
@@ -218,12 +227,14 @@ def start_match_job(raw_path: str, whistles: dict, sample_fps: float = 10) -> di
     if not video.is_file():
         raise PreviewError("no encuentro ese partido en este PC")
     marks = ordered_whistles(whistles)
+    parsed_kits = _parse_kits(kits)
+    parsed_roster = _parse_roster(roster)
     key = str(video)
     with _jobs_lock:
         current = _jobs.get(key)
         if current and current.get("status") == "running":
             return _public_job(current)
-    saved = _saved_job(video, marks)
+    saved = _saved_job(video, marks, parsed_kits, parsed_roster)
     if saved is not None:
         with _jobs_lock:
             _jobs[key] = saved
@@ -250,7 +261,15 @@ def start_match_job(raw_path: str, whistles: dict, sample_fps: float = 10) -> di
                 key,
                 marks,
                 sample_fps=float(sample_fps or 10),
-                detector=detect_blobs,
+                detector=(
+                    detect_blobs
+                    if parsed_kits is None
+                    else (lambda frame, stamp, kits=parsed_kits, numbers=parsed_roster: detect_field(frame, stamp, kits=kits, roster=numbers))
+                ),
+                kits=parsed_kits,
+                roster=parsed_roster,
+                detector_name="blobs" if parsed_kits is None else "field",
+                our_kit=(parsed_kits or {}).get("ours") or "white",
                 on_progress=on_progress,
             )
             finished = _job_from_doc(sidecar_for(video), doc)
@@ -283,8 +302,31 @@ def _match_status(raw_path: str) -> dict:
     return _public_job(saved)
 
 
-def _saved_job(video: Path, marks: dict | None) -> dict | None:
-    from .match import load_sidecar, sidecar_for, whistles_match
+def _parse_kits(raw) -> dict | None:
+    from .match import _canon_kits
+
+    if raw in (None, "", {}):
+        return None
+    if not isinstance(raw, dict):
+        raise PreviewError("los colores de camiseta no se han leído")
+    kits = _canon_kits(raw)
+    if kits is None:
+        raise PreviewError("indica dos colores de camiseta distintos")
+    return kits
+
+
+def _parse_roster(raw) -> dict:
+    from .match import _canon_roster
+
+    if raw in (None, ""):
+        return {"ours": [], "rival": []}
+    if not isinstance(raw, dict):
+        raise PreviewError("los dorsales tienen que salir del acta")
+    return _canon_roster(raw)
+
+
+def _saved_job(video: Path, marks: dict | None, kits: dict | None = None, roster: dict | None = None) -> dict | None:
+    from .match import load_sidecar, session_match, sidecar_for
 
     stored = sidecar_for(video)
     if not stored.is_file() or stored.stat().st_size <= 0:
@@ -304,7 +346,7 @@ def _saved_job(video: Path, marks: dict | None) -> dict | None:
         return None
     if not isinstance(doc, dict):
         return None
-    if marks is not None and not whistles_match(doc.get("whistles"), marks):
+    if marks is not None and not session_match(doc, marks, kits, roster):
         return None
     return _job_from_doc(stored, doc)
 

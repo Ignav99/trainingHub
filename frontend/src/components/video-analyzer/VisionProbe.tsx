@@ -1,15 +1,36 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { advancePlayhead, pitchDots, timeExtent, VISION_ORIGIN, visionFetch, WHISTLE_FIELDS, whistleProblem, type VisionDoc, type VisionHealth, type WhistleKey } from '@/lib/visionPreview'
+import { useEffect, useRef, useState } from 'react'
+import { convocatoriasApi } from '@/lib/api/convocatorias'
+import { partidosApi } from '@/lib/api/partidos'
+import { parseNotasPre } from '@/lib/anotador'
+import { advancePlayhead, dorsalsFromConvocatoria, formatDorsalList, normalizeHex, parseDorsalList, pitchDots, timeExtent, VISION_ORIGIN, visionFetch, WHISTLE_FIELDS, whistleProblem, type VisionDoc, type VisionHealth, type WhistleKey } from '@/lib/visionPreview'
 
 type Props = {
   localFile?: File
+  partidoId?: string
   currentTime: number
   onClose: () => void
 }
 
-export function VisionProbe({ localFile, currentTime, onClose }: Props) {
+type KitDraft = {
+  ours: string
+  rival: string
+  oursDorsals: string
+  rivalDorsals: string
+}
+
+const OURS_FALLBACK = '#f4f1e6'
+const RIVAL_FALLBACK = '#1a365d'
+
+const BLANK_KITS: KitDraft = {
+  ours: OURS_FALLBACK,
+  rival: RIVAL_FALLBACK,
+  oursDorsals: '',
+  rivalDorsals: '',
+}
+
+export function VisionProbe({ localFile, partidoId, currentTime, onClose }: Props) {
   const [health, setHealth] = useState<VisionHealth | null>(null)
   const [down, setDown] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -19,7 +40,11 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
   const [playing, setPlaying] = useState(false)
   const fileKey = localFile?.name || 'partido'
   const [marks, setMarks] = useState<Partial<Record<WhistleKey, number>>>(() => readMarks(fileKey))
+  const [kits, setKits] = useState<KitDraft>(() => readKits(fileKey) ?? BLANK_KITS)
+  const [acta, setActa] = useState<{ ours: number[]; rival: number[] } | null>(null)
+  const [actaState, setActaState] = useState('')
   const [phase, setPhase] = useState('')
+  const kitsTouched = useRef(false)
 
   async function ensureServer() {
     try {
@@ -38,7 +63,52 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
 
   useEffect(() => {
     setMarks(readMarks(fileKey))
+    const stored = readKits(fileKey)
+    kitsTouched.current = stored != null
+    setKits(stored ?? BLANK_KITS)
+    setActa(null)
+    setActaState('')
   }, [fileKey])
+
+  useEffect(() => {
+    if (!kitsTouched.current) return
+    try {
+      localStorage.setItem(`kabine-vision-kits:v1:${fileKey}`, JSON.stringify(kits))
+    } catch {
+      // El navegador puede negar el almacenamiento.
+    }
+  }, [fileKey, kits])
+
+  useEffect(() => {
+    if (!partidoId) return
+    let cancel = false
+    void (async () => {
+      const [conv, colors, partido] = await Promise.all([
+        convocatoriasApi.listByPartido(partidoId).catch(() => null),
+        partidosApi.getEquipaciones(partidoId).catch(() => null),
+        partidosApi.get(partidoId).catch(() => null),
+      ])
+      if (cancel) return
+      const oursNumbers = dorsalsFromConvocatoria(conv?.data ?? [])
+      const rivalNumbers = parseNotasPre(partido?.notas_pre).anotador?.rivalDorsals ?? []
+      setActa({ ours: oursNumbers, rival: rivalNumbers })
+      setActaState(
+        oursNumbers.length || rivalNumbers.length
+          ? 'Dorsales sacados del acta de este partido.'
+          : 'Este partido no tiene dorsales en el acta. Puedes escribirlos.',
+      )
+      if (kitsTouched.current) return
+      setKits({
+        ours: normalizeHex(colors?.propia?.color_camiseta_principal, OURS_FALLBACK),
+        rival: normalizeHex(colors?.rival?.color_camiseta_principal, RIVAL_FALLBACK),
+        oursDorsals: formatDorsalList(oursNumbers),
+        rivalDorsals: formatDorsalList(rivalNumbers),
+      })
+    })()
+    return () => {
+      cancel = true
+    }
+  }, [partidoId, fileKey])
 
   useEffect(() => {
     try {
@@ -60,6 +130,12 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
     const problem = whistleProblem(marks)
     if (problem) {
       setError(problem)
+      return
+    }
+    const oursColor = normalizeHex(kits.ours, OURS_FALLBACK)
+    const rivalColor = normalizeHex(kits.rival, RIVAL_FALLBACK)
+    if (oursColor === rivalColor) {
+      setError('Las dos camisetas tienen que ser de distinto color.')
       return
     }
     if (!localFile) {
@@ -88,6 +164,11 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
             final_1: marks.final_1,
             inicio_2: marks.inicio_2,
             final_partido: marks.final_partido,
+          },
+          kits: { ours: oursColor, rival: rivalColor },
+          roster: {
+            ours: parseDorsalList(kits.oursDorsals),
+            rival: parseDorsalList(kits.rivalDorsals),
           },
         }),
       })
@@ -134,6 +215,11 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
     }
   }
 
+  function editKits(patch: Partial<KitDraft>) {
+    kitsTouched.current = true
+    setKits((current) => ({ ...current, ...patch }))
+  }
+
   const dots = doc ? pitchDots(doc, t) : []
   const extent = doc ? timeExtent(doc) : { start: 0, end: 0 }
 
@@ -152,7 +238,7 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
         </div>
         {doc ? null : (
         <p>
-          Marca los cuatro pitidos sobre el vídeo que tienes abierto. El programa guarda el tracking a 10 fotogramas por segundo solo con el balón en juego. Lo deja al lado del partido y también dentro del programa, en este Mac. No hace falta escribir la ruta.
+          Marca los cuatro pitidos, el color de cada camiseta y los dorsales. Si el vídeo está abierto desde un partido, los dorsales salen del acta y el color de la equipación. El programa guarda el tracking a 10 fotogramas por segundo solo con el balón en juego, al lado del partido y dentro del programa.
         </p>
         )}
 
@@ -179,13 +265,77 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
             </div>
           ))}
         </div>
+        <div className="vd-vision-whistles">
+          <div className="vd-vision-whistle">
+            <span>Camiseta nuestra</span>
+            <strong>{normalizeHex(kits.ours, OURS_FALLBACK)}</strong>
+            <input
+              type="color"
+              aria-label="Camiseta nuestra"
+              value={normalizeHex(kits.ours, OURS_FALLBACK)}
+              onChange={(event) => editKits({ ours: event.target.value })}
+            />
+          </div>
+          <div className="vd-vision-whistle">
+            <span>Camiseta rival</span>
+            <strong>{normalizeHex(kits.rival, RIVAL_FALLBACK)}</strong>
+            <input
+              type="color"
+              aria-label="Camiseta rival"
+              value={normalizeHex(kits.rival, RIVAL_FALLBACK)}
+              onChange={(event) => editKits({ rival: event.target.value })}
+            />
+          </div>
+        </div>
+        <div className="vd-vision-dorsals">
+          <label>
+            Dorsales nuestros
+            <input
+              value={kits.oursDorsals}
+              inputMode="numeric"
+              placeholder="Del acta"
+              onChange={(event) => editKits({ oursDorsals: event.target.value })}
+            />
+          </label>
+          <label>
+            Dorsales rivales
+            <input
+              value={kits.rivalDorsals}
+              inputMode="numeric"
+              placeholder="Del acta"
+              onChange={(event) => editKits({ rivalDorsals: event.target.value })}
+            />
+          </label>
+        </div>
+        {partidoId ? (
+          <p className="vd-vision-meta">
+            {actaState || 'Leyendo el acta de este partido.'}
+            {acta ? ` Nuestros: ${formatDorsalList(acta.ours) || '—'}. Rival: ${formatDorsalList(acta.rival) || '—'}.` : ''}
+          </p>
+        ) : (
+          <p className="vd-vision-meta">Este vídeo no está abierto desde un partido. Escribe los dorsales a mano; si lo abres desde el partido, el acta entra sola.</p>
+        )}
+        {acta && (acta.ours.length > 0 || acta.rival.length > 0) ? (
+          <div className="vd-modal-actions">
+            <button
+              type="button"
+              className="vd-btn"
+              onClick={() => editKits({
+                oursDorsals: formatDorsalList(acta.ours),
+                rivalDorsals: formatDorsalList(acta.rival),
+              })}
+            >
+              Usar dorsales del acta
+            </button>
+          </div>
+        ) : null}
         <div className="vd-modal-actions">
           <button type="button" className="vd-btn vd-btn-accent" disabled={busy} onClick={() => void saveMatch()}>
             {busy ? 'Guardando…' : 'Guardar tracking'}
           </button>
         </div>
         {phase ? <p className="vd-vision-meta">{phase}</p> : null}
-        <p className="vd-vision-meta">Hasta que el detector de jugadores esté en este Mac, las posiciones salen de una lectura de colores. El dato ya se guarda con la forma que usarán los módulos siguientes.</p>
+        <p className="vd-vision-meta">La lectura usa el césped, las líneas blancas y el color de camiseta. Un dorsal solo se queda si está en el acta. En un partido de noche el detector de producto sigue haciendo falta para que cada punto sea un jugador de verdad.</p>
         {localFile ? <p className="vd-vision-meta">Vídeo abierto: {localFile.name}. La primera vez el Mac abre una ventana para señalar ese mismo archivo. Después lo recuerda.</p> : null}
         <div className="vd-modal-actions">
           <button type="button" className="vd-btn" disabled={busy} onClick={() => void runExample()}>
@@ -225,6 +375,11 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
               {dots.map((dot) => (
                 <g key={dot.id} className={`vd-vision-dot vd-vision-dot-${dot.kind}`}>
                   <circle cx={dot.x * 105} cy={dot.y * 68} r={dot.kind === 'ball' ? 1.3 : 1.8} />
+                  {dot.label ? (
+                    <text className="vd-vision-number" x={dot.x * 105} y={dot.y * 68 - 2.6} textAnchor="middle">
+                      {dot.label}
+                    </text>
+                  ) : null}
                 </g>
               ))}
             </svg>
@@ -236,6 +391,14 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
               {doc.preview?.kept_frames ?? 0} fotogramas · {doc.preview?.players ?? doc.tracks.filter((track) => track.role === 'player').length} jugadores · {doc.preview?.with_metres ?? doc.physical?.length ?? 0} con metros visibles
               {doc.preview?.homography_accepted != null ? ` · ${doc.preview.homography_accepted} homografías válidas` : ''}
             </p>
+            {doc.preview?.metrics ? (
+              <p className="vd-vision-meta">
+                Equipos con color: {doc.preview.metrics.teams_assigned ?? 0} de {doc.preview.metrics.players ?? 0}.
+                {' '}Dorsales del acta: {doc.preview.metrics.dorsals_in_acta ?? 0}.
+                {' '}Balón: {doc.preview.metrics.ball_samples ?? 0}.
+                {' '}Homografía 1ª parte: {doc.preview.metrics.homography_primera ?? 0}. 2ª: {doc.preview.metrics.homography_segunda ?? 0}.
+              </p>
+            ) : null}
             {doc.preview?.bytes ? <p className="vd-vision-meta">{(doc.preview.bytes / (1024 * 1024)).toFixed(1)} MB en el disco. El césped es una comprobación de ese archivo.</p> : null}
             <div className="vd-modal-actions">
               <button type="button" className="vd-btn" onClick={() => { setDoc(null); setPlaying(false) }}>
@@ -282,6 +445,23 @@ async function resolveVideoPath(file: File, onPhase: (text: string) => void): Pr
   if (!chosen.ok) throw new Error(picked.error || 'No pude elegir el partido')
   if (!picked.path) throw new Error('No encuentro ese partido en este Mac.')
   return String(picked.path)
+}
+
+function readKits(fileKey: string): KitDraft | null {
+  try {
+    const raw = localStorage.getItem(`kabine-vision-kits:v1:${fileKey}`)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<KitDraft>
+    if (!parsed || typeof parsed !== 'object') return null
+    return {
+      ours: normalizeHex(parsed.ours, OURS_FALLBACK),
+      rival: normalizeHex(parsed.rival, RIVAL_FALLBACK),
+      oursDorsals: typeof parsed.oursDorsals === 'string' ? parsed.oursDorsals : '',
+      rivalDorsals: typeof parsed.rivalDorsals === 'string' ? parsed.rivalDorsals : '',
+    }
+  } catch {
+    return null
+  }
 }
 
 function readMarks(fileKey: string): Partial<Record<WhistleKey, number>> {

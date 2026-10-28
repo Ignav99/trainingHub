@@ -633,6 +633,7 @@ export function VideoAnalyzer({
       {visionOpen ? (
         <VisionProbe
           localFile={localFile}
+          partidoId={partidoId}
           currentTime={currentTime}
           onClose={() => setVisionOpen(false)}
         />

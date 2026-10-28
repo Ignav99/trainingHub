@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { advancePlayhead, fileFitsPreview, inPlay, nearestSample, pitchDots, spanLabel, timeExtent, whistleProblem, VISION_MAX_BYTES, type VisionDoc } from './visionPreview.ts'
+import { advancePlayhead, dorsalsFromConvocatoria, fileFitsPreview, formatDorsalList, inPlay, nearestSample, normalizeHex, parseDorsalList, pitchDots, spanLabel, timeExtent, whistleProblem, VISION_MAX_BYTES, type VisionDoc } from './visionPreview.ts'
 
 const analyzer = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../components/video-analyzer/VideoAnalyzer.tsx'), 'utf8')
 
@@ -42,6 +42,11 @@ describe('prueba corta de visión', () => {
     assert.match(probe, /dentro del programa/)
     assert.match(probe, /kabine-vision.json/)
     assert.match(probe, /homografías válidas/)
+    assert.match(probe, /Camiseta nuestra/)
+    assert.match(probe, /Camiseta rival/)
+    assert.match(probe, /type="color"/)
+    assert.match(probe, /Usar dorsales del acta/)
+    assert.match(probe, /partidoId/)
     assert.doesNotMatch(probe, /Ruta del partido/)
     assert.doesNotMatch(probe, /disabled=\{busy \|\| down/)
   })
@@ -69,6 +74,16 @@ describe('prueba corta de visión', () => {
     assert.equal(pitchDots(played, 1).length, 0)
     assert.equal(advancePlayhead(0.4, played), 2)
     assert.equal(whistleProblem({ inicio_1: 1, final_1: 2, inicio_2: 3, final_partido: 4 }), null)
+    assert.deepEqual(parseDorsalList('7, 8 10 y 7'), [7, 8, 10])
+    assert.deepEqual(dorsalsFromConvocatoria([
+      { dorsal: 7 },
+      { jugador: { dorsal: 9 } },
+      { dorsal: 7 },
+    ]), [7, 9])
+    assert.equal(formatDorsalList([4, 5]), '4, 5')
+    assert.equal(normalizeHex('F5F5F5', '#000000'), '#f5f5f5')
+    assert.equal(normalizeHex('no', '#112233'), '#112233')
+    assert.equal(normalizeHex('#abc', '#000000'), '#aabbcc')
     assert.match(whistleProblem({ inicio_1: 4, final_1: 3, inicio_2: 2, final_partido: 1 }) || '', /orden/)
   })
 })

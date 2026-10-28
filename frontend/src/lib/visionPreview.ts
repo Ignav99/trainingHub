@@ -6,7 +6,25 @@ export type VisionTrack = {
   id: number
   team: number | null
   role: string
+  dorsal?: number | null
   samples: VisionSample[]
+}
+
+export type VisionMetrics = {
+  players?: number
+  teams_assigned?: number
+  team_coverage?: number
+  dorsals_read?: number
+  dorsals_in_acta?: number
+  ball_samples?: number
+  homography_accepted?: number
+  homography_primera?: number
+  homography_segunda?: number
+  samples?: number
+  samples_on_pitch?: number
+  pitch_coverage?: number
+  max_players_in_frame?: number
+  with_metres?: number
 }
 export type VisionSpan = { name: string; start_s: number; end_s: number }
 
@@ -31,6 +49,7 @@ export type VisionDoc = {
     players?: number
     homography_accepted?: number
     with_metres?: number
+    metrics?: VisionMetrics
   }
   events?: unknown[]
   phases?: unknown[]
@@ -76,6 +95,42 @@ export type PitchDot = {
   x: number
   y: number
   kind: 'ours' | 'rival' | 'referee' | 'ball'
+  label?: string
+}
+
+export function normalizeHex(value: string | null | undefined, fallback: string): string {
+  const raw = String(value || '').trim().replace(/^#/, '')
+  if (/^[0-9a-fA-F]{3}$/.test(raw)) {
+    return `#${raw.split('').map((char) => char + char).join('').toLowerCase()}`
+  }
+  if (/^[0-9a-fA-F]{6}$/.test(raw)) return `#${raw.toLowerCase()}`
+  return fallback
+}
+
+export function parseDorsalList(text: string): number[] {
+  const found: number[] = []
+  for (const part of String(text || '').split(/[^0-9]+/)) {
+    if (!part) continue
+    const number = Number(part)
+    if (!Number.isInteger(number) || number < 0 || number > 99) continue
+    if (!found.includes(number)) found.push(number)
+  }
+  return found.slice(0, 30)
+}
+
+export function formatDorsalList(numbers: number[]): string {
+  return numbers.join(', ')
+}
+
+export function dorsalsFromConvocatoria(rows: Array<{
+  dorsal?: number | null
+  jugador?: { dorsal?: number | null } | null
+  jugadores?: { dorsal?: number | null } | null
+}>): number[] {
+  return parseDorsalList(rows.map((row) => {
+    const number = row.dorsal ?? row.jugador?.dorsal ?? row.jugadores?.dorsal
+    return number == null ? '' : String(number)
+  }).join(' '))
 }
 
 export function spanLabel(seconds: number, frames: number | null, stride: number): string {
@@ -120,7 +175,13 @@ export function pitchDots(doc: VisionDoc, t: number): PitchDot[] {
     const sample = nearestSample(track.samples, t)
     if (sample?.x == null || sample.y == null) continue
     const kind = track.role === 'referee' ? 'referee' : track.team === 0 ? 'ours' : 'rival'
-    dots.push({ id: `p${track.id}`, x: sample.x, y: sample.y, kind })
+    dots.push({
+      id: `p${track.id}`,
+      x: sample.x,
+      y: sample.y,
+      kind,
+      label: track.dorsal == null ? undefined : String(track.dorsal),
+    })
   }
   const ball = nearestSample(doc.ball ?? [], t)
   if (ball?.x != null && ball.y != null) dots.push({ id: 'ball', x: ball.x, y: ball.y, kind: 'ball' })

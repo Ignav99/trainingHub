@@ -19,6 +19,8 @@ class Box:
     h: float
     rgb: tuple[float, float, float] | None = None
     pitch_xy: tuple[float, float] | None = None
+    team: int | None = None
+    dorsal: int | None = None
 
 
 @dataclass
@@ -28,11 +30,13 @@ class Track:
     team: int | None = None
     role: str = "player"
     rgb: tuple[float, float, float] | None = None
+    dorsal: int | None = None
     samples: list[dict] = field(default_factory=list)
     visible_m: float = 0.0
     _last_box: tuple[float, float, float, float] | None = None
     _smooth_xy: tuple[float, float] | None = None
     _raw_xy: tuple[float, float] | None = None
+    _votes: dict[int, int] = field(default_factory=dict)
 
     def foot(self) -> tuple[float, float] | None:
         if self._last_box is None:
@@ -53,9 +57,35 @@ def iou(a: tuple[float, float, float, float], b: tuple[float, float, float, floa
     return inter / union if union else 0.0
 
 
-def assign_teams(tracks: list[Track], our_kit: str = "white") -> None:
-    """Dos grupos de color. El nuestro es el que se parece al kit indicado."""
-    players = [track for track in tracks if track.role == "player" and track.rgb is not None]
+def hex_to_rgb(value: object) -> tuple[float, float, float] | None:
+    if not isinstance(value, str):
+        return None
+    raw = value.strip().lstrip("#")
+    if len(raw) == 3:
+        raw = "".join(ch * 2 for ch in raw)
+    if len(raw) != 6:
+        return None
+    try:
+        number = int(raw, 16)
+    except ValueError:
+        return None
+    return (float((number >> 16) & 255), float((number >> 8) & 255), float(number & 255))
+
+
+def assign_teams(tracks: list[Track], our_kit: str = "white", kits: dict | None = None) -> None:
+    """El equipo sale del color de camiseta que marcó el entrenador. Si no hay colores, de dos grupos."""
+    players = [track for track in tracks if track.role == "player" and track.rgb is not None and track.team is None]
+    parsed = _kit_rgbs(kits)
+    if parsed is not None:
+        ours, rival = parsed
+        for track in players:
+            color = np.array(track.rgb, dtype=float)
+            own = float(np.linalg.norm(color - ours))
+            other = float(np.linalg.norm(color - rival))
+            if min(own, other) > 110:
+                continue
+            track.team = 0 if own <= other else 1
+        return
     if len(players) < 2:
         return
     colors = np.array([track.rgb for track in players], dtype=float)
@@ -70,6 +100,42 @@ def assign_teams(tracks: list[Track], our_kit: str = "white") -> None:
         ours = 0 if group_luma[0] < group_luma[1] else 1
     for track, label in zip(players, labels):
         track.team = 0 if int(label) == ours else 1
+
+
+def vote_dorsal(track: Track, number: int | None) -> None:
+    if number is None:
+        return
+    track._votes[number] = track._votes.get(number, 0) + 1
+    best = max(track._votes, key=track._votes.get)
+    if track._votes[best] >= 2:
+        track.dorsal = int(best)
+
+
+def keep_unique_dorsals(tracks: list[Track]) -> None:
+    """Un dorsal del acta solo puede quedarse en un jugador de ese equipo."""
+    best: dict[tuple[int, int], Track] = {}
+    for track in tracks:
+        if track.dorsal is None or track.team is None:
+            continue
+        key = (int(track.team), int(track.dorsal))
+        previous = best.get(key)
+        votes = track._votes.get(track.dorsal, 0)
+        if previous is None or votes > previous._votes.get(previous.dorsal or -1, 0):
+            if previous is not None:
+                previous.dorsal = None
+            best[key] = track
+        else:
+            track.dorsal = None
+
+
+def _kit_rgbs(kits: dict | None) -> tuple[np.ndarray, np.ndarray] | None:
+    if not isinstance(kits, dict):
+        return None
+    ours = hex_to_rgb(kits.get("ours"))
+    rival = hex_to_rgb(kits.get("rival"))
+    if ours is None or rival is None:
+        return None
+    return np.array(ours, dtype=float), np.array(rival, dtype=float)
 
 
 def step_metres(prev_xy: tuple[float, float], xy: tuple[float, float], dt: float) -> float | None:
