@@ -15,6 +15,8 @@ from .preview import Detector, PreviewError
 from .tracking import Box
 
 SAMPLE_FPS = 10.0
+# Si cambia la lectura, un JSON ya guardado se vuelve a calcular.
+READER = "estable-1"
 WHISTLE_KEYS = ("inicio_1", "final_1", "inicio_2", "final_partido")
 PITCH_POINTS = 1800
 
@@ -74,7 +76,11 @@ def session_match(saved: dict | None, marks: dict[str, float], kits: dict | None
         return False
     if not isinstance(saved, dict):
         return False
-    return _canon_kits(saved.get("kits")) == _canon_kits(kits) and _canon_roster(saved.get("roster")) == _canon_roster(roster)
+    return (
+        saved.get("reader") == READER
+        and _canon_kits(saved.get("kits")) == _canon_kits(kits)
+        and _canon_roster(saved.get("roster")) == _canon_roster(roster)
+    )
 
 
 def file_summary(doc: dict, stored: Path | None = None) -> dict:
@@ -226,6 +232,7 @@ def analyze_match(
     doc = _merge(pieces, marks, spans)
     stored = sidecar_for(video)
     program = program_copy_for(video)
+    doc["reader"] = READER
     doc["source"]["sample_fps"] = rate
     doc["source"]["path"] = "local"
     doc["kits"] = _canon_kits(kits)

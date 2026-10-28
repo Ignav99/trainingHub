@@ -37,6 +37,7 @@ class Track:
     _smooth_xy: tuple[float, float] | None = None
     _raw_xy: tuple[float, float] | None = None
     _votes: dict[int, int] = field(default_factory=dict)
+    _team_votes: dict[int, int] = field(default_factory=dict)
 
     def foot(self) -> tuple[float, float] | None:
         if self._last_box is None:
@@ -100,6 +101,18 @@ def assign_teams(tracks: list[Track], our_kit: str = "white", kits: dict | None 
         ours = 0 if group_luma[0] < group_luma[1] else 1
     for track, label in zip(players, labels):
         track.team = 0 if int(label) == ours else 1
+
+
+def vote_team(track: Track, team: int | None) -> None:
+    """Un fotograma de otro color no cambia el equipo. Hace falta mayoría."""
+    if team is None:
+        return
+    votes = track._team_votes
+    votes[int(team)] = votes.get(int(team), 0) + 1
+    best = max(votes, key=votes.get)
+    others = sum(count for key, count in votes.items() if key != best)
+    if votes[best] >= 2 and votes[best] > others:
+        track.team = int(best)
 
 
 def vote_dorsal(track: Track, number: int | None) -> None:

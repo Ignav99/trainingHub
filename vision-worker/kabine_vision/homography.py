@@ -8,6 +8,12 @@ PITCH_LENGTH_M = 105.0
 PITCH_WIDTH_M = 68.0
 # Por encima de esto el paso es un error de tracking, no un sprint.
 MAX_SPEED_M_S = 12.0
+# Un disparo cabe aquí. El salto de una mancha blanca a otra, no.
+BALL_MAX_SPEED_M_S = 40.0
+# Sin una calibración nueva, el césped anterior solo vale un segundo y medio.
+H_HOLD_S = 1.5
+# Un paneo mueve el campo unos metros por fotograma. Decenas de metros es un error.
+H_MAX_STEP_M = 18.0
 
 
 def dlt_homography(src: np.ndarray, dst: np.ndarray) -> np.ndarray:
@@ -32,7 +38,12 @@ def apply_h(h: np.ndarray, pts: np.ndarray) -> np.ndarray:
     pts = np.asarray(pts, dtype=float)
     hom = np.c_[pts, np.ones(len(pts))]
     out = (h @ hom.T).T
-    return out[:, :2] / out[:, 2:3]
+    scale = out[:, 2:3]
+    bad = np.abs(scale) < 1e-8
+    safe = np.where(bad, 1.0, scale)
+    result = out[:, :2] / safe
+    result[bad[:, 0]] = np.nan
+    return result
 
 
 def homography_keeps_center_on_pitch(
@@ -64,6 +75,28 @@ def length_is_pitch(
 def blend_homography(previous: np.ndarray, current: np.ndarray, alpha: float = 0.35) -> np.ndarray:
     mixed = (1.0 - alpha) * previous + alpha * current
     return mixed / mixed[2, 2]
+
+
+def homography_step_is_calm(
+    previous: np.ndarray,
+    current: np.ndarray,
+    width: float,
+    height: float,
+    max_step_m: float = H_MAX_STEP_M,
+) -> bool:
+    """La misma zona de la imagen no puede saltar de medio campo en un fotograma."""
+    cols = (0.3, 0.5, 0.7)
+    pts = np.array([[width * x, height * y] for y in cols for x in cols], dtype=float)
+    before = apply_h(previous, pts)
+    after = apply_h(current, pts)
+    steps = np.hypot(after[:, 0] - before[:, 0], after[:, 1] - before[:, 1])
+    if not np.isfinite(steps).all():
+        return False
+    return float(np.median(steps)) <= max_step_m
+
+
+def on_pitch(x: float, y: float, margin_m: float = 12.0) -> bool:
+    return _inside(x, y, margin_m)
 
 
 def _normalize(pts: np.ndarray) -> tuple[np.ndarray, np.ndarray]:

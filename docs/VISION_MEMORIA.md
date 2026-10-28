@@ -186,6 +186,27 @@ Qué sigue sin valer para el módulo 2: la identidad (un id dura un par de déci
 
 ---
 
+## Lectura `estable-1` (código, todavía sin repetir Nervión)
+
+El JSON de las 15:57 no cambia solo. Hay que `git pull` en `main`, reiniciar `scripts/vision_server.py` y volver a guardar el partido. El archivo viejo lleva otro `reader` y se recalcula. El vídeo sigue en el Mac: esta pasada no lo ha vuelto a leer.
+
+Lo que cambia en el código, medido en un vídeo dibujado con vallas blancas y manchas que saltan (`write_noise_fixture`, 24 fotogramas):
+
+| Listón | Resultado del vídeo de ruido |
+|---|---|
+| Las vallas claras no cuentan como jugadores | máximo 4 jugadores en un fotograma |
+| Un id aguanta | el track más largo tiene 10 muestras (1 s) |
+| El equipo no cambia por un fotograma suelto | cobertura de equipo 1 |
+| El balón no atraviesa el campo | ningún paso de menos de 0,25 s supera 40 m/s |
+| Una homografía que teletransporta el césped se tira | el fotograma malo queda con `accepted: false` y se conserva la anterior |
+| Sin calibración nueva, el césped caduca a los 1,5 s | un jugador 2 s después ya no lleva x,y |
+
+Reglas: los pies tienen que pisar césped cuando el césped se ve; el equipo se vota; el balón se descarta si sale del campo o va a más de 40 m/s; dos homografías seguidas no pueden mover la imagen más de 18 m.
+
+Eso quita el balón a 363 m/s y el césped pegado durante minutos. No pone a los jugadores de verdad: sigue haciendo falta RF-DETR en el Mac. Los módulos 2 y 3 siguen sin construirse.
+
+---
+
 ## Resultado del vídeo dibujado (lo que sí está medido)
 
 `write_field_fixture`: césped, líneas blancas, dos camisetas, dorsales 7 y 8 nuestros, 4 y 5 rivales, balón blanco, árbitro amarillo. 16 fotogramas, 10 fps, dos partes. No es Veo.
