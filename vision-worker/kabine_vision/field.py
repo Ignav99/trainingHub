@@ -66,6 +66,23 @@ def detect_field(
     return boxes
 
 
+def write_noise_fixture(path: str | Path, frames: int = 24, fps: float = 10.0) -> Path:
+    """El campo dibujado, más vallas claras y manchas blancas que saltan."""
+    path = Path(path)
+    if path.suffix.lower() != ".avi":
+        path = path.with_suffix(".avi")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    writer = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"png "), fps, (640, 360))
+    if not writer.isOpened():
+        raise RuntimeError("no se pudo escribir el vídeo de ruido")
+    try:
+        for i in range(frames):
+            writer.write(_noise_frame(i))
+    finally:
+        writer.release()
+    return path
+
+
 def write_field_fixture(path: str | Path, frames: int = 16, fps: float = 10.0) -> Path:
     """Césped con líneas, dos camisetas, dorsales y un balón redondo."""
     path = Path(path)
@@ -145,6 +162,19 @@ def _field_frame(i: int) -> np.ndarray:
     return frame
 
 
+def _noise_frame(i: int) -> np.ndarray:
+    frame = _field_frame(i)
+    for x0, y0, x1, y1 in ((0, 40, 44, 220), (596, 40, 639, 220)):
+        cv2.rectangle(frame, (x0, y0), (x1, y1), (16, 16, 16), -1)
+    for foot_x, foot_y in ((22, 150), (618, 120), (618, 200)):
+        cv2.rectangle(frame, (foot_x - 9, foot_y - 48), (foot_x + 9, foot_y), (250, 250, 250), -1)
+    for k in range(6):
+        cx = (30 + i * 53 + k * 97) % 520 + 60
+        cy = (50 + i * 71 + k * 43) % 200 + 80
+        cv2.circle(frame, (int(cx), int(cy)), 5, (255, 255, 255), -1)
+    return frame
+
+
 def _shirt(
     frame: np.ndarray,
     foot_x: int,
@@ -204,12 +234,15 @@ def _detect_work(frame: np.ndarray, t: float, *, kits: dict | None, roster: dict
     max_area = area * 0.045
     ours_bgr = _bgr(kits.get("ours") if isinstance(kits, dict) else None)
     rival_bgr = _bgr(kits.get("rival") if isinstance(kits, dict) else None)
+    grass = cv2.inRange(hsv, (32, 35, 35), (100, 255, 255))
+    grass = cv2.dilate(grass, np.ones((5, 5), np.uint8), iterations=1)
+    foot_grass = grass if int(cv2.countNonZero(grass)) >= 0.05 * area else None
     people: list[Box] = []
     if ours_bgr is not None and rival_bgr is not None:
-        people.extend(_people(frame, hsv, t, ours_bgr, "player", 0, min_area, max_area))
-        people.extend(_people(frame, hsv, t, rival_bgr, "player", 1, min_area, max_area))
+        people.extend(_people(frame, hsv, t, ours_bgr, "player", 0, min_area, max_area, foot_grass))
+        people.extend(_people(frame, hsv, t, rival_bgr, "player", 1, min_area, max_area, foot_grass))
         if not _yellowish(ours_bgr) and not _yellowish(rival_bgr):
-            people.extend(_people(frame, hsv, t, _YELLOW, "referee", None, min_area, max_area))
+            people.extend(_people(frame, hsv, t, _YELLOW, "referee", None, min_area, max_area, foot_grass))
     else:
         from .blobs import detect_blobs
 
@@ -222,8 +255,7 @@ def _detect_work(frame: np.ndarray, t: float, *, kits: dict | None, roster: dict
     else:
         boxes.extend(_orange_corners(frame, t))
     boxes.extend(people)
-    ball = _ball(hsv, people)
-    if ball is not None:
+    for ball in _balls(hsv, people):
         ball.t = t
         boxes.append(ball)
     return boxes
@@ -250,6 +282,7 @@ def _people(
     team: int | None,
     min_area: float,
     max_area: float,
+    grass: np.ndarray | None,
 ) -> list[Box]:
     mask = cv2.morphologyEx(_kit_mask(hsv, bgr), cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 9)))
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -261,8 +294,25 @@ def _people(
         x, y, w, h = cv2.boundingRect(contour)
         if w < 8 or h < 16 or h < w * 1.15 or h > w * 5.5:
             continue
+        if not _stands_on_grass(grass, x, y, w, h):
+            continue
         found.append(Box(t, kind, float(x), float(y), float(w), float(h), rgb=_median_rgb(frame, x, y, w, h), team=team))
     return found
+
+
+def _stands_on_grass(grass: np.ndarray | None, x: int, y: int, w: int, h: int) -> bool:
+    """Una valla clara no pisa césped. Un jugador, sí."""
+    if grass is None:
+        return True
+    height, width = grass.shape[:2]
+    y0 = min(height - 1, max(0, y + int(h * 0.72)))
+    y1 = min(height, max(y0 + 1, y + h + 8))
+    x0 = max(0, x)
+    x1 = min(width, x + w)
+    band = grass[y0:y1, x0:x1]
+    if band.size == 0:
+        return False
+    return float(np.count_nonzero(band)) / float(band.size) >= 0.12
 
 
 def _kit_mask(hsv: np.ndarray, bgr: tuple[int, int, int]) -> np.ndarray:
@@ -329,37 +379,36 @@ def _orange_corners(frame: np.ndarray, t: float) -> list[Box]:
     return _corner_keypoints(t, marks[:4] if len(marks) == 4 else _four_extreme(marks))
 
 
-def _ball(hsv: np.ndarray, people: list[Box]) -> Box | None:
+def _balls(hsv: np.ndarray, people: list[Box]) -> list[Box]:
     white = cv2.inRange(hsv, (0, 0, 180), (180, 70, 255))
-    found = _round_from_mask(white, people, 12, 700)
-    if found is not None:
+    found = _round_candidates(white, people, 12, 700)
+    if found:
         return found
     magenta = cv2.inRange(hsv, (140, 80, 80), (170, 255, 255))
-    return _round_from_mask(magenta, people, 8, 500)
+    return _round_candidates(magenta, people, 8, 500)
 
 
-def _round_from_mask(
+def _round_candidates(
     mask: np.ndarray,
     people: list[Box],
     min_area: float,
     max_area: float,
-) -> Box | None:
+) -> list[Box]:
     count, _labels, stats, _centroids = cv2.connectedComponentsWithStats(mask, 8)
-    best = None
-    best_fill = 0.0
+    scored: list[tuple[float, Box]] = []
     for index in range(1, count):
         x, y, w, h, area = (int(stats[index, i]) for i in range(5))
         if area < min_area or area > max_area or w < 4 or h < 4:
             continue
         aspect = w / float(h)
         fill = area / float(w * h)
-        if aspect < 0.7 or aspect > 1.4 or fill < 0.55 or fill < best_fill:
+        if aspect < 0.7 or aspect > 1.4 or fill < 0.55:
             continue
         if _hits_person(x, y, w, h, people):
             continue
-        best_fill = fill
-        best = Box(0.0, "ball", float(x) + w / 2.0, float(y) + h / 2.0, 1, 1)
-    return best
+        scored.append((fill, Box(0.0, "ball", float(x) + w / 2.0, float(y) + h / 2.0, 1, 1)))
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return [box for _fill, box in scored[:5]]
 
 
 def _hits_person(x: int, y: int, w: int, h: int, people: list[Box]) -> bool:

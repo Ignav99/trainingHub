@@ -151,8 +151,8 @@ class SpanTests(unittest.TestCase):
         out = run_span(boxes, start_s=0.0, end_s=0.6, width=W, height=H, fps=10.0)
         mover = next(track for track in out["tracks"] if track["samples"][0]["x"] < 0.3)
         self.assertLess(next(row["visible_m"] for row in out["physical"] if row["track_id"] == mover["id"]), 3.0)
-        self.assertTrue(mover["samples"][-1].get("rejected_speed"))
-        self.assertAlmostEqual(mover["samples"][-1]["x"], mover["samples"][-2]["x"], places=3)
+        self.assertFalse(out["homography"][-1]["accepted"])
+        self.assertLess(abs(mover["samples"][-1]["x"] - mover["samples"][-2]["x"]), 0.02)
 
     def test_end_before_start_is_rejected(self) -> None:
         with self.assertRaises(ValueError):

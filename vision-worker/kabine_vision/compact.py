@@ -44,6 +44,7 @@ def dumps_document(doc: dict) -> str:
         "preview",
         "events",
         "phases",
+        "reader",
     ):
         if key in doc:
             payload[key] = doc[key]

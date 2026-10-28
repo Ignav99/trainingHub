@@ -11,13 +11,17 @@ from collections import defaultdict
 import numpy as np
 
 from .homography import (
+    BALL_MAX_SPEED_M_S,
+    H_HOLD_S,
     apply_h,
     blend_homography,
     dlt_homography,
     homography_keeps_center_on_pitch,
+    homography_step_is_calm,
     length_is_pitch,
+    on_pitch,
 )
-from .tracking import Box, Track, assign_teams, iou, keep_unique_dorsals, smooth_xy, step_metres, vote_dorsal
+from .tracking import Box, Track, assign_teams, iou, keep_unique_dorsals, smooth_xy, step_metres, vote_dorsal, vote_team
 
 SCHEMA = "kabine.vision.v0"
 HOLD_BALL_FRAMES = 10
@@ -57,6 +61,7 @@ def _track_clean(boxes: list[Box], width: float, height: float, fps: float, our_
     homographies: list[dict] = []
     ball: list[dict] = []
     last_h: np.ndarray | None = None
+    last_accept_t: float | None = None
     last_ball_xy: tuple[float, float] | None = None
     last_ball_v: tuple[float, float] = (0.0, 0.0)
     last_ball_t: float | None = None
@@ -68,17 +73,30 @@ def _track_clean(boxes: list[Box], width: float, height: float, fps: float, our_
         fitted = _fit(keypoints, width, height)
         accepted = fitted is not None
         if fitted is not None and last_h is not None:
-            blended = blend_homography(last_h, fitted)
-            if homography_keeps_center_on_pitch(blended, width, height):
-                fitted = blended
-            else:
-                accepted = False
+            if not homography_step_is_calm(last_h, fitted, width, height):
                 fitted = None
+                accepted = False
+            else:
+                blended = blend_homography(last_h, fitted)
+                calm = homography_step_is_calm(last_h, blended, width, height)
+                if calm and homography_keeps_center_on_pitch(blended, width, height):
+                    fitted = blended
+                else:
+                    accepted = False
+                    fitted = None
         if fitted is None:
-            h = last_h
+            held = (
+                last_h is not None
+                and last_accept_t is not None
+                and t - last_accept_t <= H_HOLD_S
+            )
+            h = last_h if held else None
+            if not held:
+                last_h = None
         else:
             h = fitted
             last_h = fitted
+            last_accept_t = t
         if h is not None:
             homographies.append({
                 "t": t,
@@ -125,10 +143,14 @@ def _track_clean(boxes: list[Box], width: float, height: float, fps: float, our_
             else:
                 alive_referees += 1
 
-        ball_box = next((box for box in frame if box.kind == "ball"), None)
-        if ball_box is not None and h is not None:
-            xy = apply_h(h, np.array([[ball_box.px, ball_box.py]]))[0]
-            point = (float(xy[0]), float(xy[1]))
+        point = _plausible_ball(
+            [box for box in frame if box.kind == "ball"],
+            h,
+            last_ball_xy,
+            last_ball_t,
+            t,
+        )
+        if point is not None:
             if last_ball_xy is not None and last_ball_t is not None and t > last_ball_t:
                 dt = t - last_ball_t
                 last_ball_v = ((point[0] - last_ball_xy[0]) / dt, (point[1] - last_ball_xy[1]) / dt)
@@ -142,7 +164,7 @@ def _track_clean(boxes: list[Box], width: float, height: float, fps: float, our_
                 "in_air": None,
                 "held": False,
             })
-        elif last_ball_xy is not None and last_ball_t is not None and ball_gap < HOLD_BALL_FRAMES:
+        elif last_ball_xy is not None and last_ball_t is not None and ball_gap < HOLD_BALL_FRAMES and h is not None:
             ball_gap += 1
             dt = 1.0 / fps if fps else 0.0
             point = (last_ball_xy[0] + last_ball_v[0] * dt, last_ball_xy[1] + last_ball_v[1] * dt)
@@ -192,10 +214,37 @@ def _touch(track: Track, box: Box, t: float, h: np.ndarray | None) -> None:
     track._last_box = (box.px, box.py, box.w, box.h)
     if box.rgb is not None:
         track.rgb = box.rgb
-    if box.team is not None:
-        track.team = box.team
+    vote_team(track, box.team)
     vote_dorsal(track, box.dorsal)
     _record(track, box, t, h)
+
+
+def _plausible_ball(
+    balls: list[Box],
+    h: np.ndarray | None,
+    last_xy: tuple[float, float] | None,
+    last_t: float | None,
+    t: float,
+) -> tuple[float, float] | None:
+    """Se queda el balón que sigue en el césped y no atraviesa el campo de un fotograma a otro."""
+    if h is None or not balls:
+        return None
+    best: tuple[float, tuple[float, float]] | None = None
+    for box in balls:
+        xy = apply_h(h, np.array([[box.px, box.py]]))[0]
+        point = (float(xy[0]), float(xy[1]))
+        if not on_pitch(point[0], point[1]):
+            continue
+        if last_xy is not None and last_t is not None and t > last_t:
+            speed = float(np.hypot(point[0] - last_xy[0], point[1] - last_xy[1])) / (t - last_t)
+            if speed > BALL_MAX_SPEED_M_S:
+                continue
+            rank = speed
+        else:
+            rank = float(np.hypot(point[0] - 52.5, point[1] - 34.0))
+        if best is None or rank < best[0]:
+            best = (rank, point)
+    return None if best is None else best[1]
 
 
 def _fit(keypoints: list[Box], width: float, height: float) -> np.ndarray | None:
