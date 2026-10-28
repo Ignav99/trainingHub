@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { fileFitsPreview, nearestSample, pitchDots, spanLabel, timeExtent, VISION_MAX_BYTES, type VisionDoc } from './visionPreview.ts'
+import { advancePlayhead, fileFitsPreview, inPlay, nearestSample, pitchDots, spanLabel, timeExtent, whistleProblem, VISION_MAX_BYTES, type VisionDoc } from './visionPreview.ts'
 
 const analyzer = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../components/video-analyzer/VideoAnalyzer.tsx'), 'utf8')
 
@@ -28,13 +28,15 @@ describe('prueba corta de visión', () => {
   })
 
   it('la mesa abre la prueba sin tocar la botonera', () => {
-    assert.match(analyzer, /Probar Visión/)
+    assert.match(analyzer, /Visión/)
     assert.match(analyzer, /VisionProbe/)
     assert.match(analyzer, /setVisionOpen\(false\)/)
     const probe = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../components/video-analyzer/VisionProbe.tsx'), 'utf8')
     assert.match(probe, /setPlaying\(true\)/)
     assert.match(probe, /Pausa/)
-    assert.match(probe, /ensureServer/)
+    assert.match(probe, /Guardar tracking/)
+    assert.match(probe, /final_partido/)
+    assert.match(probe, /Marcar aquí/)
     assert.match(probe, /red local/)
     assert.doesNotMatch(probe, /disabled=\{busy \|\| down/)
   })
@@ -48,5 +50,20 @@ describe('prueba corta de visión', () => {
     assert.equal(dots[0].x, 0.3)
     assert.equal(nearestSample(doc.ball, 0.1)?.x, 0.45)
     assert.deepEqual(timeExtent(doc), { start: 0, end: 0.4 })
+  })
+
+  it('salta el descanso y no pinta jugadores fuera de los pitidos', () => {
+    const played: VisionDoc = {
+      ...doc,
+      spans: [
+        { name: 'primera', start_s: 0, end_s: 0.4 },
+        { name: 'segunda', start_s: 2, end_s: 2.4 },
+      ],
+    }
+    assert.equal(inPlay(played, 1), false)
+    assert.equal(pitchDots(played, 1).length, 0)
+    assert.equal(advancePlayhead(0.4, played), 2)
+    assert.equal(whistleProblem({ inicio_1: 1, final_1: 2, inicio_2: 3, final_partido: 4 }), null)
+    assert.match(whistleProblem({ inicio_1: 4, final_1: 3, inicio_2: 2, final_partido: 1 }) || '', /orden/)
   })
 })

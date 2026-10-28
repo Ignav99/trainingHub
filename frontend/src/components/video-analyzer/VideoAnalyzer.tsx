@@ -480,10 +480,10 @@ export function VideoAnalyzer({
           <button
             type="button"
             className="vd-btn"
-            title="Prueba unos segundos o unos fotogramas en este PC"
+            title="Tracking del partido entre los cuatro pitidos, en este PC"
             onClick={() => setVisionOpen(true)}
           >
-            Probar Visión
+            Visión
           </button>
           <button
             type="button"

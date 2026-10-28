@@ -1,6 +1,6 @@
 # Visión — pausa y handoff
 
-**Estado:** 28 oct 2026. El núcleo y una prueba corta están en `vision-worker/` y en **Probar Visión**. En producción, con el navegador autorizado a hablar con `127.0.0.1:8765`, el ejemplo de 2 s se mueve solo (4 jugadores, balón, pausa y slider). Chrome reciente bloquea esa llamada si no hay permiso de red local: el botón tiene que seguir pulsable y explicar el candado. Sigue sin RF-DETR y sin el bench de 60 s de un Veo. El programa local es `python3 scripts/vision_server.py` en el puerto 8765.  
+**Estado:** 28 oct 2026. El dato del módulo 1 es el tracking del partido a 10 fps entre los cuatro pitidos (inicial, final de la 1ª, inicio de la 2ª, pitido final). Se guarda en `nombre.kabine-vision.json` al lado del vídeo, en el Mac. El minimapa de la mesa lo lee. El detector de producto sigue sin estar: hasta entonces las posiciones salen de colores.  
 **Ahora:** módulo 1, homografía y tracking entre un inicio y un final. Los módulos 2 (dibujo tipo Sportscode) y 3 (eventos y recortes) están escritos en el plan y no se construyen.  
 **Retomar:** leer este archivo + `docs/VISION_PLAN.md`. El chat largo no hace falta.
 

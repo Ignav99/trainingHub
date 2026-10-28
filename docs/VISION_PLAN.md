@@ -14,7 +14,7 @@ El partido sigue sin salir del PC. El worker escribe JSON; la mesa lo lee.
 
 ### 1 — Homografía y tracking (el que se hace ahora)
 
-El entrenador marca **inicio y final** en el vídeo (una parte, un tramo, o el partido) y Visión recorre ese intervalo entero.
+El entrenador marca cuatro pitidos en el vídeo: inicial, final de la primera parte, inicio de la segunda y pitido final. Visión recorre solo esos dos tramos, a 10 fotogramas por segundo, y escribe el JSON al lado del partido. El descanso y lo de antes y después no entra.
 
 Lee los **dos equipos**, cada futbolista, el balón y el árbitro. Mantiene el mismo id cuando la cámara de Veo panea. Calcula la **homografía sola**, frame a frame, y la suaviza. Si un frame cae fuera del campo, se descarta esa homografía y se arrastra la última válida (la misma regla que Hudl Tracking Data aplicó el 13 may 2026: rechazar calibraciones fuera del césped).
 

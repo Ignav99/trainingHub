@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { fileFitsPreview, pitchDots, spanLabel, timeExtent, VISION_ORIGIN, type VisionDoc, type VisionHealth } from '@/lib/visionPreview'
+import { advancePlayhead, pitchDots, timeExtent, VISION_ORIGIN, WHISTLE_FIELDS, whistleProblem, type VisionDoc, type VisionHealth, type WhistleKey } from '@/lib/visionPreview'
 
 type Props = {
   localFile?: File
@@ -12,16 +12,15 @@ type Props = {
 export function VisionProbe({ localFile, currentTime, onClose }: Props) {
   const [health, setHealth] = useState<VisionHealth | null>(null)
   const [down, setDown] = useState(false)
-  const [seconds, setSeconds] = useState(5)
-  const [frames, setFrames] = useState('')
-  const [stride, setStride] = useState(6)
-  const [startS, setStartS] = useState(() => Math.max(0, Math.round(currentTime * 10) / 10))
   const [path, setPath] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [doc, setDoc] = useState<VisionDoc | null>(null)
   const [t, setT] = useState(0)
   const [playing, setPlaying] = useState(false)
+  const fileKey = localFile?.name || 'partido'
+  const [marks, setMarks] = useState<Partial<Record<WhistleKey, number>>>(() => readMarks(fileKey))
+  const [phase, setPhase] = useState('')
 
   async function ensureServer() {
     try {
@@ -39,18 +38,79 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
   }
 
   useEffect(() => {
+    setMarks(readMarks(fileKey))
+  }, [fileKey])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(`kabine-vision-whistles:v1:${fileKey}`, JSON.stringify(marks))
+    } catch {
+      // El navegador puede negar el almacenamiento.
+    }
+  }, [fileKey, marks])
+
+  useEffect(() => {
     if (!playing || !doc) return
-    const extent = timeExtent(doc)
     const id = window.setInterval(() => {
-      setT((current) => (current + 0.1 >= extent.end ? extent.start : Math.round((current + 0.1) * 10) / 10))
+      setT((current) => advancePlayhead(current, doc))
     }, 120)
     return () => window.clearInterval(id)
   }, [playing, doc])
 
-  const frameCap = frames.trim() === '' ? null : Number(frames)
-  const tooBig = Boolean(localFile && !fileFitsPreview(localFile.size))
+  async function saveMatch() {
+    const problem = whistleProblem(marks)
+    if (problem) {
+      setError(problem)
+      return
+    }
+    if (path.trim() === '') {
+      setError('Escribe la ruta del partido en este Mac. El navegador no puede verla solo.')
+      return
+    }
+    setBusy(true)
+    setError('')
+    setPlaying(false)
+    setPhase('')
+    const ready = await ensureServer()
+    if (!ready) {
+      setError('El navegador no deja hablar con el programa de este PC. Si ya está arrancado, permite la red local en el candado de la barra y pulsa otra vez.')
+      setBusy(false)
+      return
+    }
+    try {
+      const res = await fetch(`${VISION_ORIGIN}/match`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          path,
+          sample_fps: 10,
+          whistles: {
+            inicio_1: marks.inicio_1,
+            final_1: marks.final_1,
+            inicio_2: marks.inicio_2,
+            final_partido: marks.final_partido,
+          },
+        }),
+      })
+      const started = await res.json().catch(() => ({}))
+      if (res.status === 404) throw new Error('El programa de este Mac es el de antes. Ciérralo y vuelve a arrancar python3 scripts/vision_server.py.')
+      if (!res.ok) throw new Error(started.error || 'No se pudo guardar el tracking')
+      const done = await waitForMatch(path, setPhase)
+      if (done.status === 'error') throw new Error(done.error || 'No se pudo guardar el tracking')
+      if (!done.document) throw new Error('El tracking se guardó, pero no pude abrirlo en el césped.')
+      setDoc(done.document)
+      setT(done.document.spans?.[0]?.start_s ?? timeExtent(done.document).start)
+      setPlaying(true)
+      setPhase('')
+    } catch (err) {
+      setDoc(null)
+      setError(err instanceof Error ? err.message : 'No se pudo guardar el tracking')
+    } finally {
+      setBusy(false)
+    }
+  }
 
-  async function run(kind: 'fixture' | 'file' | 'path') {
+  async function runExample() {
     setBusy(true)
     setError('')
     setPlaying(false)
@@ -61,14 +121,7 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
       return
     }
     try {
-      const res = await requestPreview(kind, {
-        startS,
-        seconds,
-        frames: frameCap,
-        stride,
-        file: localFile,
-        path,
-      })
+      const res = await fetch(`${VISION_ORIGIN}/fixture`, { method: 'POST' })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error || 'No se pudo leer el tramo')
       const next = body as VisionDoc
@@ -96,12 +149,12 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
     >
       <div className="vd-modal vd-vision" onMouseDown={(e) => e.stopPropagation()}>
         <div className="vd-vision-head">
-          <h2>Probar Visión</h2>
+          <h2>Visión</h2>
           <button type="button" className="vd-btn" onClick={onClose}>Cerrar</button>
         </div>
         {doc ? null : (
         <p>
-          Elige unos segundos, unos fotogramas, o un vídeo de hasta 40 MB. El programa corre en este PC y el partido no se sube.
+          Marca los cuatro pitidos sobre el vídeo que tienes abierto. El programa guarda el tracking a 10 fotogramas por segundo solo con el balón en juego, y lo deja en este Mac, al lado del partido.
         </p>
         )}
 
@@ -121,59 +174,36 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
 
         {doc ? null : (
         <>
-        <div className="vd-vision-grid">
-          <label>
-            Desde (s)
-            <input type="number" min={0} step={0.1} value={startS} onChange={(e) => setStartS(Number(e.target.value))} />
-          </label>
-          <label>
-            Segundos
-            <input type="number" min={0.2} step={0.5} value={seconds} onChange={(e) => setSeconds(Number(e.target.value))} />
-          </label>
-          <label>
-            Fotogramas
-            <input
-              inputMode="numeric"
-              placeholder="opcional"
-              value={frames}
-              onChange={(e) => setFrames(e.target.value.replace(/[^\d]/g, ''))}
-            />
-          </label>
-          <label>
-            Uno de cada
-            <input type="number" min={1} step={1} value={stride} onChange={(e) => setStride(Number(e.target.value))} />
-          </label>
+        <div className="vd-vision-whistles">
+          {WHISTLE_FIELDS.map(([key, label]) => (
+            <div className="vd-vision-whistle" key={key}>
+              <span>{label}</span>
+              <strong>{marks[key] == null ? 'sin marcar' : clock(marks[key] as number)}</strong>
+              <button type="button" className="vd-btn" onClick={() => setMarks((current) => ({ ...current, [key]: Math.round(currentTime * 10) / 10 }))}>
+                Marcar aquí
+              </button>
+            </div>
+          ))}
         </div>
-        <p className="vd-vision-meta">{spanLabel(seconds, frameCap != null && frameCap > 0 ? frameCap : null, stride)}</p>
-
-        <div className="vd-modal-actions">
-          <button type="button" className="vd-btn vd-btn-accent" disabled={busy} onClick={() => void run('fixture')}>
-            {busy ? 'Leyendo…' : 'Ver ejemplo de 2 s'}
-          </button>
-          <button
-            type="button"
-            className="vd-btn"
-            disabled={busy || !localFile || tooBig}
-            title={tooBig ? 'Pasa de 40 MB. Recorta un trozo o usa un vídeo de pocos megas.' : 'Lee el vídeo que tienes abierto, si pesa 40 MB como mucho.'}
-            onClick={() => void run('file')}
-          >
-            Analizar este vídeo
-          </button>
-        </div>
-
-        {tooBig ? <p className="vd-vision-warn">Este archivo pasa de 40 MB. Para la prueba usa un recorte de pocos megas, o limita los segundos cuando el vídeo ya está en el disco.</p> : null}
-
         <label>
-          Ruta en este PC
+          Ruta del partido en este Mac
           <input
             value={path}
-            placeholder="~/Desktop/prueba2.mp4"
+            placeholder="~/Desktop/partido.mp4"
             onChange={(e) => setPath(e.target.value)}
           />
         </label>
         <div className="vd-modal-actions">
-          <button type="button" className="vd-btn" disabled={busy || path.trim() === ''} onClick={() => void run('path')}>
-            Analizar esa ruta
+          <button type="button" className="vd-btn vd-btn-accent" disabled={busy} onClick={() => void saveMatch()}>
+            {busy ? 'Guardando…' : 'Guardar tracking'}
+          </button>
+        </div>
+        {phase ? <p className="vd-vision-meta">{phase}</p> : null}
+        <p className="vd-vision-meta">Hasta que el detector de jugadores esté en este Mac, las posiciones salen de una lectura de colores. El dato ya se guarda con la forma que usarán los módulos siguientes.</p>
+        {localFile ? <p className="vd-vision-meta">Vídeo abierto: {localFile.name}. La ruta de arriba es la de ese mismo archivo en el disco.</p> : null}
+        <div className="vd-modal-actions">
+          <button type="button" className="vd-btn" disabled={busy} onClick={() => void runExample()}>
+            {busy ? 'Leyendo…' : 'Ver césped de prueba'}
           </button>
         </div>
         </>
@@ -213,12 +243,14 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
               ))}
             </svg>
             <p>{doc.preview?.note}</p>
+            {doc.preview?.stored_path ? <p className="vd-vision-meta">{doc.preview.stored_path}</p> : null}
             <p className="vd-vision-meta">
+              {doc.preview?.sample_fps ? `${doc.preview.sample_fps} fps · ` : ''}
               {doc.preview?.kept_frames ?? 0} fotogramas · {doc.tracks.filter((track) => track.role === 'player').length} jugadores · {doc.physical?.length ?? 0} con metros visibles
             </p>
             <div className="vd-modal-actions">
               <button type="button" className="vd-btn" onClick={() => { setDoc(null); setPlaying(false) }}>
-                Otro tramo
+                Volver a los pitidos
               </button>
             </div>
           </div>
@@ -228,30 +260,35 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
   )
 }
 
-async function requestPreview(
-  kind: 'fixture' | 'file' | 'path',
-  input: { startS: number; seconds: number; frames: number | null; stride: number; file?: File; path: string },
-): Promise<Response> {
-  if (kind === 'fixture') return fetch(`${VISION_ORIGIN}/fixture`, { method: 'POST' })
-  if (kind === 'file' && input.file) {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/octet-stream',
-      'X-Start-S': String(input.startS),
-      'X-Seconds': String(input.seconds),
-      'X-Stride': String(Math.max(1, input.stride)),
-    }
-    if (input.frames != null && input.frames > 0) headers['X-Frames'] = String(input.frames)
-    return fetch(`${VISION_ORIGIN}/preview-file`, { method: 'POST', headers, body: input.file })
+function readMarks(fileKey: string): Partial<Record<WhistleKey, number>> {
+  try {
+    const raw = localStorage.getItem(`kabine-vision-whistles:v1:${fileKey}`)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw) as Partial<Record<WhistleKey, number>>
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
   }
-  return fetch(`${VISION_ORIGIN}/preview`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      path: input.path,
-      start_s: input.startS,
-      seconds: input.seconds,
-      frames: input.frames != null && input.frames > 0 ? input.frames : null,
-      stride: input.stride,
-    }),
-  })
+}
+
+function clock(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds))
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
+}
+
+async function waitForMatch(
+  videoPath: string,
+  onPhase: (text: string) => void,
+): Promise<{ status: string; error?: string; document?: VisionDoc }> {
+  const deadline = Date.now() + 6 * 60 * 60 * 1000
+  while (Date.now() < deadline) {
+    const res = await fetch(`${VISION_ORIGIN}/match?path=${encodeURIComponent(videoPath)}`)
+    const body = await res.json()
+    if (!res.ok) throw new Error(body.error || 'No se pudo leer el tracking')
+    const part = body.phase === 'segunda' ? 'segunda parte' : 'primera parte'
+    onPhase(body.status === 'running' ? `Leyendo la ${part}. ${body.kept_frames ?? 0} fotogramas. Puedes dejar esta ventana abierta.` : '')
+    if (body.status === 'done' || body.status === 'error') return body
+    await new Promise((resolve) => window.setTimeout(resolve, 800))
+  }
+  throw new Error('El tracking sigue en este Mac. El archivo se escribe al lado del partido.')
 }

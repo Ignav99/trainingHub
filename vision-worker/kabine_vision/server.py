@@ -5,8 +5,10 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 from .blobs import detect_blobs, write_fixture
 from .preview import PreviewError, analyze_video
@@ -39,7 +41,14 @@ class Handler(BaseHTTPRequestHandler):
         self._send(204, b"")
 
     def do_GET(self) -> None:
-        if self.path.split("?", 1)[0] != "/health":
+        route = self.path.split("?", 1)[0]
+        if route == "/match":
+            try:
+                self._send(200, _body(_match_status(_query_path(self.path))))
+            except PreviewError as exc:
+                self._send(400, _body({"error": str(exc)}))
+            return
+        if route != "/health":
             self._send(404, _body({"error": "no existe"}))
             return
         self._send(200, _body({
@@ -63,6 +72,9 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/preview":
                 self._send(200, _body(self._from_path()))
                 return
+            if path == "/match":
+                self._send(200, _body(self._start_match()))
+                return
         except PreviewError as exc:
             self._send(400, _body({"error": str(exc)}))
             return
@@ -81,6 +93,14 @@ class Handler(BaseHTTPRequestHandler):
             return _with_note(analyze_video(handle.name, detector=detect_blobs, **_limits(self.headers)), upload=True)
         finally:
             os.unlink(handle.name)
+
+    def _start_match(self) -> dict:
+        payload = json.loads(self._read_body().decode("utf-8") or "{}")
+        return start_match_job(
+            str(payload.get("path") or ""),
+            payload.get("whistles") or {},
+            sample_fps=payload.get("sample_fps") or 10,
+        )
 
     def _from_path(self) -> dict:
         payload = json.loads(self._read_body().decode("utf-8") or "{}")
@@ -156,6 +176,107 @@ def _limits_from(start_s, seconds, frames, stride) -> dict:
     if sec is None and (kept is None or kept <= 0):
         sec = 5.0
     return {"start_s": start, "seconds": sec, "frames": kept, "stride": step}
+
+
+_jobs: dict[str, dict] = {}
+_jobs_lock = threading.Lock()
+
+
+def start_match_job(raw_path: str, whistles: dict, sample_fps: float = 10) -> dict:
+    from .blobs import detect_blobs
+    from .match import analyze_match, ordered_whistles, sidecar_for
+
+    video = Path(os.path.expanduser(raw_path.strip())).resolve()
+    if video.suffix.lower() not in VIDEO_EXT:
+        raise PreviewError("la ruta tiene que ser un vídeo")
+    if not video.is_file():
+        raise PreviewError("no encuentro ese partido en este PC")
+    marks = ordered_whistles(whistles)
+    key = str(video)
+    with _jobs_lock:
+        current = _jobs.get(key)
+        if current and current.get("status") == "running":
+            return _public_job(current)
+        job = {
+            "status": "running",
+            "phase": "primera",
+            "kept_frames": 0,
+            "stored_path": str(sidecar_for(video)),
+            "error": None,
+            "sample_fps": float(sample_fps or 10),
+        }
+        _jobs[key] = job
+
+    def work() -> None:
+        def on_progress(phase: str, kept: int) -> None:
+            with _jobs_lock:
+                job["phase"] = phase
+                job["kept_frames"] = kept
+
+        try:
+            doc = analyze_match(
+                key,
+                marks,
+                sample_fps=float(sample_fps or 10),
+                detector=detect_blobs,
+                on_progress=on_progress,
+            )
+            with _jobs_lock:
+                job["status"] = "done"
+                job["kept_frames"] = doc["preview"]["kept_frames"]
+                job["stored_path"] = doc["preview"]["stored_path"]
+                job["document"] = doc
+        except Exception as exc:
+            with _jobs_lock:
+                job["status"] = "error"
+                job["error"] = str(exc)
+
+    threading.Thread(target=work, name="kabine-vision-match", daemon=True).start()
+    return _public_job(job)
+
+
+def _match_status(raw_path: str) -> dict:
+    from .match import load_sidecar, sidecar_for
+
+    video = Path(os.path.expanduser(raw_path.strip())).resolve()
+    key = str(video)
+    with _jobs_lock:
+        current = _jobs.get(key)
+        if current:
+            return _public_job(current)
+    stored = sidecar_for(video)
+    doc = load_sidecar(stored)
+    if doc is None:
+        raise PreviewError("ese partido todavía no tiene tracking")
+    return {
+        "status": "done",
+        "phase": "listo",
+        "kept_frames": (doc.get("preview") or {}).get("kept_frames") or 0,
+        "stored_path": str(stored),
+        "error": None,
+        "sample_fps": (doc.get("preview") or {}).get("sample_fps") or 10,
+        "document": doc,
+    }
+
+
+def _public_job(job: dict) -> dict:
+    public = {
+        "status": job.get("status"),
+        "phase": job.get("phase"),
+        "kept_frames": job.get("kept_frames") or 0,
+        "stored_path": job.get("stored_path"),
+        "error": job.get("error"),
+        "sample_fps": job.get("sample_fps") or 10,
+    }
+    if job.get("status") == "done" and job.get("document") is not None:
+        public["document"] = job["document"]
+    return public
+
+
+def _query_path(raw: str) -> str:
+    query = parse_qs(urlparse(raw).query)
+    values = query.get("path") or [""]
+    return values[0]
 
 
 def _body(payload: dict) -> bytes:

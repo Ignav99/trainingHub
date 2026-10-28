@@ -8,11 +8,15 @@ export type VisionTrack = {
   role: string
   samples: VisionSample[]
 }
+export type VisionSpan = { name: string; start_s: number; end_s: number }
+
 export type VisionDoc = {
   tracks: VisionTrack[]
   ball: { t: number; x?: number; y?: number; held?: boolean }[]
   homography?: { accepted?: boolean }[]
   physical?: { track_id: number; visible_m: number; note: string }[]
+  spans?: VisionSpan[]
+  whistles?: Record<string, number>
   preview?: {
     detector?: string
     kept_frames?: number
@@ -20,9 +24,31 @@ export type VisionDoc = {
     start_s?: number
     end_s?: number
     note?: string
+    sample_fps?: number
+    stored_path?: string
   }
   events?: unknown[]
   phases?: unknown[]
+}
+
+export const WHISTLE_FIELDS = [
+  ['inicio_1', 'Pitido inicial'],
+  ['final_1', 'Final 1ª parte'],
+  ['inicio_2', 'Inicio 2ª parte'],
+  ['final_partido', 'Pitido final'],
+] as const
+
+export type WhistleKey = (typeof WHISTLE_FIELDS)[number][0]
+
+export function whistleProblem(marks: Partial<Record<WhistleKey, number>>): string | null {
+  const values = WHISTLE_FIELDS.map(([key]) => marks[key])
+  if (values.some((value) => value == null || Number.isNaN(value))) return 'Marca los cuatro pitidos en el vídeo.'
+  for (let i = 1; i < values.length; i += 1) {
+    if ((values[i] as number) <= (values[i - 1] as number)) {
+      return 'El orden es: pitido inicial, final de la primera parte, inicio de la segunda y pitido final.'
+    }
+  }
+  return null
 }
 
 export type VisionHealth = {
@@ -54,7 +80,28 @@ export function nearestSample<T extends { t: number }>(samples: T[], t: number):
   return best ?? samples[0] ?? null
 }
 
+export function inPlay(doc: VisionDoc, t: number): boolean {
+  if (!doc.spans?.length) return true
+  return doc.spans.some((span) => t + 0.001 >= span.start_s && t <= span.end_s + 0.001)
+}
+
+export function advancePlayhead(current: number, doc: VisionDoc): number {
+  const next = Math.round((current + 0.1) * 10) / 10
+  const spans = doc.spans ?? []
+  if (spans.length === 0) {
+    const extent = timeExtent(doc)
+    return next + 0.0001 >= extent.end ? extent.start : next
+  }
+  for (let i = 0; i < spans.length - 1; i += 1) {
+    if (next > spans[i].end_s + 0.001 && next < spans[i + 1].start_s) return spans[i + 1].start_s
+  }
+  if (next > spans[spans.length - 1].end_s + 0.001) return spans[0].start_s
+  if (next < spans[0].start_s) return spans[0].start_s
+  return next
+}
+
 export function pitchDots(doc: VisionDoc, t: number): PitchDot[] {
+  if (!inPlay(doc, t)) return []
   const dots: PitchDot[] = []
   for (const track of doc.tracks) {
     const sample = nearestSample(track.samples, t)
