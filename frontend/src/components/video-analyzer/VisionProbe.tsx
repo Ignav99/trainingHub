@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { advancePlayhead, pitchDots, timeExtent, VISION_ORIGIN, WHISTLE_FIELDS, whistleProblem, type VisionDoc, type VisionHealth, type WhistleKey } from '@/lib/visionPreview'
+import { advancePlayhead, pitchDots, timeExtent, VISION_ORIGIN, visionFetch, WHISTLE_FIELDS, whistleProblem, type VisionDoc, type VisionHealth, type WhistleKey } from '@/lib/visionPreview'
 
 type Props = {
   localFile?: File
@@ -12,7 +12,6 @@ type Props = {
 export function VisionProbe({ localFile, currentTime, onClose }: Props) {
   const [health, setHealth] = useState<VisionHealth | null>(null)
   const [down, setDown] = useState(false)
-  const [path, setPath] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [doc, setDoc] = useState<VisionDoc | null>(null)
@@ -24,7 +23,7 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
 
   async function ensureServer() {
     try {
-      const res = await fetch(`${VISION_ORIGIN}/health`)
+      const res = await visionFetch(`${VISION_ORIGIN}/health`)
       if (!res.ok) throw new Error('off')
       const body = (await res.json()) as VisionHealth
       setHealth(body)
@@ -63,8 +62,8 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
       setError(problem)
       return
     }
-    if (path.trim() === '') {
-      setError('Escribe la ruta del partido en este Mac. El navegador no puede verla solo.')
+    if (!localFile) {
+      setError('Abre el partido en la mesa antes de guardar el tracking.')
       return
     }
     setBusy(true)
@@ -73,12 +72,12 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
     setPhase('')
     const ready = await ensureServer()
     if (!ready) {
-      setError('El navegador no deja hablar con el programa de este PC. Si ya está arrancado, permite la red local en el candado de la barra y pulsa otra vez.')
       setBusy(false)
       return
     }
     try {
-      const res = await fetch(`${VISION_ORIGIN}/match`, {
+      const path = await resolveVideoPath(localFile, setPhase)
+      const res = await visionFetch(`${VISION_ORIGIN}/match`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -116,12 +115,11 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
     setPlaying(false)
     const ready = await ensureServer()
     if (!ready) {
-      setError('El navegador no deja hablar con el programa de este PC. Si ya está arrancado, permite la red local en el candado de la barra y pulsa otra vez.')
       setBusy(false)
       return
     }
     try {
-      const res = await fetch(`${VISION_ORIGIN}/fixture`, { method: 'POST' })
+      const res = await visionFetch(`${VISION_ORIGIN}/fixture`, { method: 'POST' })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error || 'No se pudo leer el tramo')
       const next = body as VisionDoc
@@ -154,15 +152,11 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
         </div>
         {doc ? null : (
         <p>
-          Marca los cuatro pitidos sobre el vídeo que tienes abierto. El programa guarda el tracking a 10 fotogramas por segundo solo con el balón en juego, y lo deja en este Mac, al lado del partido.
+          Marca los cuatro pitidos sobre el vídeo que tienes abierto. El programa guarda el tracking a 10 fotogramas por segundo solo con el balón en juego. Lo deja al lado del partido y también dentro del programa, en este Mac. No hace falta escribir la ruta.
         </p>
         )}
 
-        {down ? (
-          <p className="vd-vision-warn">
-            No llego al programa de este PC. Arráncalo con python3 scripts/vision_server.py. Si ya está arrancado, en el candado de la barra permite el acceso a la red local y pulsa otra vez.
-          </p>
-        ) : health ? null : (
+        {down ? <OfflineHelp /> : health ? null : (
           <p className="vd-vision-meta">Al pulsar, el navegador puede pedir permiso para la red local de este PC. Acéptalo.</p>
         )}
 
@@ -185,14 +179,6 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
             </div>
           ))}
         </div>
-        <label>
-          Ruta del partido en este Mac
-          <input
-            value={path}
-            placeholder="~/Desktop/partido.mp4"
-            onChange={(e) => setPath(e.target.value)}
-          />
-        </label>
         <div className="vd-modal-actions">
           <button type="button" className="vd-btn vd-btn-accent" disabled={busy} onClick={() => void saveMatch()}>
             {busy ? 'Guardando…' : 'Guardar tracking'}
@@ -200,7 +186,7 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
         </div>
         {phase ? <p className="vd-vision-meta">{phase}</p> : null}
         <p className="vd-vision-meta">Hasta que el detector de jugadores esté en este Mac, las posiciones salen de una lectura de colores. El dato ya se guarda con la forma que usarán los módulos siguientes.</p>
-        {localFile ? <p className="vd-vision-meta">Vídeo abierto: {localFile.name}. La ruta de arriba es la de ese mismo archivo en el disco.</p> : null}
+        {localFile ? <p className="vd-vision-meta">Vídeo abierto: {localFile.name}. La primera vez el Mac abre una ventana para señalar ese mismo archivo. Después lo recuerda.</p> : null}
         <div className="vd-modal-actions">
           <button type="button" className="vd-btn" disabled={busy} onClick={() => void runExample()}>
             {busy ? 'Leyendo…' : 'Ver césped de prueba'}
@@ -243,7 +229,8 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
               ))}
             </svg>
             <p>{doc.preview?.note}</p>
-            {doc.preview?.stored_path ? <p className="vd-vision-meta">{doc.preview.stored_path}</p> : null}
+            {doc.preview?.stored_path ? <p className="vd-vision-meta">Al lado del vídeo: {doc.preview.stored_path}</p> : null}
+            {doc.preview?.program_path ? <p className="vd-vision-meta">Dentro del programa: {doc.preview.program_path}</p> : null}
             <p className="vd-vision-meta">
               {doc.preview?.sample_fps ? `${doc.preview.sample_fps} fps · ` : ''}
               {doc.preview?.kept_frames ?? 0} fotogramas · {doc.tracks.filter((track) => track.role === 'player').length} jugadores · {doc.physical?.length ?? 0} con metros visibles
@@ -258,6 +245,41 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
       </div>
     </form>
   )
+}
+
+function OfflineHelp() {
+  return (
+    <p className="vd-vision-warn">
+      No llego al programa de este PC. La Terminal tiene que seguir abierta y decir «Visión escuchando en http://127.0.0.1:8765». Si ya volvió el cursor, el programa se paró: arráncalo otra vez y no cierres esa ventana. Luego{' '}
+      <a href="http://127.0.0.1:8765/health" target="_blank" rel="noreferrer">abre esta comprobación</a>
+      . Si ves {`"ok": true`}, en el candado de Kabine pon Acceso a la red local en Permitir, recarga la página y pulsa otra vez.
+    </p>
+  )
+}
+
+async function resolveVideoPath(file: File, onPhase: (text: string) => void): Promise<string> {
+  onPhase('Busco el partido en este Mac.')
+  const recall = await visionFetch(`${VISION_ORIGIN}/recall`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: file.name, size: file.size }),
+  })
+  const recalled = await recall.json().catch(() => ({}))
+  if (recall.status === 404) throw new Error('El programa de este Mac es el de antes. Ciérralo, actualiza el repo y vuelve a arrancar python3 scripts/vision_server.py.')
+  if (!recall.ok) throw new Error(recalled.error || 'No pude buscar el partido en este Mac')
+  if (recalled.found && recalled.path) return String(recalled.path)
+  onPhase(`Elige «${file.name}» en la ventana del Mac.`)
+  await new Promise((resolve) => window.setTimeout(resolve, 30))
+  const chosen = await visionFetch(`${VISION_ORIGIN}/choose`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: file.name, size: file.size }),
+  })
+  const picked = await chosen.json().catch(() => ({}))
+  if (chosen.status === 404) throw new Error('El programa de este Mac es el de antes. Ciérralo, actualiza el repo y vuelve a arrancar python3 scripts/vision_server.py.')
+  if (!chosen.ok) throw new Error(picked.error || 'No pude elegir el partido')
+  if (!picked.path) throw new Error('No encuentro ese partido en este Mac.')
+  return String(picked.path)
 }
 
 function readMarks(fileKey: string): Partial<Record<WhistleKey, number>> {
@@ -282,7 +304,7 @@ async function waitForMatch(
 ): Promise<{ status: string; error?: string; document?: VisionDoc }> {
   const deadline = Date.now() + 6 * 60 * 60 * 1000
   while (Date.now() < deadline) {
-    const res = await fetch(`${VISION_ORIGIN}/match?path=${encodeURIComponent(videoPath)}`)
+    const res = await visionFetch(`${VISION_ORIGIN}/match?path=${encodeURIComponent(videoPath)}`)
     const body = await res.json()
     if (!res.ok) throw new Error(body.error || 'No se pudo leer el tracking')
     const part = body.phase === 'segunda' ? 'segunda parte' : 'primera parte'

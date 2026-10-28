@@ -1,6 +1,6 @@
 # Visión — pausa y handoff
 
-**Estado:** 28 oct 2026. El dato del módulo 1 es el tracking del partido a 10 fps entre los cuatro pitidos (inicial, final de la 1ª, inicio de la 2ª, pitido final). Se guarda en `nombre.kabine-vision.json` al lado del vídeo, en el Mac. El minimapa de la mesa lo lee. El detector de producto sigue sin estar: hasta entonces las posiciones salen de colores.  
+**Estado:** 28 oct 2026. El dato del módulo 1 es el tracking del partido a 10 fps entre los cuatro pitidos (inicial, final de la 1ª, inicio de la 2ª, pitido final). Se guarda en `nombre.kabine-vision.json` al lado del vídeo y otra copia en `~/.kabine/vision`. No hay que escribir la ruta. El minimapa de la mesa lo lee. El detector de producto sigue sin estar: hasta entonces las posiciones salen de colores.  
 **Ahora:** módulo 1, homografía y tracking entre un inicio y un final. Los módulos 2 (dibujo tipo Sportscode) y 3 (eventos y recortes) están escritos en el plan y no se construyen.  
 **Retomar:** leer este archivo + `docs/VISION_PLAN.md`. El chat largo no hace falta.
 
@@ -72,11 +72,11 @@ Cámara: **Veo**, 3/4 de campo, paneo. Partido típico **4–5 GB**.
 | Script `scripts/vision_bench.py` | Hecho (en `main`) |
 | Bench en el Mac (Apple Silicon, Metal) | Hecho — clip 21 s |
 | 60 s / 10 min / partido entero 4–5 GB | **No hecho** |
-| Panel Visión en la mesa | Botón **Probar Visión** dentro de la mesa, después de abrir un vídeo. Ejemplo de 2 s, archivo de hasta 40 MB, o ruta local. La reproducción automática ya está en producción |
+| Panel Visión en la mesa | Botón **Visión** dentro de la mesa, después de abrir un vídeo. Cuatro pitidos, sin teclear la ruta. Ejemplo de 2 s para ver el césped. La reproducción automática ya está en producción |
 | Permiso de red local | Chrome puede bloquear `https` → `http://127.0.0.1`. El primer intento va en el clic, el botón no se queda muerto, y el texto pide el candado de la barra |
 | `python3 scripts/vision_server.py` | Hecho. Escucha solo en 127.0.0.1:8765 |
 | `vision-worker/` homografía, equipos, balón, filtro de 12 m/s | Hecho y probado con un partido sintético (`python3 tests/test_module1.py`) |
-| `vision-worker/` HTTP 127.0.0.1 | Hecho para la prueba corta (`/health`, `/fixture`, `/preview`, `/preview-file`) |
+| `vision-worker/` HTTP 127.0.0.1 | `/health`, `/fixture`, `/preview`, `/preview-file`, `/match`, `/recall`, `/choose` |
 
 ### Clip de prueba
 
