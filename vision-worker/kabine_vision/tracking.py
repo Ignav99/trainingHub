@@ -38,6 +38,7 @@ class Track:
     _raw_xy: tuple[float, float] | None = None
     _votes: dict[int, int] = field(default_factory=dict)
     _team_votes: dict[int, int] = field(default_factory=dict)
+    _pixel_v: tuple[float, float] | None = None
 
     def foot(self) -> tuple[float, float] | None:
         if self._last_box is None:

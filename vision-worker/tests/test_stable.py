@@ -68,7 +68,7 @@ class StableReadingTests(unittest.TestCase):
             boxes.append(Box(t, "ball", x, 180, 1, 1))
         out = run_span(boxes, start_s=0.0, end_s=0.3, width=width, height=height, fps=10)
         moving = [row for row in out["ball"] if not row["held"]]
-        self.assertLessEqual(len(moving), 2)
+        self.assertEqual(len(moving), 0)
         for prev, row in zip(moving, moving[1:]):
             dist = ((row["x"] - prev["x"]) * PITCH_LENGTH_M) ** 2 + ((row["y"] - prev["y"]) * PITCH_WIDTH_M) ** 2
             speed = dist ** 0.5 / (row["t"] - prev["t"])
@@ -78,11 +78,44 @@ class StableReadingTests(unittest.TestCase):
         width, height = 640.0, 360.0
         boxes = _corners(width, height, 0.0) + _corners(width, height, 0.1)
         boxes.append(Box(0.0, "player", 200, 140, 28, 56, team=0))
-        boxes.append(Box(2.0, "player", 200, 140, 28, 56, team=0))
-        out = run_span(boxes, start_s=0.0, end_s=2.0, width=width, height=height, fps=10)
-        late = [sample for track in out["tracks"] for sample in track["samples"] if sample["t"] >= 2.0]
+        boxes.append(Box(1.2, "player", 210, 140, 28, 56, team=0))
+        boxes.append(Box(4.0, "player", 210, 140, 28, 56, team=0))
+        out = run_span(boxes, start_s=0.0, end_s=4.0, width=width, height=height, fps=10)
+        held = [sample for track in out["tracks"] for sample in track["samples"] if sample["t"] == 1.2]
+        late = [sample for track in out["tracks"] for sample in track["samples"] if sample["t"] >= 4.0]
+        self.assertTrue(held and held[0].get("x") is not None)
         self.assertTrue(late)
         self.assertTrue(all(sample.get("x") is None for sample in late))
+
+    def test_a_blink_does_not_split_the_player(self) -> None:
+        width, height = 640.0, 360.0
+        boxes: list[Box] = []
+        for t, x in ((0.0, 180.0), (0.1, 190.0), (0.3, 230.0), (0.4, 250.0)):
+            boxes.extend(_corners(width, height, t))
+            boxes.append(Box(t, "player", x, 140, 28, 64, team=0, rgb=(240, 240, 240)))
+        out = run_span(boxes, start_s=0.0, end_s=0.4, width=width, height=height, fps=10)
+        players = [track for track in out["tracks"] if track["role"] == "player"]
+        self.assertEqual(len(players), 1)
+        self.assertGreaterEqual(len(players[0]["samples"]), 4)
+
+    def test_a_smooth_ball_stays_and_an_outside_one_does_not(self) -> None:
+        width, height = 640.0, 360.0
+        boxes: list[Box] = []
+        for index in range(6):
+            t = index / 10
+            boxes.extend(_corners(width, height, t))
+            boxes.append(Box(t, "ball", 300 + index * 4, 180, 1, 1))
+        kept = run_span(boxes, start_s=0.0, end_s=0.5, width=width, height=height, fps=10)
+        moving = [row for row in kept["ball"] if not row["held"]]
+        self.assertGreaterEqual(len(moving), 4)
+        self.assertTrue(all(0 <= row["x"] <= 1 and 0 <= row["y"] <= 1 for row in moving))
+        outside: list[Box] = []
+        for index in range(6):
+            t = index / 10
+            outside.extend(_corners(width, height, t))
+            outside.append(Box(t, "ball", 4, 4, 1, 1))
+        dropped = run_span(outside, start_s=0.0, end_s=0.5, width=width, height=height, fps=10)
+        self.assertEqual(dropped["ball"], [])
 
     def test_boards_and_jumping_dots_are_not_the_match(self) -> None:
         marks = {"inicio_1": 0.0, "final_1": 0.9, "inicio_2": 1.2, "final_partido": 2.1}
@@ -104,12 +137,10 @@ class StableReadingTests(unittest.TestCase):
         metrics = doc["metrics"]
         players = [track for track in doc["tracks"] if track["role"] == "player"]
         longest = max(len(track["samples"]) for track in players)
-        moving = [row for row in doc["ball"] if not row["held"]]
         self.assertLessEqual(metrics["max_players_in_frame"], 4)
         self.assertGreaterEqual(longest, 8)
         self.assertEqual(metrics["team_coverage"], 1)
-        self.assertGreaterEqual(len(moving), 2)
-        self.assertLess(len(doc["ball"]), 40)
+        self.assertLess(len(doc["ball"]), 8)
         for prev, row in zip(doc["ball"], doc["ball"][1:]):
             dt = row["t"] - prev["t"]
             if dt <= 0 or dt > 0.25:

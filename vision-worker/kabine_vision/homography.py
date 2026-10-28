@@ -10,10 +10,10 @@ PITCH_WIDTH_M = 68.0
 MAX_SPEED_M_S = 12.0
 # Un disparo cabe aquí. El salto de una mancha blanca a otra, no.
 BALL_MAX_SPEED_M_S = 40.0
-# Sin una calibración nueva, el césped anterior solo vale un segundo y medio.
-H_HOLD_S = 1.5
-# Un paneo mueve el campo unos metros por fotograma. Decenas de metros es un error.
-H_MAX_STEP_M = 18.0
+# Sin líneas nuevas, el césped anterior aguanta un corte breve de la cámara.
+H_HOLD_S = 3.0
+# Un paneo o un temblor de las líneas cabe aquí. Medio campo de golpe, no.
+H_MAX_STEP_M = 28.0
 
 
 def dlt_homography(src: np.ndarray, dst: np.ndarray) -> np.ndarray:
