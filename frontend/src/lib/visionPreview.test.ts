@@ -34,6 +34,9 @@ describe('prueba corta de visión', () => {
     const probe = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../components/video-analyzer/VisionProbe.tsx'), 'utf8')
     assert.match(probe, /setPlaying\(true\)/)
     assert.match(probe, /Pausa/)
+    assert.match(probe, /ensureServer/)
+    assert.match(probe, /red local/)
+    assert.doesNotMatch(probe, /disabled=\{busy \|\| down/)
   })
 
   it('coloca a los nuestros, al árbitro y al balón en el instante pedido', () => {

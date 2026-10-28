@@ -23,20 +23,20 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
   const [t, setT] = useState(0)
   const [playing, setPlaying] = useState(false)
 
-  useEffect(() => {
-    let cancelled = false
-    fetch(`${VISION_ORIGIN}/health`)
-      .then((res) => res.json())
-      .then((body: VisionHealth) => {
-        if (!cancelled) setHealth(body)
-      })
-      .catch(() => {
-        if (!cancelled) setDown(true)
-      })
-    return () => {
-      cancelled = true
+  async function ensureServer() {
+    try {
+      const res = await fetch(`${VISION_ORIGIN}/health`)
+      if (!res.ok) throw new Error('off')
+      const body = (await res.json()) as VisionHealth
+      setHealth(body)
+      setDown(false)
+      return true
+    } catch {
+      setHealth(null)
+      setDown(true)
+      return false
     }
-  }, [])
+  }
 
   useEffect(() => {
     if (!playing || !doc) return
@@ -54,6 +54,12 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
     setBusy(true)
     setError('')
     setPlaying(false)
+    const ready = await ensureServer()
+    if (!ready) {
+      setError('El navegador no deja hablar con el programa de este PC. Si ya está arrancado, permite la red local en el candado de la barra y pulsa otra vez.')
+      setBusy(false)
+      return
+    }
     try {
       const res = await requestPreview(kind, {
         startS,
@@ -101,9 +107,11 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
 
         {down ? (
           <p className="vd-vision-warn">
-            En este PC todavía no está arrancado. Desde la carpeta del proyecto: python3 scripts/vision_server.py. Antes, si falta la librería de vídeo: python3 -m pip install --only-binary=:all: opencv-python-headless numpy
+            No llego al programa de este PC. Arráncalo con python3 scripts/vision_server.py. Si ya está arrancado, en el candado de la barra permite el acceso a la red local y pulsa otra vez.
           </p>
-        ) : null}
+        ) : health ? null : (
+          <p className="vd-vision-meta">Al pulsar, el navegador puede pedir permiso para la red local de este PC. Acéptalo.</p>
+        )}
 
         {health && !doc ? (
           <p>
@@ -139,13 +147,13 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
         <p className="vd-vision-meta">{spanLabel(seconds, frameCap != null && frameCap > 0 ? frameCap : null, stride)}</p>
 
         <div className="vd-modal-actions">
-          <button type="button" className="vd-btn vd-btn-accent" disabled={busy || down} onClick={() => void run('fixture')}>
+          <button type="button" className="vd-btn vd-btn-accent" disabled={busy} onClick={() => void run('fixture')}>
             {busy ? 'Leyendo…' : 'Ver ejemplo de 2 s'}
           </button>
           <button
             type="button"
             className="vd-btn"
-            disabled={busy || down || !localFile || tooBig}
+            disabled={busy || !localFile || tooBig}
             title={tooBig ? 'Pasa de 40 MB. Recorta un trozo o usa un vídeo de pocos megas.' : 'Lee el vídeo que tienes abierto, si pesa 40 MB como mucho.'}
             onClick={() => void run('file')}
           >
@@ -164,7 +172,7 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
           />
         </label>
         <div className="vd-modal-actions">
-          <button type="button" className="vd-btn" disabled={busy || down || path.trim() === ''} onClick={() => void run('path')}>
+          <button type="button" className="vd-btn" disabled={busy || path.trim() === ''} onClick={() => void run('path')}>
             Analizar esa ruta
           </button>
         </div>
