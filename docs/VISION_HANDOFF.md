@@ -1,6 +1,6 @@
 # Visión — pausa y handoff
 
-**Estado:** 27 oct 2026. El núcleo y una prueba corta (segundos, fotogramas o un vídeo de hasta 40 MB) están en `vision-worker/` y en el botón **Probar Visión** de la mesa. Sigue sin RF-DETR y sin el bench de 60 s de un Veo. El programa local es `python3 scripts/vision_server.py` en el puerto 8765.  
+**Estado:** 28 oct 2026. El núcleo y una prueba corta están en `vision-worker/` y en **Probar Visión**. En producción, con el navegador autorizado a hablar con `127.0.0.1:8765`, el ejemplo de 2 s se mueve solo (4 jugadores, balón, pausa y slider). Chrome reciente bloquea esa llamada si no hay permiso de red local: el botón tiene que seguir pulsable y explicar el candado. Sigue sin RF-DETR y sin el bench de 60 s de un Veo. El programa local es `python3 scripts/vision_server.py` en el puerto 8765.  
 **Ahora:** módulo 1, homografía y tracking entre un inicio y un final. Los módulos 2 (dibujo tipo Sportscode) y 3 (eventos y recortes) están escritos en el plan y no se construyen.  
 **Retomar:** leer este archivo + `docs/VISION_PLAN.md`. El chat largo no hace falta.
 
@@ -72,7 +72,8 @@ Cámara: **Veo**, 3/4 de campo, paneo. Partido típico **4–5 GB**.
 | Script `scripts/vision_bench.py` | Hecho (en `main`) |
 | Bench en el Mac (Apple Silicon, Metal) | Hecho — clip 21 s |
 | 60 s / 10 min / partido entero 4–5 GB | **No hecho** |
-| Panel Visión en la mesa | Botón **Probar Visión**: ejemplo de 2 s, o un archivo de hasta 40 MB, o una ruta local |
+| Panel Visión en la mesa | Botón **Probar Visión** dentro de la mesa, después de abrir un vídeo. Ejemplo de 2 s, archivo de hasta 40 MB, o ruta local. La reproducción automática ya está en producción |
+| Permiso de red local | Chrome puede bloquear `https` → `http://127.0.0.1`. El primer intento va en el clic, el botón no se queda muerto, y el texto pide el candado de la barra |
 | `python3 scripts/vision_server.py` | Hecho. Escucha solo en 127.0.0.1:8765 |
 | `vision-worker/` homografía, equipos, balón, filtro de 12 m/s | Hecho y probado con un partido sintético (`python3 tests/test_module1.py`) |
 | `vision-worker/` HTTP 127.0.0.1 | Hecho para la prueba corta (`/health`, `/fixture`, `/preview`, `/preview-file`) |
