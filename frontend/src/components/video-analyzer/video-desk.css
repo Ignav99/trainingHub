@@ -1223,6 +1223,19 @@
   gap: 8px;
 }
 
+.vd-vision-whistles {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.vd-vision-whistle {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
 .vd-vision-meta {
   margin: 0;
   font-family: var(--vd-mono);
