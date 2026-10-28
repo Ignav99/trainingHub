@@ -231,6 +231,38 @@ Qué sigue sin valer para el módulo 2: un id dura dos décimas, el césped vál
 
 ---
 
+## Hacia dónde vamos
+
+El módulo 1 se da por usable en un partido de noche cuando el JSON de Nervión cumpla las cuatro cosas a la vez:
+
+1. La mediana de duración de un id pasa de 1 s.
+2. Hay una racha de homografía de más de 8 s.
+3. El balón está dentro del rectángulo, en cadenas de varias muestras, con mediana por debajo de 20 m/s.
+4. Hay jugadores dentro del campo durante más de unos minutos, no solo 190 s.
+
+Orden: primero el tracker y la calibración (`estable-2`, abajo). Después, si la mediana de id sigue en 0,2 s, el color no da más de sí y el detector pasa a ser RF-DETR en el Mac. BoT-SORT entra solo si, con un detector estable, el paneo de Veo sigue partiendo los ids. El dorsal y el modelo de balón van detrás. Los módulos 2 y 3 no se construyen hasta cumplir el listón.
+
+Cada pasada se anota aquí con el commit del JSON, el `reader` y la tabla contra la anterior.
+
+---
+
+## Lectura `estable-2` (código, pendiente de volver a leer Nervión)
+
+Responde a la tercera pasada, no a un vídeo nuevo. `reader` = `estable-2`. El JSON de las 16:52 no se reabre: hay que `git pull` en `main`, reiniciar `scripts/vision_server.py` y guardar el partido otra vez.
+
+| Lo que salió mal a las 16:52 | Qué hace `estable-2` |
+|---|---|
+| Un id dura 0,2 s. Una caja sin solape no enganchaba aunque el jugador se hubiera movido un cuerpo | Se predice dónde va a estar y se engancha hasta 1,25 cuerpos, durante 2 s. Si el equipo ya está votado, no se cruza con el otro color |
+| La racha de césped bajó de 6,5 s a 3,1 s. Un temblor de unos 20 m tiraba la calibración, y si el suavizado temblaba se tiraba también la medida buena | Se admite un paso de 28 m. Si el suavizado no vale, se queda la medida. Si los jugadores que ya seguimos salen disparados, esa calibración no entra. Sin líneas nuevas el césped aguanta 3 s. Si en un fotograma la mayoría de los pasos son imposibles, se suelta |
+| 806 vistas de balón fuera del rectángulo y 2754 posiciones sostenidas. La cadena mediana dura 1 muestra | El balón tiene que caer dentro del rectángulo, confirmarse 3 veces en menos de medio segundo, y solo se sostiene 3 fotogramas si va a 20 m/s o menos. Una mancha suelta no se guarda |
+| 4130 coordenadas de jugador fuera del rectángulo contaban como válidas | Un pie que cae a más de 6 m del césped se rechaza y no mueve el track |
+
+Medido aquí, sin el MP4: 31 tests en `vision-worker`. Un jugador que desaparece 0,2 s y se mueve 40 px sigue siendo un solo id. Un balón que avanza despacio se queda; uno fuera del campo o que salta de banda a banda no se guarda. Las vallas claras siguen sin contar. El vídeo dibujado de camisetas y acta no empeora.
+
+Esto todavía no pone a los jugadores de verdad. Si la próxima pasada de Nervión sigue con mediana 0,2 s, el siguiente cambio es RF-DETR, no otro ajuste de la máscara.
+
+---
+
 ## Resultado del vídeo dibujado (lo que sí está medido)
 
 `write_field_fixture`: césped, líneas blancas, dos camisetas, dorsales 7 y 8 nuestros, 4 y 5 rivales, balón blanco, árbitro amarillo. 16 fotogramas, 10 fps, dos partes. No es Veo.
@@ -252,7 +284,7 @@ Un 9 pintado y fuera del acta se descarta. Las esquinas naranjas, sin líneas bl
 ## Qué falta para fiarse de un partido de noche
 
 1. **RF-DETR** (Apache) en el Mac, en `~/.cache/kabine-vision/`. Sustituye a la máscara de color. Sin esto, una camiseta blanca sigue pudiendo confundirse con una línea gruesa o una valla clara.
-2. **BoT-SORT** (Apache) para que el id sobreviva al paneo de Veo. El IoU actual aguanta el vídeo dibujado; en Nervión los ids duraban unos 2 s.
+2. **BoT-SORT** (Apache) solo si, con RF-DETR ya puesto, el paneo de Veo sigue partiendo los ids. `estable-2` ya predice el sitio del jugador y engancha un parpadeo de 0,2 s. Si la próxima pasada de Nervión sigue en 0,2 s de mediana, el fallo es el detector de color, no el tracker.
 3. Homografía de líneas de verdad con la cámara a 3/4, no solo el rectángulo exterior del campo entero. Si Veo no enseña las cuatro bandas, el mapeo a 105×68 m es falso.
 4. Balón con modelo de fútbol (el COCO no lo vio en el bench de 21 s). La mancha redonda es un apaño.
 5. Dorsal en plano corto, o un lector entrenado. El 5×7 solo vale cuando el número se ve grande.

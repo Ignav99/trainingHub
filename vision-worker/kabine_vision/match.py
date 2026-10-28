@@ -16,7 +16,7 @@ from .tracking import Box
 
 SAMPLE_FPS = 10.0
 # Si cambia la lectura, un JSON ya guardado se vuelve a calcular.
-READER = "estable-1"
+READER = "estable-2"
 WHISTLE_KEYS = ("inicio_1", "final_1", "inicio_2", "final_partido")
 PITCH_POINTS = 1800
 

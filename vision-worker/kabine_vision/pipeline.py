@@ -13,6 +13,7 @@ import numpy as np
 from .homography import (
     BALL_MAX_SPEED_M_S,
     H_HOLD_S,
+    MAX_SPEED_M_S,
     apply_h,
     blend_homography,
     dlt_homography,
@@ -24,7 +25,8 @@ from .homography import (
 from .tracking import Box, Track, assign_teams, iou, keep_unique_dorsals, smooth_xy, step_metres, vote_dorsal, vote_team
 
 SCHEMA = "kabine.vision.v0"
-HOLD_BALL_FRAMES = 10
+HOLD_BALL_FRAMES = 3
+BALL_CONFIRM = 3
 
 
 def run_span(
@@ -66,6 +68,8 @@ def _track_clean(boxes: list[Box], width: float, height: float, fps: float, our_
     last_ball_v: tuple[float, float] = (0.0, 0.0)
     last_ball_t: float | None = None
     ball_gap = 0
+    ball_streak: list[tuple[float, tuple[float, float]]] = []
+    ball_confirmed = False
 
     for t in sorted(by_t):
         frame = by_t[t]
@@ -73,17 +77,20 @@ def _track_clean(boxes: list[Box], width: float, height: float, fps: float, our_
         fitted = _fit(keypoints, width, height)
         accepted = fitted is not None
         if fitted is not None and last_h is not None:
-            if not homography_step_is_calm(last_h, fitted, width, height):
+            calm = homography_step_is_calm(last_h, fitted, width, height)
+            agrees = _calibration_agrees(fitted, tracks, t)
+            if not calm or not agrees:
                 fitted = None
                 accepted = False
             else:
                 blended = blend_homography(last_h, fitted)
-                calm = homography_step_is_calm(last_h, blended, width, height)
-                if calm and homography_keeps_center_on_pitch(blended, width, height):
+                blend_ok = (
+                    homography_step_is_calm(last_h, blended, width, height)
+                    and homography_keeps_center_on_pitch(blended, width, height)
+                    and _calibration_agrees(blended, tracks, t)
+                )
+                if blend_ok:
                     fitted = blended
-                else:
-                    accepted = False
-                    fitted = None
         if fitted is None:
             held = (
                 last_h is not None
@@ -105,6 +112,8 @@ def _track_clean(boxes: list[Box], width: float, height: float, fps: float, our_
             })
 
         bodies = [box for box in frame if box.kind in {"player", "referee"}]
+        rejected = 0
+        kept = 0
         used: set[int] = set()
         pairs: list[tuple[float, Track, Box]] = []
         for track in tracks:
@@ -123,7 +132,11 @@ def _track_clean(boxes: list[Box], width: float, height: float, fps: float, our_
                 continue
             taken_tracks.add(track.id)
             used.add(id(box))
-            _touch(track, box, t, h)
+            flag = _touch(track, box, t, h)
+            if flag == "reject":
+                rejected += 1
+            elif flag == "ok":
+                kept += 1
         alive_players = sum(1 for track in tracks if track.role == "player" and _seen_recently(track, t))
         alive_referees = sum(1 for track in tracks if track.role == "referee" and _seen_recently(track, t))
         for box in bodies:
@@ -136,47 +149,79 @@ def _track_clean(boxes: list[Box], width: float, height: float, fps: float, our_
                 continue
             track = Track(id=next_id, kind=box.kind, role=role, rgb=box.rgb, team=box.team)
             next_id += 1
-            _touch(track, box, t, h)
+            flag = _touch(track, box, t, h)
+            if flag == "reject":
+                rejected += 1
+            elif flag == "ok":
+                kept += 1
             tracks.append(track)
             if role == "player":
                 alive_players += 1
             else:
                 alive_referees += 1
+        if h is not None and rejected >= 3 and rejected > kept:
+            last_h = None
+            last_accept_t = None
 
+        anchor_xy = ball_streak[-1][1] if ball_streak else None
+        anchor_t = ball_streak[-1][0] if ball_streak else None
         point = _plausible_ball(
             [box for box in frame if box.kind == "ball"],
             h,
-            last_ball_xy,
-            last_ball_t,
+            anchor_xy,
+            anchor_t,
             t,
         )
         if point is not None:
-            if last_ball_xy is not None and last_ball_t is not None and t > last_ball_t:
-                dt = t - last_ball_t
-                last_ball_v = ((point[0] - last_ball_xy[0]) / dt, (point[1] - last_ball_xy[1]) / dt)
-            last_ball_xy = point
-            last_ball_t = t
-            ball_gap = 0
-            ball.append({
-                "t": t,
-                "x": _unit_x(point[0]),
-                "y": _unit_y(point[1]),
-                "in_air": None,
-                "held": False,
-            })
-        elif last_ball_xy is not None and last_ball_t is not None and ball_gap < HOLD_BALL_FRAMES and h is not None:
+            ball_streak.append((t, point))
+            ball_streak = [(stamp, xy) for stamp, xy in ball_streak if t - stamp <= 0.45]
+            if len(ball_streak) >= BALL_CONFIRM:
+                fresh = ball_streak if not ball_confirmed else [(t, point)]
+                for stamp, xy in fresh:
+                    if ball and abs(float(ball[-1]["t"]) - stamp) < 1e-6:
+                        continue
+                    ball.append({
+                        "t": stamp,
+                        "x": _unit_x(xy[0]),
+                        "y": _unit_y(xy[1]),
+                        "in_air": None,
+                        "held": False,
+                    })
+                if anchor_xy is not None and anchor_t is not None and t > anchor_t:
+                    dt = t - anchor_t
+                    last_ball_v = ((point[0] - anchor_xy[0]) / dt, (point[1] - anchor_xy[1]) / dt)
+                ball_confirmed = True
+                last_ball_xy = point
+                last_ball_t = t
+                ball_gap = 0
+        elif (
+            ball_confirmed
+            and last_ball_xy is not None
+            and last_ball_t is not None
+            and ball_gap < HOLD_BALL_FRAMES
+            and h is not None
+            and float(np.hypot(*last_ball_v)) <= 20.0
+        ):
             ball_gap += 1
             dt = 1.0 / fps if fps else 0.0
-            point = (last_ball_xy[0] + last_ball_v[0] * dt, last_ball_xy[1] + last_ball_v[1] * dt)
-            last_ball_xy = point
-            last_ball_t = t
-            ball.append({
-                "t": t,
-                "x": _unit_x(point[0]),
-                "y": _unit_y(point[1]),
-                "in_air": None,
-                "held": True,
-            })
+            held_point = (last_ball_xy[0] + last_ball_v[0] * dt, last_ball_xy[1] + last_ball_v[1] * dt)
+            if on_pitch(held_point[0], held_point[1], margin_m=1.0):
+                last_ball_xy = held_point
+                last_ball_t = t
+                ball_streak.append((t, held_point))
+                ball.append({
+                    "t": t,
+                    "x": _unit_x(held_point[0]),
+                    "y": _unit_y(held_point[1]),
+                    "in_air": None,
+                    "held": True,
+                })
+            else:
+                ball_confirmed = False
+                ball_streak = []
+        else:
+            ball_confirmed = False
+            ball_streak = []
 
     assign_teams(tracks, our_kit, kits)
     keep_unique_dorsals(tracks)
@@ -184,24 +229,63 @@ def _track_clean(boxes: list[Box], width: float, height: float, fps: float, our_
 
 
 def _link_score(track: Track, box: Box, t: float) -> float:
-    if not _seen_recently(track, t, gap=1.2) and track.samples:
+    if not _seen_recently(track, t, gap=2.0) and track.samples:
         return 0.0
     if track._last_box is None:
         return 0.0
+    if (
+        track.team is not None
+        and box.team is not None
+        and track.team != box.team
+        and track._team_votes.get(track.team, 0) >= 2
+    ):
+        return 0.0
     overlap = iou(track._last_box, (box.px, box.py, box.w, box.h))
-    ax = track._last_box[0] + track._last_box[2] / 2.0
-    ay = track._last_box[1] + track._last_box[3] / 2.0
+    ax, ay = _predicted_center(track, t)
     bx = box.px + box.w / 2.0
     by = box.py + box.h / 2.0
     dist = float(np.hypot(ax - bx, ay - by))
-    gate = max(float(track._last_box[3]), float(box.h), 1.0) * 0.9
+    gate = max(float(track._last_box[3]), float(box.h), 24.0) * 1.25
     if overlap < 0.05 and dist > gate:
         return 0.0
     color = 0.5
     if track.rgb is not None and box.rgb is not None:
         color = max(0.0, 1.0 - float(np.linalg.norm(np.subtract(track.rgb, box.rgb))) / 160.0)
     near = max(0.0, 1.0 - dist / gate) if gate else 0.0
-    return 0.62 * overlap + 0.23 * near + 0.15 * color
+    return 0.35 * overlap + 0.45 * near + 0.20 * color
+
+
+def _predicted_center(track: Track, t: float) -> tuple[float, float]:
+    x, y, w, h = track._last_box or (0.0, 0.0, 0.0, 0.0)
+    cx = x + w / 2.0
+    cy = y + h / 2.0
+    if track._pixel_v is not None and track.samples:
+        dt = min(0.4, max(0.0, t - float(track.samples[-1]["t"])))
+        cx += track._pixel_v[0] * dt
+        cy += track._pixel_v[1] * dt
+    return cx, cy
+
+
+def _calibration_agrees(h: np.ndarray, tracks: list[Track], t: float) -> bool:
+    """Una calibración nueva no vale si los jugadores que ya seguimos salen disparados."""
+    speeds: list[float] = []
+    for track in tracks:
+        if track.role != "player" or track._raw_xy is None or track._last_box is None or not track.samples:
+            continue
+        prev_t = float(track.samples[-1]["t"])
+        dt = t - prev_t
+        if dt <= 1e-6 or dt > 0.6:
+            continue
+        foot = track.foot()
+        if foot is None:
+            continue
+        xy = apply_h(h, np.array([foot]))[0]
+        dist = float(np.hypot(float(xy[0]) - track._raw_xy[0], float(xy[1]) - track._raw_xy[1]))
+        speeds.append(dist / dt)
+    if len(speeds) < 2:
+        return True
+    speeds.sort()
+    return speeds[len(speeds) // 2] <= MAX_SPEED_M_S * 1.25
 
 
 def _seen_recently(track: Track, t: float, gap: float = 1.5) -> bool:
@@ -210,13 +294,27 @@ def _seen_recently(track: Track, t: float, gap: float = 1.5) -> bool:
     return t - float(track.samples[-1]["t"]) <= gap
 
 
-def _touch(track: Track, box: Box, t: float, h: np.ndarray | None) -> None:
+def _touch(track: Track, box: Box, t: float, h: np.ndarray | None) -> str:
+    prev_c = None
+    prev_t = float(track.samples[-1]["t"]) if track.samples else None
+    if track._last_box is not None:
+        x, y, w, h_box = track._last_box
+        prev_c = (x + w / 2.0, y + h_box / 2.0)
     track._last_box = (box.px, box.py, box.w, box.h)
+    if prev_c is not None and prev_t is not None and t > prev_t:
+        dt = t - prev_t
+        vx = (box.px + box.w / 2.0 - prev_c[0]) / dt
+        vy = (box.py + box.h / 2.0 - prev_c[1]) / dt
+        if abs(vx) < 2500 and abs(vy) < 2500:
+            if track._pixel_v is None:
+                track._pixel_v = (vx, vy)
+            else:
+                track._pixel_v = (0.5 * track._pixel_v[0] + 0.5 * vx, 0.5 * track._pixel_v[1] + 0.5 * vy)
     if box.rgb is not None:
         track.rgb = box.rgb
     vote_team(track, box.team)
     vote_dorsal(track, box.dorsal)
-    _record(track, box, t, h)
+    return _record(track, box, t, h)
 
 
 def _plausible_ball(
@@ -233,7 +331,7 @@ def _plausible_ball(
     for box in balls:
         xy = apply_h(h, np.array([[box.px, box.py]]))[0]
         point = (float(xy[0]), float(xy[1]))
-        if not on_pitch(point[0], point[1]):
+        if not on_pitch(point[0], point[1], margin_m=1.0):
             continue
         if last_xy is not None and last_t is not None and t > last_t:
             speed = float(np.hypot(point[0] - last_xy[0], point[1] - last_xy[1])) / (t - last_t)
@@ -263,23 +361,29 @@ def _fit(keypoints: list[Box], width: float, height: float) -> np.ndarray | None
     return h
 
 
-def _record(track: Track, box: Box, t: float, h: np.ndarray | None) -> None:
+def _record(track: Track, box: Box, t: float, h: np.ndarray | None) -> str:
     foot = np.array([[box.px + box.w / 2.0, box.py + box.h]])
     sample: dict = {"t": t, "px": round(float(foot[0, 0]), 2), "py": round(float(foot[0, 1]), 2)}
     if h is None:
         track.samples.append(sample)
-        return
+        return "pixel"
     xy = apply_h(h, foot)[0]
     raw = (float(xy[0]), float(xy[1]))
     prev_t = track.samples[-1]["t"] if track.samples else None
-    if track._raw_xy is not None and prev_t is not None:
-        if step_metres(track._raw_xy, raw, t - prev_t) is None:
+    off_pitch = not on_pitch(raw[0], raw[1], margin_m=6.0)
+    too_fast = (
+        track._raw_xy is not None
+        and prev_t is not None
+        and step_metres(track._raw_xy, raw, t - prev_t) is None
+    )
+    if off_pitch or too_fast:
+        if track._smooth_xy is not None or track._raw_xy is not None:
             held = track._smooth_xy if track._smooth_xy is not None else track._raw_xy
             sample["x"] = _unit_x(held[0])
             sample["y"] = _unit_y(held[1])
             sample["rejected_speed"] = True
-            track.samples.append(sample)
-            return
+        track.samples.append(sample)
+        return "reject"
     track._raw_xy = raw
     smoothed = smooth_xy(track._smooth_xy, raw)
     if track._smooth_xy is not None:
@@ -288,6 +392,7 @@ def _record(track: Track, box: Box, t: float, h: np.ndarray | None) -> None:
     sample["x"] = _unit_x(smoothed[0])
     sample["y"] = _unit_y(smoothed[1])
     track.samples.append(sample)
+    return "ok"
 
 
 def _assemble(

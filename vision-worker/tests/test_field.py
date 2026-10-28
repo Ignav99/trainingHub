@@ -70,7 +70,7 @@ class FieldTests(unittest.TestCase):
         self.assertGreaterEqual(sum(1 for box in boxes if box.kind == "keypoint"), 4)
 
     def test_other_shirts_mean_a_new_read(self) -> None:
-        saved = {"whistles": MARKS, "kits": KITS, "roster": ROSTER, "reader": "estable-1"}
+        saved = {"whistles": MARKS, "kits": KITS, "roster": ROSTER, "reader": "estable-2"}
         self.assertTrue(session_match(saved, MARKS, KITS, ROSTER))
         self.assertFalse(session_match({"whistles": MARKS, "kits": KITS, "roster": ROSTER}, MARKS, KITS, ROSTER))
         self.assertFalse(session_match(saved, MARKS, {"ours": "#f5f5f5", "rival": "#aa0000"}, ROSTER))
