@@ -68,6 +68,7 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
       const next = body as VisionDoc
       setDoc(next)
       setT(timeExtent(next).start)
+      setPlaying(true)
     } catch (err) {
       setDoc(null)
       setError(err instanceof Error ? err.message : 'No se pudo leer el tramo')
@@ -81,17 +82,22 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
 
   return (
     <form
-      className="vd-modal-back"
+      className="vd-modal-back vd-vision-back"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
       onSubmit={(e) => e.preventDefault()}
     >
       <div className="vd-modal vd-vision" onMouseDown={(e) => e.stopPropagation()}>
-        <h2>Probar Visión</h2>
+        <div className="vd-vision-head">
+          <h2>Probar Visión</h2>
+          <button type="button" className="vd-btn" onClick={onClose}>Cerrar</button>
+        </div>
+        {doc ? null : (
         <p>
           Elige unos segundos, unos fotogramas, o un vídeo de hasta 40 MB. El programa corre en este PC y el partido no se sube.
         </p>
+        )}
 
         {down ? (
           <p className="vd-vision-warn">
@@ -99,12 +105,14 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
           </p>
         ) : null}
 
-        {health ? (
+        {health && !doc ? (
           <p>
             {health.note} El detector del producto todavía no está en este PC: el ejemplo de abajo es un césped dibujado.
           </p>
         ) : null}
 
+        {doc ? null : (
+        <>
         <div className="vd-vision-grid">
           <label>
             Desde (s)
@@ -131,7 +139,6 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
         <p className="vd-vision-meta">{spanLabel(seconds, frameCap != null && frameCap > 0 ? frameCap : null, stride)}</p>
 
         <div className="vd-modal-actions">
-          <button type="button" className="vd-btn" onClick={onClose}>Cerrar</button>
           <button type="button" className="vd-btn vd-btn-accent" disabled={busy || down} onClick={() => void run('fixture')}>
             {busy ? 'Leyendo…' : 'Ver ejemplo de 2 s'}
           </button>
@@ -161,15 +168,30 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
             Analizar esa ruta
           </button>
         </div>
+        </>
+        )}
 
         {error ? <p className="vd-vision-warn">{error}</p> : null}
 
         {doc ? (
           <div className="vd-vision-result">
-            <p>{doc.preview?.note}</p>
-            <p className="vd-vision-meta">
-              {doc.preview?.kept_frames ?? 0} fotogramas · {doc.tracks.filter((track) => track.role === 'player').length} jugadores · {doc.physical?.length ?? 0} con metros visibles
-            </p>
+            <div className="vd-vision-play">
+              <button type="button" className="vd-btn vd-btn-accent" onClick={() => setPlaying((on) => !on)}>
+                {playing ? 'Pausa' : 'Reproducir'}
+              </button>
+              <input
+                type="range"
+                min={extent.start}
+                max={Math.max(extent.start + 0.1, extent.end)}
+                step={0.1}
+                value={Math.min(extent.end, Math.max(extent.start, t))}
+                onChange={(e) => {
+                  setPlaying(false)
+                  setT(Number(e.target.value))
+                }}
+              />
+              <span className="vd-vision-meta">{t.toFixed(1)} s</span>
+            </div>
             <svg className="vd-vision-pitch" viewBox="0 0 105 68" role="img" aria-label="Césped del tramo">
               <rect className="vd-vision-grass" x="0" y="0" width="105" height="68" />
               <line x1="52.5" y1="0" x2="52.5" y2="68" />
@@ -182,30 +204,15 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
                 </g>
               ))}
             </svg>
-            <div className="vd-vision-play">
-              <button type="button" className="vd-btn" onClick={() => setPlaying((on) => !on)}>
-                {playing ? 'Pausa' : 'Reproducir'}
+            <p>{doc.preview?.note}</p>
+            <p className="vd-vision-meta">
+              {doc.preview?.kept_frames ?? 0} fotogramas · {doc.tracks.filter((track) => track.role === 'player').length} jugadores · {doc.physical?.length ?? 0} con metros visibles
+            </p>
+            <div className="vd-modal-actions">
+              <button type="button" className="vd-btn" onClick={() => { setDoc(null); setPlaying(false) }}>
+                Otro tramo
               </button>
-              <input
-                type="range"
-                min={extent.start}
-                max={extent.end}
-                step={0.1}
-                value={Math.min(extent.end, Math.max(extent.start, t))}
-                onChange={(e) => {
-                  setPlaying(false)
-                  setT(Number(e.target.value))
-                }}
-              />
-              <span className="vd-vision-meta">{t.toFixed(1)} s</span>
             </div>
-            <ul className="vd-vision-metres">
-              {(doc.physical ?? []).map((row) => (
-                <li key={row.track_id}>
-                  Jugador {row.track_id}: {row.visible_m.toFixed(2)} m · {row.note}
-                </li>
-              ))}
-            </ul>
           </div>
         ) : null}
       </div>
