@@ -1,6 +1,6 @@
 # Visión — plan de análisis automático en Video Análisis
 
-> **Reapertura (27 oct 2026).** Tres módulos. Ahora solo el 1: homografía y tracking automático entre un inicio y un final. El 2 (dibujo tipo Sportscode) y el 3 (eventos y recortes automáticos) quedan escritos aquí y no se construyen todavía. Handoff: [`docs/VISION_HANDOFF.md`](./VISION_HANDOFF.md).
+> **Reapertura (27 oct 2026).** Tres módulos. Ahora solo el 1: homografía y tracking automático entre un inicio y un final. El 2 (dibujo tipo Sportscode) y el 3 (eventos y recortes automáticos) quedan escritos aquí y no se construyen todavía. Memoria de estado, números y tecnologías: [`docs/VISION_MEMORIA.md`](./VISION_MEMORIA.md). Handoff: [`docs/VISION_HANDOFF.md`](./VISION_HANDOFF.md).
 >
 > El PDF de 8 páginas (*Open-Source Computer Vision Stack for Soccer Video Analysis, 2025-2026*) se leyó en septiembre y **no está en `docs/`**: vivía en `_inbox/` (gitignore). Este archivo es el plan.
 
@@ -14,7 +14,7 @@ El partido sigue sin salir del PC. El worker escribe JSON; la mesa lo lee.
 
 ### 1 — Homografía y tracking (el que se hace ahora)
 
-El entrenador marca cuatro pitidos en el vídeo: inicial, final de la primera parte, inicio de la segunda y pitido final. Visión recorre solo esos dos tramos, a 10 fotogramas por segundo. No se escribe la ruta: el programa recuerda el archivo o abre el selector del Mac. El JSON queda al lado del partido (`nombre.kabine-vision.json`) y hay otra copia en `~/.kabine/vision`. El descanso y lo de antes y después no entra.
+El entrenador marca cuatro pitidos en el vídeo: inicial, final de la primera parte, inicio de la segunda y pitido final. En la misma pantalla marca el color de la camiseta nuestra y el de la rival. Los dorsales salen del acta de ese partido (convocatoria y dorsales rivales del anotador) y se pueden corregir ahí. Visión recorre solo esos dos tramos, a 10 fotogramas por segundo. No se escribe la ruta: el programa recuerda el archivo o abre el selector del Mac. El JSON queda al lado del partido (`nombre.kabine-vision.json`) y hay otra copia en `~/.kabine/vision`. El descanso y lo de antes y después no entra. Si cambian los colores o los dorsales, el partido se vuelve a leer.
 
 Lee los **dos equipos**, cada futbolista, el balón y el árbitro. Mantiene el mismo id cuando la cámara de Veo panea. Calcula la **homografía sola**, frame a frame, y la suaviza. Si un frame cae fuera del campo, se descarta esa homografía y se arrastra la última válida (la misma regla que Hudl Tracking Data aplicó el 13 may 2026: rechazar calibraciones fuera del césped).
 

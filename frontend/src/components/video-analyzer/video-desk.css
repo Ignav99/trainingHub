@@ -1236,6 +1236,43 @@
   align-items: center;
 }
 
+.vd-vision-whistle input[type="color"] {
+  width: 42px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--vd-line);
+  background: transparent;
+  cursor: pointer;
+}
+
+.vd-vision-dorsals {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.vd-vision-dorsals label {
+  display: grid;
+  grid-template-columns: 1fr minmax(140px, 1.2fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.vd-vision-dorsals input {
+  font-family: var(--vd-mono);
+  font-size: 12px;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--vd-line);
+  padding: 6px 8px;
+}
+
+.vd-vision-number {
+  fill: #f7f4ea;
+  font-size: 3.2px;
+  font-family: ui-monospace, monospace;
+}
+
 .vd-vision-meta {
   margin: 0;
   font-family: var(--vd-mono);

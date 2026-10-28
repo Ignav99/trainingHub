@@ -68,6 +68,16 @@ def whistles_match(saved: dict | None, marks: dict[str, float]) -> bool:
     return True
 
 
+def session_match(saved: dict | None, marks: dict[str, float], kits: dict | None, roster: dict | None) -> bool:
+    """Los mismos pitidos, camisetas y dorsales no vuelven a leer el vídeo."""
+    whistles = saved.get("whistles") if isinstance(saved.get("whistles"), dict) else saved
+    if not whistles_match(whistles, marks):
+        return False
+    if not isinstance(saved, dict):
+        return False
+    return _canon_kits(saved.get("kits")) == _canon_kits(kits) and _canon_roster(saved.get("roster")) == _canon_roster(roster)
+
+
 def file_summary(doc: dict, stored: Path | None = None) -> dict:
     tracks = doc.get("tracks") or []
     players = [track for track in tracks if track.get("role") == "player"]
@@ -85,6 +95,7 @@ def file_summary(doc: dict, stored: Path | None = None) -> dict:
         "with_metres": sum(1 for row in (doc.get("physical") or []) if (row.get("visible_m") or 0) > 0),
         "bytes": size,
         "detector": (doc.get("preview") or {}).get("detector") or "blobs",
+        "metrics": doc.get("metrics") or quality_metrics(doc),
     }
 
 
@@ -99,12 +110,20 @@ def pitch_check(doc: dict, stored: Path | None = None) -> dict:
         "ball_samples": summary["ball"],
         "homography_accepted": summary["homography_accepted"],
         "with_metres": summary["with_metres"],
+        "metrics": summary.get("metrics"),
     })
     note = (
         f"Guardado en este Mac: {summary['kept_frames']} fotogramas, {summary['players']} jugadores, "
         f"{summary['ball']} posiciones de balón, {summary['homography_accepted']} homografías válidas."
     )
-    if summary["detector"] == "blobs":
+    metrics = summary.get("metrics") or {}
+    if summary["detector"] == "field":
+        note += (
+            f" Con el color de camiseta: {metrics.get('teams_assigned', 0)} de {summary['players']}."
+            f" Dorsales del acta leídos: {metrics.get('dorsals_in_acta', 0)}."
+            " Un partido de noche sigue necesitando el detector de producto para que cada punto sea un jugador de verdad."
+        )
+    elif summary["detector"] == "blobs":
         note += " El detector sigue siendo el de colores: un partido real todavía no coloca a los jugadores de verdad."
     preview["note"] = note
     return {
@@ -143,6 +162,7 @@ def _thin_track(track: dict) -> dict:
         "id": track.get("id"),
         "team": track.get("team"),
         "role": track.get("role"),
+        "dorsal": track.get("dorsal"),
         "samples": _thin_rows(track.get("samples") or []),
     }
 
@@ -154,6 +174,9 @@ def analyze_match(
     sample_fps: float = SAMPLE_FPS,
     detector: Detector,
     our_kit: str = "white",
+    kits: dict | None = None,
+    roster: dict | None = None,
+    detector_name: str = "blobs",
     on_progress: Callable[[str, int], None] | None = None,
 ) -> dict:
     import cv2
@@ -196,6 +219,7 @@ def analyze_match(
                 height=height,
                 fps=fps / stride,
                 our_kit=our_kit,
+                kits=kits,
             ))
     finally:
         cap.release()
@@ -205,10 +229,14 @@ def analyze_match(
     program = program_copy_for(video)
     doc["source"]["sample_fps"] = rate
     doc["source"]["path"] = "local"
+    doc["kits"] = _canon_kits(kits)
+    doc["roster"] = _canon_roster(roster)
+    doc["our_kit"] = (doc["kits"] or {}).get("ours") or our_kit
+    doc["metrics"] = quality_metrics(doc)
     doc["preview"] = {
         "kept_frames": kept,
         "sample_fps": rate,
-        "detector": "blobs",
+        "detector": detector_name,
         "stored_path": str(stored),
         "program_path": str(program),
         "note": "Tracking a 10 fotogramas por segundo entre los pitidos. Una copia queda al lado del vídeo y otra dentro del programa, en este PC.",
@@ -288,6 +316,7 @@ def _merge(pieces: list[dict], whistles: dict[str, float], spans: list[tuple[str
         merged["ball"].extend(piece["ball"])
         merged["homography"].extend(piece["homography"])
         merged["physical"].extend(piece["physical"])
+    merged["source"]["duration_s"] = round(sum(end_s - start_s for _, start_s, end_s in spans), 3)
     merged["whistles"] = whistles
     merged["spans"] = [
         {"name": name, "start_s": start_s, "end_s": end_s}
@@ -310,6 +339,87 @@ def _write(path: Path, doc: dict) -> None:
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
     temporary.replace(path)
+
+
+def quality_metrics(doc: dict) -> dict:
+    tracks = doc.get("tracks") or []
+    players = [track for track in tracks if track.get("role") == "player"]
+    samples = [sample for track in players for sample in (track.get("samples") or [])]
+    on_pitch = sum(1 for sample in samples if sample.get("x") is not None and sample.get("y") is not None and not sample.get("rejected_speed"))
+    teams = sum(1 for track in players if track.get("team") is not None)
+    roster = _canon_roster(doc.get("roster"))
+    legal = set(roster["ours"]) | set(roster["rival"])
+    dorsals = [track.get("dorsal") for track in players if track.get("dorsal") is not None]
+    in_acta = sum(1 for number in dorsals if not legal or int(number) in legal)
+    homography = doc.get("homography") or []
+    spans = doc.get("spans") or []
+
+    def accepted_between(start_s: float, end_s: float) -> int:
+        total = 0
+        for row in homography:
+            if not row.get("accepted") or row.get("t") is None:
+                continue
+            stamp = float(row["t"])
+            if start_s - 0.05 <= stamp <= end_s + 0.05:
+                total += 1
+        return total
+
+    by_half = {}
+    for span in spans:
+        by_half[str(span.get("name") or "")] = accepted_between(float(span.get("start_s") or 0), float(span.get("end_s") or 0))
+    counts: dict[float, int] = {}
+    for sample in samples:
+        stamp = round(float(sample.get("t") or 0), 3)
+        counts[stamp] = counts.get(stamp, 0) + 1
+    return {
+        "players": len(players),
+        "teams_assigned": teams,
+        "team_coverage": round(teams / len(players), 3) if players else 0,
+        "dorsals_read": len(dorsals),
+        "dorsals_in_acta": in_acta,
+        "ball_samples": len(doc.get("ball") or []),
+        "homography_accepted": sum(1 for row in homography if row.get("accepted")),
+        "homography_primera": by_half.get("primera", 0),
+        "homography_segunda": by_half.get("segunda", 0),
+        "samples": len(samples),
+        "samples_on_pitch": on_pitch,
+        "pitch_coverage": round(on_pitch / len(samples), 3) if samples else 0,
+        "max_players_in_frame": max(counts.values()) if counts else 0,
+        "with_metres": sum(1 for row in (doc.get("physical") or []) if (row.get("visible_m") or 0) > 0),
+    }
+
+
+def _canon_kits(kits: dict | None) -> dict | None:
+    from .tracking import hex_to_rgb
+
+    if not isinstance(kits, dict):
+        return None
+    canon = {}
+    for key in ("ours", "rival"):
+        rgb = hex_to_rgb(kits.get(key))
+        if rgb is None:
+            return None
+        canon[key] = "#{:02x}{:02x}{:02x}".format(int(rgb[0]), int(rgb[1]), int(rgb[2]))
+    if canon["ours"] == canon["rival"]:
+        return None
+    return canon
+
+
+def _canon_roster(roster: dict | None) -> dict[str, list[int]]:
+    found = {"ours": [], "rival": []}
+    if not isinstance(roster, dict):
+        return found
+    for key in ("ours", "rival"):
+        numbers: list[int] = []
+        for item in roster.get(key) or []:
+            try:
+                number = int(item)
+            except (TypeError, ValueError):
+                continue
+            if 0 <= number <= 99 and number not in numbers:
+                numbers.append(number)
+        found[key] = numbers[:30]
+    return found
 
 
 def load_sidecar(path: Path) -> dict | None:

@@ -17,7 +17,7 @@ from .homography import (
     homography_keeps_center_on_pitch,
     length_is_pitch,
 )
-from .tracking import Box, Track, assign_teams, iou, smooth_xy, step_metres
+from .tracking import Box, Track, assign_teams, iou, keep_unique_dorsals, smooth_xy, step_metres, vote_dorsal
 
 SCHEMA = "kabine.vision.v0"
 HOLD_BALL_FRAMES = 10
@@ -32,12 +32,13 @@ def run_span(
     height: float,
     fps: float,
     our_kit: str = "white",
+    kits: dict | None = None,
 ) -> dict:
     if end_s < start_s:
         raise ValueError("el final es anterior al inicio")
     chosen = [box for box in boxes if start_s - 1e-6 <= box.t <= end_s + 1e-6]
     return _assemble(
-        _track_clean(chosen, width, height, fps, our_kit),
+        _track_clean(chosen, width, height, fps, our_kit, kits),
         fps=fps,
         width=width,
         height=height,
@@ -47,7 +48,7 @@ def run_span(
     )
 
 
-def _track_clean(boxes: list[Box], width: float, height: float, fps: float, our_kit: str) -> dict:
+def _track_clean(boxes: list[Box], width: float, height: float, fps: float, our_kit: str, kits: dict | None) -> dict:
     by_t: dict[float, list[Box]] = defaultdict(list)
     for box in boxes:
         by_t[round(box.t, 3)].append(box)
@@ -94,8 +95,8 @@ def _track_clean(boxes: list[Box], width: float, height: float, fps: float, our_
             for box in bodies:
                 if track.kind != box.kind:
                     continue
-                score = iou(track._last_box, (box.px, box.py, box.w, box.h))
-                if score >= 0.2:
+                score = _link_score(track, box, t)
+                if score >= 0.22:
                     pairs.append((score, track, box))
         pairs.sort(key=lambda item: item[0], reverse=True)
         taken_tracks: set[int] = set()
@@ -104,23 +105,25 @@ def _track_clean(boxes: list[Box], width: float, height: float, fps: float, our_
                 continue
             taken_tracks.add(track.id)
             used.add(id(box))
-            track._last_box = (box.px, box.py, box.w, box.h)
-            if box.rgb is not None:
-                track.rgb = box.rgb
-            _record(track, box, t, h)
+            _touch(track, box, t, h)
+        alive_players = sum(1 for track in tracks if track.role == "player" and _seen_recently(track, t))
+        alive_referees = sum(1 for track in tracks if track.role == "referee" and _seen_recently(track, t))
         for box in bodies:
             if id(box) in used:
                 continue
-            track = Track(
-                id=next_id,
-                kind=box.kind,
-                role="referee" if box.kind == "referee" else "player",
-                rgb=box.rgb,
-            )
+            role = "referee" if box.kind == "referee" else "player"
+            if role == "player" and alive_players >= 26:
+                continue
+            if role == "referee" and alive_referees >= 4:
+                continue
+            track = Track(id=next_id, kind=box.kind, role=role, rgb=box.rgb, team=box.team)
             next_id += 1
-            track._last_box = (box.px, box.py, box.w, box.h)
-            _record(track, box, t, h)
+            _touch(track, box, t, h)
             tracks.append(track)
+            if role == "player":
+                alive_players += 1
+            else:
+                alive_referees += 1
 
         ball_box = next((box for box in frame if box.kind == "ball"), None)
         if ball_box is not None and h is not None:
@@ -153,8 +156,46 @@ def _track_clean(boxes: list[Box], width: float, height: float, fps: float, our_
                 "held": True,
             })
 
-    assign_teams(tracks, our_kit)
+    assign_teams(tracks, our_kit, kits)
+    keep_unique_dorsals(tracks)
     return {"tracks": tracks, "ball": ball, "homography": homographies}
+
+
+def _link_score(track: Track, box: Box, t: float) -> float:
+    if not _seen_recently(track, t, gap=1.2) and track.samples:
+        return 0.0
+    if track._last_box is None:
+        return 0.0
+    overlap = iou(track._last_box, (box.px, box.py, box.w, box.h))
+    ax = track._last_box[0] + track._last_box[2] / 2.0
+    ay = track._last_box[1] + track._last_box[3] / 2.0
+    bx = box.px + box.w / 2.0
+    by = box.py + box.h / 2.0
+    dist = float(np.hypot(ax - bx, ay - by))
+    gate = max(float(track._last_box[3]), float(box.h), 1.0) * 0.9
+    if overlap < 0.05 and dist > gate:
+        return 0.0
+    color = 0.5
+    if track.rgb is not None and box.rgb is not None:
+        color = max(0.0, 1.0 - float(np.linalg.norm(np.subtract(track.rgb, box.rgb))) / 160.0)
+    near = max(0.0, 1.0 - dist / gate) if gate else 0.0
+    return 0.62 * overlap + 0.23 * near + 0.15 * color
+
+
+def _seen_recently(track: Track, t: float, gap: float = 1.5) -> bool:
+    if not track.samples:
+        return False
+    return t - float(track.samples[-1]["t"]) <= gap
+
+
+def _touch(track: Track, box: Box, t: float, h: np.ndarray | None) -> None:
+    track._last_box = (box.px, box.py, box.w, box.h)
+    if box.rgb is not None:
+        track.rgb = box.rgb
+    if box.team is not None:
+        track.team = box.team
+    vote_dorsal(track, box.dorsal)
+    _record(track, box, t, h)
 
 
 def _fit(keypoints: list[Box], width: float, height: float) -> np.ndarray | None:
@@ -228,6 +269,7 @@ def _assemble(
                 "id": track.id,
                 "team": track.team,
                 "role": track.role,
+                "dorsal": track.dorsal,
                 "samples": track.samples,
             }
             for track in tracks
