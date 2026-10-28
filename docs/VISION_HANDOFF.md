@@ -1,6 +1,6 @@
 # Visión — pausa y handoff
 
-**Estado:** 28 oct 2026. Memoria corta para otra IA: [`docs/VISION_MEMORIA.md`](./VISION_MEMORIA.md). El dato del módulo 1 es el tracking a 10 fps entre los cuatro pitidos. El entrenador marca también el color de las dos camisetas, igual que los pitidos. Los dorsales salen del acta del partido (convocatoria y dorsales rivales del anotador) y solo se acepta un número si está en esa lista. El JSON sigue al lado del vídeo y en `~/.kabine/vision`. El detector de producto (RF-DETR) sigue sin estar: la lectura actual usa césped, líneas y color de camiseta. Un partido de noche todavía no coloca a cada jugador de verdad.  
+**Estado:** 28 oct 2026. Memoria corta para otra IA: [`docs/VISION_MEMORIA.md`](./VISION_MEMORIA.md). El dato del módulo 1 es el tracking a 10 fps entre los cuatro pitidos. El entrenador marca también el color de las dos camisetas, igual que los pitidos. Los dorsales salen del acta del partido (convocatoria y dorsales rivales del anotador) y solo se acepta un número si está en esa lista. El JSON sigue al lado del vídeo y en `~/.kabine/vision`, en `pack1` (diferencias) para caber en la subida web de GitHub, 25 MB. `scripts/vision_compact.py` recomprime un archivo ya escrito sin leer el vídeo. El detector de producto (RF-DETR) sigue sin estar: la lectura actual usa césped, líneas y color de camiseta. Un partido de noche todavía no coloca a cada jugador de verdad.  
 **Ahora:** módulo 1. Los módulos 2 y 3 no se construyen.  
 **Retomar:** `docs/VISION_MEMORIA.md`, este archivo y `docs/VISION_PLAN.md`.
 

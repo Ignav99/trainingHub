@@ -6,7 +6,6 @@ después del final no se leen. El JSON se queda al lado del vídeo y hay otra co
 
 from __future__ import annotations
 
-import json
 from collections.abc import Callable
 from pathlib import Path
 
@@ -335,10 +334,9 @@ def _merge(pieces: list[dict], whistles: dict[str, float], spans: list[tuple[str
 
 
 def _write(path: Path, doc: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
-    temporary.replace(path)
+    from .compact import atomic_write_document
+
+    atomic_write_document(path, doc)
 
 
 def quality_metrics(doc: dict) -> dict:
@@ -423,6 +421,6 @@ def _canon_roster(roster: dict | None) -> dict[str, list[int]]:
 
 
 def load_sidecar(path: Path) -> dict | None:
-    if not path.is_file():
-        return None
-    return json.loads(path.read_text(encoding="utf-8"))
+    from .compact import read_document
+
+    return read_document(path, repack=True, metrics_fn=quality_metrics)

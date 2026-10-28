@@ -28,12 +28,23 @@ El partido (4–5 GB, Veo) **no sale del PC**. Ni Render, ni Supabase, ni una GP
 | HTTP | `vision-worker/kabine_vision/server.py` |
 | Plan y handoff | `docs/VISION_PLAN.md`, `docs/VISION_HANDOFF.md` |
 
-JSON en disco:
+JSON en disco (`encoding: "pack1"`, sigue siendo `.kabine-vision.json`):
 
 - Al lado del vídeo: `mismo-nombre.kabine-vision.json`
 - Copia del programa: `~/.kabine/vision/partidos/{nombre}-{bytes}.kabine-vision.json`
 - Índice: `~/.kabine/vision/index.json` (clave `filename:size`)
 - Override: `KABINE_VISION_DIR`
+- Escritura: `vision-worker/kabine_vision/compact.py`. El worker expande al leer (`load_sidecar`). El navegador sigue recibiendo muestras `{t, px, py, x, y}`.
+
+La web de GitHub no acepta un archivo de más de **25 MB**. El JSON largo de Nervión pesaba 17,5 MB y, con x,y en casi todas las muestras, pasa de 25 MB. pack1 guarda diferencias en vez de repetir las claves. Medido el 28 oct 2026 sobre el archivo real: **17,5 MB → 4,8 MB**, las 370107 muestras iguales. El mismo partido con x,y en todas las muestras cabe en **6,1 MB**.
+
+Recomprimir el archivo que ya existe, sin volver a leer el vídeo:
+
+```bash
+python3 scripts/vision_compact.py "/ruta/al/partido.kabine-vision.json"
+```
+
+Al abrir un JSON antiguo, el server también lo reescribe en pack1. Dentro del archivo, el campo `pack` explica las letras a otra IA. `P` solo píxel, `F` césped, `R` velocidad rechazada, `B` balón, `H` balón retenido. Tiempo en ms, píxel en décimas, x/y en diezmilésimas del campo. La primera muestra de cada track es absoluta y el resto son diferencias. `metrics` queda en claro al principio.
 
 Si los pitidos, los dos colores y los dorsales coinciden con el archivo (±0,05 s en los pitidos), `POST /match` no vuelve a leer el vídeo.
 
@@ -166,7 +177,7 @@ Hay que volver a lanzar ese partido **después** de `git pull` en `main` y de re
 | Máximo de jugadores en un fotograma | 4 |
 | Tracks con metros | 8 |
 
-Un 9 pintado y fuera del acta se descarta. Las esquinas naranjas, sin líneas blancas, siguen abriendo el campo. Tests: `python3 -m unittest tests.test_field tests.test_module1 tests.test_match tests.test_preview` dentro de `vision-worker`. Front: `node --experimental-strip-types --test src/lib/visionPreview.test.ts`.
+Un 9 pintado y fuera del acta se descarta. Las esquinas naranjas, sin líneas blancas, siguen abriendo el campo. Tests: `python3 -m unittest tests.test_compact tests.test_field tests.test_module1 tests.test_match tests.test_preview` dentro de `vision-worker`. Front: `node --experimental-strip-types --test src/lib/visionPreview.test.ts`.
 
 ---
 
@@ -193,5 +204,11 @@ $PY scripts/vision_server.py
 ```
 
 La última línea tiene que ser `Visión escuchando en http://127.0.0.1:8765`. Dejar la terminal abierta. En Kabine: abrir el partido, Visión, cuatro pitidos, colores, dorsales, Guardar tracking.
+
+Si el JSON ya está escrito y pesa más de 25 MB, no hace falta repetir el partido:
+
+```bash
+$PY scripts/vision_compact.py "/Users/User/Desktop/VEO/J5 CAC B VS NERVION/CAC B VS NERVION.kabine-vision.json"
+```
 
 Permiso de Escritorio para Terminal si el vídeo está en el Escritorio (Ajustes → Privacidad y seguridad → Archivos y carpetas).
