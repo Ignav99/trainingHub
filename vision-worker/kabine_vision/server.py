@@ -48,6 +48,14 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, _body(_match_status(_query_path(self.path))))
             except PreviewError as exc:
                 self._send(400, _body({"error": str(exc)}))
+            except (BrokenPipeError, ConnectionResetError):
+                print("[visión] el navegador cortó la respuesta. Si el proceso había terminado, el archivo ya está en el disco.", flush=True)
+            except Exception as exc:
+                print(f"[visión] no pude entregar el césped: {exc}. El archivo, si se escribió, está al lado del vídeo.", flush=True)
+                try:
+                    self._send(500, _body({"error": "el tracking puede estar ya guardado al lado del vídeo. El césped no se ha podido abrir."}))
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
             return
         if route != "/health":
             self._send(404, _body({"error": "no existe"}))
@@ -139,15 +147,18 @@ class Handler(BaseHTTPRequestHandler):
         return self.rfile.read(length)
 
     def _send(self, code: int, body: bytes) -> None:
-        self.send_response(code)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Private-Network", "true")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Start-S, X-Seconds, X-Frames, X-Stride")
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Private-Network", "true")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Start-S, X-Seconds, X-Frames, X-Stride")
+            self.end_headers()
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            print("[visión] el navegador cortó la respuesta. Si el proceso había terminado, el archivo ya está en el disco.", flush=True)
 
 
 def _fixture() -> dict:
@@ -212,6 +223,12 @@ def start_match_job(raw_path: str, whistles: dict, sample_fps: float = 10) -> di
         current = _jobs.get(key)
         if current and current.get("status") == "running":
             return _public_job(current)
+    saved = _saved_job(video, marks)
+    if saved is not None:
+        with _jobs_lock:
+            _jobs[key] = saved
+        return _public_job(saved)
+    with _jobs_lock:
         job = {
             "status": "running",
             "phase": "primera",
@@ -236,11 +253,10 @@ def start_match_job(raw_path: str, whistles: dict, sample_fps: float = 10) -> di
                 detector=detect_blobs,
                 on_progress=on_progress,
             )
+            finished = _job_from_doc(sidecar_for(video), doc)
             with _jobs_lock:
-                job["status"] = "done"
-                job["kept_frames"] = doc["preview"]["kept_frames"]
-                job["stored_path"] = doc["preview"]["stored_path"]
-                job["document"] = doc
+                job.clear()
+                job.update(finished)
         except Exception as exc:
             with _jobs_lock:
                 job["status"] = "error"
@@ -251,7 +267,7 @@ def start_match_job(raw_path: str, whistles: dict, sample_fps: float = 10) -> di
 
 
 def _match_status(raw_path: str) -> dict:
-    from .match import load_sidecar, sidecar_for
+    from .match import sidecar_for
 
     video = Path(os.path.expanduser(raw_path.strip())).resolve()
     key = str(video)
@@ -259,18 +275,54 @@ def _match_status(raw_path: str) -> dict:
         current = _jobs.get(key)
         if current:
             return _public_job(current)
+    saved = _saved_job(video, None)
+    if saved is None:
+        if not sidecar_for(video).is_file():
+            raise PreviewError("ese partido todavía no tiene tracking")
+        raise PreviewError("el archivo está al lado del vídeo, pero no pude abrirlo")
+    return _public_job(saved)
+
+
+def _saved_job(video: Path, marks: dict | None) -> dict | None:
+    from .match import load_sidecar, sidecar_for, whistles_match
+
     stored = sidecar_for(video)
-    doc = load_sidecar(stored)
-    if doc is None:
-        raise PreviewError("ese partido todavía no tiene tracking")
+    if not stored.is_file() or stored.stat().st_size <= 0:
+        return None
+    try:
+        doc = load_sidecar(stored)
+    except MemoryError:
+        return {
+            "status": "done",
+            "phase": "listo",
+            "kept_frames": 0,
+            "stored_path": str(stored),
+            "error": "el archivo está guardado, pero es demasiado grande para dibujarlo",
+            "sample_fps": 10,
+        }
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(doc, dict):
+        return None
+    if marks is not None and not whistles_match(doc.get("whistles"), marks):
+        return None
+    return _job_from_doc(stored, doc)
+
+
+def _job_from_doc(stored: Path, doc: dict) -> dict:
+    from .match import file_summary, pitch_check
+
+    summary = file_summary(doc, stored)
     return {
         "status": "done",
         "phase": "listo",
-        "kept_frames": (doc.get("preview") or {}).get("kept_frames") or 0,
+        "kept_frames": summary["kept_frames"],
         "stored_path": str(stored),
+        "program_path": (doc.get("preview") or {}).get("program_path"),
         "error": None,
         "sample_fps": (doc.get("preview") or {}).get("sample_fps") or 10,
-        "document": doc,
+        "summary": summary,
+        "document": pitch_check(doc, stored),
     }
 
 
@@ -283,6 +335,10 @@ def _public_job(job: dict) -> dict:
         "error": job.get("error"),
         "sample_fps": job.get("sample_fps") or 10,
     }
+    if job.get("summary") is not None:
+        public["summary"] = job["summary"]
+    if job.get("program_path"):
+        public["program_path"] = job["program_path"]
     if job.get("status") == "done" and job.get("document") is not None:
         public["document"] = job["document"]
     return public

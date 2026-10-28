@@ -96,7 +96,7 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
       if (!res.ok) throw new Error(started.error || 'No se pudo guardar el tracking')
       const done = await waitForMatch(path, setPhase)
       if (done.status === 'error') throw new Error(done.error || 'No se pudo guardar el tracking')
-      if (!done.document) throw new Error('El tracking se guardó, pero no pude abrirlo en el césped.')
+      if (!done.document) throw new Error(done.error || 'El tracking está guardado al lado del vídeo, pero no pude abrirlo en el césped.')
       setDoc(done.document)
       setT(done.document.spans?.[0]?.start_s ?? timeExtent(done.document).start)
       setPlaying(true)
@@ -233,8 +233,10 @@ export function VisionProbe({ localFile, currentTime, onClose }: Props) {
             {doc.preview?.program_path ? <p className="vd-vision-meta">Dentro del programa: {doc.preview.program_path}</p> : null}
             <p className="vd-vision-meta">
               {doc.preview?.sample_fps ? `${doc.preview.sample_fps} fps · ` : ''}
-              {doc.preview?.kept_frames ?? 0} fotogramas · {doc.tracks.filter((track) => track.role === 'player').length} jugadores · {doc.physical?.length ?? 0} con metros visibles
+              {doc.preview?.kept_frames ?? 0} fotogramas · {doc.preview?.players ?? doc.tracks.filter((track) => track.role === 'player').length} jugadores · {doc.preview?.with_metres ?? doc.physical?.length ?? 0} con metros visibles
+              {doc.preview?.homography_accepted != null ? ` · ${doc.preview.homography_accepted} homografías válidas` : ''}
             </p>
+            {doc.preview?.bytes ? <p className="vd-vision-meta">{(doc.preview.bytes / (1024 * 1024)).toFixed(1)} MB en el disco. El césped es una comprobación de ese archivo.</p> : null}
             <div className="vd-modal-actions">
               <button type="button" className="vd-btn" onClick={() => { setDoc(null); setPlaying(false) }}>
                 Volver a los pitidos
@@ -305,7 +307,12 @@ async function waitForMatch(
   const deadline = Date.now() + 6 * 60 * 60 * 1000
   while (Date.now() < deadline) {
     const res = await visionFetch(`${VISION_ORIGIN}/match?path=${encodeURIComponent(videoPath)}`)
-    const body = await res.json()
+    let body: { status: string; error?: string; document?: VisionDoc; phase?: string; kept_frames?: number }
+    try {
+      body = await res.json()
+    } catch {
+      throw new Error('El navegador no ha podido leer la respuesta. Si el proceso había terminado, el archivo está al lado del vídeo: mismo nombre y extensión .kabine-vision.json.')
+    }
     if (!res.ok) throw new Error(body.error || 'No se pudo leer el tracking')
     const part = body.phase === 'segunda' ? 'segunda parte' : 'primera parte'
     onPhase(body.status === 'running' ? `Leyendo la ${part}. ${body.kept_frames ?? 0} fotogramas. Puedes dejar esta ventana abierta.` : '')
