@@ -1,6 +1,6 @@
 # Visión — pausa y handoff
 
-**Estado:** 28 oct 2026. El dato del módulo 1 es el tracking del partido a 10 fps entre los cuatro pitidos (inicial, final de la 1ª, inicio de la 2ª, pitido final). Se guarda en `nombre.kabine-vision.json` al lado del vídeo y otra copia en `~/.kabine/vision`. No hay que escribir la ruta. El minimapa de la mesa lo lee. El detector de producto sigue sin estar: hasta entonces las posiciones salen de colores.  
+**Estado:** 28 oct 2026. El dato del módulo 1 es el tracking del partido a 10 fps entre los cuatro pitidos (inicial, final de la 1ª, inicio de la 2ª, pitido final). Se guarda en `nombre.kabine-vision.json` al lado del vídeo y otra copia en `~/.kabine/vision`. No hay que escribir la ruta. El minimapa lee una comprobación de ese archivo; si el archivo ya existe con los mismos pitidos, no se vuelve a leer el partido. El detector de producto sigue sin estar: hasta entonces las posiciones salen de colores.  
 **Ahora:** módulo 1, homografía y tracking entre un inicio y un final. Los módulos 2 (dibujo tipo Sportscode) y 3 (eventos y recortes) están escritos en el plan y no se construyen.  
 **Retomar:** leer este archivo + `docs/VISION_PLAN.md`. El chat largo no hace falta.
 

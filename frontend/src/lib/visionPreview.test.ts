@@ -40,6 +40,8 @@ describe('prueba corta de visión', () => {
     assert.match(probe, /red local/)
     assert.match(probe, /8765\/health/)
     assert.match(probe, /dentro del programa/)
+    assert.match(probe, /kabine-vision.json/)
+    assert.match(probe, /homografías válidas/)
     assert.doesNotMatch(probe, /Ruta del partido/)
     assert.doesNotMatch(probe, /disabled=\{busy \|\| down/)
   })

@@ -27,6 +27,10 @@ export type VisionDoc = {
     sample_fps?: number
     stored_path?: string
     program_path?: string
+    bytes?: number
+    players?: number
+    homography_accepted?: number
+    with_metres?: number
   }
   events?: unknown[]
   phases?: unknown[]

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 import tempfile
@@ -13,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from kabine_vision.blobs import detect_blobs, write_fixture
 from kabine_vision.library import choose_video, native_picker, program_copy_for, recall_video, remember
-from kabine_vision.match import analyze_match, ordered_whistles, sidecar_for
+from kabine_vision.match import analyze_match, file_summary, ordered_whistles, pitch_check, sidecar_for
 from kabine_vision.preview import PreviewError
 from kabine_vision.server import start_match_job
 
@@ -107,6 +108,49 @@ class MatchWhistleTests(unittest.TestCase):
         if sys.platform != "darwin":
             with self.assertRaises(PreviewError):
                 native_picker("partido.mp4")
+
+    def test_a_saved_file_opens_without_reading_the_video_again(self) -> None:
+        video = write_fixture(Path(self._dir.name) / "partido.avi", frames=20, fps=10)
+        marks = {"inicio_1": 0.0, "final_1": 0.5, "inicio_2": 1.0, "final_partido": 1.5}
+        analyze_match(str(video), marks, sample_fps=10, detector=detect_blobs)
+        opened = start_match_job(str(video), marks, sample_fps=10)
+        self.assertEqual(opened["status"], "done")
+        self.assertGreaterEqual(opened["summary"]["players"], 4)
+        self.assertGreater(opened["summary"]["samples"], 0)
+        self.assertEqual(opened["document"]["schema"], "kabine.vision.v0")
+        full = file_summary(json.loads(sidecar_for(video).read_text(encoding="utf-8")), sidecar_for(video))
+        self.assertEqual(full["samples"], opened["summary"]["samples"])
+
+    def test_the_pitch_check_is_shorter_than_the_file(self) -> None:
+        samples = [{"t": index / 10, "x": 0.2, "y": 0.4} for index in range(5000)]
+        doc = {
+            "schema": "kabine.vision.v0",
+            "tracks": [{"id": 1, "team": 0, "role": "player", "samples": samples}],
+            "ball": samples,
+            "homography": [{"t": 0, "accepted": False}] * 5000,
+            "physical": [{"track_id": 1, "visible_m": 12, "note": "solo lo que se ve"}],
+            "preview": {"kept_frames": 5000, "detector": "blobs"},
+        }
+        view = pitch_check(doc)
+        self.assertGreater(file_summary(doc)["samples"], len(view["tracks"][0]["samples"]))
+        self.assertLessEqual(len(view["tracks"][0]["samples"]), 1800)
+        self.assertEqual(view["preview"]["samples"], 5000)
+        self.assertEqual(view["preview"]["homography_accepted"], 0)
+
+    def test_a_failed_program_copy_still_keeps_the_file_beside_the_video(self) -> None:
+        blocker = Path(self._dir.name) / "ocupado"
+        blocker.write_text("x")
+        os.environ["KABINE_VISION_DIR"] = str(blocker / "vision")
+        video = write_fixture(Path(self._dir.name) / "partido.avi", frames=20, fps=10)
+        doc = analyze_match(
+            str(video),
+            {"inicio_1": 0.0, "final_1": 0.5, "inicio_2": 1.0, "final_partido": 1.5},
+            sample_fps=10,
+            detector=detect_blobs,
+        )
+        self.assertTrue(sidecar_for(video).is_file())
+        self.assertIsNone(doc["preview"]["program_path"])
+        self.assertGreaterEqual(file_summary(doc, sidecar_for(video))["players"], 4)
 
 
 if __name__ == "__main__":

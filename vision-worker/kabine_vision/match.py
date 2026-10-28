@@ -17,6 +17,7 @@ from .tracking import Box
 
 SAMPLE_FPS = 10.0
 WHISTLE_KEYS = ("inicio_1", "final_1", "inicio_2", "final_partido")
+PITCH_POINTS = 1800
 
 
 def ordered_whistles(raw: dict) -> dict[str, float]:
@@ -55,6 +56,95 @@ def sample_stride(video_fps: float, sample_fps: float = SAMPLE_FPS) -> int:
 
 def sidecar_for(video: Path) -> Path:
     return video.with_name(video.stem + ".kabine-vision.json")
+
+
+def whistles_match(saved: dict | None, marks: dict[str, float]) -> bool:
+    if not isinstance(saved, dict):
+        return False
+    for key, value in marks.items():
+        other = saved.get(key)
+        if other is None or abs(float(other) - float(value)) > 0.05:
+            return False
+    return True
+
+
+def file_summary(doc: dict, stored: Path | None = None) -> dict:
+    tracks = doc.get("tracks") or []
+    players = [track for track in tracks if track.get("role") == "player"]
+    ball = doc.get("ball") or []
+    homography = doc.get("homography") or []
+    size = stored.stat().st_size if stored is not None and stored.is_file() else None
+    return {
+        "kept_frames": (doc.get("preview") or {}).get("kept_frames") or 0,
+        "players": len(players),
+        "tracks": len(tracks),
+        "samples": sum(len(track.get("samples") or []) for track in players),
+        "ball": len(ball),
+        "homography_accepted": sum(1 for row in homography if row.get("accepted")),
+        "homography": len(homography),
+        "with_metres": sum(1 for row in (doc.get("physical") or []) if (row.get("visible_m") or 0) > 0),
+        "bytes": size,
+        "detector": (doc.get("preview") or {}).get("detector") or "blobs",
+    }
+
+
+def pitch_check(doc: dict, stored: Path | None = None) -> dict:
+    """Copia pequeña para el césped. El JSON del disco conserva todos los fotogramas."""
+    summary = file_summary(doc, stored)
+    preview = dict(doc.get("preview") or {})
+    preview.update({
+        "bytes": summary["bytes"],
+        "players": summary["players"],
+        "samples": summary["samples"],
+        "ball_samples": summary["ball"],
+        "homography_accepted": summary["homography_accepted"],
+        "with_metres": summary["with_metres"],
+    })
+    note = (
+        f"Guardado en este Mac: {summary['kept_frames']} fotogramas, {summary['players']} jugadores, "
+        f"{summary['ball']} posiciones de balón, {summary['homography_accepted']} homografías válidas."
+    )
+    if summary["detector"] == "blobs":
+        note += " El detector sigue siendo el de colores: un partido real todavía no coloca a los jugadores de verdad."
+    preview["note"] = note
+    return {
+        "schema": doc.get("schema"),
+        "source": doc.get("source"),
+        "job": doc.get("job"),
+        "our_team": doc.get("our_team"),
+        "our_kit": doc.get("our_kit"),
+        "whistles": doc.get("whistles"),
+        "spans": doc.get("spans"),
+        "events": doc.get("events") or [],
+        "phases": doc.get("phases") or [],
+        "physical": doc.get("physical") or [],
+        "tracks": [_thin_track(track) for track in doc.get("tracks") or []],
+        "ball": _thin_rows(doc.get("ball") or []),
+        "homography": _thin_rows(doc.get("homography") or []),
+        "preview": preview,
+    }
+
+
+def _size_label(size: int) -> str:
+    if size >= 1024 * 1024:
+        return f"{size / (1024 * 1024):.1f} MB"
+    return f"{max(1, size // 1024)} KB"
+
+
+def _thin_rows(rows: list) -> list:
+    if len(rows) <= PITCH_POINTS:
+        return rows
+    step = (len(rows) + PITCH_POINTS - 1) // PITCH_POINTS
+    return rows[::step]
+
+
+def _thin_track(track: dict) -> dict:
+    return {
+        "id": track.get("id"),
+        "team": track.get("team"),
+        "role": track.get("role"),
+        "samples": _thin_rows(track.get("samples") or []),
+    }
 
 
 def analyze_match(
@@ -123,9 +213,21 @@ def analyze_match(
         "program_path": str(program),
         "note": "Tracking a 10 fotogramas por segundo entre los pitidos. Una copia queda al lado del vídeo y otra dentro del programa, en este PC.",
     }
+    try:
+        _write(program, doc)
+        remember(video, stored_path=str(stored), program_path=str(program))
+    except OSError as exc:
+        doc["preview"]["program_path"] = None
+        doc["preview"]["program_error"] = "la copia dentro del programa no se pudo escribir"
+        print(f"[visión] la copia interna no se escribió: {exc}", flush=True)
     _write(stored, doc)
-    _write(program, doc)
-    remember(video, stored_path=str(stored), program_path=str(program))
+    summary = file_summary(doc, stored)
+    print(
+        f"Visión guardada en {stored} ({_size_label(summary['bytes'] or 0)}, "
+        f"{summary['kept_frames']} fotogramas, {summary['players']} jugadores, "
+        f"{summary['homography_accepted']} homografías).",
+        flush=True,
+    )
     return doc
 
 
