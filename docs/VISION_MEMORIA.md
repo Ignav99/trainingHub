@@ -207,6 +207,30 @@ Eso quita el balón a 363 m/s y el césped pegado durante minutos. No pone a los
 
 ---
 
+## Tercera pasada: Nervión con `estable-1` (28 oct 2026, 16:52 Europe/Madrid)
+
+Archivo sustituido en `main` por el commit `ebe39d9` (`Add files via upload`). Mismo nombre, `pack1`, `reader` `estable-1`, 2,8 MB. Detector `field`. Pitidos, camisetas y acta iguales. 57254 fotogramas.
+
+| Medida | Field (15:57) | estable-1 (esta pasada) |
+|---|---|---|
+| Tracks de jugador | 14752. Árbitros: 0 | 14262. Árbitros: 0 |
+| Equipo | 4199 nuestros, 10553 rival | 4165 nuestros, 10097 rival |
+| Muestras de jugador | 160961 | 144151 |
+| Con x,y y sin salto imposible | 56101. Fuera del rectángulo: 28268 | 7011. Fuera del rectángulo: 4130. Dentro: 2881 |
+| Segundos con alguien dentro del campo | — | 190 s de 5731 s de partido |
+| Homografías aceptadas | 1572 (1478 / 94). Racha 6,5 s | 1386 (1259 / 127). Racha 3,1 s. Ninguna de 5 s |
+| Balón | 56564. Mediana 363 m/s | 4380 (1626 vistas, 2754 sostenidas). Mediana 13,7 m/s. Máximo 39,9. Ningún paso corto por encima de 40. 806 de las 1626 vistas caen fuera del rectángulo. La cadena mediana dura 1 muestra; la más larga, 53 |
+| Gente en un fotograma | mediana 3, p90 7, máximo 17 | mediana 2, p90 6, máximo 16 |
+| Duración de un id | mediana 0,2 s. El más largo: 67 s | mediana 0,2 s (2 muestras). p90: 3,0 s. El más largo: 58 s y casi sin metros |
+| Dorsales | 23 tracks. El 1, 30 s; el 5, 29 s | 21 tracks, números 1, 2, 3, 4, 5, 7, 8, 13, 15, 16, 17 y 21. El 1, 30 s; el 5, 29 s; el 3, 25 s. El mismo número sigue saliendo en varios tracks |
+| Metros | suma 15647 m | suma 1965 m. 529 tracks pasan de 1 m. El máximo de un id: 15 m |
+
+Qué sí cambió: el balón ya no cruza el campo a cientos de metros por segundo, y las coordenadas que quedan se mueven a velocidad de persona (mediana 2,4 m/s entre las que no se rechazan). El archivo baja de 4,9 MB a 2,8 MB.
+
+Qué sigue sin valer para el módulo 2: un id dura dos décimas, el césped válido cabe en unos tres minutos sueltos del partido, y el balón sigue siendo manchas claras en el borde (la mitad de las vistas caen fuera del rectángulo, y muchas de las de dentro están en la banda). El tope de 40 m/s frena el disparate; no encuentra el balón. La máscara de color de noche no ha cambiado. Sigue haciendo falta RF-DETR en el Mac. Los módulos 2 y 3 siguen sin construirse.
+
+---
+
 ## Resultado del vídeo dibujado (lo que sí está medido)
 
 `write_field_fixture`: césped, líneas blancas, dos camisetas, dorsales 7 y 8 nuestros, 4 y 5 rivales, balón blanco, árbitro amarillo. 16 fotogramas, 10 fps, dos partes. No es Veo.
