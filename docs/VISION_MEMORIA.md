@@ -163,6 +163,29 @@ Hay que volver a lanzar ese partido **después** de `git pull` en `main` y de re
 
 ---
 
+## Segunda pasada: Nervión con camisetas y acta (28 oct 2026, 15:57 Europe/Madrid)
+
+Archivo sustituido en `main` por el commit `e083ee0` (`Add files via upload`). Mismo nombre, ahora `pack1`, 4,9 MB. Detector `field`. Pitidos iguales. 57254 fotogramas. Camiseta nuestra `#ffffff`, rival `#fff157`. Acta nuestra: 2, 3, 5, 7, 13, 18, 19, 20, 21, 23, 24, 1, 4, 8, 10, 16, 17, 25. Acta rival en el JSON: solo 3, 8 y 15.
+
+| Medida | Blobs (antes) | Field (esta pasada) |
+|---|---|---|
+| Tracks de jugador | 5280 | 14752. Árbitros: 0 |
+| Equipo | null en todos | todos etiquetados: 4199 nuestros, 10553 rival |
+| Muestras de jugador | 356043 | 160961 |
+| Con x,y y sin salto imposible | 39730 | 56101. De esas, 28268 caen fuera del rectángulo del campo |
+| Homografías aceptadas | 9, unos 9 s, solo 1ª | 1572 (1478 en la 1ª, 94 en la 2ª). Racha más larga: 6,5 s. Ninguna de 30 s |
+| Balón | 0 | 56564 posiciones. Velocidad mediana 363 m/s. No es el balón |
+| Gente en un fotograma | mediana 4, máximo 53 | mediana 3, p90 7, máximo 17 |
+| Duración de un id | mediana ~2 s | mediana 2 muestras (0,2 s). p90: 22 muestras. El más largo: 67 s y casi todo rechazado por velocidad |
+| Dorsales | 0 | 23 tracks. El más estable: el 1 nuestro, 30 s; el 5, 29 s. El mismo número sale en varios tracks |
+| Metros | suma 11846, no usable | suma 15647 m. Mediana de quien se mueve: 1,2 m. No usable |
+
+Qué sí cambió: las dos partes tienen alguna coordenada, el tope por fotograma bajó de 53 a 17, y el acta llega a leer un dorsal de cerca durante unos segundos.
+
+Qué sigue sin valer para el módulo 2: la identidad (un id dura un par de décimas), el césped (la calibración no aguanta) y el balón (cualquier mancha blanca redonda). El rival `#fff157` es amarillo, así que el lector de árbitro se apaga. La máscara del blanco coge cualquier zona clara. En la 2ª parte, 5982 de 7027 tracks quedan como rival y solo hay 94 homografías válidas.
+
+---
+
 ## Resultado del vídeo dibujado (lo que sí está medido)
 
 `write_field_fixture`: césped, líneas blancas, dos camisetas, dorsales 7 y 8 nuestros, 4 y 5 rivales, balón blanco, árbitro amarillo. 16 fotogramas, 10 fps, dos partes. No es Veo.
