@@ -11,17 +11,18 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from .blobs import detect_blobs, write_fixture
+from .library import VIDEO_EXT, choose_video, recall_video
 from .preview import PreviewError, analyze_video
 
 HOST = "127.0.0.1"
 PORT = 8765
 MAX_BYTES = 40 * 1024 * 1024
-VIDEO_EXT = {".mp4", ".mov", ".m4v", ".avi", ".webm", ".mkv"}
 
 
 def main() -> None:
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     print(f"Visión escuchando en http://{HOST}:{PORT}", flush=True)
+    print("Deja esta ventana abierta. Si vuelve el cursor, el programa se ha parado.", flush=True)
     print("El partido no sale de este PC. Ctrl+C para parar.", flush=True)
     try:
         server.serve_forever()
@@ -75,6 +76,12 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/match":
                 self._send(200, _body(self._start_match()))
                 return
+            if path == "/recall":
+                self._send(200, _body(self._recall()))
+                return
+            if path == "/choose":
+                self._send(200, _body(self._choose()))
+                return
         except PreviewError as exc:
             self._send(400, _body({"error": str(exc)}))
             return
@@ -93,6 +100,14 @@ class Handler(BaseHTTPRequestHandler):
             return _with_note(analyze_video(handle.name, detector=detect_blobs, **_limits(self.headers)), upload=True)
         finally:
             os.unlink(handle.name)
+
+    def _recall(self) -> dict:
+        payload = json.loads(self._read_body().decode("utf-8") or "{}")
+        return recall_video(str(payload.get("name") or ""), int(payload.get("size") or 0))
+
+    def _choose(self) -> dict:
+        payload = json.loads(self._read_body().decode("utf-8") or "{}")
+        return choose_video(str(payload.get("name") or ""), int(payload.get("size") or 0))
 
     def _start_match(self) -> dict:
         payload = json.loads(self._read_body().decode("utf-8") or "{}")

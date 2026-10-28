@@ -1,7 +1,7 @@
 """Tracking de un partido entero, solo con el balón en juego.
 
 Los cuatro pitidos recortan el ruido: antes del inicio, el descanso y lo de
-después del final no se leen. El JSON se queda al lado del vídeo, en este PC.
+después del final no se leen. El JSON se queda al lado del vídeo y hay otra copia dentro del programa.
 """
 
 from __future__ import annotations
@@ -10,6 +10,7 @@ import json
 from collections.abc import Callable
 from pathlib import Path
 
+from .library import program_copy_for, remember
 from .pipeline import run_span
 from .preview import Detector, PreviewError
 from .tracking import Box
@@ -111,6 +112,7 @@ def analyze_match(
 
     doc = _merge(pieces, marks, spans)
     stored = sidecar_for(video)
+    program = program_copy_for(video)
     doc["source"]["sample_fps"] = rate
     doc["source"]["path"] = "local"
     doc["preview"] = {
@@ -118,9 +120,12 @@ def analyze_match(
         "sample_fps": rate,
         "detector": "blobs",
         "stored_path": str(stored),
-        "note": "Tracking a 10 fotogramas por segundo entre los pitidos. El archivo se queda en este PC.",
+        "program_path": str(program),
+        "note": "Tracking a 10 fotogramas por segundo entre los pitidos. Una copia queda al lado del vídeo y otra dentro del programa, en este PC.",
     }
     _write(stored, doc)
+    _write(program, doc)
+    remember(video, stored_path=str(stored), program_path=str(program))
     return doc
 
 

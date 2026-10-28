@@ -26,6 +26,7 @@ export type VisionDoc = {
     note?: string
     sample_fps?: number
     stored_path?: string
+    program_path?: string
   }
   events?: unknown[]
   phases?: unknown[]
@@ -49,6 +50,14 @@ export function whistleProblem(marks: Partial<Record<WhistleKey, number>>): stri
     }
   }
   return null
+}
+
+export function visionFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  try {
+    return fetch(url, { ...init, targetAddressSpace: 'loopback' } as RequestInit)
+  } catch {
+    return fetch(url, init)
+  }
 }
 
 export type VisionHealth = {
