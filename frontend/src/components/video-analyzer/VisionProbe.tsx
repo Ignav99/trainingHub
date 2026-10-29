@@ -495,7 +495,11 @@ async function waitForMatch(
     }
     if (!res.ok) throw new Error(body.error || 'No se pudo leer el tracking')
     const part = body.phase === 'segunda' ? 'segunda parte' : 'primera parte'
-    onPhase(body.status === 'running' ? `Leyendo la ${part}. ${body.kept_frames ?? 0} fotogramas. Puedes dejar esta ventana abierta.` : '')
+    const running =
+      body.phase === 'calibrando'
+        ? 'Calibrando la cámara y las camisetas con fotogramas de todo el partido. Tarda unos 10–15 minutos.'
+        : `Leyendo la ${part}. ${body.kept_frames ?? 0} fotogramas. Puedes dejar esta ventana abierta.`
+    onPhase(body.status === 'running' ? running : '')
     if (body.status === 'done' || body.status === 'error') return body
     await new Promise((resolve) => window.setTimeout(resolve, 800))
   }

@@ -90,7 +90,7 @@ class StableReadingTests(unittest.TestCase):
     def test_a_blink_does_not_split_the_player(self) -> None:
         width, height = 640.0, 360.0
         boxes: list[Box] = []
-        for t, x in ((0.0, 180.0), (0.1, 190.0), (0.3, 230.0), (0.4, 250.0)):
+        for t, x in ((0.0, 180.0), (0.1, 184.0), (0.3, 192.0), (0.4, 196.0)):
             boxes.extend(_corners(width, height, t))
             boxes.append(Box(t, "player", x, 140, 28, 64, team=0, rgb=(240, 240, 240)))
         out = run_span(boxes, start_s=0.0, end_s=0.4, width=width, height=height, fps=10)

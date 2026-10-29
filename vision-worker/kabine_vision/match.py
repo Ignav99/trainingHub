@@ -16,7 +16,8 @@ from .tracking import Box
 
 SAMPLE_FPS = 10.0
 # Si cambia la lectura, un JSON ya guardado se vuelve a calcular.
-READER = "estable-2"
+READER = "camara-1"
+PREPARE_FRAMES = 16
 WHISTLE_KEYS = ("inicio_1", "final_1", "inicio_2", "final_partido")
 PITCH_POINTS = 1800
 
@@ -202,6 +203,11 @@ def analyze_match(
         width = float(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
         height = float(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
         stride = sample_stride(fps, rate)
+        prepare = getattr(detector, "prepare", None)
+        if callable(prepare):
+            if on_progress:
+                on_progress("calibrando", 0)
+            prepare(_spread_frames(cap, fps, spans, PREPARE_FRAMES))
         for name, start_s, end_s in spans:
             boxes, span_kept, last_t = _read_span(
                 cap,
@@ -301,6 +307,23 @@ def _read_span(
                 on_frame(already + kept)
         index += 1
     return boxes, kept, last_t
+
+
+def _spread_frames(cap, fps: float, spans: list[tuple[str, float, float]], count: int) -> list:
+    """Fotogramas repartidos por las dos partes para conocer cámara, campo y camisetas."""
+    total = sum(end_s - start_s for _, start_s, end_s in spans)
+    frames = []
+    for i in range(count):
+        at = (i + 0.5) * total / count
+        for _, start_s, end_s in spans:
+            if at <= end_s - start_s:
+                cap.set(cap_prop_pos_frames(), int(round((start_s + at) * fps)))
+                ok, frame = cap.read()
+                if ok and frame is not None:
+                    frames.append(frame)
+                break
+            at -= end_s - start_s
+    return frames
 
 
 def cap_prop_pos_frames() -> int:

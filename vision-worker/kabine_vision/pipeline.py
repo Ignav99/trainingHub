@@ -27,6 +27,17 @@ from .tracking import Box, Track, assign_teams, iou, keep_unique_dorsals, smooth
 SCHEMA = "kabine.vision.v0"
 HOLD_BALL_FRAMES = 3
 BALL_CONFIRM = 3
+PITCH_LINK_GAP_S = 3.0
+# Error de la calibración a 50 m de la cámara: el paso de 0,1 s no puede pedir más precisión que esto.
+POSITION_NOISE_M = 1.2
+STITCH_GAP_S = 4.0
+STITCH_GATE_M = 1.5
+STITCH_SPEED_M_S = 4.0
+STITCH_CLEAR = 1.5
+PITCH_GATE_M = 2.0
+PITCH_GATE_SPEED_M_S = 7.0
+# Con tantos puntos la homografía viene de una cámara calibrada: mezclarla con la anterior la retrasa al girar.
+EXACT_KEYPOINTS = 12
 
 
 def run_span(
@@ -76,9 +87,10 @@ def _track_clean(boxes: list[Box], width: float, height: float, fps: float, our_
         keypoints = [box for box in frame if box.kind == "keypoint" and box.pitch_xy is not None]
         fitted = _fit(keypoints, width, height)
         accepted = fitted is not None
+        exact = len(keypoints) >= EXACT_KEYPOINTS
         if fitted is not None and last_h is not None:
             calm = homography_step_is_calm(last_h, fitted, width, height)
-            agrees = _calibration_agrees(fitted, tracks, t)
+            agrees = exact or _calibration_agrees(fitted, tracks, t)
             if not calm or not agrees:
                 fitted = None
                 accepted = False
@@ -89,7 +101,7 @@ def _track_clean(boxes: list[Box], width: float, height: float, fps: float, our_
                     and homography_keeps_center_on_pitch(blended, width, height)
                     and _calibration_agrees(blended, tracks, t)
                 )
-                if blend_ok:
+                if blend_ok and not exact:
                     fitted = blended
         if fitted is None:
             held = (
@@ -120,9 +132,7 @@ def _track_clean(boxes: list[Box], width: float, height: float, fps: float, our_
             if track._last_box is None:
                 continue
             for box in bodies:
-                if track.kind != box.kind:
-                    continue
-                score = _link_score(track, box, t)
+                score = _link_score(track, box, t, h)
                 if score >= 0.22:
                     pairs.append((score, track, box))
         pairs.sort(key=lambda item: item[0], reverse=True)
@@ -223,22 +233,111 @@ def _track_clean(boxes: list[Box], width: float, height: float, fps: float, our_
             ball_confirmed = False
             ball_streak = []
 
+    for track in tracks:
+        if track._role_votes:
+            track.role = max(track._role_votes, key=track._role_votes.get)
+            track.kind = track.role
+    tracks = _stitch(tracks)
     assign_teams(tracks, our_kit, kits)
     keep_unique_dorsals(tracks)
     return {"tracks": tracks, "ball": ball, "homography": homographies}
 
 
-def _link_score(track: Track, box: Box, t: float) -> float:
-    if not _seen_recently(track, t, gap=2.0) and track.samples:
-        return 0.0
+def _stitch(tracks: list[Track]) -> list[Track]:
+    """Une el trozo que se corta con el que empieza justo donde y cuando debía seguir.
+
+    Solo si no hay otro candidato parecido: unir mal intercambia a dos jugadores.
+    """
+    ends: dict[int, tuple[float, tuple[float, float]]] = {}
+    starts: dict[int, tuple[float, tuple[float, float]]] = {}
+    for track in tracks:
+        placed = [sample for sample in track.samples if sample.get("x") is not None and not sample.get("rejected_speed")]
+        if not placed:
+            continue
+        first, last = placed[0], placed[-1]
+        starts[track.id] = (float(first["t"]), (float(first["x"]) * 105.0, float(first["y"]) * 68.0))
+        ends[track.id] = (float(last["t"]), (float(last["x"]) * 105.0, float(last["y"]) * 68.0))
+    by_id = {track.id: track for track in tracks}
+    options: dict[int, list[tuple[float, int]]] = defaultdict(list)
+    backwards: dict[int, list[tuple[float, int]]] = defaultdict(list)
+    for a, (end_t, end_xy) in ends.items():
+        for b, (start_t, start_xy) in starts.items():
+            if a == b or by_id[a].role != by_id[b].role:
+                continue
+            gap = start_t - end_t
+            if gap <= 1e-6 or gap > STITCH_GAP_S:
+                continue
+            if by_id[a].team is not None and by_id[b].team is not None and by_id[a].team != by_id[b].team:
+                continue
+            gate = STITCH_GATE_M + STITCH_SPEED_M_S * gap
+            ratio = float(np.hypot(start_xy[0] - end_xy[0], start_xy[1] - end_xy[1])) / gate
+            if ratio <= 1.0:
+                options[a].append((ratio, b))
+                backwards[b].append((ratio, a))
+    pairs: list[tuple[float, int, int]] = []
+    for a, found in options.items():
+        found.sort()
+        ratio, b = found[0]
+        rivals = sorted(backwards[b])
+        clear_ahead = len(found) == 1 or found[1][0] >= STITCH_CLEAR * max(ratio, 0.05)
+        clear_behind = rivals[0][1] == a and (len(rivals) == 1 or rivals[1][0] >= STITCH_CLEAR * max(ratio, 0.05))
+        if clear_ahead and clear_behind:
+            pairs.append((ratio, a, b))
+    merged_into: dict[int, int] = {}
+    for _ratio, a, b in sorted(pairs):
+        head = a
+        while head in merged_into:
+            head = merged_into[head]
+        if b in merged_into or head == b:
+            continue
+        keeper, gone = by_id[head], by_id[b]
+        if gone.samples and keeper.samples and float(gone.samples[0]["t"]) <= float(keeper.samples[-1]["t"]):
+            continue
+        keeper.samples.extend(gone.samples)
+        keeper.visible_m += gone.visible_m
+        for number, votes in gone._votes.items():
+            keeper._votes[number] = keeper._votes.get(number, 0) + votes
+        for team, votes in gone._team_votes.items():
+            keeper._team_votes[team] = keeper._team_votes.get(team, 0) + votes
+        if keeper._votes:
+            best = max(keeper._votes, key=keeper._votes.get)
+            keeper.dorsal = int(best) if keeper._votes[best] >= 2 else keeper.dorsal
+        if keeper.team is None:
+            keeper.team = gone.team
+        merged_into[b] = head
+    return [track for track in tracks if track.id not in merged_into]
+
+
+def _link_score(track: Track, box: Box, t: float, h: np.ndarray | None = None) -> float:
+    """Con homografía se enlaza por metros en el césped, que no se mueven cuando gira la cámara."""
     if track._last_box is None:
         return 0.0
-    if (
+    color = 0.5
+    if track.rgb is not None and box.rgb is not None:
+        color = max(0.0, 1.0 - float(np.linalg.norm(np.subtract(track.rgb, box.rgb))) / 160.0)
+    other_team = (
         track.team is not None
         and box.team is not None
         and track.team != box.team
         and track._team_votes.get(track.team, 0) >= 2
-    ):
+    )
+    if h is not None and track._raw_xy is not None and track._raw_t is not None:
+        dt = t - track._raw_t
+        if dt <= 1e-6 or dt > PITCH_LINK_GAP_S:
+            return 0.0
+        foot = apply_h(h, np.array([[box.px + box.w / 2.0, box.py + box.h]]))[0]
+        reach = min(dt, 0.5)
+        px = track._raw_xy[0] + track._pitch_v[0] * reach
+        py = track._raw_xy[1] + track._pitch_v[1] * reach
+        dist = float(np.hypot(float(foot[0]) - px, float(foot[1]) - py))
+        gate = PITCH_GATE_M + PITCH_GATE_SPEED_M_S * dt
+        if dist > gate:
+            return 0.0
+        score = 0.7 * (1.0 - dist / gate) + 0.3 * color
+        return score * (0.6 if other_team else 1.0)
+    if not _seen_recently(track, t, gap=2.0) and track.samples:
+        return 0.0
+    if other_team:
         return 0.0
     overlap = iou(track._last_box, (box.px, box.py, box.w, box.h))
     ax, ay = _predicted_center(track, t)
@@ -248,9 +347,6 @@ def _link_score(track: Track, box: Box, t: float) -> float:
     gate = max(float(track._last_box[3]), float(box.h), 24.0) * 1.25
     if overlap < 0.05 and dist > gate:
         return 0.0
-    color = 0.5
-    if track.rgb is not None and box.rgb is not None:
-        color = max(0.0, 1.0 - float(np.linalg.norm(np.subtract(track.rgb, box.rgb))) / 160.0)
     near = max(0.0, 1.0 - dist / gate) if gate else 0.0
     return 0.35 * overlap + 0.45 * near + 0.20 * color
 
@@ -270,10 +366,11 @@ def _calibration_agrees(h: np.ndarray, tracks: list[Track], t: float) -> bool:
     """Una calibración nueva no vale si los jugadores que ya seguimos salen disparados."""
     speeds: list[float] = []
     for track in tracks:
-        if track.role != "player" or track._raw_xy is None or track._last_box is None or not track.samples:
+        if track.role != "player" or track._raw_xy is None or track._raw_t is None or track._last_box is None or not track.samples:
             continue
-        prev_t = float(track.samples[-1]["t"])
-        dt = t - prev_t
+        if abs(float(track.samples[-1]["t"]) - track._raw_t) > 1e-6:
+            continue
+        dt = t - track._raw_t
         if dt <= 1e-6 or dt > 0.6:
             continue
         foot = track.foot()
@@ -312,6 +409,8 @@ def _touch(track: Track, box: Box, t: float, h: np.ndarray | None) -> str:
                 track._pixel_v = (0.5 * track._pixel_v[0] + 0.5 * vx, 0.5 * track._pixel_v[1] + 0.5 * vy)
     if box.rgb is not None:
         track.rgb = box.rgb
+    role = "referee" if box.kind == "referee" else "player"
+    track._role_votes[role] = track._role_votes.get(role, 0) + 1
     vote_team(track, box.team)
     vote_dorsal(track, box.dorsal)
     return _record(track, box, t, h)
@@ -369,12 +468,12 @@ def _record(track: Track, box: Box, t: float, h: np.ndarray | None) -> str:
         return "pixel"
     xy = apply_h(h, foot)[0]
     raw = (float(xy[0]), float(xy[1]))
-    prev_t = track.samples[-1]["t"] if track.samples else None
     off_pitch = not on_pitch(raw[0], raw[1], margin_m=6.0)
     too_fast = (
         track._raw_xy is not None
-        and prev_t is not None
-        and step_metres(track._raw_xy, raw, t - prev_t) is None
+        and track._raw_t is not None
+        and float(np.hypot(raw[0] - track._raw_xy[0], raw[1] - track._raw_xy[1]))
+        > MAX_SPEED_M_S * (t - track._raw_t) + POSITION_NOISE_M
     )
     if off_pitch or too_fast:
         if track._smooth_xy is not None or track._raw_xy is not None:
@@ -384,7 +483,12 @@ def _record(track: Track, box: Box, t: float, h: np.ndarray | None) -> str:
             sample["rejected_speed"] = True
         track.samples.append(sample)
         return "reject"
+    if track._raw_xy is not None and track._raw_t is not None and t > track._raw_t:
+        dt = t - track._raw_t
+        step = ((raw[0] - track._raw_xy[0]) / dt, (raw[1] - track._raw_xy[1]) / dt)
+        track._pitch_v = (0.6 * track._pitch_v[0] + 0.4 * step[0], 0.6 * track._pitch_v[1] + 0.4 * step[1])
     track._raw_xy = raw
+    track._raw_t = t
     smoothed = smooth_xy(track._smooth_xy, raw)
     if track._smooth_xy is not None:
         track.visible_m += float(np.hypot(smoothed[0] - track._smooth_xy[0], smoothed[1] - track._smooth_xy[1]))
