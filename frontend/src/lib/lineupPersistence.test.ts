@@ -6,6 +6,8 @@ import {
   lineupNeedsKickoffRepair,
   mergeLineupIntoNotasPre,
   shouldPersistLineup,
+  titularidadFix,
+  titularidadUpdates,
 } from './lineupPersistence.ts'
 
 const SLOTS = {
@@ -147,5 +149,60 @@ describe('lineup persistence', () => {
     const parsed = parseNotasPre(merged)
     assert.equal(parsed.rest.extra, 'keep')
     assert.equal(parsed.formacion_slots?.POR, 'c-por')
+  })
+  it('titularidadFix corrects starters from the anotador kickoff, not the final field', () => {
+    const notasPre = {
+      formacion: '4-4-2',
+      formacion_slots: { POR: 'c-por', DC_L: 'c-sub' },
+      anotador: {
+        form: '4-4-2',
+        started: true,
+        slots: { POR: 'c-por', DC_L: 'c-sub' },
+        kickoffSlots: { POR: 'c-por', DC: 'c-dc' },
+        kickoffForm: '4-3-3',
+        events: [{ id: 'c1', minute: 60, half: 2, type: 'cambio', convId: 'c-dc', relatedConvId: 'c-sub', slotId: 'DC' }],
+      },
+    }
+    const convocados = [
+      { id: 'c-por', titular: true, posicion_asignada: 'POR' },
+      { id: 'c-sub', titular: true, posicion_asignada: 'DC_L' },
+      { id: 'c-dc', titular: false },
+      { id: 'c-otro', titular: false },
+    ]
+    const fix = titularidadFix({ notasPre, convocados })
+    assert.equal(fix?.source, 'anotador')
+    assert.deepEqual(fix?.toTitular, ['c-dc'])
+    assert.deepEqual(fix?.toSuplente, ['c-sub'])
+    const updates = titularidadUpdates(fix!, convocados)
+    assert.deepEqual(updates, [
+      { id: 'c-sub', titular: false },
+      { id: 'c-dc', titular: true, posicion_asignada: 'DC' },
+    ])
+  })
+
+  it('titularidadFix falls back to the saved lineup and reports nothing when already right', () => {
+    const notasPre = { formacion: '4-3-3', formacion_slots: { POR: 'c-por', DC: 'c-dc' } }
+    const fix = titularidadFix({
+      notasPre,
+      convocados: [
+        { id: 'c-por', titular: true, posicion_asignada: 'POR' },
+        { id: 'c-dc', titular: true, posicion_asignada: 'DC' },
+        { id: 'c-sub', titular: false },
+      ],
+    })
+    assert.equal(fix?.source, 'alineacion')
+    assert.deepEqual(fix?.toTitular, [])
+    assert.deepEqual(fix?.toSuplente, [])
+    assert.equal(titularidadFix({ notasPre: {}, convocados: [{ id: 'x', titular: true }] }), null)
+  })
+
+  it('a lineup saved by hand after kickoff is respected over the anotador', () => {
+    const notasPre = mergeLineupIntoNotasPre(
+      { anotador: { started: true, slots: { POR: 'c-por', DC: 'c-sub' }, kickoffSlots: { POR: 'c-por', DC: 'c-dc' }, events: [] } },
+      '4-3-3',
+      { POR: 'c-por', DC: 'c-otro' },
+    )
+    const hydrated = hydrateLineup({ notasPre })
+    assert.equal(hydrated.slots.DC, 'c-otro')
   })
 })
