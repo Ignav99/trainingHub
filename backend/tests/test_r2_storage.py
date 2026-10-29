@@ -77,3 +77,15 @@ class TestR2SettingsStrip:
         )
         assert s.R2_SECRET_ACCESS_KEY == "deadbeef"
         assert s.R2_ACCOUNT_ID == "accid"
+
+
+class TestPresignDownload:
+    def test_download_name_signs_content_disposition(self):
+        with patch("app.services.r2_storage.get_settings", return_value=_settings()):
+            plain = presign_get("biblioteca/eq/c.mp4", 3600)
+            url = presign_get("biblioteca/eq/c.mp4", 3600, download_name="12' Salida de balón.mp4")
+        query = url.split("?", 1)[1]
+        assert "response-content-disposition=attachment%3B%20filename%3D%2212%27%20Salida%20de%20bal_n.mp4%22" in query
+        assert "filename%2A%3DUTF-8%27%27" in query
+        assert "response-content-disposition" not in plain
+        assert plain.split("X-Amz-Signature=")[1] != url.split("X-Amz-Signature=")[1]

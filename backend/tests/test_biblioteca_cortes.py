@@ -48,3 +48,10 @@ def test_subfase_code_splits_from_parent_phase():
     assert mod.split_fase("bloque_mixto") == ("defensa_organizada", "bloque_mixto")
     assert mod.split_fase("ataque_organizado") == ("ataque_organizado", None)
     assert mod.split_fase(None) == (None, None)
+
+
+def test_download_name_is_readable_and_safe():
+    assert mod.download_filename("Salida de balón", 12, "mp4") == "12' Salida de balón.mp4"
+    assert mod.download_filename('a/b:c*"d', None, "webm") == "a_b_c_d.webm"
+    assert mod.download_filename("", 3, "mp4") == "03' corte.mp4"
+    assert len(mod.download_filename("x" * 300, None, "mp4")) <= 84

@@ -67,7 +67,7 @@ def _uri_encode(path: str, *, slash: bool) -> str:
     return quote(path, safe="/" if slash else "")
 
 
-def _presign(method: str, storage_path: str, expires: int) -> str:
+def _presign(method: str, storage_path: str, expires: int, extra_query: dict[str, str] | None = None) -> str:
     s = get_settings()
     if not r2_enabled():
         raise RuntimeError("R2 no está configurado")
@@ -88,7 +88,9 @@ def _presign(method: str, storage_path: str, expires: int) -> str:
         ("X-Amz-Date", amz_date),
         ("X-Amz-Expires", str(expires)),
         ("X-Amz-SignedHeaders", "host"),
+        *(extra_query or {}).items(),
     ]
+    query_items.sort()
     canonical_query = "&".join(f"{_uri_encode(k, slash=False)}={_uri_encode(v, slash=False)}" for k, v in query_items)
     canonical_headers = f"host:{host}\n"
     canonical_request = "\n".join([
@@ -119,9 +121,21 @@ def presign_put(storage_path: str, mime: str, expires: int = 3600) -> str:
     return _presign("PUT", storage_path, expires)
 
 
-def presign_get(storage_path: str, expires: int = 14400) -> str:
-    """URL firmada para reproducir el recorte (Chrome / iPad no siempre abren r2.dev)."""
-    return _presign("GET", storage_path, expires)
+def presign_get(storage_path: str, expires: int = 14400, download_name: str | None = None) -> str:
+    """URL firmada para reproducir el recorte (Chrome / iPad no siempre abren r2.dev).
+
+    Con `download_name`, R2 responde con `Content-Disposition: attachment` y el
+    navegador lo guarda tal cual, sin pasar por el API.
+    """
+    extra = None
+    if download_name:
+        extra = {"response-content-disposition": content_disposition(download_name)}
+    return _presign("GET", storage_path, expires, extra)
+
+
+def content_disposition(filename: str) -> str:
+    ascii_name = "".join(ch if 32 <= ord(ch) < 127 and ch not in '"\\' else "_" for ch in filename) or "corte.mp4"
+    return f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(filename, safe='')}"
 
 
 def public_url(storage_path: str) -> str:
