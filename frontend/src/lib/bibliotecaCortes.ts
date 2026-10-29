@@ -162,11 +162,9 @@ export function etiquetaGrupos(
       continue
     }
     const remembered = saved[key]
-    const fromButton = splitFase(clip.fase)
-    const base = remembered && (remembered.fase || remembered.subfase) ? remembered : {
-      fase: fromButton.fase,
-      subfase: clip.subfase || fromButton.subfase,
-    }
+    const base = remembered && (remembered.fase || remembered.subfase)
+      ? remembered
+      : bestFase(guessFaseFromLabel(label), { ...splitFase(clip.fase), ...(clip.subfase ? { subfase: clip.subfase } : {}) })
     groups.set(key, { key, label, count: 1, ...splitEtiquetaFase(base) })
   }
   return Array.from(groups.values())
@@ -179,6 +177,46 @@ function splitEtiquetaFase(value: EtiquetaFase): EtiquetaFase {
   const subfase = value.subfase || parts.subfase
   if (subfase) out.subfase = subfase
   return out
+}
+
+type FaseRule = { test: RegExp; fase: string; subfase?: string }
+
+/** El orden importa: primero lo más concreto. Texto sin tildes y en minúsculas. */
+const FASE_RULES: FaseRule[] = [
+  { test: /\btransicion(es)? (de )?def(ensa|ensiva)?\W*(a\W*|-\W*)?at(aque)?\b/, fase: 'transicion_defensa_ataque' },
+  { test: /\btransicion(es)? (de )?at(aque)?\W*(a\W*|-\W*)?def(ensa)?\b/, fase: 'transicion_ataque_defensa' },
+  { test: /\btransicion(es)? (ofensiv|positiv)|\bcontra ?(ataque|golpe)s?\b|\btras robo\b/, fase: 'transicion_defensa_ataque' },
+  { test: /\btransicion(es)? (defensiv|negativ)|\btras perdida\b/, fase: 'transicion_ataque_defensa' },
+  { test: /\b(abp|balon parado|balones parados|estrategia)\b.*\b(ofensiv\w*|a favor|of)\b|\b(corner|corners|falta|faltas|penalti|penaltis)\b.*\ba favor\b/, fase: 'balon_parado_ofensivo' },
+  { test: /\b(abp|balon parado|balones parados|estrategia)\b.*\b(defensiv\w*|en contra|def)\b|\b(corner|corners|falta|faltas|penalti|penaltis)\b.*\ben contra\b/, fase: 'balon_parado_defensivo' },
+  { test: /\bbloques? altos?\b|\bpresion(es)? alta|\bpressing alto\b/, fase: 'defensa_organizada', subfase: 'bloque_alto' },
+  { test: /\bbloques? medios?\b|\bpresion(es)? media/, fase: 'defensa_organizada', subfase: 'bloque_medio' },
+  { test: /\bbloques? bajos?\b|\bdefensa baja\b/, fase: 'defensa_organizada', subfase: 'bloque_bajo' },
+  { test: /\bbloques? mixtos?\b|\bmixtos?\b/, fase: 'defensa_organizada', subfase: 'bloque_mixto' },
+  { test: /\binicios?\b|\bsalidas? de balon\b|\bcreacion(es)?\b|\bconstruccion(es)?\b/, fase: 'ataque_organizado', subfase: 'creacion' },
+  { test: /\bprogresion(es)?\b|\bprogresar\b/, fase: 'ataque_organizado', subfase: 'progresion' },
+  { test: /\bfinalizacion(es)?\b|\bfinalizar\b|\bremates?\b|\bultimo tercio\b/, fase: 'ataque_organizado', subfase: 'finalizacion' },
+  { test: /\bataque organizado\b/, fase: 'ataque_organizado' },
+  { test: /\bdefensa organizada\b/, fase: 'defensa_organizada' },
+]
+
+/**
+ * Fase que sugiere el nombre de la etiqueta. Si nombra una subfase se queda
+ * en la subfase; solo transiciones y ABP se quedan en la fase.
+ */
+export function guessFaseFromLabel(label?: string | null): EtiquetaFase {
+  const text = etiquetaKey(label).replace(/[_/]+/g, ' ')
+  if (!text) return {}
+  const hit = FASE_RULES.find((rule) => rule.test.test(text))
+  if (!hit) return {}
+  return hit.subfase ? { fase: hit.fase, subfase: hit.subfase } : { fase: hit.fase }
+}
+
+/** Gana lo que tenga subfase; si nadie la tiene, la fase del botón y luego la adivinada. */
+function bestFase(guess: EtiquetaFase, button: EtiquetaFase): EtiquetaFase {
+  if (guess.subfase) return guess
+  if (button.subfase || button.fase) return button
+  return guess
 }
 
 export function faseForEtiqueta(mapping: EtiquetaFases, label?: string | null): EtiquetaFase {
