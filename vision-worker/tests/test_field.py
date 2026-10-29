@@ -13,7 +13,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from kabine_vision.field import detect_field, paint_digits, read_dorsal, write_field_fixture
-from kabine_vision.match import analyze_match, session_match
+from kabine_vision.match import READER, analyze_match, session_match
 from kabine_vision.tracking import Box
 
 
@@ -70,7 +70,7 @@ class FieldTests(unittest.TestCase):
         self.assertGreaterEqual(sum(1 for box in boxes if box.kind == "keypoint"), 4)
 
     def test_other_shirts_mean_a_new_read(self) -> None:
-        saved = {"whistles": MARKS, "kits": KITS, "roster": ROSTER, "reader": "estable-2"}
+        saved = {"whistles": MARKS, "kits": KITS, "roster": ROSTER, "reader": READER}
         self.assertTrue(session_match(saved, MARKS, KITS, ROSTER))
         self.assertFalse(session_match({"whistles": MARKS, "kits": KITS, "roster": ROSTER}, MARKS, KITS, ROSTER))
         self.assertFalse(session_match(saved, MARKS, {"ours": "#f5f5f5", "rival": "#aa0000"}, ROSTER))

@@ -32,15 +32,14 @@ def score_document(doc: dict, *, visible: Callable[[int], float] | None = None, 
     second_set = set(seconds)
     legal = _legal_numbers(doc.get("roster"))
 
-    present: dict[int, dict[int, tuple[float, float]]] = defaultdict(dict)
+    present: dict[int, dict[float, list[tuple[float, float]]]] = defaultdict(lambda: defaultdict(list))
     referees: set[int] = set()
     for track in doc.get("tracks") or []:
         valid = [sample for sample in track.get("samples") or [] if _on_pitch(sample)]
         if not valid:
             continue
-        stamps = {int(float(sample["t"])) for sample in valid} & second_set
         if track.get("role") == "referee":
-            referees |= stamps
+            referees |= {int(float(sample["t"])) for sample in valid} & second_set
             continue
         if track.get("role") != "player":
             continue
@@ -49,9 +48,10 @@ def score_document(doc: dict, *, visible: Callable[[int], float] | None = None, 
         dorsal = track.get("dorsal")
         known = dorsal is not None and (not legal or int(dorsal) in legal)
         label = 0.5 * (track.get("team") is not None) + 0.5 * known
-        tid = int(track.get("id") or 0)
-        for second in stamps:
-            present[second][tid] = (identity, label)
+        for sample in valid:
+            second = int(float(sample["t"]))
+            if second in second_set:
+                present[second][round(float(sample["t"]), 3)].append((identity, label))
 
     ball: dict[int, float] = {}
     for row in _believable_ball(doc.get("ball") or []):
@@ -59,13 +59,18 @@ def score_document(doc: dict, *, visible: Callable[[int], float] | None = None, 
         if second in second_set:
             ball[second] = max(ball.get(second, 0.0), 0.5 if row.get("held") else 1.0)
 
-    count_sum = identity_sum = label_sum = 0.0
+    count_sum = identity_sum = label_sum = seen_sum = 0.0
     for second in seconds:
         places = PLAYERS_ON_PITCH if visible is None else max(1, min(PLAYERS_ON_PITCH, round(visible(second))))
-        rows = sorted((present.get(second) or {}).values(), reverse=True)[:places]
-        count_sum += len(rows) / places
-        identity_sum += sum(identity for identity, _ in rows) / places
-        label_sum += sum(label for _, label in rows) / places
+        frames = present.get(second) or {}
+        if not frames:
+            continue
+        for rows in frames.values():
+            rows = sorted(rows, reverse=True)[:places]
+            count_sum += len(rows) / places / len(frames)
+            identity_sum += sum(identity for identity, _ in rows) / places / len(frames)
+            label_sum += sum(label for _, label in rows) / places / len(frames)
+            seen_sum += len(rows) / len(frames)
 
     total = float(len(seconds))
     shares = {
@@ -80,7 +85,7 @@ def score_document(doc: dict, *, visible: Callable[[int], float] | None = None, 
         "nota": round(sum(parts.values()), 1),
         "partes": parts,
         "segundos": len(seconds),
-        "jugadores_por_segundo": round(sum(len(present.get(second) or {}) for second in seconds) / total, 2),
+        "jugadores_por_segundo": round(seen_sum / total, 2),
     }
 
 

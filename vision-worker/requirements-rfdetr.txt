@@ -1,0 +1,3 @@
+# Detector de producto (Apache 2.0). Opcional: sin esto el servidor usa el detector de colores.
+-r requirements.txt
+rfdetr>=1.3

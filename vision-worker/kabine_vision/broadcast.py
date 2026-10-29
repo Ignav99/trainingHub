@@ -21,9 +21,13 @@ from .tracking import Box, hex_to_rgb
 
 Raw = tuple[str, float, float, float, float, float]
 Model = Callable[[np.ndarray], list[Raw]]
+BallFinder = Callable[[np.ndarray, int], list[Raw]]
 
 PERSON_SCORE = 0.3
 BALL_SCORE = 0.25
+TILE_BALL_SCORE = 0.2
+TILE_OVERLAP_PX = 96
+SPOT_RADIUS_M = 1.5
 PALETTE = 16
 KIT_CLUSTERS = 8
 LONE_PER_FRAME = 1.25
@@ -201,11 +205,42 @@ def pitch_keypoints(img_to_pitch: np.ndarray, width: float, height: float, t: fl
     ]
 
 
+def tiled(model: Model) -> BallFinder:
+    """El balón lejano mide pocos píxeles: se busca en dos mitades del césped a más resolución."""
+
+    def find(frame: np.ndarray, top: int) -> list[Raw]:
+        height, width = frame.shape[:2]
+        rows: list[Raw] = []
+        for x0, x1 in ((0, width // 2 + TILE_OVERLAP_PX), (width // 2 - TILE_OVERLAP_PX, width)):
+            for kind, a, b, c, d, score in model(frame[top:height, x0:x1]):
+                rows.append((kind, a + x0, b + top, c + x0, d + top, score))
+        return rows
+
+    return find
+
+
+def pitch_top(img_to_pitch: np.ndarray | None, width: float, height: float) -> int:
+    """Primera fila de la imagen con césped: lo de arriba es grada y cielo."""
+    if img_to_pitch is None:
+        return int(height // 3)
+    keys = pitch_keypoints(img_to_pitch, width, height, 0.0)
+    if not keys:
+        return int(height // 3)
+    return int(max(0.0, min(box.py for box in keys) - 0.04 * height))
+
+
+def _spots(length: float) -> np.ndarray:
+    """Puntos de penalti y centro en coordenadas de 105×68: el detector los confunde con el balón."""
+    penalty = 11.0 * 105.0 / length
+    return np.array([(penalty, 34.0), (105.0 - penalty, 34.0), (52.5, 34.0)], dtype=float)
+
+
 @dataclass
 class BroadcastDetector:
     """Cajas por fotograma para ``pipeline.run_span``. ``prepare`` aprende cámara y camisetas."""
 
     model: Model
+    ball_finder: BallFinder | None = None
     our_kit: str = "white"
     kits: dict | None = None
     roster: dict | None = None
@@ -266,10 +301,22 @@ class BroadcastDetector:
             if kind == "player" and allowed:
                 item.dorsal = read_dorsal(frame, item, allowed)
             out.append(item)
-        for kind, x1, y1, x2, y2, score in raw:
-            if kind == "sports ball" and score >= BALL_SCORE:
-                out.append(Box(t, "ball", (x1 + x2) / 2.0, y2, 1, 1))
+        balls = [row for row in raw if row[0] == "sports ball" and row[5] >= BALL_SCORE]
+        balls = self._off_spots(balls, h)
+        if not balls and self.ball_finder is not None:
+            found = self.ball_finder(frame, pitch_top(h, width, height))
+            balls = self._off_spots([row for row in found if row[0] == "sports ball" and row[5] >= TILE_BALL_SCORE], h)
+        for _kind, x1, y1, x2, y2, _score in balls:
+            out.append(Box(t, "ball", (x1 + x2) / 2.0, y2, 1, 1))
         return out
+
+    def _off_spots(self, balls: list[Raw], h: np.ndarray | None) -> list[Raw]:
+        if h is None or not balls:
+            return balls
+        spots = _spots(self.camera.pitch.length)
+        feet = apply_h(h, np.array([[(row[1] + row[3]) / 2.0, row[4]] for row in balls]))
+        near = np.hypot(feet[:, None, 0] - spots[None, :, 0], feet[:, None, 1] - spots[None, :, 1]).min(axis=1)
+        return [row for row, dist in zip(balls, near) if dist > SPOT_RADIUS_M]
 
     def _people(self, frame: np.ndarray) -> list[tuple[tuple[float, float, float, float], float]]:
         return [((x1, y1, x2 - x1, y2 - y1), score) for kind, x1, y1, x2, y2, score in self.model(frame) if kind == "person" and score >= PERSON_SCORE]

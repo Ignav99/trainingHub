@@ -37,6 +37,7 @@ class Track:
     _smooth_xy: tuple[float, float] | None = None
     _raw_xy: tuple[float, float] | None = None
     _raw_t: float | None = None
+    _pitch_v: tuple[float, float] = (0.0, 0.0)
     _votes: dict[int, int] = field(default_factory=dict)
     _team_votes: dict[int, int] = field(default_factory=dict)
     _role_votes: dict[str, int] = field(default_factory=dict)

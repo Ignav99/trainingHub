@@ -257,18 +257,15 @@ def start_match_job(
                 job["kept_frames"] = kept
 
         try:
+            detector, detector_name = _match_detector(parsed_kits, parsed_roster, detect_blobs, detect_field)
             doc = analyze_match(
                 key,
                 marks,
                 sample_fps=float(sample_fps or 10),
-                detector=(
-                    detect_blobs
-                    if parsed_kits is None
-                    else (lambda frame, stamp, kits=parsed_kits, numbers=parsed_roster: detect_field(frame, stamp, kits=kits, roster=numbers))
-                ),
+                detector=detector,
                 kits=parsed_kits,
                 roster=parsed_roster,
-                detector_name="blobs" if parsed_kits is None else "field",
+                detector_name=detector_name,
                 our_kit=(parsed_kits or {}).get("ours") or "white",
                 on_progress=on_progress,
             )
@@ -283,6 +280,22 @@ def start_match_job(
 
     threading.Thread(target=work, name="kabine-vision-match", daemon=True).start()
     return _public_job(job)
+
+
+def _match_detector(kits: dict | None, roster: dict | None, detect_blobs, detect_field):
+    """RF-DETR con la cámara si está instalado; si no, el detector de colores de antes."""
+    import importlib.util
+
+    if os.environ.get("KABINE_DETECTOR", "rfdetr") == "rfdetr" and importlib.util.find_spec("rfdetr") is not None:
+        from .broadcast import BroadcastDetector, rfdetr_model, tiled
+
+        model = rfdetr_model(os.environ.get("KABINE_RFDETR_SIZE", "medium"))
+        ours = (kits or {}).get("ours")
+        our_kit = "white" if ours is None else str(ours)
+        return BroadcastDetector(model=model, ball_finder=tiled(model), our_kit=our_kit, kits=kits, roster=roster), "rfdetr"
+    if kits is None:
+        return detect_blobs, "blobs"
+    return (lambda frame, stamp, kits=kits, numbers=roster: detect_field(frame, stamp, kits=kits, roster=numbers)), "field"
 
 
 def _match_status(raw_path: str) -> dict:
