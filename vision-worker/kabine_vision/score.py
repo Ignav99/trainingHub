@@ -9,6 +9,7 @@ perfecto que solo aparece dos décimas apenas suma.
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Callable
 
 from .homography import BALL_MAX_SPEED_M_S, PITCH_LENGTH_M, PITCH_WIDTH_M
 
@@ -23,7 +24,8 @@ WEIGHTS = {
 }
 
 
-def score_document(doc: dict) -> dict:
+def score_document(doc: dict, *, visible: Callable[[int], float] | None = None, id_full_s: float = ID_FULL_S) -> dict:
+    """``visible`` da cuántos jugadores se ven en cada segundo cuando el vídeo es un trozo con la cámara cerrada."""
     seconds = _play_seconds(doc)
     if not seconds:
         return {"nota": 0.0, "partes": {key: 0.0 for key in WEIGHTS}, "segundos": 0, "jugadores_por_segundo": 0.0}
@@ -43,7 +45,7 @@ def score_document(doc: dict) -> dict:
         if track.get("role") != "player":
             continue
         duration = float(valid[-1]["t"]) - float(valid[0]["t"])
-        identity = min(1.0, duration / ID_FULL_S)
+        identity = min(1.0, duration / id_full_s)
         dorsal = track.get("dorsal")
         known = dorsal is not None and (not legal or int(dorsal) in legal)
         label = 0.5 * (track.get("team") is not None) + 0.5 * known
@@ -59,10 +61,11 @@ def score_document(doc: dict) -> dict:
 
     count_sum = identity_sum = label_sum = 0.0
     for second in seconds:
-        rows = sorted((present.get(second) or {}).values(), reverse=True)[:PLAYERS_ON_PITCH]
-        count_sum += len(rows) / PLAYERS_ON_PITCH
-        identity_sum += sum(identity for identity, _ in rows) / PLAYERS_ON_PITCH
-        label_sum += sum(label for _, label in rows) / PLAYERS_ON_PITCH
+        places = PLAYERS_ON_PITCH if visible is None else max(1, min(PLAYERS_ON_PITCH, round(visible(second))))
+        rows = sorted((present.get(second) or {}).values(), reverse=True)[:places]
+        count_sum += len(rows) / places
+        identity_sum += sum(identity for identity, _ in rows) / places
+        label_sum += sum(label for _, label in rows) / places
 
     total = float(len(seconds))
     shares = {
@@ -77,7 +80,7 @@ def score_document(doc: dict) -> dict:
         "nota": round(sum(parts.values()), 1),
         "partes": parts,
         "segundos": len(seconds),
-        "jugadores_por_segundo": round(count_sum / total * PLAYERS_ON_PITCH, 2),
+        "jugadores_por_segundo": round(sum(len(present.get(second) or {}) for second in seconds) / total, 2),
     }
 
 

@@ -27,6 +27,8 @@ from .tracking import Box, Track, assign_teams, iou, keep_unique_dorsals, smooth
 SCHEMA = "kabine.vision.v0"
 HOLD_BALL_FRAMES = 3
 BALL_CONFIRM = 3
+# Con tantos puntos la homografía viene de una cámara calibrada: mezclarla con la anterior la retrasa al girar.
+EXACT_KEYPOINTS = 12
 
 
 def run_span(
@@ -76,9 +78,10 @@ def _track_clean(boxes: list[Box], width: float, height: float, fps: float, our_
         keypoints = [box for box in frame if box.kind == "keypoint" and box.pitch_xy is not None]
         fitted = _fit(keypoints, width, height)
         accepted = fitted is not None
+        exact = len(keypoints) >= EXACT_KEYPOINTS
         if fitted is not None and last_h is not None:
             calm = homography_step_is_calm(last_h, fitted, width, height)
-            agrees = _calibration_agrees(fitted, tracks, t)
+            agrees = exact or _calibration_agrees(fitted, tracks, t)
             if not calm or not agrees:
                 fitted = None
                 accepted = False
@@ -89,7 +92,7 @@ def _track_clean(boxes: list[Box], width: float, height: float, fps: float, our_
                     and homography_keeps_center_on_pitch(blended, width, height)
                     and _calibration_agrees(blended, tracks, t)
                 )
-                if blend_ok:
+                if blend_ok and not exact:
                     fitted = blended
         if fitted is None:
             held = (
@@ -120,8 +123,6 @@ def _track_clean(boxes: list[Box], width: float, height: float, fps: float, our_
             if track._last_box is None:
                 continue
             for box in bodies:
-                if track.kind != box.kind:
-                    continue
                 score = _link_score(track, box, t)
                 if score >= 0.22:
                     pairs.append((score, track, box))
@@ -223,6 +224,10 @@ def _track_clean(boxes: list[Box], width: float, height: float, fps: float, our_
             ball_confirmed = False
             ball_streak = []
 
+    for track in tracks:
+        if track._role_votes:
+            track.role = max(track._role_votes, key=track._role_votes.get)
+            track.kind = track.role
     assign_teams(tracks, our_kit, kits)
     keep_unique_dorsals(tracks)
     return {"tracks": tracks, "ball": ball, "homography": homographies}
@@ -270,10 +275,11 @@ def _calibration_agrees(h: np.ndarray, tracks: list[Track], t: float) -> bool:
     """Una calibración nueva no vale si los jugadores que ya seguimos salen disparados."""
     speeds: list[float] = []
     for track in tracks:
-        if track.role != "player" or track._raw_xy is None or track._last_box is None or not track.samples:
+        if track.role != "player" or track._raw_xy is None or track._raw_t is None or track._last_box is None or not track.samples:
             continue
-        prev_t = float(track.samples[-1]["t"])
-        dt = t - prev_t
+        if abs(float(track.samples[-1]["t"]) - track._raw_t) > 1e-6:
+            continue
+        dt = t - track._raw_t
         if dt <= 1e-6 or dt > 0.6:
             continue
         foot = track.foot()
@@ -312,6 +318,8 @@ def _touch(track: Track, box: Box, t: float, h: np.ndarray | None) -> str:
                 track._pixel_v = (0.5 * track._pixel_v[0] + 0.5 * vx, 0.5 * track._pixel_v[1] + 0.5 * vy)
     if box.rgb is not None:
         track.rgb = box.rgb
+    role = "referee" if box.kind == "referee" else "player"
+    track._role_votes[role] = track._role_votes.get(role, 0) + 1
     vote_team(track, box.team)
     vote_dorsal(track, box.dorsal)
     return _record(track, box, t, h)
@@ -369,12 +377,11 @@ def _record(track: Track, box: Box, t: float, h: np.ndarray | None) -> str:
         return "pixel"
     xy = apply_h(h, foot)[0]
     raw = (float(xy[0]), float(xy[1]))
-    prev_t = track.samples[-1]["t"] if track.samples else None
     off_pitch = not on_pitch(raw[0], raw[1], margin_m=6.0)
     too_fast = (
         track._raw_xy is not None
-        and prev_t is not None
-        and step_metres(track._raw_xy, raw, t - prev_t) is None
+        and track._raw_t is not None
+        and step_metres(track._raw_xy, raw, t - track._raw_t) is None
     )
     if off_pitch or too_fast:
         if track._smooth_xy is not None or track._raw_xy is not None:
@@ -385,6 +392,7 @@ def _record(track: Track, box: Box, t: float, h: np.ndarray | None) -> str:
         track.samples.append(sample)
         return "reject"
     track._raw_xy = raw
+    track._raw_t = t
     smoothed = smooth_xy(track._smooth_xy, raw)
     if track._smooth_xy is not None:
         track.visible_m += float(np.hypot(smoothed[0] - track._smooth_xy[0], smoothed[1] - track._smooth_xy[1]))

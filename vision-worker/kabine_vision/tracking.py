@@ -36,8 +36,10 @@ class Track:
     _last_box: tuple[float, float, float, float] | None = None
     _smooth_xy: tuple[float, float] | None = None
     _raw_xy: tuple[float, float] | None = None
+    _raw_t: float | None = None
     _votes: dict[int, int] = field(default_factory=dict)
     _team_votes: dict[int, int] = field(default_factory=dict)
+    _role_votes: dict[str, int] = field(default_factory=dict)
     _pixel_v: tuple[float, float] | None = None
 
     def foot(self) -> tuple[float, float] | None:
