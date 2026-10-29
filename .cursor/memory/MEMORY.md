@@ -7,6 +7,8 @@
 - `score.py`: nota 0-100 por fotograma; clip con `visible` (conteos a mano prueba2: 3s 17, 8s 21, 13s 19, 18s 13).
 - Nota prueba2 (2 s en adelante): 0,8 → 52,9 → 80,7 → 84,0 → 84,8 (jug 37,3/40, id 13,9/20, balón 19/20, árbitro 10/10, equipo/dorsal 4,6/10; dorsal imposible sin acta).
 - Arnés: /tmp/w/run.py (+score.py) con detecciones cacheadas ~/clips/prueba2_det.json y _tiles.json.
+- Camino real (server+analyze_match, /tmp/w/e2e.py): 85,5 (90 % sin dorsal), 174/178 calibrados. Arreglos: bootstrap con 3 semillas + rondas `_refit` (gana más fotogramas, luego menos error; ~12 min), `_acquire` ya no pisa sitio/medidas con búsqueda libre. MORPH_CLOSE en grass_region descartado (139/189).
+- Listo para que el usuario pruebe Nervión entero en el Mac (pip install -r vision-worker/requirements-rfdetr.txt). ~0,42 s/fotograma en 4 núcleos.
 
 ## Visión (plan, 28 oct 2026)
 JSON del partido en `pack1` (`vision-worker/kabine_vision/compact.py`, `scripts/vision_compact.py`). Medido sobre copia de Nervión: 17,5 MB → 4,8 MB, 370107 muestras idénticas. Con x,y en todas: 6,1 MB. Límite web GitHub 25 MB. No reescribe el MP4. El archivo del repo no se toca. Al abrir un JSON largo el server lo recomprime. Cuarta pasada Nervión subida al chat el 29 oct 2026 10:59 Madrid. reader estable-2, 2,4 MB. Tracks 9014, mediana 0,6 s (p90 6,3 s), 2434 de un fotograma. H racha 4,0 s. Balón 792, mediana 5,3 m/s, cadena mediana 4, 586/649 dentro. Segundos dentro del campo 94 (peor que 190). Siguiente: RF-DETR.
