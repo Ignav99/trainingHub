@@ -4,6 +4,8 @@
  * a convocatoria, marcador, detalle de goles y estadísticas de ambos equipos.
  */
 
+import { FORMATIONS } from './formations'
+
 export type AnotadorHalf = 1 | 2
 export type AnotadorSide = 'us' | 'rival'
 
@@ -114,6 +116,9 @@ export interface AnotadorSnapshot {
   occasionLanes: OccasionLaneState
   periods: Record<AnotadorHalf, PeriodState>
   rivalDorsals: number[]
+  /** Once y sistema en el momento del saque; no cambian con los cambios ni con un sistema nuevo. */
+  kickoffSlots?: Record<string, string>
+  kickoffForm?: string
 }
 
 export interface PeriodReportRow {
@@ -449,7 +454,7 @@ export function mergeNotasPre(
   const parsed = parseNotasPre(existingRaw)
   return JSON.stringify({
     ...parsed.rest,
-    formacion: snapshot.form || parsed.formacion,
+    formacion: formacionForAnotadorSave(existingRaw, snapshot),
     formacion_slots: nextSlots,
     anotador: { ...snapshot, running: false },
   })
@@ -915,12 +920,6 @@ function filledSlotMap(
   return out
 }
 
-function sameSlotMap(a: Record<string, string>, b: Record<string, string>): boolean {
-  const keys = Object.keys(a)
-  if (keys.length !== Object.keys(b).length) return false
-  return keys.every((key) => a[key] === b[key])
-}
-
 /** Cambios y expulsiones que mueven el campo. La roja sin hueco no se puede rebobinar. */
 function lineChangeEvents(snapshot: AnotadorSnapshot): AnotadorEvent[] {
   return (snapshot.events || [])
@@ -936,33 +935,52 @@ export function snapshotHasLineChanges(snapshot: AnotadorSnapshot): boolean {
   return lineChangeEvents(snapshot).length > 0
 }
 
+function slotOf(field: Record<string, string>, convId?: string): string | undefined {
+  if (!convId) return undefined
+  return Object.entries(field).find(([, id]) => id === convId)?.[0]
+}
+
+function freeSlot(field: Record<string, string>, form: string, preferred?: string): string {
+  if (preferred && !field[preferred]) return preferred
+  const defs = FORMATIONS.find((f) => f.name === form)?.slots || []
+  return defs.find((slot) => !field[slot.id])?.id || `${EXTRA_SLOT_PREFIX}${Object.keys(field).length}`
+}
+
+/** Hueco inventado para un titular que no cabe en el sistema actual; no es un puesto. */
+export const EXTRA_SLOT_PREFIX = 'extra-'
+
 /**
- * Huecos del saque. Los cambios y las expulsiones se deshacen sobre el campo
- * actual: quien entra no sustituye al titular.
+ * Huecos del saque. Si el anotador guardó el once al pitar, ese manda.
+ * Si no (actas viejas), se deshacen cambios y expulsiones sobre el campo
+ * actual buscando a cada jugador por quién es, no por el hueco anotado:
+ * un cambio de sistema a mitad de partido renombra los huecos.
  */
 export function startingLineupSlots(snapshot: AnotadorSnapshot): Record<string, string> {
+  const kickoff = filledSlotMap(snapshot.kickoffSlots)
+  if (Object.keys(kickoff).length) return kickoff
   const field = filledSlotMap(snapshot.slots)
   const events = lineChangeEvents(snapshot)
   if (events.length === 0) return field
   for (const ev of [...events].reverse()) {
-    if (ev.slotId && ev.convId) {
-      field[ev.slotId] = ev.convId
+    if (!ev.convId) continue
+    const current = slotOf(field, ev.convId)
+    if (ev.type === 'cambio') {
+      const entered = slotOf(field, ev.relatedConvId)
+      if (entered) delete field[entered]
+      if (current) continue
+      field[freeSlot(field, snapshot.form, entered || ev.slotId)] = ev.convId
       continue
     }
-    if (ev.type === 'cambio' && ev.relatedConvId && ev.convId) {
-      const slot = Object.entries(field).find(([, id]) => id === ev.relatedConvId)?.[0]
-      if (slot) field[slot] = ev.convId
-    }
+    if (!current) field[freeSlot(field, snapshot.form, ev.slotId)] = ev.convId
   }
   return filledSlotMap(field)
 }
 
 /**
  * Slots que deben quedar como 11 titular en la convocatoria.
- * Antes del saque, el campo actual es el once.
- * Con cambios, no se pisa un once ya distinto del campo final
- * (corrección hecha a mano). Si el guardado coincide con quien acabó,
- * se recupera el saque.
+ * Antes del saque, el campo actual es el once. Después, el once del saque.
+ * Solo un once corregido a mano en la convocatoria con el partido ya
+ * empezado (`formacion_manual`) se respeta por encima del anotador.
  */
 export function formacionSlotsForAnotadorSave(
   existingRaw: unknown,
@@ -971,18 +989,29 @@ export function formacionSlotsForAnotadorSave(
   const parsed = parseNotasPre(existingRaw)
   const live = filledSlotMap(snapshot.slots)
   const stored = filledSlotMap(parsed.formacion_slots)
-  if (!snapshotHasLineChanges(snapshot)) {
+  if (parsed.rest.formacion_manual === true && Object.keys(stored).length) return stored
+  if (!snapshot.started && !snapshotHasLineChanges(snapshot)) {
     return Object.keys(live).length ? live : stored
   }
   const start = startingLineupSlots(snapshot)
-  if (Object.keys(stored).length && !sameSlotMap(stored, live)) return stored
   if (Object.keys(start).length) return start
   return Object.keys(live).length ? live : stored
 }
 
+/** Sistema que acompaña a `formacionSlotsForAnotadorSave`. */
+export function formacionForAnotadorSave(existingRaw: unknown, snapshot: AnotadorSnapshot): string | undefined {
+  const parsed = parseNotasPre(existingRaw)
+  const stored = filledSlotMap(parsed.formacion_slots)
+  if (parsed.rest.formacion_manual === true && Object.keys(stored).length) return parsed.formacion || snapshot.form
+  if (snapshot.started && Object.keys(filledSlotMap(snapshot.kickoffSlots)).length) {
+    return snapshot.kickoffForm || snapshot.form || parsed.formacion
+  }
+  return snapshot.form || parsed.formacion
+}
+
 /** Once inicial rebobinando los cambios sobre el once actual. */
 export function startingLineupIds(snapshot: AnotadorSnapshot): Set<string> {
-  if (snapshotHasLineChanges(snapshot)) {
+  if (snapshotHasLineChanges(snapshot) || Object.keys(filledSlotMap(snapshot.kickoffSlots)).length) {
     return new Set(Object.values(startingLineupSlots(snapshot)))
   }
   const starters = new Set<string>()
@@ -1250,7 +1279,14 @@ export function startEleven(snapshot: AnotadorSnapshot): AnotadorSnapshot {
   for (const convId of Object.values(snapshot.slots)) {
     if (convId && enteredAt[convId] == null) enteredAt[convId] = 0
   }
-  return { ...snapshot, started: true, enteredAt }
+  const kickoff = filledSlotMap(snapshot.kickoffSlots)
+  return {
+    ...snapshot,
+    started: true,
+    enteredAt,
+    kickoffSlots: Object.keys(kickoff).length ? kickoff : filledSlotMap(snapshot.slots),
+    kickoffForm: snapshot.kickoffForm || snapshot.form,
+  }
 }
 
 function tipoLabel(ev: AnotadorEvent): string {

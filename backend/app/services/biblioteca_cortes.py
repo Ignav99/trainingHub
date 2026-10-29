@@ -63,6 +63,18 @@ def format_storage_bytes(size: int) -> str:
     return f"{n / (1024 * 1024 * 1024):.2f} GB".replace(".", ",")
 
 
+_UNSAFE_NAME = re.compile(r'[\\/:*?"<>|\x00-\x1f]+')
+
+
+def download_filename(titulo: str | None, minuto: int | None, ext: str) -> str:
+    """Nombre legible del archivo descargado: «12' Salida de balón.mp4»."""
+    base = _UNSAFE_NAME.sub("_", (titulo or "").strip()).strip(" ._") or "corte"
+    base = base[:80].rstrip(" ._") or "corte"
+    if isinstance(minuto, int) and 0 <= minuto <= 130:
+        base = f"{minuto:02d}' {base}"
+    return f"{base}.{ext}"
+
+
 def clean_search(value: str | None) -> str:
     text = (value or "").replace("%", "").replace(",", " ").strip()
     return text[:80]

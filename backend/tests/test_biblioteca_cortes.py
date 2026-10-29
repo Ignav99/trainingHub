@@ -63,3 +63,10 @@ def test_phase_filter_also_finds_cuts_saved_with_desk_codes():
     assert set(mod.fase_aliases("abp_ofensiva")) == {"balon_parado_ofensivo", "abp_ofensiva"}
     assert mod.fase_aliases("ataque_organizado") == ["ataque_organizado"]
     assert mod.fase_aliases(None) == []
+
+
+def test_download_name_is_readable_and_safe():
+    assert mod.download_filename("Salida de balón", 12, "mp4") == "12' Salida de balón.mp4"
+    assert mod.download_filename('a/b:c*"d', None, "webm") == "a_b_c_d.webm"
+    assert mod.download_filename("", 3, "mp4") == "03' corte.mp4"
+    assert len(mod.download_filename("x" * 300, None, "mp4")) <= 84

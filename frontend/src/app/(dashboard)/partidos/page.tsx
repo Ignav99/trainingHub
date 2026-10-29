@@ -4,13 +4,14 @@ import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import useSWR from 'swr'
-import { Plus } from 'lucide-react'
+import { Plus, UserCheck } from 'lucide-react'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { apiKey } from '@/lib/swr'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { PartidosList } from '@/components/partidos/PartidosList'
 import { MatchDetailPanel } from '@/components/partidos/MatchDetailPanel'
+import { RevisarTitularesDialog } from '@/components/partidos/RevisarTitularesDialog'
 import {
   PartidosCollapsedRail,
   PartidosListCollapseToggle,
@@ -119,6 +120,7 @@ export default function PartidosPage() {
   }
 
   const { collapsed: listCollapsed, toggle: toggleList } = usePartidosListCollapsed()
+  const [revisarOpen, setRevisarOpen] = useState(false)
   const selectedLabel =
     (selectedPartido as Partido & { rival?: { nombre?: string } } | null)?.rival?.nombre ||
     selectedPartido?.fecha ||
@@ -133,14 +135,21 @@ export default function PartidosPage() {
         title="Partidos"
         description="Informe Rival, Plan de Partido, convocatoria e Informe del partido"
         actions={
-          <Button asChild>
-            <Link href="/partidos/nuevo">
-              <Plus className="h-4 w-4 mr-2" />
-              Nuevo Partido
-            </Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setRevisarOpen(true)} disabled={jugados.length === 0}>
+              <UserCheck className="h-4 w-4 mr-2" />
+              Revisar titulares
+            </Button>
+            <Button asChild>
+              <Link href="/partidos/nuevo">
+                <Plus className="h-4 w-4 mr-2" />
+                Nuevo Partido
+              </Link>
+            </Button>
+          </div>
         }
       />
+      <RevisarTitularesDialog open={revisarOpen} onOpenChange={setRevisarOpen} partidos={jugados} />
 
       {/* Main layout */}
       <div className={`grid gap-6 min-w-0 ${listCollapsed ? 'lg:grid-cols-[3rem_minmax(0,1fr)]' : 'grid-cols-1 lg:grid-cols-4'}`}>

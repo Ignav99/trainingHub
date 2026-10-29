@@ -559,10 +559,68 @@ test('una corrección manual del once no se pisa con el campo final', () => {
     ],
   }
   const corrected = formacionSlotsForAnotadorSave(
-    { formacion: '4-3-3', formacion_slots: { POR: 'gk', DC: 'otro' } },
+    { formacion: '4-3-3', formacion_slots: { POR: 'gk', DC: 'otro' }, formacion_manual: true },
     snap,
   )
   assert.equal(corrected.DC, 'otro')
+})
+
+test('un once provisional guardado antes del saque no manda sobre el anotador', () => {
+  const snap: AnotadorSnapshot = {
+    ...DEFAULT_ANOTADOR,
+    started: true,
+    slots: { POR: 'gk', DC: 'suplente' },
+    events: [
+      { id: 'c1', minute: 60, half: 2, type: 'cambio', convId: 'delantero', relatedConvId: 'suplente', slotId: 'DC' },
+    ],
+  }
+  const next = formacionSlotsForAnotadorSave(
+    { formacion: '4-3-3', formacion_slots: { POR: 'gk', DC: 'provisional' } },
+    snap,
+  )
+  assert.equal(next.DC, 'delantero')
+})
+
+test('al pitar se guarda el once del saque y no cambia con cambios ni sistema', () => {
+  let snap: AnotadorSnapshot = {
+    ...DEFAULT_ANOTADOR,
+    form: '4-3-3',
+    slots: { POR: 'gk', DC: 'nueve', EXI: 'extremo' },
+  }
+  snap = startEleven(snap)
+  assert.deepEqual(snap.kickoffSlots, { POR: 'gk', DC: 'nueve', EXI: 'extremo' })
+  assert.equal(snap.kickoffForm, '4-3-3')
+  snap = {
+    ...snap,
+    form: '4-4-2',
+    slots: { POR: 'gk', DC_L: 'suplente', MII: 'extremo' },
+    events: [
+      { id: 'c1', minute: 60, half: 2, type: 'cambio', convId: 'nueve', relatedConvId: 'suplente', slotId: 'DC' },
+    ],
+  }
+  assert.equal(startEleven(snap).kickoffSlots?.DC, 'nueve')
+  assert.deepEqual(new Set(Object.values(startingLineupSlots(snap))), new Set(['gk', 'nueve', 'extremo']))
+  const merged = parseNotasPre(mergeNotasPre({ formacion: '4-4-2' }, snap))
+  assert.equal(merged.formacion, '4-3-3')
+  assert.equal(merged.formacion_slots?.DC, 'nueve')
+})
+
+test('sin once del saque, un cambio de sistema a mitad no confunde el rebobinado', () => {
+  const snap: AnotadorSnapshot = {
+    ...DEFAULT_ANOTADOR,
+    started: true,
+    form: '4-4-2',
+    slots: { POR: 'gk', DC_L: 'suplente', DC_R: 'nueve2', MII: 'extremo' },
+    events: [
+      { id: 'c1', minute: 70, half: 2, type: 'cambio', convId: 'nueve', relatedConvId: 'suplente', slotId: 'DC' },
+    ],
+  }
+  const start = startingLineupSlots(snap)
+  const ids = Object.values(start)
+  assert.equal(ids.length, 4)
+  assert.ok(ids.includes('nueve'))
+  assert.ok(!ids.includes('suplente'))
+  assert.equal(start.DC_L, 'nueve')
 })
 
 test('antes del saque el campo actual sigue siendo el once', () => {

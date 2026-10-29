@@ -34,6 +34,7 @@ import {
   effectiveMatchMinute,
   emptyTeamStats,
   eventLabel,
+  EXTRA_SLOT_PREFIX,
   formacionSlotsForAnotadorSave,
   formatClock,
   golesPorPeriodoFromEvents,
@@ -137,6 +138,7 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
   const [pending, setPending] = useState<Pending>(null)
   const [selectedRival, setSelectedRival] = useState<number | null>(null)
   const persistBusy = useRef(false)
+  const titularWrittenRef = useRef(new Map<string, { titular: boolean; pos: string | null }>())
   const [goalDraftId, setGoalDraftId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [ready, setReady] = useState(false)
@@ -249,19 +251,27 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
       partidoRef.current = { ...match, notas_pre: notas }
 
       const xiSlots = formacionSlotsForAnotadorSave(sourceNotas, current)
-      const assigned = new Map<string, string>()
+      const assigned = new Map<string, string | null>()
       for (const [slotId, convId] of Object.entries(xiSlots)) {
-        if (convId) assigned.set(convId, slotId)
+        if (convId) assigned.set(convId, slotId.startsWith(EXTRA_SLOT_PREFIX) ? null : slotId)
       }
-      if (!opts?.silent) {
-        await Promise.all(convocados.map(async (c) => {
-          const pos = assigned.get(c.id)
+      if (assigned.size > 0) {
+        const written = titularWrittenRef.current
+        const changed = convocados.flatMap((c) => {
+          const titular = assigned.has(c.id)
+          const pos = assigned.get(c.id) ?? null
+          const prev = written.get(c.id) ?? { titular: Boolean(c.titular), pos: c.posicion_asignada ?? null }
+          if (opts?.silent && prev.titular === titular && (!titular || pos == null || prev.pos === pos)) return []
+          return [titular && pos ? { id: c.id, titular, posicion_asignada: pos } : { id: c.id, titular }]
+        })
+        if (changed.length > 0) {
           try {
-            await convocatoriasApi.update(c.id, pos
-              ? { titular: true, posicion_asignada: pos }
-              : { titular: false })
+            await convocatoriasApi.batchUpdateStats(changed)
+            for (const row of changed) {
+              written.set(row.id, { titular: row.titular, pos: row.posicion_asignada ?? written.get(row.id)?.pos ?? null })
+            }
           } catch { /* el once no debe tumbar el volcado */ }
-        }))
+        }
       }
 
       const flushed = informeFromSnapshot(current, convocados.map((c) => c.id), nameOf)
