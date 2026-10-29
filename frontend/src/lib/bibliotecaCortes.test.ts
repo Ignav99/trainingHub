@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { catalogFase, etiquetaGrupos, etiquetaKey, faseForEtiqueta, faseLabel, formatStorageBytes, inicioMarca, labelsForLibraryClip, minuteLabel, playlistFromIds, splitFase } from './bibliotecaCortes.ts'
+import { catalogFase, etiquetaGrupos, guessFaseFromLabel, etiquetaKey, faseForEtiqueta, faseLabel, formatStorageBytes, inicioMarca, labelsForLibraryClip, minuteLabel, playlistFromIds, splitFase } from './bibliotecaCortes.ts'
 
 describe('biblioteca de cortes', () => {
   it('etiqueta el espacio ocupado en español', () => {
@@ -79,5 +79,33 @@ describe('biblioteca de cortes', () => {
       { fase: 'balon_parado_ofensivo', subfase: undefined },
     )
     assert.deepEqual(faseForEtiqueta(mapping, 'Otra'), {})
+  })
+  it('adivina la subfase por el nombre y solo se queda en fase en transiciones y ABP', () => {
+    const cases: [string, Record<string, string>][] = [
+      ['Inicios', { fase: 'ataque_organizado', subfase: 'creacion' }],
+      ['Salida de balón', { fase: 'ataque_organizado', subfase: 'creacion' }],
+      ['Progresiones', { fase: 'ataque_organizado', subfase: 'progresion' }],
+      ['Finalización', { fase: 'ataque_organizado', subfase: 'finalizacion' }],
+      ['Bloque alto', { fase: 'defensa_organizada', subfase: 'bloque_alto' }],
+      ['Bloque medio', { fase: 'defensa_organizada', subfase: 'bloque_medio' }],
+      ['Bloque bajo', { fase: 'defensa_organizada', subfase: 'bloque_bajo' }],
+      ['Bloque mixto', { fase: 'defensa_organizada', subfase: 'bloque_mixto' }],
+      ['Transición ofensiva', { fase: 'transicion_defensa_ataque' }],
+      ['Transiciones defensivas', { fase: 'transicion_ataque_defensa' }],
+      ['Transición ataque-defensa', { fase: 'transicion_ataque_defensa' }],
+      ['Córner a favor', { fase: 'balon_parado_ofensivo' }],
+      ['Gol', {}],
+      ['Transición', {}],
+    ]
+    for (const [label, expected] of cases) assert.deepEqual(guessFaseFromLabel(label), expected, label)
+  })
+
+  it('la subfase del nombre gana a la fase genérica del botón', () => {
+    const [inicio, transicion] = etiquetaGrupos([
+      { title: 'Inicios', etiqueta: 'Inicios', fase: 'ataque_organizado' },
+      { title: 'Robo', etiqueta: 'Robo', fase: 'transicion_ofensiva' },
+    ], {})
+    assert.deepEqual([inicio.fase, inicio.subfase], ['ataque_organizado', 'creacion'])
+    assert.deepEqual([transicion.fase, transicion.subfase], ['transicion_defensa_ataque', undefined])
   })
 })
