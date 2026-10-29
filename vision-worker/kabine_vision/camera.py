@@ -572,6 +572,7 @@ def adjust_camera(views: list[tuple[Observed, np.ndarray]], pitch: Pitch) -> tup
 
 BOOTSTRAP_ROUNDS = 20
 BOOTSTRAP_PATIENCE = 3
+BOOTSTRAP_SEEDS = 3
 MIN_BOOTSTRAP_VIEWS = 3
 
 
@@ -584,6 +585,36 @@ def _refit(obs: Observed, params: np.ndarray, pitch: Pitch) -> Found | None:
         return None
     fit = measure(obs, upright(refined, obs.size, pitch), pitch)
     return Found(fit, params, pitch) if fit.good else None
+
+
+def _spread_order(items: list) -> list:
+    """Primero el del principio, el del tercio y el de dos tercios; luego el resto."""
+    first = [len(items) * k // BOOTSTRAP_SEEDS for k in range(BOOTSTRAP_SEEDS)]
+    order = list(dict.fromkeys(i for i in first if i < len(items)))
+    return [items[i] for i in order] + [item for i, item in enumerate(items) if i not in order]
+
+
+def _settle_position(seen: list[Observed], position: np.ndarray, pitch: Pitch) -> tuple[int, float, np.ndarray, Pitch]:
+    """Ajuste conjunto desde una semilla: fotogramas que encajan, su error mediano, sitio y medidas."""
+    views = [(obs, found[0].params) for obs in seen for found in [search_camera(obs, pitch, position)] if found]
+    best = (len(views), np.inf, position, pitch)
+    stale = 0
+    for _ in range(BOOTSTRAP_ROUNDS):
+        if len(views) < MIN_BOOTSTRAP_VIEWS:
+            break
+        position, pitch, params = adjust_camera(views, pitch)
+        fits = [(obs, _refit(obs, p, pitch)) for (obs, _), p in zip(views, params)]
+        views = [(obs, found.params) for obs, found in fits if found is not None]
+        if len(views) < MIN_BOOTSTRAP_VIEWS:
+            break
+        error = float(np.median([found.fit.forward for _, found in fits if found is not None]))
+        if error < best[1]:
+            best, stale = (len(views), error, position.copy(), pitch), 0
+        else:
+            stale += 1
+            if stale >= BOOTSTRAP_PATIENCE:
+                break
+    return best
 
 
 class PitchCamera:
@@ -608,38 +639,27 @@ class PitchCamera:
     def bootstrap(self, frames: list[np.ndarray], boxes: list[list[tuple[float, float, float, float]]] | None = None) -> bool:
         """Sitio de la cámara y medidas del campo con unos cuantos fotogramas repartidos por el partido.
 
-        Basta con que uno se calibre sin saber nada; con ese sitio aproximado se
-        calibran los demás solo girando, y el ajuste conjunto corrige sitio y medidas.
+        Un fotograma suelto puede calibrarse con la cámara en un sitio falso que
+        también encaja, así que se prueban varias semillas de fotogramas
+        repartidos y gana la que luego calibra más fotogramas con menos error.
         """
         seen = [self._observe(frame, (boxes or [None] * len(frames))[i])[0] for i, frame in enumerate(frames)]
         seen = [obs for obs in seen if obs is not None]
-        seed: Found | None = None
-        for obs in seen:
+        seeds: list[Found] = []
+        for obs in _spread_order(seen):
             found = search_camera(obs, self.pitch, free_size=True)
             if found:
-                seed = found[0]
-                break
-        if seed is None:
-            return False
-        position, pitch = seed.params[:3].copy(), seed.pitch
-        views = [(obs, found[0].params) for obs in seen for found in [search_camera(obs, pitch, position)] if found]
-        best, best_error, stale = (position, pitch), np.inf, 0
-        for _ in range(BOOTSTRAP_ROUNDS):
-            if len(views) < MIN_BOOTSTRAP_VIEWS:
-                break
-            position, pitch, params = adjust_camera(views, pitch)
-            fits = [(obs, _refit(obs, p, pitch)) for (obs, _), p in zip(views, params)]
-            views = [(obs, found.params) for obs, found in fits if found is not None]
-            if len(views) < MIN_BOOTSTRAP_VIEWS:
-                break
-            error = float(np.median([found.fit.forward for _, found in fits if found is not None]))
-            if error < best_error:
-                best, best_error, stale = (position.copy(), pitch), error, 0
-            else:
-                stale += 1
-                if stale >= BOOTSTRAP_PATIENCE:
+                seeds.append(found[0])
+                if len(seeds) >= BOOTSTRAP_SEEDS:
                     break
-        self.position, self.pitch = best
+        best: tuple[int, float, np.ndarray, Pitch] | None = None
+        for seed in seeds:
+            count, error, position, pitch = _settle_position(seen, seed.params[:3].copy(), seed.pitch)
+            if best is None or (np.isfinite(error), count, -error) > (np.isfinite(best[1]), best[0], -best[1]):
+                best = (count, error, position, pitch)
+        if best is None:
+            return False
+        self.position, self.pitch = best[2], best[3]
         return True
 
     @staticmethod
