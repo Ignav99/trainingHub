@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { Loader2, Library } from 'lucide-react'
+import { ArrowRight, Loader2, Library } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -12,12 +12,24 @@ import { bibliotecaCortesApi } from '@/lib/api/bibliotecaCortes'
 import { jugadoresApi, jugadorNombreVisible, type Jugador } from '@/lib/api/jugadores'
 import { partidosApi } from '@/lib/api/partidos'
 import { FASES_JUEGO, subfasesForFase } from '@/lib/catalogos/canonico'
-import { faseLabel, labelsForLibraryClip } from '@/lib/bibliotecaCortes'
+import {
+  etiquetaGrupos,
+  etiquetaKey,
+  faseForEtiqueta,
+  faseLabel,
+  labelsForLibraryClip,
+  loadEtiquetaFases,
+  saveEtiquetaFases,
+  type EtiquetaFases,
+  type EtiquetaGrupo,
+} from '@/lib/bibliotecaCortes'
 import { extractClipRange } from '@/components/video-analyzer/extractClip'
 import type { Partido } from '@/types'
 
 export interface BibliotecaClipIn {
   title: string
+  /** Botón de la botonera con el que se marcó; es la etiqueta que se asocia a una fase. */
+  etiqueta?: string
   startTime: number
   endTime: number
   fase?: string
@@ -57,20 +69,25 @@ export function GuardarEnBibliotecaDialog({
   const [jugadorIds, setJugadorIds] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<string | null>(null)
+  const [grupos, setGrupos] = useState<EtiquetaGrupo[]>([])
+  const [step, setStep] = useState<'etiquetas' | 'datos'>('etiquetas')
   const batch = clips.length > 1
-  const clipKey = clips.map((item) => `${item.title}\t${item.startTime}\t${item.endTime}\t${item.fase || ''}`).join('\n')
+  const clipKey = clips.map((item) => [item.title, item.startTime, item.endTime, item.fase || '', item.subfase || '', item.etiqueta || ''].join('\t')).join('\n')
   const subfases = useMemo(() => subfasesForFase(fase) || [], [fase])
 
   useEffect(() => {
     if (!open) return
     const queue = clipKey ? clipKey.split('\n').map((line) => {
-      const [title, start, end, faseCode] = line.split('\t')
-      return { title, startTime: Number(start), endTime: Number(end), fase: faseCode }
+      const [title, start, end, faseCode, subfaseCode, etiqueta] = line.split('\t')
+      return { title, startTime: Number(start), endTime: Number(end), fase: faseCode, subfase: subfaseCode, etiqueta }
     }) : []
     const first = queue[0]
+    const initial = etiquetaGrupos(queue, loadEtiquetaFases(equipoId))
+    setGrupos(initial)
+    setStep(initial.length > 0 ? 'etiquetas' : 'datos')
     setTitulo(batch ? '' : (first?.title || ''))
-    setFase(first?.fase || '')
-    setSubfase('')
+    setFase(initial[0]?.fase || '')
+    setSubfase(initial[0]?.subfase || '')
     setDescripcion('')
     setPartido(partidoId || '')
     setJugadorIds([])
@@ -92,6 +109,35 @@ export function GuardarEnBibliotecaDialog({
       })
       .catch(() => setJugadores([]))
   }, [open, equipoId, partidoId, clipKey, batch])
+
+  const grupoMapping = (): EtiquetaFases => Object.fromEntries(
+    grupos.map((g) => [g.key, { fase: g.fase, subfase: g.subfase }]),
+  )
+
+  const setGrupo = (key: string, patch: Partial<EtiquetaGrupo>) => {
+    setGrupos((curr) => curr.map((g) => (g.key === key ? { ...g, ...patch } : g)))
+  }
+
+  const continuar = () => {
+    if (!batch && grupos[0]) {
+      setFase(grupos[0].fase || '')
+      setSubfase(grupos[0].subfase || '')
+    }
+    setStep('datos')
+  }
+
+  const clipLabels = (item: BibliotecaClipIn) => {
+    if (!batch) return labelsForLibraryClip(false, { fase, subfase }, item)
+    return labelsForLibraryClip(true, {}, faseForEtiqueta(grupoMapping(), item.etiqueta || item.title))
+  }
+
+  const rememberEtiquetas = () => {
+    const mapping = { ...loadEtiquetaFases(equipoId), ...grupoMapping() }
+    if (!batch && clips[0]) {
+      mapping[etiquetaKey(clips[0].etiqueta || clips[0].title)] = { fase: fase || undefined, subfase: subfase || undefined }
+    }
+    saveEtiquetaFases(equipoId, mapping)
+  }
 
   const toggleJugador = (id: string) => {
     setJugadorIds((curr) => curr.includes(id) ? curr.filter((item) => item !== id) : [...curr, id])
@@ -128,7 +174,7 @@ export function GuardarEnBibliotecaDialog({
           partido_etiqueta: etiqueta,
           minuto_inicio: batch || minutoInicio === '' ? Math.floor(item.startTime / 60) : Number(minutoInicio),
           minuto_fin: batch || minutoFin === '' ? Math.ceil(item.endTime / 60) : Number(minutoFin),
-          ...labelsForLibraryClip(batch, { fase, subfase }, item),
+          ...clipLabels(item),
           duration_ms: Math.round((item.endTime - item.startTime) * 1000),
           start_ms: Math.round(item.startTime * 1000),
           end_ms: Math.round(item.endTime * 1000),
@@ -137,6 +183,7 @@ export function GuardarEnBibliotecaDialog({
           origen: 'video',
         }, (pct) => setProgress(`Subiendo… ${pct}%`))
       }
+      rememberEtiquetas()
       toast.success(queue.length > 1 ? `${queue.length} cortes guardados en la biblioteca` : 'Corte guardado en la biblioteca')
       onSaved?.()
       onOpenChange(false)
@@ -152,8 +199,56 @@ export function GuardarEnBibliotecaDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{batch ? 'Pasar a la biblioteca' : 'Guardar en la biblioteca'}</DialogTitle>
+          <DialogTitle>
+            {step === 'etiquetas' ? 'Etiquetas → fases de la biblioteca' : batch ? 'Pasar a la biblioteca' : 'Guardar en la biblioteca'}
+          </DialogTitle>
         </DialogHeader>
+        {step === 'etiquetas' ? (
+          <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-1">
+            <p className="text-sm text-muted-foreground">
+              Asocia cada etiqueta de la botonera a una fase o subfase. Los cortes entran en la biblioteca con esa fase
+              y la próxima vez esta etiqueta ya vendrá asociada.
+            </p>
+            <ul className="space-y-2">
+              {grupos.map((g) => {
+                const subs = subfasesForFase(g.fase) || []
+                return (
+                  <li key={g.key} className="rounded-md border p-2">
+                    <div className="mb-1.5 flex items-baseline justify-between gap-2">
+                      <span className="min-w-0 truncate text-sm font-medium">{g.label}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">{g.count} {g.count === 1 ? 'corte' : 'cortes'}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <select
+                        className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                        value={g.fase || ''}
+                        onChange={(e) => setGrupo(g.key, { fase: e.target.value || undefined, subfase: undefined })}
+                        aria-label={`Fase de ${g.label}`}
+                      >
+                        <option value="">Sin fase</option>
+                        {FASES_JUEGO.map((item) => (
+                          <option key={item.codigo} value={item.codigo}>{item.nombre}</option>
+                        ))}
+                      </select>
+                      <select
+                        className="h-9 w-full rounded-md border bg-background px-2 text-sm disabled:opacity-50"
+                        value={g.subfase || ''}
+                        onChange={(e) => setGrupo(g.key, { subfase: e.target.value || undefined })}
+                        disabled={subs.length === 0}
+                        aria-label={`Subfase de ${g.label}`}
+                      >
+                        <option value="">{subs.length ? 'Sin subfase' : 'Sin subfases'}</option>
+                        {subs.map((item) => (
+                          <option key={item.codigo} value={item.codigo}>{item.nombre}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        ) : (
         <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-1">
           <p className="text-xs text-muted-foreground">
             El recorte se queda en Cloudflare. El partido entero no sale de este ordenador.
@@ -161,13 +256,18 @@ export function GuardarEnBibliotecaDialog({
           {batch ? (
             <div className="space-y-2">
               <p className="text-sm">
-                {clips.length} cortes de este partido. Cada uno se guarda con la fase del recorte.
+                {clips.length} cortes de este partido. Cada uno se guarda con la fase de su etiqueta.
               </p>
               <ul className="max-h-36 space-y-1 overflow-y-auto text-xs">
                 {clips.map((item) => (
                   <li key={`${item.title}-${item.startTime}`} className="flex items-baseline justify-between gap-3 border-b py-1">
                     <span className="min-w-0 truncate">{item.title}</span>
-                    <span className="shrink-0 text-muted-foreground">{faseLabel(item.subfase || item.fase) || 'Sin fase'}</span>
+                    <span className="shrink-0 text-muted-foreground">
+                      {(() => {
+                        const labels = clipLabels(item)
+                        return faseLabel(labels.subfase || labels.fase) || 'Sin fase'
+                      })()}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -254,11 +354,26 @@ export function GuardarEnBibliotecaDialog({
           </div>
           {progress && <p className="text-xs text-muted-foreground">{progress}</p>}
         </div>
+        )}
         <DialogFooter>
-          <Button onClick={() => { void submit() }} disabled={busy}>
-            {busy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Library className="mr-1 h-4 w-4" />}
-            {batch ? 'Pasar a biblioteca' : 'Guardar'}
-          </Button>
+          {step === 'etiquetas' ? (
+            <Button onClick={continuar}>
+              Continuar
+              <ArrowRight className="ml-1 h-4 w-4" />
+            </Button>
+          ) : (
+            <>
+              {grupos.length > 0 && (
+                <Button variant="outline" onClick={() => setStep('etiquetas')} disabled={busy}>
+                  Etiquetas
+                </Button>
+              )}
+              <Button onClick={() => { void submit() }} disabled={busy}>
+                {busy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Library className="mr-1 h-4 w-4" />}
+                {batch ? 'Pasar a biblioteca' : 'Guardar'}
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
