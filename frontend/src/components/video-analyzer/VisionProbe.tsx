@@ -497,7 +497,7 @@ async function waitForMatch(
     const part = body.phase === 'segunda' ? 'segunda parte' : 'primera parte'
     const running =
       body.phase === 'calibrando'
-        ? 'Calibrando la cámara y las camisetas con fotogramas de todo el partido. Tarda unos minutos.'
+        ? 'Calibrando la cámara y las camisetas con fotogramas de todo el partido. Tarda unos 10–15 minutos.'
         : `Leyendo la ${part}. ${body.kept_frames ?? 0} fotogramas. Puedes dejar esta ventana abierta.`
     onPhase(body.status === 'running' ? running : '')
     if (body.status === 'done' || body.status === 'error') return body
