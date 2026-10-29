@@ -570,8 +570,20 @@ def adjust_camera(views: list[tuple[Observed, np.ndarray]], pitch: Pitch) -> tup
     return place, Pitch(round(length, 1), round(width, 1)), params
 
 
-BOOTSTRAP_ROUNDS = 3
+BOOTSTRAP_ROUNDS = 20
+BOOTSTRAP_PATIENCE = 3
 MIN_BOOTSTRAP_VIEWS = 3
+
+
+def _refit(obs: Observed, params: np.ndarray, pitch: Pitch) -> Found | None:
+    """Giro y zoom afinados desde el ajuste conjunto, sin volver a la rejilla."""
+    for cap in (WIDE_CAP_PX, 8.0):
+        params = _refine(obs, params, pitch, cap, obs.points[::2], True)
+    refined = icp(obs, upright(camera_h(params, obs.size, pitch), obs.size, pitch), pitch)
+    if refined is None:
+        return None
+    fit = measure(obs, upright(refined, obs.size, pitch), pitch)
+    return Found(fit, params, pitch) if fit.good else None
 
 
 class PitchCamera:
@@ -610,16 +622,24 @@ class PitchCamera:
         if seed is None:
             return False
         position, pitch = seed.params[:3].copy(), seed.pitch
+        views = [(obs, found[0].params) for obs in seen for found in [search_camera(obs, pitch, position)] if found]
+        best, best_error, stale = (position, pitch), np.inf, 0
         for _ in range(BOOTSTRAP_ROUNDS):
-            views = []
-            for obs in seen:
-                found = search_camera(obs, pitch, position)
-                if found:
-                    views.append((obs, found[0].params))
             if len(views) < MIN_BOOTSTRAP_VIEWS:
                 break
-            position, pitch, _ = adjust_camera(views, pitch)
-        self.position, self.pitch = position, pitch
+            position, pitch, params = adjust_camera(views, pitch)
+            fits = [(obs, _refit(obs, p, pitch)) for (obs, _), p in zip(views, params)]
+            views = [(obs, found.params) for obs, found in fits if found is not None]
+            if len(views) < MIN_BOOTSTRAP_VIEWS:
+                break
+            error = float(np.median([found.fit.forward for _, found in fits if found is not None]))
+            if error < best_error:
+                best, best_error, stale = (position.copy(), pitch), error, 0
+            else:
+                stale += 1
+                if stale >= BOOTSTRAP_PATIENCE:
+                    break
+        self.position, self.pitch = best
         return True
 
     @staticmethod
@@ -693,8 +713,8 @@ class PitchCamera:
         found: list[Found] = []
         if self.position is not None:
             found = search_camera(obs, self.pitch, self.position)
-        if not found:
-            found = search_camera(obs, self.pitch, free_size=self.position is None)
+        else:
+            found = search_camera(obs, self.pitch, free_size=True)
             if found:
                 self.position = found[0].params[:3].copy()
                 self.pitch = found[0].pitch

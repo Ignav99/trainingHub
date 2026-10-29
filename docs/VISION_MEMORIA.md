@@ -303,6 +303,57 @@ Un 9 pintado y fuera del acta se descarta. Las esquinas naranjas, sin líneas bl
 
 ---
 
+## Rediseño RF-DETR + cámara física (29 oct 2026)
+
+Sustituye la máscara de color cuando el Mac tiene `rfdetr` instalado. Sin `rfdetr` el servidor vuelve a `detect_field` / `detect_blobs`.
+
+| Pieza | Cómo |
+|---|---|
+| Personas y balón | RF-DETR Medium (Apache), clases COCO `person` y `sports ball`. Persona ≥ 0,3, balón ≥ 0,25. Si no hay balón, 2 mosaicos del campo (balón ≥ 0,2). Se tira el balón a menos de 1,5 m del punto de penalti o del centro |
+| Cámara | `PitchCamera` (`camera.py`): posición fija de la cámara, tamaño del campo por partido, pan/tilt/zoom por fotograma contra las líneas. Arranque ~5 min con 16 fotogramas repartidos por el partido (fase `calibrando`), luego ~0,12 s/fotograma |
+| Fuera del campo | Personas con los pies a más de 3 m fuera de la banda se descartan (público, banquillo) |
+| Equipos, árbitro, porteros | Paleta Lab de 16 colores del torso sin césped, 8 grupos. Un grupo con ≤ 1,25 personas por fotograma es solitario: portero si está a < 22 m de una portería, árbitro si no. El resto se parte en dos equipos; el nuestro es el más cercano a la camiseta del formulario |
+| Identidad | Enlace en metros del campo (2 m + 7 m/s por segundo sin ver, hasta 3 s), velocidad estimada, el equipo solo resta (×0,6). Después, `_stitch` une huecos de hasta 4 s si el candidato es claramente el único |
+| Tope de velocidad | 12 m/s contra la última muestra aceptada + 1,2 m de ruido de calibración |
+| Keypoints | 12+ puntos exactos del campo por fotograma calibrado (`kind: keypoint`) |
+
+### Nota 0–100 (`score.py`)
+
+100 = los 22 jugadores siguidos todo el rato, balón y árbitro perfectos. Partes: jugadores en pantalla 40 (contados por fotograma frente a los que se ven de verdad), identidad 20 (tracks largos), balón 20, árbitro 10, equipo + dorsal 10. Sin acta el dorsal no puntúa: el techo real sin acta es 95.
+
+### Resultados en `prueba2.mp4` (18 s, desde el segundo 2)
+
+| Versión | Nota |
+|---|---|
+| Lectura `estable-2` (color) | 52,9 |
+| RF-DETR + cámara | 80,7 |
+| + roles por color y tope de velocidad bien | 84,0 |
+| Nota honesta (por fotograma, no unión por segundo) | 78,8 |
+| + ruido de calibración y enlace en metros | 81,8 |
+| + balón por mosaico, filtro de puntos, cosido | **84,8** |
+
+Desglose de 84,8: jugadores 37,3/40, identidad 13,9/20, balón 19/20, árbitro 10/10, equipo+dorsal 4,6/10. Sin el dorsal (imposible sin acta) es 80,2 de 90 = **89 %**. Calibración en 184 de 189 fotogramas.
+
+Probado y descartado: cerrar huecos de la máscara de césped (`MORPH_CLOSE` antes del componente mayor) bajó la calibración a 139/189 y la nota a 76,6.
+
+Límites conocidos: en la vista de la portería izquierda (16–20 s) la homografía va 0,5–1 m desviada; la identidad se pierde cuando un jugador sale del plano en un paneo largo; dorsales en plano ancho casi no se leen.
+
+Coste estimado del partido entero (~54 000 fotogramas a paso 3): 2–4 h en CPU del Mac.
+
+### Instalar en el Mac
+
+```bash
+PY=/Users/User/.pyenv/versions/3.11.9/bin/python3
+$PY -m pip install -r vision-worker/requirements-rfdetr.txt
+$PY scripts/vision_server.py
+```
+
+`KABINE_DETECTOR=rfdetr` (por defecto) o `field` para volver a la lectura de color. `KABINE_RFDETR_SIZE=medium` (o `small` si va lento). La primera vez RF-DETR descarga sus pesos. En Kabine se verá primero «Calibrando la cámara y las camisetas…».
+
+Tests: `python3 -m unittest discover -s tests` dentro de `vision-worker` (41).
+
+---
+
 ## Qué falta para fiarse de un partido de noche
 
 1. **RF-DETR** (Apache) en el Mac, en `~/.cache/kabine-vision/`. Sustituye a la máscara de color. Sin esto, una camiseta blanca sigue pudiendo confundirse con una línea gruesa o una valla clara.
