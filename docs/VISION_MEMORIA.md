@@ -240,7 +240,7 @@ El módulo 1 se da por usable en un partido de noche cuando el JSON de Nervión 
 3. El balón está dentro del rectángulo, en cadenas de varias muestras, con mediana por debajo de 20 m/s.
 4. Hay jugadores dentro del campo durante más de unos minutos, no solo 190 s.
 
-Orden: primero el tracker y la calibración (`estable-2`, abajo). Después, si la mediana de id sigue en 0,2 s, el color no da más de sí y el detector pasa a ser RF-DETR en el Mac. BoT-SORT entra solo si, con un detector estable, el paneo de Veo sigue partiendo los ids. El dorsal y el modelo de balón van detrás. Los módulos 2 y 3 no se construyen hasta cumplir el listón.
+`estable-2` ya está leído en Nervión (cuarta pasada, abajo). El balón es lo único cerca del listón. La mediana de id subió de 0,2 s a 0,6 s y se quedó corta de 1 s: quedan 2434 tracks de un solo fotograma, que no se pueden enganchar porque no reaparecen. Eso es el detector de color. El siguiente cambio es RF-DETR en el Mac, no otro ajuste de la máscara. La homografía sigue sin encadenar (racha máxima 4 s). BoT-SORT entra solo si, con RF-DETR, el paneo sigue partiendo ids que sí se ven. El dorsal y el modelo de balón van detrás. Los módulos 2 y 3 no se construyen hasta cumplir el listón.
 
 Cada pasada se anota aquí con el commit del JSON, el `reader` y la tabla contra la anterior.
 
@@ -259,7 +259,29 @@ Responde a la tercera pasada, no a un vídeo nuevo. `reader` = `estable-2`. El J
 
 Medido aquí, sin el MP4: 31 tests en `vision-worker`. Un jugador que desaparece 0,2 s y se mueve 40 px sigue siendo un solo id. Un balón que avanza despacio se queda; uno fuera del campo o que salta de banda a banda no se guarda. Las vallas claras siguen sin contar. El vídeo dibujado de camisetas y acta no empeora.
 
-Esto todavía no pone a los jugadores de verdad. Si la próxima pasada de Nervión sigue con mediana 0,2 s, el siguiente cambio es RF-DETR, no otro ajuste de la máscara.
+Esto todavía no pone a los jugadores de verdad. La pasada real está en la sección siguiente.
+
+---
+
+## Cuarta pasada: Nervión con `estable-2` (29 oct 2026, 10:59 Europe/Madrid)
+
+El archivo llegó subido al chat, no por commit. `pack1`, `reader` `estable-2`, 2,4 MB. Detector `field`. Mismo partido, mismos pitidos, camisetas y acta. 57254 fotogramas.
+
+| Medida | estable-1 (16:52) | estable-2 (esta pasada) | Listón |
+|---|---|---|---|
+| Tracks de jugador | 14262. Árbitros: 0 | 9014. Árbitros: 0. 2550 nuestros, 6464 rival | — |
+| Duración de un id | mediana 0,2 s (2 muestras). p90: 3,0 s | mediana 0,6 s (4 muestras). p90: 6,3 s. El más largo: 81 s. 3936 tracks pasan de 1 s. 2434 siguen siendo un solo fotograma | mediana por encima de 1 s. No llega |
+| Homografías aceptadas | 1386. Racha 3,1 s | 1567 (1450 en la 1ª, 117 en la 2ª). Racha 4,0 s. Ninguna de 5 s | racha de más de 8 s. No llega |
+| Balón | 4380. Mediana 13,7 m/s. Cadena mediana: 1. 806 de 1626 vistas fuera | 792 (649 vistas, 143 sostenidas). Mediana 5,3 m/s. p90: 23,8. Cadena mediana: 4. La más larga: 36. 586 de 649 vistas dentro del rectángulo. 5 pasos cortos pasan de 40 m/s | dentro, cadenas de varias muestras, mediana bajo 20 m/s. Casi |
+| Segundos con alguien dentro del campo | 190 s | 94 s. Coordenadas sin salto: 2632. Dentro del rectángulo y sin rechazo: 1418 | más de unos minutos. Empeora |
+| Gente en un fotograma | mediana 2, máximo 16 | mediana 2, máximo 16 | — |
+| Dorsales | 21 tracks. El 1, 30 s | 21 tracks. Números 1, 2, 3, 4, 5, 7, 8, 13, 15, 16, 17, 21 y 24. El 1 aguanta 62 s; el 8, 38 s; el 24, 36 s | — |
+| Metros | suma 1965 m. Máximo de un id: 15 m | suma 886 m. 197 tracks pasan de 1 m. Máximo de un id: 28 m | — |
+| Muestras de jugador | 144151 | 144416 | — |
+
+Qué sí cambió: el enganche alarga los ids que reaparecen (el 1 pasa de 30 s a 62 s) y el balón por fin se parece a un balón: va a 5 m/s, aguanta varias muestras y casi todo cae dentro del campo.
+
+Qué no llega: la mediana sigue en 0,6 s por los 2434 fotogramas sueltos, el césped no encadena más de 4 s, y al rechazar los pies de fuera del campo el tiempo con alguien dentro baja de 190 s a 94 s. Con esto no se dibuja el partido. El siguiente paso es RF-DETR. Los módulos 2 y 3 siguen sin construirse.
 
 ---
 
