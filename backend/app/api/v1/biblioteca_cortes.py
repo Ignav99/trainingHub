@@ -13,7 +13,9 @@ from app.database import get_supabase
 from app.security.dependencies import AuthContext, require_permission
 from app.security.permissions import Permission
 from app.services.biblioteca_cortes import (
+    catalog_fase,
     clean_search,
+    fase_aliases,
     download_filename,
     corte_id_from_path,
     format_storage_bytes,
@@ -314,7 +316,7 @@ async def list_cortes(
     if partido_id:
         query = query.eq("partido_id", str(partido_id))
     if fase:
-        query = query.eq("fase", fase)
+        query = query.in_("fase", fase_aliases(fase))
     if subfase:
         query = query.eq("subfase", subfase)
     needle = clean_search(q)
@@ -489,7 +491,7 @@ async def confirm_upload(
         "partido_etiqueta": _text(data.partido_etiqueta, 160),
         "minuto_inicio": data.minuto_inicio,
         "minuto_fin": data.minuto_fin,
-        "fase": _text(data.fase, 80),
+        "fase": _text(catalog_fase(data.fase), 80),
         "subfase": _text(data.subfase, 80),
         "url": _public(data.storage_path, supabase),
         "storage_path": data.storage_path,
@@ -545,7 +547,7 @@ async def update_corte(
     if data.minuto_fin is not None:
         patch["minuto_fin"] = data.minuto_fin
     if data.fase is not None:
-        patch["fase"] = _text(data.fase, 80)
+        patch["fase"] = _text(catalog_fase(data.fase), 80)
     if data.subfase is not None:
         patch["subfase"] = _text(data.subfase, 80)
     updated = supabase.table("biblioteca_cortes").update(patch).eq("id", cid).execute()

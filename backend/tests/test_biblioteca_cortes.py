@@ -50,6 +50,21 @@ def test_subfase_code_splits_from_parent_phase():
     assert mod.split_fase(None) == (None, None)
 
 
+def test_desk_codes_become_catalog_phases():
+    assert mod.catalog_fase("abp_ofensiva") == "balon_parado_ofensivo"
+    assert mod.catalog_fase("transicion_defensiva") == "transicion_ataque_defensa"
+    assert mod.catalog_fase("ataque_organizado") == "ataque_organizado"
+    assert mod.catalog_fase("  ") is None
+    assert mod.split_fase("abp_defensiva") == ("balon_parado_defensivo", None)
+
+
+def test_phase_filter_also_finds_cuts_saved_with_desk_codes():
+    assert set(mod.fase_aliases("balon_parado_ofensivo")) == {"balon_parado_ofensivo", "abp_ofensiva"}
+    assert set(mod.fase_aliases("abp_ofensiva")) == {"balon_parado_ofensivo", "abp_ofensiva"}
+    assert mod.fase_aliases("ataque_organizado") == ["ataque_organizado"]
+    assert mod.fase_aliases(None) == []
+
+
 def test_download_name_is_readable_and_safe():
     assert mod.download_filename("Salida de balón", 12, "mp4") == "12' Salida de balón.mp4"
     assert mod.download_filename('a/b:c*"d', None, "webm") == "a_b_c_d.webm"

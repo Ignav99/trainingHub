@@ -44,9 +44,22 @@ const FASE_NOMBRE: Record<string, string> = {
   bloque_mixto: 'Bloque mixto',
 }
 
+/** La botonera usa sus códigos; la biblioteca filtra por los del catálogo. */
+const CATALOG_FASE: Record<string, string> = {
+  transicion_ofensiva: 'transicion_defensa_ataque',
+  transicion_defensiva: 'transicion_ataque_defensa',
+  abp_ofensiva: 'balon_parado_ofensivo',
+  abp_defensiva: 'balon_parado_defensivo',
+}
+
+export function catalogFase(value?: string | null): string {
+  const code = (value || '').trim()
+  return CATALOG_FASE[code] || code
+}
+
 /** Si el código es una subfase, separa fase y subfase. Si no, deja la fase del recorte. */
 export function splitFase(value?: string | null): { fase?: string; subfase?: string } {
-  const code = (value || '').trim()
+  const code = catalogFase(value)
   if (!code) return {}
   const parent = SUBFASE_PARENT[code]
   if (parent) return { fase: parent, subfase: code }
@@ -96,4 +109,78 @@ export function labelsForLibraryClip(
     fase: parts.fase,
     subfase: shared.subfase || clip.subfase || parts.subfase,
   }
+}
+
+export type EtiquetaFase = { fase?: string; subfase?: string }
+export type EtiquetaFases = Record<string, EtiquetaFase>
+
+/** Misma etiqueta aunque cambien mayúsculas, tildes o espacios. */
+export function etiquetaKey(label?: string | null): string {
+  return (label || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+const ETIQUETAS_STORAGE = 'biblioteca-etiquetas:v1:'
+
+export function loadEtiquetaFases(equipoId: string): EtiquetaFases {
+  try {
+    const raw = localStorage.getItem(ETIQUETAS_STORAGE + equipoId)
+    const parsed = raw ? JSON.parse(raw) : null
+    return parsed && typeof parsed === 'object' ? parsed as EtiquetaFases : {}
+  } catch {
+    return {}
+  }
+}
+
+export function saveEtiquetaFases(equipoId: string, mapping: EtiquetaFases): void {
+  try {
+    localStorage.setItem(ETIQUETAS_STORAGE + equipoId, JSON.stringify(mapping))
+  } catch { /* sin almacenamiento, la asociación vale para esta vez */ }
+}
+
+export type EtiquetaGrupo = { key: string; label: string; count: number } & EtiquetaFase
+
+/**
+ * Una fila por etiqueta de los recortes, con la fase que ya tenía asociada
+ * o, si no, la del botón de la botonera.
+ */
+export function etiquetaGrupos(
+  clips: { etiqueta?: string; title: string; fase?: string; subfase?: string }[],
+  saved: EtiquetaFases,
+): EtiquetaGrupo[] {
+  const groups = new Map<string, EtiquetaGrupo>()
+  for (const clip of clips) {
+    const label = (clip.etiqueta || clip.title || '').trim() || 'Sin etiqueta'
+    const key = etiquetaKey(label)
+    const hit = groups.get(key)
+    if (hit) {
+      hit.count += 1
+      continue
+    }
+    const remembered = saved[key]
+    const fromButton = splitFase(clip.fase)
+    const base = remembered && (remembered.fase || remembered.subfase) ? remembered : {
+      fase: fromButton.fase,
+      subfase: clip.subfase || fromButton.subfase,
+    }
+    groups.set(key, { key, label, count: 1, ...splitEtiquetaFase(base) })
+  }
+  return Array.from(groups.values())
+}
+
+function splitEtiquetaFase(value: EtiquetaFase): EtiquetaFase {
+  const parts = splitFase(value.fase)
+  const out: EtiquetaFase = {}
+  if (parts.fase) out.fase = parts.fase
+  const subfase = value.subfase || parts.subfase
+  if (subfase) out.subfase = subfase
+  return out
+}
+
+export function faseForEtiqueta(mapping: EtiquetaFases, label?: string | null): EtiquetaFase {
+  return splitEtiquetaFase(mapping[etiquetaKey(label)] || {})
 }

@@ -109,9 +109,33 @@ def resolve_clip_fase(clip_fase: str | None, folder_fases: list[str | None]) -> 
     return None
 
 
+# La botonera y Revisión usan sus propios códigos; la biblioteca filtra por los del catálogo.
+_CATALOG_FASE = {
+    "transicion_ofensiva": "transicion_defensa_ataque",
+    "transicion_defensiva": "transicion_ataque_defensa",
+    "abp_ofensiva": "balon_parado_ofensivo",
+    "abp_defensiva": "balon_parado_defensivo",
+}
+
+
+def catalog_fase(value: str | None) -> str | None:
+    code = (value or "").strip() or None
+    if not code:
+        return None
+    return _CATALOG_FASE.get(code, code)
+
+
+def fase_aliases(value: str | None) -> list[str]:
+    """Códigos que cuentan como esta fase al filtrar (cortes viejos guardados con el de la botonera)."""
+    code = catalog_fase(value)
+    if not code:
+        return []
+    return [code, *[desk for desk, cat in _CATALOG_FASE.items() if cat == code]]
+
+
 def split_fase(value: str | None) -> tuple[str | None, str | None]:
     """Si el código es una subfase, devuelve (fase, subfase). Si no, (fase, None)."""
-    code = (value or "").strip() or None
+    code = catalog_fase(value)
     if not code:
         return None, None
     parent = _SUBFASE_PARENT.get(code)

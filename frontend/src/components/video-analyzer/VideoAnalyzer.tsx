@@ -149,6 +149,7 @@ export function VideoAnalyzer({
       const parts = splitFase(button?.fase)
       return {
         title: clipDisplayTitle(clip, button),
+        etiqueta: button?.label,
         startTime: clip.startTime,
         endTime: clip.endTime,
         fase: parts.fase,
