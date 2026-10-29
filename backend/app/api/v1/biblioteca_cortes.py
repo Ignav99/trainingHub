@@ -14,6 +14,7 @@ from app.security.dependencies import AuthContext, require_permission
 from app.security.permissions import Permission
 from app.services.biblioteca_cortes import (
     clean_search,
+    download_filename,
     corte_id_from_path,
     format_storage_bytes,
     is_allowed_biblioteca_path,
@@ -90,6 +91,11 @@ class EnviarRevisionBody(BaseModel):
 class DesdeRevisionBody(BaseModel):
     equipo_id: UUID
     clip_id: UUID
+
+
+class DescargasBody(BaseModel):
+    equipo_id: UUID
+    ids: list[UUID] = Field(min_length=1, max_length=100)
 
 
 def _verify_equipo(supabase, equipo_id: str) -> None:
@@ -358,6 +364,58 @@ async def uso_biblioteca(
         "size_label": format_storage_bytes(total),
         "limit_bytes": None,
     }
+
+
+@router.post("/descargas")
+async def descargas(
+    data: DescargasBody,
+    auth: AuthContext = Depends(require_permission(Permission.VIDEO_READ)),
+):
+    """URLs firmadas del archivo original de cada corte, para bajarlo sin recodificar."""
+    del auth
+    equipo = str(data.equipo_id)
+    wanted = list(dict.fromkeys(str(i) for i in data.ids))
+    supabase = get_supabase()
+    _verify_equipo(supabase, equipo)
+    found = (
+        supabase.table("biblioteca_cortes")
+        .select("id, titulo, partido_etiqueta, minuto_inicio, storage_path, mime_type, size_bytes, url")
+        .eq("equipo_id", equipo)
+        .in_("id", wanted)
+        .execute()
+    )
+    by_id = {row["id"]: row for row in (found.data or [])}
+    use_r2 = r2_enabled() and not r2_config_error()
+    out = []
+    for cid in wanted:
+        row = by_id.get(cid)
+        if not row:
+            continue
+        path = row.get("storage_path") or ""
+        if path and not is_allowed_biblioteca_path(path, equipo):
+            path = ""
+        mime = row.get("mime_type") or "video/mp4"
+        filename = download_filename(row.get("titulo"), row.get("minuto_inicio"), extension_for(path or None, mime))
+        url = row.get("url")
+        download_url = None
+        if path and use_r2:
+            from app.services.r2_storage import presign_get
+            try:
+                url = presign_get(path, 3600)
+                download_url = presign_get(path, 3600, download_name=filename)
+            except Exception as exc:
+                logger.warning("biblioteca descarga %s: %s", cid, exc)
+        if not url:
+            continue
+        out.append({
+            "id": cid,
+            "url": url,
+            "download_url": download_url or url,
+            "filename": filename,
+            "mime_type": mime,
+            "size_bytes": int(row.get("size_bytes") or 0),
+        })
+    return out
 
 
 @router.post("/upload-url")

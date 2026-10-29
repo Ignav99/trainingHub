@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import useSWR from 'swr'
 import Link from 'next/link'
-import { Film, Loader2, Play, Search, Send, Trash2 } from 'lucide-react'
+import { CheckSquare, Download, Film, Loader2, Play, Search, Send, Square, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -13,6 +13,7 @@ import { jugadoresApi, jugadorNombreVisible, type Jugador } from '@/lib/api/juga
 import { partidosApi } from '@/lib/api/partidos'
 import { FASES_JUEGO, SUBFASES_ATAQUE, SUBFASES_DEFENSA, subfasesForFase } from '@/lib/catalogos/canonico'
 import { faseLabel, minuteLabel, playlistFromIds } from '@/lib/bibliotecaCortes'
+import { descargarCortes } from '@/lib/bibliotecaDescarga'
 import { EditarCorteDialog } from '@/components/biblioteca/EditarCorteDialog'
 import { EnviarCorteDialog } from '@/components/biblioteca/EnviarCorteDialog'
 import { CorteMiniatura } from '@/components/biblioteca/CorteMiniatura'
@@ -55,6 +56,7 @@ export function BibliotecaCortesPanel({
   const [dirty, setDirty] = useState(false)
   const [sendOpen, setSendOpen] = useState(false)
   const [sendIds, setSendIds] = useState<string[]>([])
+  const [downloading, setDownloading] = useState<string | null>(null)
 
   useEffect(() => {
     const timer = window.setTimeout(() => setQDebounced(q.trim()), 250)
@@ -142,6 +144,25 @@ export function BibliotecaCortesPanel({
     setScreen({ ids: playable.map((corte) => corte.id), index: 0 })
   }
 
+  const download = async (ids: string[]) => {
+    if (downloading || ids.length === 0) return
+    setDownloading('Preparando…')
+    try {
+      const items = await bibliotecaCortesApi.descargas(equipoId, ids)
+      if (items.length < ids.length) toast.message('Algún corte sin vídeo se queda fuera de la descarga')
+      const how = await descargarCortes(items, setDownloading)
+      if (how === 'zip') toast.success(`${items.length} cortes en un ZIP, con la calidad original`)
+      if (how === 'sueltos') toast.message(`Bajando ${items.length} archivos uno a uno. Si el navegador pregunta, permite descargas múltiples.`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo descargar')
+    } finally {
+      setDownloading(null)
+    }
+  }
+
+  const allSelected = rows.length > 0 && rows.every((corte) => selected.includes(corte.id))
+  const toggleAll = () => setSelected(allSelected ? [] : rows.map((corte) => corte.id))
+
   const remove = async (corte: BibliotecaCorte) => {
     if (!window.confirm(`Quitar «${corte.titulo}» de la biblioteca? El archivo se borra de Cloudflare.`)) return
     try {
@@ -168,8 +189,18 @@ export function BibliotecaCortesPanel({
           <span className="ml-2 text-xs">Sin límite de espacio.</span>
         </p>
         <div className="flex flex-wrap gap-2">
+          {!screen && rows.length > 0 && (
+            <Button size="sm" variant="ghost" onClick={toggleAll}>
+              {allSelected ? <CheckSquare className="mr-1 h-3.5 w-3.5" /> : <Square className="mr-1 h-3.5 w-3.5" />}
+              {allSelected ? 'Quitar selección' : 'Seleccionar todos'}
+            </Button>
+          )}
           {selected.length > 0 && !screen && (
             <>
+              <Button size="sm" variant="outline" onClick={() => { void download(selected) }} disabled={Boolean(downloading)}>
+                {downloading ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
+                {downloading || `Descargar ${selected.length}`}
+              </Button>
               <Button size="sm" variant="outline" onClick={() => openClips(selected)}>
                 <Play className="mr-1 h-3.5 w-3.5" />
                 Reproducir selección
@@ -179,6 +210,12 @@ export function BibliotecaCortesPanel({
                 Enviar {selected.length} a revisión
               </Button>
             </>
+          )}
+          {screen && watching && (
+            <Button size="sm" variant="outline" onClick={() => { void download([watching.id]) }} disabled={Boolean(downloading)}>
+              {downloading ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
+              Descargar
+            </Button>
           )}
           {screen && watching && (
             <Button size="sm" onClick={() => { setSendIds(playlist.map((corte) => corte.id)); setSendOpen(true) }}>
@@ -334,6 +371,9 @@ export function BibliotecaCortesPanel({
                     <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openClips([corte.id])}>
                       <p className="truncate text-sm font-medium">{corte.titulo}</p>
                     </button>
+                    <Button size="sm" variant="ghost" onClick={() => { void download([corte.id]) }} disabled={!corte.url || Boolean(downloading)} aria-label={`Descargar ${corte.titulo}`}>
+                      <Download className="h-3.5 w-3.5" />
+                    </Button>
                     <Button size="sm" variant="ghost" onClick={() => { void remove(corte) }} aria-label="Quitar de la biblioteca">
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>

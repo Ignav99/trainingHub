@@ -33,6 +33,16 @@ export interface BibliotecaUso {
   limit_bytes: null
 }
 
+/** Archivo original de un corte: `url` para leerlo, `download_url` lo guarda el navegador. */
+export interface BibliotecaDescarga {
+  id: string
+  url: string
+  download_url: string
+  filename: string
+  mime_type: string
+  size_bytes: number
+}
+
 export interface BibliotecaFiltro {
   equipo_id: string
   q?: string
@@ -105,6 +115,10 @@ export const bibliotecaCortesApi = {
 
   remove(id: string, equipoId: string) {
     return api.delete(`/biblioteca-cortes/${id}`, { params: { equipo_id: equipoId } })
+  },
+
+  descargas(equipoId: string, ids: string[]) {
+    return api.post<BibliotecaDescarga[]>('/biblioteca-cortes/descargas', { equipo_id: equipoId, ids })
   },
 
   desdeRevision(equipoId: string, clipId: string) {
