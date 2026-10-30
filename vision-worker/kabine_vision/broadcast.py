@@ -250,9 +250,9 @@ class BroadcastDetector:
     frames: int = 0
     last_h: np.ndarray | None = None
 
-    def prepare(self, frames: Sequence[np.ndarray]) -> None:
+    def prepare(self, frames: Sequence[np.ndarray], pool=None) -> None:
         raws = [self._people(frame) for frame in frames]
-        self.camera.bootstrap(list(frames), [[box for box, _ in people] for people in raws])
+        self.camera.bootstrap(list(frames), [[box for box, _ in people] for people in raws], pool=pool)
         samples: list[Sample] = []
         for index, (frame, people) in enumerate(zip(frames, raws)):
             grass = grass_reference(frame)
@@ -310,6 +310,22 @@ class BroadcastDetector:
             out.append(Box(t, "ball", (x1 + x2) / 2.0, y2, 1, 1))
         return out
 
+    def worker_state(self) -> dict:
+        """Lo aprendido en `prepare`, para que otro proceso lea un tramo igual que este."""
+        return {
+            "our_kit": self.our_kit,
+            "kits": self.kits,
+            "roster": self.roster,
+            "position": self.camera.position,
+            "pitch": self.camera.pitch,
+            "kit_model": self.kit_model,
+        }
+
+    def restart(self) -> None:
+        """Al empezar otro tramo: la cámara sigue en su sitio, pero hay que volver a encontrar el encuadre."""
+        self.camera = _fresh_camera(self.camera)
+        self.last_h = None
+
     def _off_spots(self, balls: list[Raw], h: np.ndarray | None) -> list[Raw]:
         if h is None or not balls:
             return balls
@@ -320,6 +336,15 @@ class BroadcastDetector:
 
     def _people(self, frame: np.ndarray) -> list[tuple[tuple[float, float, float, float], float]]:
         return [((x1, y1, x2 - x1, y2 - y1), score) for kind, x1, y1, x2, y2, score in self.model(frame) if kind == "person" and score >= PERSON_SCORE]
+
+
+def detector_from_state(state: dict, size: str = "medium") -> BroadcastDetector:
+    model = rfdetr_model(size)
+    detector = BroadcastDetector(
+        model=model, ball_finder=tiled(model), our_kit=state["our_kit"], kits=state["kits"], roster=state["roster"], kit_model=state["kit_model"]
+    )
+    detector.camera.position, detector.camera.pitch = state["position"], state["pitch"]
+    return detector
 
 
 def _fresh_camera(learned: PitchCamera) -> PitchCamera:

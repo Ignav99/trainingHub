@@ -74,6 +74,12 @@ def main() -> None:
     parser.add_argument("--fps", type=float, default=10.0, help="fotogramas por segundo que se leen (10 por defecto)")
     parser.add_argument("--modelo", default=os.environ.get("KABINE_RFDETR_SIZE", "medium"), help="tamaño de RF-DETR: nano, small, medium, base, large")
     parser.add_argument("--minutos", type=float, help="leer solo estos minutos de cada parte (prueba corta)")
+    parser.add_argument(
+        "--nucleos",
+        type=int,
+        default=max(1, min(8, (os.cpu_count() or 2) - 1)),
+        help="procesos a la vez; cada uno lee un tramo con su propio detector (por defecto, núcleos - 1, máx. 8)",
+    )
     args = parser.parse_args()
 
     video = Path(args.video).expanduser().resolve()
@@ -90,7 +96,10 @@ def main() -> None:
 
     play_s = sum(end - start for _, start, end in play_spans(marks))
     expected = max(1, int(play_s * args.fps))
-    print(f"[visión] {video.name}: {clock(play_s)} de juego, ~{expected} fotogramas a {args.fps:g} fps, en {device()}", flush=True)
+    print(
+        f"[visión] {video.name}: {clock(play_s)} de juego, ~{expected} fotogramas a {args.fps:g} fps, en {device()}, {max(1, args.nucleos)} procesos",
+        flush=True,
+    )
 
     started = time.monotonic()
     detector, detector_name = _match_detector(kits, roster, None, None)
@@ -104,7 +113,7 @@ def main() -> None:
     def on_progress(phase: str, kept: int) -> None:
         now = time.monotonic()
         if phase == "calibrando":
-            print("[visión] calibrando la cámara con 16 fotogramas del partido (en CPU, unos minutos)", flush=True)
+            print(f"[visión] calibrando la cámara con 16 fotogramas del partido ({max(1, args.nucleos)} procesos en CPU, unos minutos)", flush=True)
             last["print"] = now
             return
         if "since" not in last:
@@ -127,6 +136,8 @@ def main() -> None:
         detector_name=detector_name,
         our_kit=(kits or {}).get("ours") or "white",
         on_progress=on_progress,
+        workers=max(1, args.nucleos),
+        model_size=args.modelo,
     )
     finished = time.monotonic()
     kept = int((doc.get("preview") or {}).get("kept_frames") or 0)
@@ -136,6 +147,7 @@ def main() -> None:
         "machine": platform.node(),
         "modelo": args.modelo,
         "fps_leidos": args.fps,
+        "procesos": max(1, args.nucleos),
         "segundos_de_juego": round(play_s, 1),
         "fotogramas": kept,
         "carga_modelo_s": round(loaded - started, 1),

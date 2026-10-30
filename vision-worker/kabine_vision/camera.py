@@ -33,7 +33,8 @@ GRASS_MARGIN_M = 8.0
 GRASS_SAMPLE = 500
 MIN_CAMERA_HEIGHT_M = 3.5
 REACQUIRE_AFTER = 10
-ACQUIRE_BACKOFF = 5
+# Fotogramas sin volver a buscar la cámara tras una búsqueda fallida (2 s a 10 fps): cada búsqueda cuesta segundos.
+ACQUIRE_BACKOFF = 20
 ICP_STEPS = (12.0, 8.0, 5.0, 3.5, 2.5, 2.5)
 LENGTH_RANGE_M = (88.0, 110.0)
 WIDTH_RANGE_M = (54.0, 75.0)
@@ -594,6 +595,25 @@ def _spread_order(items: list) -> list:
     return [items[i] for i in order] + [item for i, item in enumerate(items) if i not in order]
 
 
+def _bootstrap_seeds(ordered: list[Observed], pitch: Pitch, pool=None) -> list[Found]:
+    """Las primeras semillas buenas en el orden repartido. Con `pool`, por tandas en paralelo y mismo resultado."""
+    seeds: list[Found] = []
+    step = max(1, getattr(pool, "_max_workers", 1)) if pool is not None else 1
+    for start in range(0, len(ordered), step):
+        batch = ordered[start : start + step]
+        results = (
+            list(pool.map(search_camera, batch, [pitch] * len(batch), [None] * len(batch), [True] * len(batch)))
+            if pool is not None
+            else [search_camera(obs, pitch, free_size=True) for obs in batch]
+        )
+        for found in results:
+            if found:
+                seeds.append(found[0])
+                if len(seeds) >= BOOTSTRAP_SEEDS:
+                    return seeds
+    return seeds
+
+
 def _settle_position(seen: list[Observed], position: np.ndarray, pitch: Pitch) -> tuple[int, float, np.ndarray, Pitch]:
     """Ajuste conjunto desde una semilla: fotogramas que encajan, su error mediano, sitio y medidas."""
     views = [(obs, found[0].params) for obs in seen for found in [search_camera(obs, pitch, position)] if found]
@@ -636,7 +656,9 @@ class PitchCamera:
         self.pitch = STANDARD
         self.wait = 0
 
-    def bootstrap(self, frames: list[np.ndarray], boxes: list[list[tuple[float, float, float, float]]] | None = None) -> bool:
+    def bootstrap(
+        self, frames: list[np.ndarray], boxes: list[list[tuple[float, float, float, float]]] | None = None, pool=None
+    ) -> bool:
         """Sitio de la cámara y medidas del campo con unos cuantos fotogramas repartidos por el partido.
 
         Un fotograma suelto puede calibrarse con la cámara en un sitio falso que
@@ -645,16 +667,14 @@ class PitchCamera:
         """
         seen = [self._observe(frame, (boxes or [None] * len(frames))[i])[0] for i, frame in enumerate(frames)]
         seen = [obs for obs in seen if obs is not None]
-        seeds: list[Found] = []
-        for obs in _spread_order(seen):
-            found = search_camera(obs, self.pitch, free_size=True)
-            if found:
-                seeds.append(found[0])
-                if len(seeds) >= BOOTSTRAP_SEEDS:
-                    break
+        seeds = _bootstrap_seeds(_spread_order(seen), self.pitch, pool)
+        settled = (
+            list(pool.map(_settle_position, [seen] * len(seeds), [seed.params[:3].copy() for seed in seeds], [seed.pitch for seed in seeds]))
+            if pool is not None
+            else [_settle_position(seen, seed.params[:3].copy(), seed.pitch) for seed in seeds]
+        )
         best: tuple[int, float, np.ndarray, Pitch] | None = None
-        for seed in seeds:
-            count, error, position, pitch = _settle_position(seen, seed.params[:3].copy(), seed.pitch)
+        for count, error, position, pitch in settled:
             if best is None or (np.isfinite(error), count, -error) > (np.isfinite(best[1]), best[0], -best[1]):
                 best = (count, error, position, pitch)
         if best is None:
