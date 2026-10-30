@@ -341,16 +341,40 @@ def _allowed(roster: dict | None) -> set[int]:
     return found
 
 
+def _optimize(model) -> None:
+    """En GPU, media precisión (FP16). rfdetr ≥ 1.8 lo llama `inference`; antes, `optimize_for_inference`."""
+    try:
+        import torch
+
+        cuda = torch.cuda.is_available()
+    except Exception:  # noqa: BLE001
+        cuda = False
+    if hasattr(model, "inference"):
+        if not cuda:
+            return
+        import torch
+
+        for options in ({"dtype": torch.float16}, {"dtype": torch.float16, "compile": False}):
+            try:
+                model.inference(**options)
+                print(f"[visión] RF-DETR en GPU con FP16{'' if options.get('compile', True) else ' (sin compilar)'}", flush=True)
+                return
+            except Exception as exc:  # noqa: BLE001 - la versión sin optimizar también vale
+                print(f"[visión] RF-DETR FP16 {options}: {exc}", flush=True)
+        return
+    try:
+        model.optimize_for_inference()
+    except Exception as exc:  # noqa: BLE001
+        print(f"[visión] RF-DETR sin optimizar: {exc}", flush=True)
+
+
 def rfdetr_model(size: str = "medium", threshold: float = min(PERSON_SCORE, BALL_SCORE)) -> Model:
     """RF-DETR de Roboflow (Apache 2.0). Solo personas y balón."""
     import rfdetr
     from rfdetr.assets.coco_classes import COCO_CLASSES
 
     model = getattr(rfdetr, f"RFDETR{size.capitalize()}")()
-    try:
-        model.optimize_for_inference()
-    except Exception as exc:  # noqa: BLE001 - la versión sin optimizar también vale
-        print(f"[visión] RF-DETR sin optimizar: {exc}", flush=True)
+    _optimize(model)
 
     def run(frame: np.ndarray) -> list[Raw]:
         found = model.predict(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), threshold=threshold)

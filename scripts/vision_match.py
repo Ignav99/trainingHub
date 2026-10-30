@@ -99,14 +99,21 @@ def main() -> None:
     loaded = time.monotonic()
     print(f"[visión] RF-DETR {args.modelo} cargado en {loaded - started:.0f} s", flush=True)
 
-    last = {"print": 0.0}
+    last: dict[str, float] = {"print": 0.0}
 
     def on_progress(phase: str, kept: int) -> None:
         now = time.monotonic()
+        if phase == "calibrando":
+            print("[visión] calibrando la cámara con 16 fotogramas del partido (en CPU, unos minutos)", flush=True)
+            last["print"] = now
+            return
+        if "since" not in last:
+            last["since"], last["from"] = now, kept
+            print(f"[visión] cámara lista en {clock(now - loaded)}; empieza la lectura", flush=True)
         if now - last["print"] < 15 and kept < expected:
             return
         last["print"] = now
-        rate = kept / max(now - loaded, 1e-6)
+        rate = (kept - last["from"]) / max(now - last["since"], 1e-6)
         left = (expected - kept) / rate if rate > 0 else 0
         print(f"[visión] {phase:<10} {kept:>6}/{expected} fotogramas  {rate:5.1f} fps  quedan ~{clock(left)}", flush=True)
 
