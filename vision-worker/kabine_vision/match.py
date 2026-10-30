@@ -184,6 +184,8 @@ def analyze_match(
     roster: dict | None = None,
     detector_name: str = "blobs",
     on_progress: Callable[[str, int], None] | None = None,
+    workers: int = 1,
+    model_size: str = "medium",
 ) -> dict:
     import cv2
 
@@ -204,11 +206,29 @@ def analyze_match(
         height = float(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
         stride = sample_stride(fps, rate)
         prepare = getattr(detector, "prepare", None)
+        parallel = workers > 1 and callable(getattr(detector, "worker_state", None))
         if callable(prepare):
             if on_progress:
                 on_progress("calibrando", 0)
-            prepare(_spread_frames(cap, fps, spans, PREPARE_FRAMES))
-        for name, start_s, end_s in spans:
+            frames = _spread_frames(cap, fps, spans, PREPARE_FRAMES)
+            if parallel:
+                with _cpu_pool(workers) as pool:
+                    prepare(frames, pool=pool)
+            else:
+                prepare(frames)
+        read = (
+            _read_spans_parallel(str(video), fps, spans, stride, detector.worker_state(), workers, model_size, on_progress)
+            if parallel
+            else None
+        )
+        for index, (name, start_s, end_s) in enumerate(spans):
+            if read is not None:
+                boxes, span_kept, last_t = read[index]
+                kept += span_kept
+                if span_kept == 0:
+                    raise PreviewError("una de las partes no tiene fotogramas")
+                pieces.append(run_span(boxes, start_s=start_s, end_s=max(start_s, last_t), width=width, height=height, fps=fps / stride, our_kit=our_kit, kits=kits))
+                continue
             boxes, span_kept, last_t = _read_span(
                 cap,
                 fps=fps,
@@ -269,6 +289,107 @@ def analyze_match(
         flush=True,
     )
     return doc
+
+
+def _cpu_pool(workers: int):
+    import multiprocessing
+    import os
+    from concurrent.futures import ProcessPoolExecutor
+
+    os.environ.setdefault("OMP_NUM_THREADS", "1")
+    return ProcessPoolExecutor(max_workers=workers, mp_context=multiprocessing.get_context("spawn"))
+
+
+_worker: dict = {}
+
+
+def _init_reader(state: dict, model_size: str, counter) -> None:
+    import cv2
+
+    from .broadcast import detector_from_state
+
+    cv2.setNumThreads(1)
+    try:
+        import torch
+
+        torch.set_num_threads(1)
+    except Exception:  # noqa: BLE001
+        pass
+    _worker["detector"] = detector_from_state(state, model_size)
+    _worker["counter"] = counter
+
+
+def _read_piece(path: str, fps: float, start_s: float, end_s: float, stride: int) -> tuple[list[Box], int, float]:
+    import cv2
+
+    detector = _worker["detector"]
+    detector.restart()
+    counter = _worker["counter"]
+    cap = cv2.VideoCapture(path)
+    try:
+        def tick(_total: int) -> None:
+            with counter.get_lock():
+                counter.value += 10
+
+        return _read_span(cap, fps=fps, start_s=start_s, end_s=end_s, stride=stride, detector=detector, on_frame=tick, already=0)
+    finally:
+        cap.release()
+
+
+def _pieces(start_s: float, end_s: float, count: int, fps: float, stride: int) -> list[tuple[float, float]]:
+    """Tramos seguidos por fotograma, sin repetir ninguno y con la misma rejilla de muestreo que una sola lectura."""
+    first, last = int(round(start_s * fps)), int(round(end_s * fps))
+    steps = (last - first) // stride + 1
+    edges = [first + stride * (steps * k // count) for k in range(count + 1)]
+    pieces = []
+    for k in range(count):
+        begin, stop = edges[k], (edges[k + 1] - 1 if k < count - 1 else last)
+        if stop >= begin:
+            pieces.append((begin / fps, stop / fps))
+    return pieces
+
+
+def _read_spans_parallel(
+    path: str,
+    fps: float,
+    spans: list[tuple[str, float, float]],
+    stride: int,
+    state: dict,
+    workers: int,
+    model_size: str,
+    on_progress: Callable[[str, int], None] | None,
+) -> list[tuple[list[Box], int, float]]:
+    """Cada parte en `workers` tramos, cada tramo en un proceso con su detector. Cajas en orden de tiempo."""
+    import multiprocessing
+    import os
+    import time
+    from concurrent.futures import ProcessPoolExecutor, wait
+
+    context = multiprocessing.get_context("spawn")
+    counter = context.Value("i", 0)
+    os.environ.setdefault("OMP_NUM_THREADS", "1")
+    plan = [(index, piece) for index, (_name, start_s, end_s) in enumerate(spans) for piece in _pieces(start_s, end_s, workers, fps, stride)]
+    with ProcessPoolExecutor(max_workers=workers, mp_context=context, initializer=_init_reader, initargs=(state, model_size, counter)) as pool:
+        futures = [pool.submit(_read_piece, path, fps, start, end, stride) for _index, (start, end) in plan]
+        pending = set(futures)
+        while pending:
+            _done, pending = wait(pending, timeout=5)
+            if on_progress:
+                on_progress("leyendo", int(counter.value))
+        results = [future.result() for future in futures]
+    merged: list[tuple[list[Box], int, float]] = []
+    for index, (_name, start_s, _end_s) in enumerate(spans):
+        boxes: list[Box] = []
+        kept, last_t = 0, start_s
+        for (owner, _piece), (piece_boxes, piece_kept, piece_last) in zip(plan, results):
+            if owner != index:
+                continue
+            boxes.extend(piece_boxes)
+            kept += piece_kept
+            if piece_kept:
+                last_t = piece_last
+        merged.append((boxes, kept, last_t))
+    return merged
 
 
 def _read_span(
