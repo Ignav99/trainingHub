@@ -31,6 +31,9 @@ ACCEPT_EXPLAINED = 0.5
 ACCEPT_COVERED = 0.8
 GRASS_MARGIN_M = 8.0
 GRASS_SAMPLE = 500
+GRASS_PIECE_SHARE = 0.2
+FIELD_REACH_PX = 7
+DRAWN_FILL = 6
 MIN_CAMERA_HEIGHT_M = 3.5
 REACQUIRE_AFTER = 10
 # Fotogramas sin volver a buscar la cámara tras una búsqueda fallida (2 s a 10 fps): cada búsqueda cuesta segundos.
@@ -148,13 +151,16 @@ def pitch_to_image(position: np.ndarray, view: View, size: tuple[int, int]) -> n
 def grass_region(frame: np.ndarray) -> np.ndarray:
     """El césped como una sola mancha, con las líneas y la gente dentro."""
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    grass = cv2.inRange(hsv, (30, 50, 40), (90, 255, 255))
+    # Hasta 100: a la sombra, con solo la luz del cielo, el césped tira a azul (tono 85-92).
+    grass = cv2.inRange(hsv, (30, 50, 40), (100, 255, 255))
     grass = cv2.morphologyEx(grass, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
     count, labels, stats, _ = cv2.connectedComponentsWithStats(grass, 8)
     if count <= 1:
         return grass
-    biggest = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
-    region = np.where(labels == biggest, 255, 0).astype(np.uint8)
+    areas = stats[1:, cv2.CC_STAT_AREA]
+    # Con sol y sombra el césped sale en dos manchas grandes: se quedan las dos.
+    keep = 1 + np.flatnonzero(areas >= GRASS_PIECE_SHARE * areas.max())
+    region = np.where(np.isin(labels, keep), 255, 0).astype(np.uint8)
     region = cv2.morphologyEx(region, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (31, 31)))
     filled = region.copy()
     contours, _ = cv2.findContours(region, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -168,9 +174,23 @@ def _bright_thin(frame: np.ndarray) -> np.ndarray:
     side = 2 * int(round(4.5 * frame.shape[1] / 1280.0)) + 1
     tophat = cv2.morphologyEx(gray, cv2.MORPH_TOPHAT, cv2.getStructuringElement(cv2.MORPH_RECT, (side, side)))
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    pale = cv2.inRange(hsv, (0, 0, 0), (180, 150, 255))
-    yellow = cv2.inRange(hsv, (5, 70, 0), (33, 255, 255))
-    return cv2.bitwise_and(cv2.bitwise_and(cv2.inRange(tophat, 22, 255), pale), cv2.bitwise_not(yellow))
+    # A la sombra la línea blanca refleja el cielo: azul claro (tono 100-110, saturación hasta ~160).
+    pale = cv2.bitwise_or(cv2.inRange(hsv, (0, 0, 0), (180, 150, 255)), cv2.inRange(hsv, (92, 0, 120), (125, 200, 255)))
+    # A la sombra el naranja se apaga (saturación 35-60); el blanco al sol no pasa de ~15.
+    yellow = cv2.inRange(hsv, (5, 28, 0), (33, 255, 255))
+    # Entre sombras largas, las franjas de césped al sol también son finas y claras, pero verdes: sobre
+    # lo que las rodea suben el verde el doble que el azul. Una línea blanca sube los dos por igual o más
+    # el azul, de día y con focos.
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (side, side))
+    blue, green, red = (frame[:, :, i].astype(np.int16) for i in range(3))
+    rise_blue = cv2.morphologyEx(frame[:, :, 0], cv2.MORPH_TOPHAT, kernel).astype(np.int16)
+    rise_green = cv2.morphologyEx(frame[:, :, 1], cv2.MORPH_TOPHAT, kernel).astype(np.int16)
+    # El naranja a la sombra queda gris verdoso y apagado, pero con más rojo que azul; el blanco a la
+    # sombra refleja el cielo y tiene más azul.
+    faded_orange = (hsv[:, :, 2] < 150) & (red > blue + 3)
+    whitish = np.where((10 * rise_blue >= 8 * rise_green) & ~faded_orange, 255, 0).astype(np.uint8)
+    keep = cv2.bitwise_and(cv2.bitwise_and(cv2.inRange(tophat, 22, 255), pale), whitish)
+    return cv2.bitwise_and(keep, cv2.bitwise_not(yellow))
 
 
 def line_mask(
@@ -188,7 +208,11 @@ def _lines_and_grass(
     min_len: int,
 ) -> tuple[np.ndarray, np.ndarray]:
     grass = grass_region(frame)
-    lines = cv2.bitwise_and(_bright_thin(frame), grass)
+    # La banda cercana suele ser el borde de abajo de la mancha de césped: se mira un ancho de línea
+    # más abajo. Hacia arriba no, que el borde de arriba son los carteles.
+    reach = 2 * int(round(6 * frame.shape[1] / 1280.0)) + 1
+    below = cv2.dilate(grass, np.ones((reach, 1), np.uint8), anchor=(0, reach - 1))
+    lines = cv2.bitwise_and(_bright_thin(frame), below)
     for x, y, w, h in boxes or []:
         cv2.rectangle(lines, (int(x) - 2, int(y) - 2), (int(x + w) + 2, int(y + h) + 2), 0, -1)
     count, labels, stats, _ = cv2.connectedComponentsWithStats(lines, 8)
@@ -227,6 +251,7 @@ class Observed:
     points: np.ndarray
     raw_dist: np.ndarray
     grass: np.ndarray
+    field: np.ndarray | None = None
 
 
 def observe(mask: np.ndarray, sample: int = 700, grass: np.ndarray | None = None) -> Observed:
@@ -242,12 +267,15 @@ def observe(mask: np.ndarray, sample: int = 700, grass: np.ndarray | None = None
         pick = np.random.default_rng(7).choice(len(points), sample, replace=False)
         points = points[pick]
     turf = np.zeros((0, 2))
+    field = None
     if grass is not None:
         gy, gx = np.nonzero(grass)
         turf = np.stack([gx, gy], axis=1).astype(float)
         if len(turf) > GRASS_SAMPLE:
             turf = turf[np.random.default_rng(11).choice(len(turf), GRASS_SAMPLE, replace=False)]
-    return Observed((width, height), dist, nearest, points, raw_dist, turf)
+        if len(gx):
+            field = cv2.dilate(grass, np.ones((FIELD_REACH_PX, FIELD_REACH_PX), np.uint8)) > 0
+    return Observed((width, height), dist, nearest, points, raw_dist, turf, field)
 
 
 @dataclass
@@ -277,10 +305,32 @@ def _inside(uv: np.ndarray, size: tuple[int, int]) -> np.ndarray:
     return np.isfinite(uv).all(axis=1) & (uv[:, 0] >= 0) & (uv[:, 0] < width - 1) & (uv[:, 1] >= 0) & (uv[:, 1] < height - 1)
 
 
+def _seen(obs: Observed, uv: np.ndarray) -> np.ndarray:
+    """Dentro de la imagen y sobre el césped: una línea que cae en los carteles o en la grada está tapada."""
+    inside = _inside(uv, obs.size)
+    if obs.field is not None and inside.any():
+        ij = uv[inside].astype(int)
+        inside[inside] = obs.field[ij[:, 1], ij[:, 0]]
+    return inside
+
+
 def _visible(obs: Observed, h: np.ndarray, template: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     uv = apply_h(h, template)
-    inside = _inside(uv, obs.size)
+    inside = _seen(obs, uv)
     return np.where(np.isfinite(uv), uv, -1.0), inside
+
+
+def _drawn(uv: np.ndarray, inside: np.ndarray, template: np.ndarray) -> np.ndarray:
+    """Los puntos del dibujo que se ven, con relleno entre vecinos de la misma línea.
+
+    Cerca de la cámara medio metro son 10-15 píxeles: sin relleno, un píxel de línea que cae
+    entre dos puntos del dibujo parecería no estar en ninguna línea.
+    """
+    ids = np.flatnonzero(inside)
+    linked = (np.diff(ids) == 1) & (np.linalg.norm(np.diff(template[ids], axis=0), axis=1) <= 2 * TEMPLATE_STEP_M)
+    a, b = uv[ids[:-1][linked]], uv[ids[1:][linked]]
+    steps = np.linspace(0.0, 1.0, DRAWN_FILL + 1)[1:-1, None, None]
+    return np.vstack([uv[ids], ((1.0 - steps) * a + steps * b).reshape(-1, 2)])
 
 
 def measure(obs: Observed, h: np.ndarray, pitch: Pitch = STANDARD) -> Fit:
@@ -298,7 +348,7 @@ def measure(obs: Observed, h: np.ndarray, pitch: Pitch = STANDARD) -> Fit:
     on_pitch = obs.points[_lands_on_pitch(h, obs.points, pitch, template[inside][0])]
     explained = 0.0
     if len(on_pitch) >= MIN_VISIBLE_POINTS // 3:
-        back, _ = cKDTree(uv[inside]).query(on_pitch, k=1, distance_upper_bound=DIST_CAP_PX)
+        back, _ = cKDTree(_drawn(uv, inside, template)).query(on_pitch, k=1, distance_upper_bound=DIST_CAP_PX)
         explained = float((back <= INLIER_PX + 0.5).mean())
     covered = 1.0
     if len(obs.grass):
@@ -332,7 +382,7 @@ def total_cost(obs: Observed, h: np.ndarray, pitch: Pitch = STANDARD) -> float:
     pts = uv[inside]
     ij = pts.astype(int)
     forward = float(np.minimum(obs.dist[ij[:, 1], ij[:, 0]], DIST_CAP_PX).mean())
-    near, _ = cKDTree(pts).query(obs.points, k=1, distance_upper_bound=DIST_CAP_PX)
+    near, _ = cKDTree(_drawn(uv, inside, pitch.template)).query(obs.points, k=1, distance_upper_bound=DIST_CAP_PX)
     return 0.5 * (forward + float(np.minimum(near, DIST_CAP_PX).mean()))
 
 
@@ -412,7 +462,7 @@ def _camera_cost(obs: Observed, params: np.ndarray, pitch: Pitch, every: int, ca
         return 1e3
     template = pitch.template[::every]
     uv = apply_h(camera_h(params, obs.size, pitch), template)
-    inside = _inside(uv, obs.size)
+    inside = _seen(obs, uv)
     if int(inside.sum()) * every < MIN_VISIBLE_POINTS:
         return 1e3
     pts = uv[inside]
@@ -431,7 +481,7 @@ def _sized_cost(obs: Observed, params: np.ndarray, cap: float, seen: np.ndarray)
         return 1e3
     template = affine_template()[::2] @ np.array([length, width, 1.0])
     uv = apply_h(camera_h(params, obs.size, pitch), template)
-    inside = _inside(uv, obs.size)
+    inside = _seen(obs, uv)
     if int(inside.sum()) * 2 < MIN_VISIBLE_POINTS:
         return 1e3
     pts = uv[inside]
@@ -541,7 +591,7 @@ def adjust_camera(views: list[tuple[Observed, np.ndarray]], pitch: Pitch) -> tup
         pairs: list[tuple[np.ndarray, np.ndarray]] = []
         for (obs, _), p in zip(views, params):
             uv = apply_h(camera_h(p, obs.size, here), template)
-            ids = np.nonzero(_inside(uv, obs.size))[0]
+            ids = np.nonzero(_seen(obs, uv))[0]
             if len(ids) < MIN_VISIBLE_POINTS:
                 pairs.append((np.zeros(0, int), np.zeros((0, 2))))
                 continue

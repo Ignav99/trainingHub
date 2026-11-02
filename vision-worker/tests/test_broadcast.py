@@ -69,6 +69,33 @@ class CameraTests(unittest.TestCase):
             grid = np.array([[960.0, 700.0], [500.0, 900.0], [1400.0, 900.0]])
             self.assertLess(float(np.abs(apply_h(found, grid) - apply_h(truth, grid)).max()), 1.0)
 
+    def test_far_touchline_behind_the_boards_does_not_block_the_fit(self) -> None:
+        frame, truth = _render(VIEW)
+        to_image = C.camera_h(VIEW, (WIDTH, HEIGHT), PITCH)
+        far = apply_h(to_image, np.array([[x, 0.0] for x in np.linspace(0, PITCH.length, 50)]))
+        boards = int(np.nanmax(far[:, 1])) + 6
+        frame[:boards] = (150, 150, 150)
+        camera = C.PitchCamera()
+        camera.position, camera.pitch = VIEW[:3].copy(), PITCH
+        found = camera.fit(frame)
+        self.assertIsNotNone(found)
+        grid = np.array([[960.0, 700.0], [500.0, 900.0], [1400.0, 900.0]])
+        self.assertLess(float(np.abs(apply_h(found, grid) - apply_h(truth, grid)).max()), 1.0)
+
+    def test_lines_count_in_sun_and_shade_but_not_sunlit_strips_or_faded_orange(self) -> None:
+        frame = np.zeros((720, 1280, 3), np.uint8)
+        frame[:, :640] = (120, 205, 185)
+        frame[:, 640:] = (62, 70, 25)
+        cv2.line(frame, (320, 40), (320, 680), (218, 254, 237), 3)
+        cv2.line(frame, (960, 40), (960, 680), (231, 170, 108), 3)
+        cv2.line(frame, (680, 240), (1260, 240), (131, 217, 187), 5)
+        cv2.line(frame, (680, 480), (1260, 600), (90, 105, 95), 3)
+        lines = C.line_mask(frame)
+        self.assertGreater(int(np.count_nonzero(lines[60:660, 310:331])), 1500)
+        self.assertGreater(int(np.count_nonzero(lines[60:660, 950:971])), 1500)
+        self.assertEqual(int(np.count_nonzero(lines[220:261, 680:940])), 0)
+        self.assertEqual(int(np.count_nonzero(lines[460:620, 1000:1260])), 0)
+
 
 class KeypointTests(unittest.TestCase):
     def test_keypoints_project_back_to_their_pitch_spot(self) -> None:
