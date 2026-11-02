@@ -116,6 +116,9 @@ def main() -> None:
             print(f"[visión] calibrando la cámara con 16 fotogramas del partido ({max(1, args.nucleos)} procesos en CPU, unos minutos)", flush=True)
             last["print"] = now
             return
+        if phase == "uniendo":
+            print(f"[visión] lectura terminada; uniendo los jugadores de la parte {kept} (1 núcleo)", flush=True)
+            return
         if "since" not in last:
             last["since"], last["from"] = now, kept
             print(f"[visión] cámara lista en {clock(now - loaded)}; empieza la lectura", flush=True)

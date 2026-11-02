@@ -227,6 +227,8 @@ def analyze_match(
                 kept += span_kept
                 if span_kept == 0:
                     raise PreviewError("una de las partes no tiene fotogramas")
+                if on_progress:
+                    on_progress("uniendo", index + 1)
                 pieces.append(run_span(boxes, start_s=start_s, end_s=max(start_s, last_t), width=width, height=height, fps=fps / stride, our_kit=our_kit, kits=kits))
                 continue
             boxes, span_kept, last_t = _read_span(
