@@ -6,6 +6,7 @@ y los puntos del campo y escribe tracks, balón, homografía y metros visibles.
 
 from __future__ import annotations
 
+from bisect import bisect_right
 from collections import defaultdict
 
 import numpy as np
@@ -36,6 +37,8 @@ STITCH_SPEED_M_S = 4.0
 STITCH_CLEAR = 1.5
 PITCH_GATE_M = 2.0
 PITCH_GATE_SPEED_M_S = 7.0
+PIXEL_LINK_GAP_S = 2.0
+LINK_WINDOW_S = max(PITCH_LINK_GAP_S, PIXEL_LINK_GAP_S)
 # Con tantos puntos la homografía viene de una cámara calibrada: mezclarla con la anterior la retrasa al girar.
 EXACT_KEYPOINTS = 12
 
@@ -70,6 +73,7 @@ def _track_clean(boxes: list[Box], width: float, height: float, fps: float, our_
     for box in boxes:
         by_t[round(box.t, 3)].append(box)
     tracks: list[Track] = []
+    live: list[Track] = []
     next_id = 1
     homographies: list[dict] = []
     ball: list[dict] = []
@@ -87,10 +91,13 @@ def _track_clean(boxes: list[Box], width: float, height: float, fps: float, our_
         keypoints = [box for box in frame if box.kind == "keypoint" and box.pitch_xy is not None]
         fitted = _fit(keypoints, width, height)
         accepted = fitted is not None
+        # Un track que no se ve desde hace más que la mayor espera de enlace ya no puede seguir:
+        # sin quitarlo, cada fotograma recorrería todos los trozos del partido.
+        live = [track for track in live if t - float(track.samples[-1]["t"]) <= LINK_WINDOW_S]
         exact = len(keypoints) >= EXACT_KEYPOINTS
         if fitted is not None and last_h is not None:
             calm = homography_step_is_calm(last_h, fitted, width, height)
-            agrees = exact or _calibration_agrees(fitted, tracks, t)
+            agrees = exact or _calibration_agrees(fitted, live, t)
             if not calm or not agrees:
                 fitted = None
                 accepted = False
@@ -99,7 +106,7 @@ def _track_clean(boxes: list[Box], width: float, height: float, fps: float, our_
                 blend_ok = (
                     homography_step_is_calm(last_h, blended, width, height)
                     and homography_keeps_center_on_pitch(blended, width, height)
-                    and _calibration_agrees(blended, tracks, t)
+                    and _calibration_agrees(blended, live, t)
                 )
                 if blend_ok and not exact:
                     fitted = blended
@@ -128,11 +135,12 @@ def _track_clean(boxes: list[Box], width: float, height: float, fps: float, our_
         kept = 0
         used: set[int] = set()
         pairs: list[tuple[float, Track, Box]] = []
-        for track in tracks:
+        feet = [None if h is None else apply_h(h, np.array([[box.px + box.w / 2.0, box.py + box.h]]))[0] for box in bodies]
+        for track in live:
             if track._last_box is None:
                 continue
-            for box in bodies:
-                score = _link_score(track, box, t, h)
+            for box, foot in zip(bodies, feet):
+                score = _link_score(track, box, t, h, foot)
                 if score >= 0.22:
                     pairs.append((score, track, box))
         pairs.sort(key=lambda item: item[0], reverse=True)
@@ -147,8 +155,8 @@ def _track_clean(boxes: list[Box], width: float, height: float, fps: float, our_
                 rejected += 1
             elif flag == "ok":
                 kept += 1
-        alive_players = sum(1 for track in tracks if track.role == "player" and _seen_recently(track, t))
-        alive_referees = sum(1 for track in tracks if track.role == "referee" and _seen_recently(track, t))
+        alive_players = sum(1 for track in live if track.role == "player" and _seen_recently(track, t))
+        alive_referees = sum(1 for track in live if track.role == "referee" and _seen_recently(track, t))
         for box in bodies:
             if id(box) in used:
                 continue
@@ -165,6 +173,7 @@ def _track_clean(boxes: list[Box], width: float, height: float, fps: float, our_
             elif flag == "ok":
                 kept += 1
             tracks.append(track)
+            live.append(track)
             if role == "player":
                 alive_players += 1
             else:
@@ -260,8 +269,12 @@ def _stitch(tracks: list[Track]) -> list[Track]:
     by_id = {track.id: track for track in tracks}
     options: dict[int, list[tuple[float, int]]] = defaultdict(list)
     backwards: dict[int, list[tuple[float, int]]] = defaultdict(list)
+    by_start = sorted(starts.items(), key=lambda item: item[1][0])
+    start_times = [start_t for _, (start_t, _xy) in by_start]
     for a, (end_t, end_xy) in ends.items():
-        for b, (start_t, start_xy) in starts.items():
+        first = bisect_right(start_times, end_t + 1e-6)
+        last = bisect_right(start_times, end_t + STITCH_GAP_S)
+        for b, (start_t, start_xy) in by_start[first:last]:
             if a == b or by_id[a].role != by_id[b].role:
                 continue
             gap = start_t - end_t
@@ -308,7 +321,7 @@ def _stitch(tracks: list[Track]) -> list[Track]:
     return [track for track in tracks if track.id not in merged_into]
 
 
-def _link_score(track: Track, box: Box, t: float, h: np.ndarray | None = None) -> float:
+def _link_score(track: Track, box: Box, t: float, h: np.ndarray | None = None, foot: np.ndarray | None = None) -> float:
     """Con homografía se enlaza por metros en el césped, que no se mueven cuando gira la cámara."""
     if track._last_box is None:
         return 0.0
@@ -325,7 +338,8 @@ def _link_score(track: Track, box: Box, t: float, h: np.ndarray | None = None) -
         dt = t - track._raw_t
         if dt <= 1e-6 or dt > PITCH_LINK_GAP_S:
             return 0.0
-        foot = apply_h(h, np.array([[box.px + box.w / 2.0, box.py + box.h]]))[0]
+        if foot is None:
+            foot = apply_h(h, np.array([[box.px + box.w / 2.0, box.py + box.h]]))[0]
         reach = min(dt, 0.5)
         px = track._raw_xy[0] + track._pitch_v[0] * reach
         py = track._raw_xy[1] + track._pitch_v[1] * reach
@@ -335,7 +349,7 @@ def _link_score(track: Track, box: Box, t: float, h: np.ndarray | None = None) -
             return 0.0
         score = 0.7 * (1.0 - dist / gate) + 0.3 * color
         return score * (0.6 if other_team else 1.0)
-    if not _seen_recently(track, t, gap=2.0) and track.samples:
+    if not _seen_recently(track, t, gap=PIXEL_LINK_GAP_S) and track.samples:
         return 0.0
     if other_team:
         return 0.0

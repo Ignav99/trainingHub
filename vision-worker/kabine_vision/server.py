@@ -254,7 +254,8 @@ def start_match_job(
         def on_progress(phase: str, kept: int) -> None:
             with _jobs_lock:
                 job["phase"] = phase
-                job["kept_frames"] = kept
+                if phase != "uniendo":
+                    job["kept_frames"] = kept
 
         try:
             detector, detector_name = _match_detector(parsed_kits, parsed_roster, detect_blobs, detect_field)
