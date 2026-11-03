@@ -89,6 +89,61 @@ def score_document(doc: dict, *, visible: Callable[[int], float] | None = None, 
     }
 
 
+REAL_PEOPLE = 25
+TARGETS = {
+    "camara_pct": 80.0,
+    "segundos_con_metros_pct": 90.0,
+    "balon_pct": 60.0,
+    "tracks_por_persona": 3.0,
+    "id_mediana_s": 30.0,
+}
+
+
+def scorecard(doc: dict) -> dict:
+    """La nota y los indicadores que la mueven, por parte, para comparar una prueba con la anterior."""
+    graded = score_document(doc)
+    rate = float((doc.get("source") or {}).get("sample_fps") or 10.0)
+    homographies = [row for row in doc.get("homography") or [] if isinstance(row, dict) and row.get("accepted")]
+    players = [track for track in doc.get("tracks") or [] if track.get("role") == "player" and track.get("samples")]
+    ball = _believable_ball(doc.get("ball") or [])
+    parts: list[dict] = []
+    for span in doc.get("spans") or []:
+        start, end = float(span.get("start_s") or 0), float(span.get("end_s") or 0)
+        length = max(end - start, 1e-6)
+
+        def inside(t: object, start: float = start, end: float = end) -> bool:
+            return start <= float(t) < end
+
+        tracks = [track for track in players if inside(track["samples"][0]["t"])]
+        durations = sorted(float(track["samples"][-1]["t"]) - float(track["samples"][0]["t"]) for track in tracks)
+        metres = {int(float(s["t"])) for track in tracks for s in track["samples"] if inside(s["t"]) and _on_pitch(s)}
+        parts.append({
+            "parte": span.get("name"),
+            "camara_pct": round(100 * sum(inside(row["t"]) for row in homographies) / (length * rate), 1),
+            "segundos_con_metros_pct": round(100 * len(metres) / length, 1),
+            "balon_pct": round(100 * len({int(float(row["t"])) for row in ball if inside(row["t"])}) / length, 1),
+            "tracks_por_persona": round(len(tracks) / REAL_PEOPLE, 1),
+            "id_mediana_s": round(durations[len(durations) // 2], 1) if durations else 0.0,
+        })
+    return {**graded, "indicadores": parts, "objetivos": TARGETS}
+
+
+def scorecard_lines(card: dict) -> list[str]:
+    lines = [f"NOTA KABINE {card['nota']:.1f}/100  ({card['jugadores_por_segundo']} jugadores situados por segundo de media)"]
+    lines.append("  " + "  ".join(f"{key} {value:.1f}/{WEIGHTS[key]:g}" for key, value in card["partes"].items()))
+    labels = {
+        "camara_pct": "cámara calibrada",
+        "segundos_con_metros_pct": "segundos con jugadores en metros",
+        "balon_pct": "segundos con balón",
+        "tracks_por_persona": "tracks por persona real (menos es mejor)",
+        "id_mediana_s": "duración mediana de un id, s",
+    }
+    for key, label in labels.items():
+        values = "  ".join(f"{row['parte']} {row[key]:g}" for row in card["indicadores"])
+        lines.append(f"  {label:<42} {values}   objetivo {card['objetivos'][key]:g}")
+    return lines
+
+
 def _believable_ball(rows: list[dict]) -> list[dict]:
     """El balón cuenta si cae en el campo y enlaza con una vecina a velocidad de balón."""
     inside = [
