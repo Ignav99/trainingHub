@@ -168,6 +168,10 @@ class CacheControlMiddleware:
         # cached response and look like the edit was silently lost.
         "/v1/organizacion",
         "/v1/club",
+        # Pizarra tactica: create/delete is followed by an immediate list
+        # refetch (SWR mutate). With the default 30s cache the browser
+        # replayed the old list and the change looked like it never happened.
+        "/v1/tactical-boards",
     )
 
     def __init__(self, app: ASGIApp):
@@ -212,10 +216,18 @@ class CacheControlMiddleware:
         async def send_with_cache(message):
             if message["type"] == "http.response.start":
                 headers = list(message.get("headers", []))
-                # Don't override if endpoint already set Cache-Control
                 header_names = {h[0] for h in headers}
+                status = message.get("status", 200)
+                # Never let the browser cache error responses: a 401/403
+                # cached for an expired token would be replayed after a
+                # fresh login (same URL) and the app would hang on the splash.
+                value = cache_value if 200 <= status < 300 else b"no-store"
+                # Don't override if endpoint already set Cache-Control
                 if b"cache-control" not in header_names:
-                    headers.append((b"cache-control", cache_value))
+                    headers.append((b"cache-control", value))
+                # Cached entries must be per-token, not per-URL.
+                if b"vary" not in header_names:
+                    headers.append((b"vary", b"Authorization"))
                 message = {**message, "headers": headers}
             await send(message)
 
