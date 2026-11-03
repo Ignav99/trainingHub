@@ -28,6 +28,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "vision-worker"))
 
 from kabine_vision.match import analyze_match, ordered_whistles, play_spans, sidecar_for  # noqa: E402
+from kabine_vision.score import scorecard, scorecard_lines  # noqa: E402
 from kabine_vision.server import _match_detector, _parse_kits, _parse_roster  # noqa: E402
 
 
@@ -160,10 +161,12 @@ def main() -> None:
         "json": str(sidecar_for(video)),
         "json_mb": round(sidecar_for(video).stat().st_size / 1e6, 2),
         "metricas": doc.get("metrics"),
+        "nota": scorecard(doc),
     }
     out = video.with_name(video.stem + ".tiempos.json")
     out.write_text(json.dumps(timing, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(timing, ensure_ascii=False, indent=2), flush=True)
+    print("\n".join(scorecard_lines(timing["nota"])), flush=True)
     print(f"[visión] Hecho en {clock(finished - started)}. Archivos: {timing['json']} y {out}", flush=True)
 
 

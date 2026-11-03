@@ -15,7 +15,7 @@ from kabine_vision import camera as C
 from kabine_vision.broadcast import BroadcastDetector, Sample, learn_kits, pitch_keypoints
 from kabine_vision.homography import apply_h
 from kabine_vision.pipeline import run_span
-from kabine_vision.score import score_document
+from kabine_vision.score import score_document, scorecard, scorecard_lines
 from kabine_vision.tracking import Box
 
 WIDTH, HEIGHT = 1920, 1080
@@ -242,6 +242,20 @@ class ScoreTests(unittest.TestCase):
         doc["tracks"].append({"id": 9, "role": "player", "team": 0, "dorsal": None, "samples": [{"t": 0.0, "x": 0.5, "y": 0.5}]})
         crowded = score_document(doc, visible=lambda _second: 2, id_full_s=2.0)
         self.assertLess(crowded["partes"]["jugadores"], 25.0)
+
+    def test_the_scorecard_reports_each_half_against_its_target(self) -> None:
+        doc = self._doc(2, 10)
+        doc["spans"] = [{"name": "primera", "start_s": 0, "end_s": 10}, {"name": "segunda", "start_s": 10, "end_s": 20}]
+        doc["source"] = {"sample_fps": 10.0}
+        doc["homography"] = [{"t": round(0.1 * k, 3), "accepted": True} for k in range(50)]
+        card = scorecard(doc)
+        first, second = card["indicadores"]
+        self.assertEqual(first["camara_pct"], 50.0)
+        self.assertEqual(first["segundos_con_metros_pct"], 100.0)
+        self.assertEqual(first["id_mediana_s"], 9.9)
+        self.assertEqual(second["camara_pct"], 0.0)
+        self.assertEqual(second["tracks_por_persona"], 0.0)
+        self.assertTrue(scorecard_lines(card)[0].startswith("NOTA KABINE"))
 
 
 if __name__ == "__main__":
