@@ -47,6 +47,7 @@ import { registerServiceWorker } from '@/lib/register-sw'
 import { isSaludPath } from '@/components/salud/SaludTabs'
 import { cn } from '@/lib/utils'
 import { isClubAdminRole, isSuperadminRole } from '@/lib/roles'
+import { isLiteMode, isLiteAllowedPath } from '@/lib/appMode'
 import type { Equipo, Usuario } from '@/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -100,6 +101,13 @@ const toolsNavigation: NavItem[] = [
   { name: 'Pizarra Táctica', href: '/pizarra-tactica', icon: PenTool },
   { name: 'Estadísticas', href: '/estadisticas', icon: BarChart3 },
   { name: 'Informes', href: '/informes', icon: FileStack },
+]
+
+// Lite edition: the only sections a lite user can open (see lib/appMode.ts).
+const liteNavigation: NavItem[] = [
+  { name: 'Inicio', href: '/', icon: LayoutDashboard },
+  { name: 'Pizarra Táctica', href: '/pizarra-tactica', icon: PenTool },
+  { name: 'Herramienta de Vídeo', href: '/video-analisis', icon: ScanSearch },
 ]
 
 function isNavActive(item: NavItem, pathname: string) {
@@ -157,6 +165,15 @@ export default function DashboardLayout({
     }
   }, [isLoading, isAuthenticated, user, router, pathname])
 
+  useEffect(() => {
+    // Lite edition: only "/", the pizarra and the video tool exist. Any other
+    // dashboard route (typed URL, stale link) goes back home. /revision/* stays
+    // reachable because the live annotator opens the sala in another tab.
+    if (isLiteMode && isAuthenticated && !isRevisionSala && !isLiteAllowedPath(pathname)) {
+      router.replace('/')
+    }
+  }, [isAuthenticated, isRevisionSala, pathname, router])
+
   const isClubOnlyRole = isSuperadminRole(user?.rol) || isClubAdminRole(user?.rol)
 
   useEffect(() => {
@@ -168,7 +185,7 @@ export default function DashboardLayout({
 
   useEffect(() => {
     if (!authHydrated || !clubHydrated) return
-    if (isAuthenticated && !isOnboardingComplete && pathname !== '/onboarding') {
+    if (isAuthenticated && !isOnboardingComplete && pathname !== '/onboarding' && !isLiteMode) {
       router.push('/onboarding')
     }
   }, [authHydrated, clubHydrated, isAuthenticated, isOnboardingComplete, pathname, router])
@@ -179,6 +196,12 @@ export default function DashboardLayout({
     // so mark data as ready immediately instead of waiting on team endpoints
     // that will never resolve.
     if (isClubOnlyRole) {
+      setDataReady(true)
+      return
+    }
+    // Lite edition: the pizarra fetches its own boards; none of the team
+    // endpoints below are needed, so don't wait on them.
+    if (isLiteMode) {
       setDataReady(true)
       return
     }
@@ -361,33 +384,42 @@ export default function DashboardLayout({
           </button>
 
           <div className="flex flex-1 items-center gap-2.5 min-w-0">
-            <ClubAvatar logoUrl={theme.logoUrl} clubName={user?.organizacion?.nombre} size="sm" />
+            {isLiteMode ? (
+              // The lite workspace org is hidden: never show its name.
+              <Image src="/logo-icon.png" alt="Kabin-e" width={28} height={28} className="h-7 w-7" />
+            ) : (
+              <ClubAvatar logoUrl={theme.logoUrl} clubName={user?.organizacion?.nombre} size="sm" />
+            )}
             <span className="font-semibold text-sm truncate text-white">
-              {user?.organizacion?.nombre || 'Kabin-e'}
+              {isLiteMode ? 'Kabin-e' : user?.organizacion?.nombre || 'Kabin-e'}
             </span>
           </div>
 
-          <Link
-            href="/alertas"
-            className="relative p-2"
-            style={{ color: 'rgba(255,255,255,0.85)' }}
-            aria-label="Notificaciones"
-          >
-            <Bell className="h-5 w-5" />
-          </Link>
-          <Link
-            href="/configuracion"
-            className="p-2"
-            style={{ color: 'rgba(255,255,255,0.85)' }}
-            aria-label="Configuración"
-          >
-            <Settings className="h-5 w-5" />
-          </Link>
+          {!isLiteMode && (
+            <>
+              <Link
+                href="/alertas"
+                className="relative p-2"
+                style={{ color: 'rgba(255,255,255,0.85)' }}
+                aria-label="Notificaciones"
+              >
+                <Bell className="h-5 w-5" />
+              </Link>
+              <Link
+                href="/configuracion"
+                className="p-2"
+                style={{ color: 'rgba(255,255,255,0.85)' }}
+                aria-label="Configuración"
+              >
+                <Settings className="h-5 w-5" />
+              </Link>
+            </>
+          )}
         </div>
 
         <main className="min-w-0 max-w-full py-6 pb-24 lg:pb-6 px-4 sm:px-6 lg:px-8">{children}</main>
       </div>
-      <MobileBottomNav />
+      {!isLiteMode && <MobileBottomNav />}
       <InstallPrompt />
       <Toaster />
     </div>
@@ -447,6 +479,8 @@ const SidebarContent = memo(function SidebarContent({
   // operational tools — hide the per-team nav (Sesiones, Plantilla, etc.),
   // Salud, Herramientas and the team selector entirely.
   const isClubOnlyRole = isSuperadminRole(user?.rol) || isClubAdminRole(user?.rol)
+  // Lite edition replaces the three nav groups with liteNavigation.
+  const showFullNav = !isClubOnlyRole && !isLiteMode
 
   useEffect(() => {
     if (isSaludPath(pathname)) setSaludOpen(true)
@@ -470,16 +504,23 @@ const SidebarContent = memo(function SidebarContent({
         style={{ backgroundColor: theme.colorPrimario }}
       >
         <Link href="/" className={cn('flex items-center gap-3 group min-w-0', collapsed && 'justify-center w-full')}>
-          <ClubAvatar logoUrl={theme.logoUrl} clubName={user?.organizacion?.nombre} size={collapsed ? 'sm' : 'md'} />
+          {isLiteMode ? (
+            // The lite workspace org is hidden: show the app, not the org.
+            <Image src="/logo-icon.png" alt="Kabin-e" width={36} height={36} className={collapsed ? 'h-7 w-7' : 'h-9 w-9'} />
+          ) : (
+            <ClubAvatar logoUrl={theme.logoUrl} clubName={user?.organizacion?.nombre} size={collapsed ? 'sm' : 'md'} />
+          )}
           {!collapsed && (
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-white truncate group-hover:opacity-80 transition-opacity">
-                {user?.organizacion?.nombre || 'Kabin-e'}
+                {isLiteMode ? 'Kabin-e' : user?.organizacion?.nombre || 'Kabin-e'}
               </p>
-              <p className="text-[10px] text-white/60 uppercase tracking-wider flex items-center gap-1">
-                <Image src="/logo-icon.png" alt="Kabin-e" width={14} height={14} className="h-3.5 w-3.5" />
-                Kabin-e
-              </p>
+              {!isLiteMode && (
+                <p className="text-[10px] text-white/60 uppercase tracking-wider flex items-center gap-1">
+                  <Image src="/logo-icon.png" alt="Kabin-e" width={14} height={14} className="h-3.5 w-3.5" />
+                  Kabin-e
+                </p>
+              )}
             </div>
           )}
         </Link>
@@ -509,21 +550,25 @@ const SidebarContent = memo(function SidebarContent({
                 <p className="text-sm font-medium truncate">
                   {user.nombre} {user.apellidos}
                 </p>
-                <p className="text-[11px] text-muted-foreground truncate capitalize">
-                  {user.rol?.replace('_', ' ')}
-                </p>
+                {!isLiteMode && (
+                  <p className="text-[11px] text-muted-foreground truncate capitalize">
+                    {user.rol?.replace('_', ' ')}
+                  </p>
+                )}
               </div>
             )}
-            <Link
-              href="/configuracion"
-              onClick={onClose}
-              title="Configuración"
-              aria-label="Configuración"
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/80 transition-colors shrink-0"
-            >
-              <Settings className="h-4 w-4" />
-            </Link>
-            {!collapsed && (
+            {!isLiteMode && (
+              <Link
+                href="/configuracion"
+                onClick={onClose}
+                title="Configuración"
+                aria-label="Configuración"
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/80 transition-colors shrink-0"
+              >
+                <Settings className="h-4 w-4" />
+              </Link>
+            )}
+            {!collapsed && !isLiteMode && (
               <Link
                 href="/alertas"
                 onClick={onClose}
@@ -540,7 +585,19 @@ const SidebarContent = memo(function SidebarContent({
 
       <nav className={cn('flex flex-1 flex-col', collapsed ? 'px-2' : 'px-5')}>
         <ul role="list" className="flex flex-1 flex-col gap-y-5">
-          {!isClubOnlyRole && (
+          {isLiteMode && (
+          <li>
+            <ul role="list" className="space-y-0.5">
+              {liteNavigation.map((item) => (
+                <li key={item.name}>
+                  <NavLink item={item} pathname={pathname} collapsed={collapsed} onClose={onClose} />
+                </li>
+              ))}
+            </ul>
+          </li>
+          )}
+
+          {showFullNav && (
           <li>
             <ul role="list" className="space-y-0.5">
               {navigation.map((item) => (
@@ -553,7 +610,7 @@ const SidebarContent = memo(function SidebarContent({
           )}
 
           {/* Salud group */}
-          {!isClubOnlyRole && (
+          {showFullNav && (
           <li>
             {!collapsed && (
               <button
@@ -583,7 +640,7 @@ const SidebarContent = memo(function SidebarContent({
           )}
 
           {/* Herramientas */}
-          {!isClubOnlyRole && (
+          {showFullNav && (
           <li>
             {!collapsed && (
               <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-3">
@@ -617,7 +674,7 @@ const SidebarContent = memo(function SidebarContent({
           {/* Team selector -- only worth showing when there's actually
               something to switch to; a single-team user can never change
               equipo, so the picker is dead weight taking up sidebar space. */}
-          {!isClubOnlyRole && equipos.length > 1 && (
+          {showFullNav && equipos.length > 1 && (
           <li className="mt-auto" ref={dropdownRef}>
             {!collapsed && (
               <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-3">
@@ -716,7 +773,7 @@ const SidebarContent = memo(function SidebarContent({
           </li>
           )}
 
-          <li className={cn((isClubOnlyRole || equipos.length <= 1) && 'mt-auto')}>
+          <li className={cn((!showFullNav || equipos.length <= 1) && 'mt-auto')}>
             <button
               onClick={onLogout}
               title={collapsed ? 'Cerrar sesión' : undefined}

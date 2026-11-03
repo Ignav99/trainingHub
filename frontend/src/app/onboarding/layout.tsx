@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useClubStore } from '@/stores/clubStore'
 import { Spinner } from '@/components/ui/spinner'
 import { usePersistHydrated } from '@/hooks/usePersistHydrated'
+import { isLiteMode } from '@/lib/appMode'
 
 export default function OnboardingLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -15,6 +16,11 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
   const clubHydrated = usePersistHydrated(useClubStore.persist)
 
   useEffect(() => {
+    // Lite edition: no onboarding (the workspace is created by the admin script).
+    if (isLiteMode) {
+      router.replace('/login')
+      return
+    }
     if (!authHydrated) return
     if (!isLoading && !isAuthenticated) {
       router.push('/login')
@@ -27,6 +33,8 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
       router.push('/')
     }
   }, [authHydrated, clubHydrated, isAuthenticated, isOnboardingComplete, router])
+
+  if (isLiteMode) return null
 
   if (isLoading || !authHydrated || !clubHydrated) {
     return (

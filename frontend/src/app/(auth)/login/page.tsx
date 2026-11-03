@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { isClubAdminRole, isSuperadminRole } from '@/lib/roles'
+import { isLiteMode } from '@/lib/appMode'
 
 const STADIUM_BG = 'https://images.unsplash.com/photo-1522778119026-d647f0596c20?w=1920&q=80'
 
@@ -62,7 +63,7 @@ export default function LoginPage() {
 
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                Usuario o email
+                {isLiteMode ? 'Usuario' : 'Usuario o email'}
               </label>
               <input
                 id="email"
@@ -73,7 +74,7 @@ export default function LoginPage() {
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
-                placeholder="tu@email.com o tu usuario"
+                placeholder={isLiteMode ? 'tu usuario' : 'tu@email.com o tu usuario'}
               />
             </div>
 
@@ -109,9 +110,12 @@ export default function LoginPage() {
                 />
                 <span className="text-sm text-gray-600">Recordarme</span>
               </label>
-              <Link href="/forgot-password" className="text-sm text-primary hover:text-primary/80">
-                ¿Olvidaste tu contraseña?
-              </Link>
+              {/* Lite accounts have no real email, so there is no reset flow. */}
+              {!isLiteMode && (
+                <Link href="/forgot-password" className="text-sm text-primary hover:text-primary/80">
+                  ¿Olvidaste tu contraseña?
+                </Link>
+              )}
             </div>
 
             <button
@@ -124,12 +128,14 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="text-center text-sm text-gray-600">
-            ¿No tienes cuenta?{' '}
-            <Link href="/register" className="text-primary font-medium hover:text-primary/80">
-              Regístrate
-            </Link>
-          </p>
+          {!isLiteMode && (
+            <p className="text-center text-sm text-gray-600">
+              ¿No tienes cuenta?{' '}
+              <Link href="/register" className="text-primary font-medium hover:text-primary/80">
+                Regístrate
+              </Link>
+            </p>
+          )}
         </div>
       </div>
 

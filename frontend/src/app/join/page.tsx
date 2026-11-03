@@ -1,18 +1,25 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import { Eye, EyeOff, Loader2, CheckCircle, AlertCircle, Users } from 'lucide-react'
 import { invitacionesApi } from '@/lib/api/invitaciones'
 import { getSupabaseClient } from '@/lib/supabase/client'
+import { isLiteMode } from '@/lib/appMode'
 import type { InvitacionVerify } from '@/types'
 
 const STADIUM_BG = 'https://images.unsplash.com/photo-1522778119026-d647f0596c20?w=1920&q=80'
 
 export default function JoinPage() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
+
+  // Lite edition has no invitations/signup.
+  useEffect(() => {
+    if (isLiteMode) router.replace('/login')
+  }, [router])
 
   const [loading, setLoading] = useState(true)
   const [inviteInfo, setInviteInfo] = useState<InvitacionVerify | null>(null)

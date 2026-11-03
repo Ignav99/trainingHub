@@ -20,6 +20,9 @@ from app.security.permissions import (
     CLUB_ROLE_PERMISSIONS,
 )
 
+logger = logging.getLogger(__name__)
+
+
 def _team_role_rows(supabase, user_id: str, equipo_id: Optional[str]):
     """Role rows for this user. One retry: a dropped Supabase connection must not become a 403."""
     last_error = None

@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, lazy, Suspense } from 'react'
 import useSWR from 'swr'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { useClubStore } from '@/stores/clubStore'
+import { isLiteMode } from '@/lib/appMode'
 import { partidosApi } from '@/lib/api/partidos'
 import { videoAnotacionesApi } from '@/lib/api/videoAnotaciones'
 import { videosApi } from '@/lib/api/videos'
@@ -48,7 +49,10 @@ export default function VideoAnalisisPage() {
   const clubName = useClubStore((s) => s.organizacion?.nombre || equipoActivo?.nombre || 'Nosotros')
   const clubCrest = useClubStore((s) => s.theme.logoUrl || s.organizacion?.logo_url)
 
-  const [source, setSource] = useState<{ kind: 'loose' } | { kind: 'match'; id: string } | null>(null)
+  // Lite edition has no matches: every video is a loose one, ready to load.
+  const [source, setSource] = useState<{ kind: 'loose' } | { kind: 'match'; id: string } | null>(
+    isLiteMode ? { kind: 'loose' } : null
+  )
   const [watchMode, setWatchMode] = useState<VideoWatchMode | null>(null)
   const [watchedOpponent, setWatchedOpponent] = useState('')
   const [analyzerFile, setAnalyzerFile] = useState<File | null>(null)
@@ -62,7 +66,7 @@ export default function VideoAnalisisPage() {
   }, [])
 
   const { data: partidosData } = useSWR(
-    equipoId ? `/partidos?equipo_id=${equipoId}&limit=80&orden=fecha&direccion=desc` : null,
+    equipoId && !isLiteMode ? `/partidos?equipo_id=${equipoId}&limit=80&orden=fecha&direccion=desc` : null,
     () => partidosApi.list({ equipo_id: equipoId, limit: 80, orden: 'fecha', direccion: 'desc' })
   )
   const partidos = partidosData?.data || []
@@ -167,8 +171,12 @@ export default function VideoAnalisisPage() {
   return (
     <>
       <PageHeader
-        title="Video Análisis"
-        description="Elige el partido que vais a jugar y si el vídeo es el vuestro o del rival contra otro equipo"
+        title={isLiteMode ? 'Herramienta de Vídeo' : 'Video Análisis'}
+        description={
+          isLiteMode
+            ? 'Carga un vídeo para analizarlo y recortar clips, o usa el anotador en directo'
+            : 'Elige el partido que vais a jugar y si el vídeo es el vuestro o del rival contra otro equipo'
+        }
       />
 
       <input
@@ -190,7 +198,9 @@ export default function VideoAnalisisPage() {
         <Card className="p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">
-              {source?.kind === 'loose'
+              {isLiteMode
+                ? 'Entrenamiento, ejercicio o cualquier vídeo. El archivo se queda en este dispositivo.'
+                : source?.kind === 'loose'
                 ? 'Vídeo suelto — entrenamiento, charla o lo que sea, sin asociar a un partido'
                 : selectedPartido && watchMode === 'informe_rival'
                   ? `Informe de ${rivalName}${opponentNote ? ` · ${opponentNote}` : ''}. Los recortes van a su informe, no a la revisión de vuestro partido.`
@@ -264,6 +274,8 @@ export default function VideoAnalisisPage() {
           </span>
         </button>
 
+        {/* Lite: there are no matches, "loose" is the only (and preselected) source. */}
+        {!isLiteMode && (
         <button
           type="button"
           onClick={() => {
@@ -285,8 +297,9 @@ export default function VideoAnalisisPage() {
             </span>
           </span>
         </button>
+        )}
 
-        {months.map((month) => (
+        {!isLiteMode && months.map((month) => (
           <section key={month.key} className="space-y-2">
             <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               {month.label}
@@ -310,7 +323,7 @@ export default function VideoAnalisisPage() {
           </section>
         ))}
 
-        {partidos.length === 0 ? (
+        {!isLiteMode && partidos.length === 0 ? (
           <Card className="p-8 text-center text-sm text-muted-foreground">
             No hay partidos en este equipo. Puedes cargar un vídeo suelto igual.
           </Card>

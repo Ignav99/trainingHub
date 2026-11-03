@@ -1,17 +1,22 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Loader2, Building2 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
+import { isLiteMode } from '@/lib/appMode'
 
 const STADIUM_BG = 'https://images.unsplash.com/photo-1522778119026-d647f0596c20?w=1920&q=80'
 
 export default function RegisterPage() {
   const router = useRouter()
   const { register, isLoading } = useAuthStore()
+  // Lite edition has no signup: accounts are created by an admin script.
+  useEffect(() => {
+    if (isLiteMode) router.replace('/login')
+  }, [router])
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [step, setStep] = useState(1) // 1: datos personales, 2: organización
@@ -45,6 +50,8 @@ export default function RegisterPage() {
   }
 
   const loading = isLoading
+
+  if (isLiteMode) return null
 
   return (
     <div className="min-h-screen flex">

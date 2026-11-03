@@ -16,6 +16,8 @@ import {
 import { useAuthStore } from '@/stores/authStore'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { useClubStore } from '@/stores/clubStore'
+import { isLiteMode } from '@/lib/appMode'
+import { LiteHome } from '@/components/dashboard/LiteHome'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -56,6 +58,11 @@ function dateToStr(year: number, month: number, day: number) {
 }
 
 export default function DashboardPage() {
+  // Lite edition: two tiles, no calendar and none of the team fetches below.
+  return isLiteMode ? <LiteHome /> : <FullDashboardPage />
+}
+
+function FullDashboardPage() {
   const user = useAuthStore((s) => s.user)
   const router = useRouter()
   const { equipoActivo } = useEquipoStore()
