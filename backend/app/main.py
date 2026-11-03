@@ -4,6 +4,7 @@ Punto de entrada principal de la aplicacion FastAPI.
 """
 
 import logging
+import os
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -187,6 +188,8 @@ async def health_check():
     return {
         "status": "healthy",
         "version": settings.APP_VERSION,
+        # Render sets RENDER_GIT_COMMIT; lets us confirm which code is live.
+        "commit": os.getenv("RENDER_GIT_COMMIT", "local")[:7],
     }
 
 
