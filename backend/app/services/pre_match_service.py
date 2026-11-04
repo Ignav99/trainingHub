@@ -1632,6 +1632,119 @@ def _get_sanciones_oficiales(supabase, comp_id: str, rival_nombre: str) -> list[
         return []
 
 
+def _objetivo_contra_rival(supabase, rival_id: str, comp_id: str) -> dict:
+    """Nuestro próximo partido de liga contra el rival (jornada y fecha), si existe."""
+    if not rival_id:
+        return {}
+    try:
+        res = supabase.table("partidos").select("jornada, fecha").eq(
+            "rival_id", str(rival_id)
+        ).eq("rfef_competicion_id", comp_id).gte(
+            "fecha", date.today().isoformat()
+        ).order("fecha").limit(1).execute()
+    except Exception as e:
+        logger.debug("Próximo partido vs rival: %s", e)
+        return {}
+    filas = res.data or []
+    return {"jornada": filas[0].get("jornada"), "fecha": filas[0].get("fecha")} if filas else {}
+
+
+def _get_sanciones_partido(
+    supabase,
+    comp_id: str,
+    rival_nombre: str,
+    objetivo: dict | None = None,
+    mi_equipo: str | None = None,
+) -> dict:
+    """Sancionados / apercibidos del rival con lo publicado antes de nuestro partido."""
+    from app.services.sanciones_rival_service import PartidoRival, calcular_sanciones_partido
+
+    objetivo = objetivo or {}
+    rows = supabase.table("rfef_sanciones").select(
+        "persona_nombre, categoria, descripcion, jornada_numero, articulo, jornada_fecha, reunion_fecha, equipo_nombre"
+    ).eq("competicion_id", comp_id).execute().data or []
+    jornadas_con_comite = {r["jornada_numero"] for r in rows if r.get("jornada_numero") is not None}
+    sanciones_rival = [r for r in rows if _match_rival_name(rival_nombre, r.get("equipo_nombre") or "")]
+
+    jornadas = supabase.table("rfef_jornadas").select("numero, partidos").eq(
+        "competicion_id", comp_id
+    ).order("numero").execute().data or []
+    partidos_rival: list[PartidoRival] = []
+    for j in jornadas:
+        for p in j.get("partidos") or []:
+            if _match_rival_name(rival_nombre, p.get("local") or "") or _match_rival_name(
+                rival_nombre, p.get("visitante") or ""
+            ):
+                fecha = None
+                try:
+                    fecha = datetime.strptime((p.get("fecha") or "").strip(), "%d-%m-%Y").date()
+                except ValueError:
+                    pass
+                partidos_rival.append(PartidoRival(
+                    jornada=int(j["numero"]), fecha=fecha, jugado=p.get("goles_local") is not None,
+                ))
+                break
+
+    jornada_obj = objetivo.get("jornada")
+    fecha_obj = objetivo.get("fecha")
+    if isinstance(fecha_obj, str):
+        try:
+            fecha_obj = date.fromisoformat(fecha_obj[:10])
+        except ValueError:
+            fecha_obj = None
+
+    previos = sorted(
+        p.jornada for p in partidos_rival
+        if p.jugado and (jornada_obj is None or p.jornada < jornada_obj)
+    )
+    tarjetas_ultimo = None
+    if previos:
+        actas = supabase.table("rfef_actas").select(
+            "local_nombre, visitante_nombre, tarjetas_local, tarjetas_visitante"
+        ).eq("competicion_id", comp_id).eq("jornada_numero", previos[-1]).execute().data or []
+        for acta in actas:
+            side = _is_rival_local(acta, rival_nombre, mi_equipo)
+            if side is not None:
+                tarjetas_ultimo = acta.get("tarjetas_local" if side else "tarjetas_visitante") or []
+                break
+
+    return calcular_sanciones_partido(
+        sanciones_rival,
+        jornadas_con_comite,
+        partidos_rival,
+        jornada_objetivo=jornada_obj,
+        fecha_partido=fecha_obj,
+        hoy=date.today(),
+        tarjetas_ultimo_acta=tarjetas_ultimo,
+    )
+
+
+def _alinear_tarjetas_con_partido(tarjetas: dict | None, informe: dict) -> None:
+    """Las bajas de `tarjetas` (y del once probable) salen del informe del partido."""
+    if not tarjetas:
+        return
+    from app.services.sanciones_rival_service import clave_persona
+
+    bajas = {
+        clave_persona(s["nombre"]): s for s in informe.get("sancionados") or []
+        if s.get("categoria") == "jugador"
+    }
+    for j in tarjetas.get("jugadores") or []:
+        baja = bajas.get(clave_persona(j.get("nombre") or ""))
+        if baja:
+            j["estado"] = "Sancionado"
+            j["sancionado_restantes"] = baja["pendientes"] or None
+        elif j.get("estado") == "Sancionado":
+            j["estado"] = "Apercibido" if (j.get("amarillas_ciclo") or 0) >= 4 else "OK"
+            j["sancionado_restantes"] = 0
+            j["sancionado_motivo"] = None
+    orden = {"Sancionado": 0, "Apercibido": 1, "OK": 2}
+    tarjetas["jugadores"] = sorted(
+        tarjetas.get("jugadores") or [],
+        key=lambda j: (orden.get(j.get("estado"), 9), -(j.get("amarillas") or 0)),
+    )
+
+
 def _normalize_escudo_url(src: str | None) -> str | None:
     if not src or not str(src).strip():
         return None
@@ -1809,7 +1922,7 @@ def _get_head_to_head(supabase, rival_id: str) -> list[dict]:
 
 
 def gather_rival_intel_standalone(
-    supabase, rival: dict, comp: dict, rival_id: str = ""
+    supabase, rival: dict, comp: dict, rival_id: str = "", objetivo: dict | None = None,
 ) -> dict:
     """
     Aggregate all pre-match intelligence for a rival, independent of any partido.
@@ -1873,6 +1986,18 @@ def gather_rival_intel_standalone(
             intel["tarjetas"] = tarjetas
     except Exception as e:
         logger.debug("Error getting tarjetas: %s", e)
+
+    # Sancionados para nuestro partido (comité del viernes previo)
+    try:
+        if objetivo is None:
+            objetivo = _objetivo_contra_rival(supabase, rival_id, comp_id)
+        informe_sanciones = _get_sanciones_partido(
+            supabase, comp_id, rival_nombre, objetivo, mi_equipo=mi_equipo,
+        )
+        intel["sanciones_partido"] = informe_sanciones
+        _alinear_tarjetas_con_partido(tarjetas, informe_sanciones)
+    except Exception as e:
+        logger.warning("Error calculando sancionados de '%s': %s", rival_nombre, e, exc_info=True)
 
     # Once probable (with sanction cross-reference)
     try:
@@ -1943,7 +2068,8 @@ def gather_rival_intel(supabase, partido: dict, comp: dict) -> dict:
     """
     rival = partido.get("rivales") or {}
     rival_id = partido.get("rival_id", "")
-    return gather_rival_intel_standalone(supabase, rival, comp, rival_id)
+    objetivo = {"jornada": partido.get("jornada"), "fecha": partido.get("fecha")}
+    return gather_rival_intel_standalone(supabase, rival, comp, rival_id, objetivo=objetivo)
 
 
 def populate_partido_intel(supabase, partido_id: str) -> dict | None:
@@ -2061,9 +2187,9 @@ def populate_rival_intel(supabase, rival_id: str, competicion_id: str) -> dict |
 
 
 def refresh_rival_intel_contexto(
-    supabase, rival: dict, competicion_id: str, intel: dict
+    supabase, rival: dict, competicion_id: str, intel: dict, objetivo: dict | None = None,
 ) -> dict:
-    """Recompute contexto_stats from live actas (cheap refresh for cached intel)."""
+    """Recompute contexto_stats and sancionados from live data (cheap refresh for cached intel)."""
     rival_nombre = rival.get("rfef_nombre") or rival.get("nombre", "")
     if not rival_nombre:
         return intel
@@ -2097,6 +2223,17 @@ def refresh_rival_intel_contexto(
     current_actas, leftover = _split_actas_by_temporada(
         all_actas, temporada_code, _jornada_cod_actas(supabase, competicion_id),
     )
+    try:
+        if objetivo is None:
+            objetivo = _objetivo_contra_rival(supabase, rival.get("id") or "", competicion_id)
+        informe_sanciones = _get_sanciones_partido(
+            supabase, competicion_id, rival_nombre, objetivo, mi_equipo=mi_equipo,
+        )
+        intel["sanciones_partido"] = informe_sanciones
+        _alinear_tarjetas_con_partido(intel.get("tarjetas"), informe_sanciones)
+    except Exception as e:
+        logger.warning("Error refrescando sancionados de '%s': %s", rival_nombre, e)
+
     contexto = _compute_contexto_stats(
         supabase, competicion_id, rival_nombre,
         clasificacion=clasificacion, mi_equipo=mi_equipo, actas=current_actas,

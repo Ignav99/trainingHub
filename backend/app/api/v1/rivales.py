@@ -564,9 +564,11 @@ async def get_tarjetas_resumen(
 async def get_rival_intel(
     rival_id: UUID,
     competicion_id: UUID = Query(..., description="RFEF competition ID"),
+    partido_id: Optional[UUID] = Query(None, description="Partido para el que se cuentan las sanciones"),
     auth: AuthContext = Depends(require_permission(Permission.RIVAL_READ)),
 ):
-    """Returns cached rival_intel or generates if null. Always refreshes contexto_stats from actas."""
+    """Returns cached rival_intel or generates if null. Always refreshes contexto_stats and
+    sancionados (para `partido_id` o el próximo partido contra el rival)."""
     supabase = get_supabase()
 
     rival_res = supabase.table("rivales").select("*").eq(
@@ -585,8 +587,22 @@ async def get_rival_intel(
             return {}
         return intel
 
-    intel = refresh_rival_intel_contexto(supabase, rival, str(competicion_id), intel)
-    supabase.table("rivales").update({"rival_intel": intel}).eq("id", str(rival_id)).execute()
+    objetivo = None
+    if partido_id:
+        partido_res = supabase.table("partidos").select("jornada, fecha, rival_id").eq(
+            "id", str(partido_id)
+        ).eq("rival_id", str(rival_id)).limit(1).execute()
+        if partido_res.data:
+            objetivo = {
+                "jornada": partido_res.data[0].get("jornada"),
+                "fecha": partido_res.data[0].get("fecha"),
+            }
+
+    intel = refresh_rival_intel_contexto(
+        supabase, rival, str(competicion_id), intel, objetivo=objetivo,
+    )
+    if objetivo is None:
+        supabase.table("rivales").update({"rival_intel": intel}).eq("id", str(rival_id)).execute()
     return intel
 
 
