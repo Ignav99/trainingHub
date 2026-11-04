@@ -1,524 +1,637 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import Image from 'next/image'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import useSWR from 'swr'
-import { FileStack, Loader2 } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowUp,
+  CalendarDays,
+  Download,
+  Dumbbell,
+  Loader2,
+  Save,
+  Trash2,
+  Trophy,
+  Users,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
 import { AmbitoToggle } from '@/components/estadisticas/AmbitoToggle'
-import { useHealPizarras } from '@/components/informes/HealPizarrasGate'
+import { InformeImpresion, InformeLienzo } from '@/components/informes/estudio/InformeLienzo'
+import { fechaPuntos, type DocMeta } from '@/components/informes/estudio/primitives'
+import { assemble, bloquesDe } from '@/components/informes/estudio/reports/assemble'
+import { conNombreCorto } from '@/components/informes/estudio/reports/partido'
 import {
-  DEFAULT_SECCIONES,
-  INFORME_PLANTILLAS,
-  INFORME_SUGERENCIAS,
-  SECCION_LABEL,
-  informesApi,
-  type InformeAsunto,
-  type InformeAudiencia,
-  type InformeProfundidad,
-  type InformeSeccion,
-  type InformeSpec,
-} from '@/lib/api/informes'
+  KINDS,
+  PALETAS,
+  REPORTS,
+  defaultConfig,
+  loadConfig,
+  loadPresets,
+  normalizarBloques,
+  saveConfig,
+  savePresets,
+  type Preset,
+  type StudioConfig,
+} from '@/components/informes/estudio/studioConfig'
+import {
+  informesEstudioApi,
+  type Cabecera,
+  type InformeKind,
+} from '@/lib/api/informesEstudio'
+import { apiKey } from '@/lib/swr'
+import { cn } from '@/lib/utils'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { useClubStore } from '@/stores/clubStore'
-import { apiKey } from '@/lib/swr'
-import { AMBITO_COMPETICION, ambitoLabel, type PartidoAmbito } from '@/lib/partidoAmbito'
-import { cn } from '@/lib/utils'
-import type { Jugador, Microciclo, PaginatedResponse } from '@/types'
+import type { Jugador, Microciclo, PaginatedResponse, Partido } from '@/types'
 
-const AUDIENCIA_LABEL: Record<InformeAudiencia, string> = {
-  cuerpo_tecnico: 'Cuerpo técnico',
-  metodologia: 'Metodología',
-  direccion: 'Dirección',
-  staff: 'Staff',
+const KIND_ICON: Record<InformeKind, typeof Trophy> = {
+  partido: Trophy,
+  entrenamiento: Dumbbell,
+  jugadores: Users,
+  temporada: CalendarDays,
 }
 
-const PROF_LABEL: Record<InformeProfundidad, string> = {
-  breve: 'Breve',
-  estandar: 'Estándar',
-  extendido: 'Extendido',
+const selectCls =
+  'h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring'
+
+function nombreCortoEquipo(equipo: string, club: string): string {
+  const resto = equipo.replace(club, '').replace(/\s+/g, ' ').trim()
+  return resto || club
 }
 
-const PROF_HINT: Record<InformeProfundidad, string> = {
-  breve: 'Sala del lunes: mensaje, objetivos y mapa de la semana.',
-  estandar: 'Sala del lunes + foto de cada pizarra, asistencia y cargas.',
-  extendido: 'Dossier global: pizarras, plantilla por sesión, ausencias, margen, RPE y lesiones.',
-}
-
-const LIMITE_FILAS: Record<InformeProfundidad, number> = {
-  breve: 8,
-  estandar: 24,
-  extendido: 200,
-}
-
-function emptySpec(): InformeSpec {
-  return {
-    asunto: 'temporada',
-    profundidad: 'estandar',
-    audiencia: 'cuerpo_tecnico',
-    ambito: AMBITO_COMPETICION,
-    secciones: [...DEFAULT_SECCIONES.temporada],
-    fecha_desde: '',
-    fecha_hasta: '',
-    jugador_id: '',
-    microciclo_id: '',
-    ultimos_n: null,
-    prompt: '',
-    notas: '',
-    titulo: '',
-  }
+function slug(t: string): string {
+  return t
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\w\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '_')
 }
 
 export default function InformesPage() {
   const { equipoActivo } = useEquipoStore()
   const theme = useClubStore((s) => s.theme)
-  const organizacion = useClubStore((s) => s.organizacion)
-  const [prompt, setPrompt] = useState('')
-  const [spec, setSpec] = useState<InformeSpec>(emptySpec)
-  const [busy, setBusy] = useState(false)
-  const [interpreting, setInterpreting] = useState(false)
-  const { heal, gate } = useHealPizarras()
+  const equipoId = equipoActivo?.id
 
-  const { data: jugadoresRes } = useSWR<PaginatedResponse<Jugador>>(
-    (spec.asunto === 'jugador' || prompt.length > 8) && equipoActivo?.id
-      ? apiKey('/jugadores', { equipo_id: equipoActivo.id, limit: 80 }, ['equipo_id'])
+  const [cfg, setCfg] = useState<StudioConfig>(defaultConfig)
+  const [loaded, setLoaded] = useState(false)
+  const [presets, setPresets] = useState<Preset[]>([])
+  const [presetNombre, setPresetNombre] = useState('')
+  const [notas, setNotas] = useState('')
+  const [partidoId, setPartidoId] = useState('')
+  const [microcicloId, setMicrocicloId] = useState('')
+  const [jugadorIds, setJugadorIds] = useState<string[]>([])
+  const [printing, setPrinting] = useState(false)
+
+  useEffect(() => {
+    setCfg(loadConfig())
+    setPresets(loadPresets())
+    setLoaded(true)
+  }, [])
+
+  useEffect(() => {
+    if (loaded) saveConfig(cfg)
+  }, [cfg, loaded])
+
+  const patch = useCallback((p: Partial<StudioConfig>) => setCfg((c) => ({ ...c, ...p })), [])
+  const kind = cfg.kind
+  const kindCfg = cfg.porKind[kind]
+
+  const { data: partidosRes } = useSWR<PaginatedResponse<Partido>>(
+    kind === 'partido' && equipoId
+      ? apiKey(
+          '/partidos',
+          { equipo_id: equipoId, solo_jugados: true, limit: 100, orden: 'fecha', direccion: 'desc' },
+          ['equipo_id']
+        )
       : null
   )
   const { data: microsRes } = useSWR<PaginatedResponse<Microciclo>>(
-    spec.asunto === 'microciclo' && equipoActivo?.id
-      ? apiKey('/microciclos', { equipo_id: equipoActivo.id, limit: 30 }, ['equipo_id'])
-      : null
+    kind === 'entrenamiento' && equipoId ? apiKey('/microciclos', { equipo_id: equipoId, limit: 100 }, ['equipo_id']) : null
+  )
+  const { data: jugadoresRes } = useSWR<PaginatedResponse<Jugador>>(
+    kind === 'jugadores' && equipoId ? apiKey('/jugadores', { equipo_id: equipoId, limit: 80 }, ['equipo_id']) : null
   )
 
-  const plantilla = useMemo(
-    () => INFORME_PLANTILLAS.find((p) => p.id === spec.asunto),
-    [spec.asunto]
+  const partidos = useMemo(() => partidosRes?.data ?? [], [partidosRes])
+  const micros = useMemo(
+    () => [...(microsRes?.data ?? [])].sort((a, b) => b.fecha_inicio.localeCompare(a.fecha_inicio)),
+    [microsRes]
+  )
+  const jugadores = useMemo(
+    () => [...(jugadoresRes?.data ?? [])].sort((a, b) => (a.dorsal ?? 99) - (b.dorsal ?? 99)),
+    [jugadoresRes]
   )
 
-  const periodoLabel = useMemo(() => {
-    if (spec.ultimos_n) return `Últimos ${spec.ultimos_n} partidos`
-    if (spec.fecha_desde || spec.fecha_hasta) {
-      return `${spec.fecha_desde || 'inicio'} – ${spec.fecha_hasta || 'hoy'}`
+  useEffect(() => {
+    if (!partidoId && partidos.length) setPartidoId(partidos[0].id)
+  }, [partidos, partidoId])
+  useEffect(() => {
+    if (cfg.entrenoModo === 'microciclo' && !microcicloId && micros.length) setMicrocicloId(micros[0].id)
+  }, [micros, microcicloId, cfg.entrenoModo])
+  useEffect(() => {
+    setPartidoId('')
+    setMicrocicloId('')
+    setJugadorIds([])
+  }, [equipoId])
+
+  const datosKey = useMemo(() => {
+    if (!equipoId || !loaded) return null
+    const fechas = { fecha_desde: cfg.desde || null, fecha_hasta: cfg.hasta || null }
+    switch (kind) {
+      case 'partido':
+        return partidoId ? ['informe', kind, equipoId, partidoId] : null
+      case 'entrenamiento':
+        if (cfg.entrenoModo === 'microciclo') {
+          return microcicloId ? ['informe', kind, equipoId, 'micro', microcicloId] : null
+        }
+        return ['informe', kind, equipoId, JSON.stringify(fechas)]
+      case 'jugadores':
+        return ['informe', kind, equipoId, cfg.ambito, jugadorIds.join(','), JSON.stringify(fechas)]
+      case 'temporada':
+        return ['informe', kind, equipoId, cfg.ambito, JSON.stringify(fechas)]
     }
-    return 'Temporada'
-  }, [spec.ultimos_n, spec.fecha_desde, spec.fecha_hasta])
+  }, [equipoId, loaded, kind, partidoId, microcicloId, jugadorIds, cfg.ambito, cfg.desde, cfg.hasta, cfg.entrenoModo])
 
-  const patch = (partial: Partial<InformeSpec>) => {
-    setSpec((prev) => {
-      const next = { ...prev, ...partial }
-      if (partial.asunto && partial.asunto !== prev.asunto && !partial.secciones) {
-        next.secciones = [...DEFAULT_SECCIONES[partial.asunto]]
-        if (partial.asunto === 'microciclo' && !partial.profundidad) {
-          next.profundidad = 'extendido'
+  const { data, error, isLoading } = useSWR(
+    datosKey,
+    async (): Promise<{ kind: InformeKind; payload: Cabecera } | null> => {
+      if (!equipoId) return null
+      const fechas = { fecha_desde: cfg.desde || null, fecha_hasta: cfg.hasta || null }
+      const pedir = (): Promise<Cabecera> => {
+        switch (kind) {
+          case 'partido':
+            return informesEstudioApi.partido(equipoId, partidoId)
+          case 'entrenamiento':
+            return informesEstudioApi.entrenamiento(
+              equipoId,
+              cfg.entrenoModo === 'microciclo' ? { microciclo_id: microcicloId } : fechas
+            )
+          case 'jugadores':
+            return informesEstudioApi.jugadores(equipoId, { jugador_ids: jugadorIds, ambito: cfg.ambito, ...fechas })
+          case 'temporada':
+            return informesEstudioApi.temporada(equipoId, { ambito: cfg.ambito, ...fechas })
         }
       }
-      return next
-    })
+      return { kind, payload: await pedir() }
+    },
+    { revalidateOnFocus: false, keepPreviousData: true }
+  )
+
+  const def = REPORTS[kind]
+  const bloquesInfo = useMemo(() => new Map(bloquesDe(def).map((b) => [b.id, b])), [def])
+  const dataOk = data && data.kind === kind ? data.payload : null
+
+  const doc = useMemo(() => {
+    if (!dataOk) return null
+    const club = dataOk.club?.nombre || 'Club'
+    const equipo = dataOk.equipo?.nombre || ''
+    const prepared =
+      kind === 'partido'
+        ? conNombreCorto(dataOk as Parameters<typeof conNombreCorto>[0], nombreCortoEquipo(equipo, club))
+        : dataOk
+    const meta: DocMeta = {
+      club,
+      equipo,
+      titulo: kindCfg.titulo.trim() || def.tituloDefecto,
+      logo: dataOk.club?.logo_url || theme.logoUrl || null,
+      fecha: fechaPuntos(dataOk.generado),
+      alcance: def.alcance(prepared),
+    }
+    const orden = kindCfg.bloques.filter((b) => b.on).map((b) => b.id)
+    const pages = assemble(def, prepared, { meta, notas, comentarios: cfg.comentarios }, orden)
+    return { meta, pages }
+  }, [dataOk, kind, kindCfg, def, theme.logoUrl, notas, cfg.comentarios])
+
+  const setKindCfg = (p: Partial<StudioConfig['porKind'][InformeKind]>) =>
+    setCfg((c) => ({ ...c, porKind: { ...c.porKind, [c.kind]: { ...c.porKind[c.kind], ...p } } }))
+
+  const moveBloque = (i: number, dir: -1 | 1) => {
+    const list = [...kindCfg.bloques]
+    const j = i + dir
+    if (j < 0 || j >= list.length) return
+    ;[list[i], list[j]] = [list[j], list[i]]
+    setKindCfg({ bloques: list })
   }
 
-  const toggleSeccion = (id: InformeSeccion) => {
-    setSpec((prev) => {
-      const has = prev.secciones.includes(id)
-      const secciones = has ? prev.secciones.filter((s) => s !== id) : [...prev.secciones, id]
-      return { ...prev, secciones: secciones.length ? secciones : prev.secciones }
-    })
+  const toggleBloque = (id: string) =>
+    setKindCfg({ bloques: kindCfg.bloques.map((b) => (b.id === id ? { ...b, on: !b.on } : b)) })
+
+  const elegirPaleta = (id: string) => {
+    if (id === 'club') {
+      patch({ paleta: 'club', accent: theme.colorPrimario || '#171717', highlight: theme.colorSecundario || '#c8ff4a' })
+      return
+    }
+    const p = PALETAS.find((x) => x.id === id)
+    if (p) patch({ paleta: p.id, accent: p.accent, highlight: p.highlight })
   }
 
-  const interpretar = async (texto: string) => {
-    if (!equipoActivo?.id || texto.trim().length < 3) return
-    setInterpreting(true)
-    try {
-      const res = await informesApi.interpretar(texto.trim(), equipoActivo.id)
-      setSpec({
-        ...emptySpec(),
-        ...res.spec,
-        fecha_desde: res.spec.fecha_desde || '',
-        fecha_hasta: res.spec.fecha_hasta || '',
-        jugador_id: res.spec.jugador_id || '',
-        microciclo_id: res.spec.microciclo_id || '',
-        notas: res.spec.notas || '',
-        titulo: res.spec.titulo || '',
-        prompt: texto.trim(),
-      })
-      toast.success('Pedido interpretado. Revisa el dossier y genera el PDF.')
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'No se pudo interpretar el pedido')
-    } finally {
-      setInterpreting(false)
+  const guardarPreset = () => {
+    const nombre = presetNombre.trim()
+    if (!nombre) return
+    const nuevo: Preset = {
+      id: `${Date.now()}`,
+      nombre,
+      kind,
+      bloques: kindCfg.bloques,
+      titulo: kindCfg.titulo,
+      paleta: cfg.paleta,
+      accent: cfg.accent,
+      highlight: cfg.highlight,
+      comentarios: cfg.comentarios,
     }
+    const list = [nuevo, ...presets.filter((p) => p.nombre !== nombre || p.kind !== kind)]
+    setPresets(list)
+    savePresets(list)
+    setPresetNombre('')
+    toast.success(`Plantilla «${nombre}» guardada`)
   }
 
-  const generar = async (preview: boolean) => {
-    if (!equipoActivo?.id) {
-      toast.error('Selecciona un equipo')
-      return
-    }
-    if (spec.asunto === 'jugador' && !spec.jugador_id) {
-      toast.error('Elige un jugador')
-      return
-    }
-    if (spec.asunto === 'microciclo' && !spec.microciclo_id) {
-      toast.error('Elige un microciclo')
-      return
-    }
-    setBusy(true)
-    try {
-      if (spec.asunto === 'microciclo' && spec.microciclo_id) {
-        await heal(spec.microciclo_id)
-      }
-      await informesApi.generate({
-        ...spec,
-        equipo_id: equipoActivo.id,
-        fecha_desde: spec.fecha_desde || null,
-        fecha_hasta: spec.fecha_hasta || null,
-        jugador_id: spec.jugador_id || null,
-        microciclo_id: spec.microciclo_id || null,
-        prompt: prompt.trim() || spec.prompt || null,
-        notas: spec.notas?.trim() || null,
-        titulo: spec.titulo?.trim() || null,
-        preview,
-      })
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'No se pudo generar el informe')
-    } finally {
-      setBusy(false)
-    }
+  const aplicarPreset = (p: Preset) => {
+    setCfg((c) => ({
+      ...c,
+      kind: p.kind,
+      paleta: p.paleta,
+      accent: p.accent,
+      highlight: p.highlight,
+      comentarios: p.comentarios,
+      porKind: {
+        ...c.porKind,
+        [p.kind]: { titulo: p.titulo, bloques: normalizarBloques(p.kind, p.bloques) },
+      },
+    }))
   }
+
+  const borrarPreset = (id: string) => {
+    const list = presets.filter((p) => p.id !== id)
+    setPresets(list)
+    savePresets(list)
+  }
+
+  const fileName = doc
+    ? slug(`${doc.meta.titulo} ${doc.meta.equipo} ${dataOk?.generado?.slice(0, 10) ?? ''}`)
+    : 'informe'
+
+  const presetsKind = presets.filter((p) => p.kind === kind)
+  const usaAmbito = kind === 'jugadores' || kind === 'temporada'
+  const usaFechas = kind === 'temporada' || kind === 'jugadores' || (kind === 'entrenamiento' && cfg.entrenoModo === 'periodo')
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {gate}
+    <div className="mx-auto max-w-[1500px]">
       <PageHeader
         title="Informes"
-        description="Dossier del club: dices qué hay que enviar — en lenguaje natural o con los controles — y sale un PDF con el escudo. Los amistosos no entran en competición salvo que lo pidas."
+        description="Cuatro informes en A4 con las cifras del club: elige qué incluir, en qué orden y con qué colores."
+        actions={
+          <Button onClick={() => setPrinting(true)} disabled={!doc || printing} className="gap-2">
+            {printing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            Descargar PDF
+          </Button>
+        }
       />
 
-      <section className="rounded-xl border bg-card p-4 space-y-3">
-        <Label htmlFor="informe-pedido">Qué hay que enviar</Label>
-        <Textarea
-          id="informe-pedido"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-              e.preventDefault()
-              void interpretar(prompt)
-            }
-          }}
-          placeholder="Ej: informe breve de competición para el jefe de metodología, últimos 5 partidos, sin amistosos"
-          className="min-h-[96px]"
-        />
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={interpreting || prompt.trim().length < 3}
-            onClick={() => interpretar(prompt)}
-          >
-            {interpreting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
-            Interpretar pedido
-          </Button>
-          <span className="text-xs text-muted-foreground self-center">Ctrl+Enter</span>
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {INFORME_SUGERENCIAS.map((s) => (
-            <button
-              key={s}
-              type="button"
-              onClick={() => {
-                setPrompt(s)
-                void interpretar(s)
-              }}
-              className="text-left text-xs rounded-md border px-2 py-1 text-muted-foreground hover:text-foreground hover:bg-muted/60"
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start">
-        <section
-          className="rounded-xl border bg-card p-4 sm:p-5"
-          style={{ borderTopWidth: 3, borderTopColor: theme.colorPrimario }}
-        >
-          <div className="flex items-center gap-3 mb-4">
-            <div
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg"
-              style={{ backgroundColor: theme.colorPrimario }}
-            >
-              {theme.logoUrl ? (
-                <Image src={theme.logoUrl} alt="" width={32} height={32} className="object-contain" unoptimized />
-              ) : (
-                <span className="text-sm font-bold text-white">
-                  {(organizacion?.nombre || 'K')[0]}
-                </span>
-              )}
-            </div>
-            <div className="min-w-0">
-              <p
-                className="text-[10px] font-semibold uppercase tracking-[0.16em]"
-                style={{ color: theme.colorPrimario }}
-              >
-                Dossier · Para {AUDIENCIA_LABEL[spec.audiencia]}
-              </p>
-              <p className="text-base font-semibold truncate">
-                {spec.titulo?.trim() || plantilla?.nombre}
-              </p>
-              <p className="text-xs text-muted-foreground truncate">
-                {organizacion?.nombre || 'Club'}
-                {equipoActivo?.nombre ? ` · ${equipoActivo.nombre}` : ''}
-                {equipoActivo?.temporada ? ` · ${equipoActivo.temporada}` : ''}
-                {' · '}
-                {ambitoLabel(spec.ambito)}
-                {' · '}
-                {PROF_LABEL[spec.profundidad]}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="informe-asunto">Asunto</Label>
-              <select
-                id="informe-asunto"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                value={spec.asunto}
-                onChange={(e) => patch({ asunto: e.target.value as InformeAsunto })}
-              >
-                {INFORME_PLANTILLAS.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.nombre} · {p.para}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="informe-audiencia">Para</Label>
-              <select
-                id="informe-audiencia"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                value={spec.audiencia}
-                onChange={(e) => patch({ audiencia: e.target.value as InformeAudiencia })}
-              >
-                {(Object.keys(AUDIENCIA_LABEL) as InformeAudiencia[]).map((k) => (
-                  <option key={k} value={k}>
-                    {AUDIENCIA_LABEL[k]}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="space-y-1.5 mt-4">
-            <Label htmlFor="informe-titulo">Título en portada</Label>
-            <Input
-              id="informe-titulo"
-              value={spec.titulo || ''}
-              onChange={(e) => patch({ titulo: e.target.value })}
-              placeholder={plantilla?.nombre || 'Informe'}
-            />
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-medium">Profundidad</p>
-              <p className="text-[11px] text-muted-foreground">{PROF_HINT[spec.profundidad]}</p>
-            </div>
-            <div className="inline-flex rounded-lg border bg-card p-0.5 text-xs" role="radiogroup" aria-label="Profundidad">
-              {(Object.keys(PROF_LABEL) as InformeProfundidad[]).map((k) => (
+      <div className="grid gap-5 lg:grid-cols-[340px_minmax(0,1fr)]">
+        <aside className="space-y-5 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto lg:pr-1 scrollbar-thin">
+          <section className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Tipo de informe">
+            {KINDS.map((k) => {
+              const Icon = KIND_ICON[k.id]
+              const active = k.id === kind
+              return (
                 <button
-                  key={k}
+                  key={k.id}
                   type="button"
                   role="radio"
-                  aria-checked={spec.profundidad === k}
-                  onClick={() => patch({ profundidad: k })}
+                  aria-checked={active}
+                  onClick={() => patch({ kind: k.id })}
                   className={cn(
-                    'rounded-md px-2.5 py-1.5 font-medium transition-colors',
-                    spec.profundidad === k
-                      ? 'bg-foreground text-background'
-                      : 'text-muted-foreground hover:text-foreground'
+                    'rounded-lg border p-3 text-left transition-colors',
+                    active ? 'border-foreground bg-foreground text-background' : 'bg-card hover:border-foreground/40'
                   )}
                 >
-                  {PROF_LABEL[k]}
+                  <Icon className="mb-2 h-4 w-4" />
+                  <div className="text-sm font-semibold">{k.label}</div>
+                  <div className={cn('mt-0.5 text-[11px] leading-snug', active ? 'text-background/70' : 'text-muted-foreground')}>
+                    {k.hint}
+                  </div>
                 </button>
-              ))}
-            </div>
-          </div>
+              )
+            })}
+          </section>
 
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs font-medium">Ámbito</p>
-            <AmbitoToggle
-              value={(spec.ambito as PartidoAmbito) || AMBITO_COMPETICION}
-              onChange={(ambito) => patch({ ambito })}
-            />
-          </div>
+          <section className="space-y-3 rounded-lg border bg-card p-4">
+            <h2 className="text-sm font-semibold">Qué analizar</h2>
 
-          <div className="grid gap-3 sm:grid-cols-3 mt-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="informe-n">Últimos N</Label>
-              <Input
-                id="informe-n"
-                type="number"
-                min={1}
-                max={40}
-                placeholder="Todos"
-                value={spec.ultimos_n ?? ''}
-                onChange={(e) => {
-                  const v = e.target.value
-                  patch({ ultimos_n: v ? Math.min(40, Math.max(1, Number(v))) : null })
-                }}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="informe-desde">Desde</Label>
-              <Input
-                id="informe-desde"
-                type="date"
-                value={spec.fecha_desde || ''}
-                onChange={(e) => patch({ fecha_desde: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="informe-hasta">Hasta</Label>
-              <Input
-                id="informe-hasta"
-                type="date"
-                value={spec.fecha_hasta || ''}
-                onChange={(e) => patch({ fecha_hasta: e.target.value })}
-              />
-            </div>
-          </div>
+            {kind === 'partido' ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="inf-partido">Partido</Label>
+                <select id="inf-partido" className={selectCls} value={partidoId} onChange={(e) => setPartidoId(e.target.value)}>
+                  {partidos.length === 0 ? <option value="">Sin partidos jugados</option> : null}
+                  {partidos.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.jornada ? `J${p.jornada} · ` : ''}
+                      {p.rival?.nombre_corto || p.rival?.nombre || 'Rival'} · {p.goles_favor ?? '–'}–{p.goles_contra ?? '–'} ·{' '}
+                      {p.fecha}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
 
-          {spec.asunto === 'jugador' && (
-            <div className="space-y-1.5 mt-4">
-              <Label htmlFor="informe-jugador">Jugador</Label>
-              <select
-                id="informe-jugador"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                value={spec.jugador_id || ''}
-                onChange={(e) => patch({ jugador_id: e.target.value })}
-              >
-                <option value="">Seleccionar…</option>
-                {(jugadoresRes?.data || []).map((j) => (
-                  <option key={j.id} value={j.id}>
-                    {j.dorsal ? `${j.dorsal} · ` : ''}
-                    {j.nombre} {j.apellidos}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+            {kind === 'entrenamiento' ? (
+              <>
+                <div className="inline-flex rounded-lg border bg-background p-0.5 text-xs" role="radiogroup" aria-label="Alcance">
+                  {(['periodo', 'microciclo'] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      role="radio"
+                      aria-checked={cfg.entrenoModo === m}
+                      onClick={() => patch({ entrenoModo: m })}
+                      className={cn(
+                        'rounded-md px-2.5 py-1.5 font-medium',
+                        cfg.entrenoModo === m ? 'bg-foreground text-background' : 'text-muted-foreground'
+                      )}
+                    >
+                      {m === 'periodo' ? 'Periodo' : 'Un microciclo'}
+                    </button>
+                  ))}
+                </div>
+                {cfg.entrenoModo === 'microciclo' ? (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="inf-micro">Microciclo</Label>
+                    <select id="inf-micro" className={selectCls} value={microcicloId} onChange={(e) => setMicrocicloId(e.target.value)}>
+                      {micros.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.fecha_inicio} → {m.fecha_fin}
+                          {m.objetivo_principal ? ` · ${m.objetivo_principal.slice(0, 40)}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : null}
+              </>
+            ) : null}
 
-          {spec.asunto === 'microciclo' && (
-            <div className="space-y-1.5 mt-4">
-              <Label htmlFor="informe-micro">Microciclo</Label>
-              <select
-                id="informe-micro"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                value={spec.microciclo_id || ''}
-                onChange={(e) => patch({ microciclo_id: e.target.value })}
-              >
-                <option value="">Seleccionar…</option>
-                {(microsRes?.data || []).map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.fecha_inicio} – {m.fecha_fin}
-                    {m.objetivo_principal ? ` · ${m.objetivo_principal}` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          <div className="mt-4">
-            <p className="text-xs font-medium mb-2">Bloques del PDF</p>
-            <div className="flex flex-wrap gap-1.5">
-              {(Object.keys(SECCION_LABEL) as InformeSeccion[]).map((id) => {
-                const on = spec.secciones.includes(id)
-                return (
+            {kind === 'jugadores' ? (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label>Jugadores</Label>
                   <button
-                    key={id}
                     type="button"
-                    aria-pressed={on}
-                    onClick={() => toggleSeccion(id)}
-                    className={cn(
-                      'rounded-md border px-2.5 py-1 text-xs font-medium',
-                      on ? 'border-foreground bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
-                    )}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => setJugadorIds([])}
                   >
-                    {SECCION_LABEL[id]}
+                    {jugadorIds.length ? `Quitar selección (${jugadorIds.length})` : 'Toda la plantilla'}
                   </button>
+                </div>
+                <div className="flex max-h-44 flex-wrap gap-1.5 overflow-y-auto scrollbar-thin">
+                  {jugadores.map((j) => {
+                    const on = jugadorIds.includes(j.id)
+                    return (
+                      <button
+                        key={j.id}
+                        type="button"
+                        aria-pressed={on}
+                        onClick={() =>
+                          setJugadorIds((ids) => (on ? ids.filter((x) => x !== j.id) : [...ids, j.id]))
+                        }
+                        className={cn(
+                          'rounded-md border px-2 py-1 text-xs tabular-nums',
+                          on ? 'border-foreground bg-foreground text-background' : 'bg-background hover:border-foreground/40'
+                        )}
+                      >
+                        {j.dorsal ? `${j.dorsal} · ` : ''}
+                        {j.apodo || j.nombre}
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="text-[11px] text-muted-foreground">Sin selección se genera una ficha por cada jugador.</p>
+              </div>
+            ) : null}
+
+            {usaAmbito ? <AmbitoToggle value={cfg.ambito} onChange={(v) => patch({ ambito: v })} /> : null}
+
+            {usaFechas ? (
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="inf-desde">Desde</Label>
+                  <Input id="inf-desde" type="date" value={cfg.desde} onChange={(e) => patch({ desde: e.target.value })} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="inf-hasta">Hasta</Label>
+                  <Input id="inf-hasta" type="date" value={cfg.hasta} onChange={(e) => patch({ hasta: e.target.value })} />
+                </div>
+              </div>
+            ) : null}
+          </section>
+
+          <section className="space-y-2 rounded-lg border bg-card p-4">
+            <h2 className="text-sm font-semibold">Contenido y orden</h2>
+            <ul className="divide-y">
+              {kindCfg.bloques.map((b, i) => {
+                const info = bloquesInfo.get(b.id)
+                if (!info) return null
+                return (
+                  <li key={b.id} className="flex items-center gap-2 py-2">
+                    <Switch checked={b.on} onCheckedChange={() => toggleBloque(b.id)} aria-label={info.label} />
+                    <div className="min-w-0 flex-1">
+                      <div className={cn('text-sm', !b.on && 'text-muted-foreground')}>{info.label}</div>
+                      <div className="truncate text-[11px] text-muted-foreground">{info.hint}</div>
+                    </div>
+                    <div className="flex">
+                      <button
+                        type="button"
+                        className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
+                        onClick={() => moveBloque(i, -1)}
+                        disabled={i === 0}
+                        aria-label={`Subir ${info.label}`}
+                      >
+                        <ArrowUp className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
+                        onClick={() => moveBloque(i, 1)}
+                        disabled={i === kindCfg.bloques.length - 1}
+                        aria-label={`Bajar ${info.label}`}
+                      >
+                        <ArrowDown className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </li>
                 )
               })}
+            </ul>
+            <div className="flex items-center justify-between gap-3 border-t pt-3">
+              <div>
+                <div className="text-sm">Espacio para escribir a mano</div>
+                <div className="text-[11px] text-muted-foreground">Cuadros con líneas en fichas y notas</div>
+              </div>
+              <Switch
+                checked={cfg.comentarios}
+                onCheckedChange={(v) => patch({ comentarios: v })}
+                aria-label="Espacio para escribir a mano"
+              />
             </div>
-          </div>
+          </section>
 
-          <div className="space-y-1.5 mt-4">
-            <Label htmlFor="informe-notas">Notas del cuerpo técnico</Label>
-            <Textarea
-              id="informe-notas"
-              value={spec.notas || ''}
-              onChange={(e) => patch({ notas: e.target.value })}
-              placeholder="Opcional. Entran al final del dossier, tal cual las escribas."
-              className="min-h-[72px]"
-            />
-          </div>
+          <section className="space-y-3 rounded-lg border bg-card p-4">
+            <h2 className="text-sm font-semibold">Aspecto</h2>
+            <div className="space-y-1.5">
+              <Label htmlFor="inf-titulo">Título del informe</Label>
+              <Input
+                id="inf-titulo"
+                placeholder={def.tituloDefecto}
+                value={kindCfg.titulo}
+                onChange={(e) => setKindCfg({ titulo: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Colores</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { id: 'club', label: 'Colores del club', accent: theme.colorPrimario, highlight: theme.colorSecundario },
+                  ...PALETAS,
+                ].map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    title={p.label}
+                    aria-label={p.label}
+                    aria-pressed={cfg.paleta === p.id}
+                    onClick={() => elegirPaleta(p.id)}
+                    className={cn(
+                      'flex h-8 w-12 overflow-hidden rounded-md border-2',
+                      cfg.paleta === p.id ? 'border-foreground' : 'border-transparent'
+                    )}
+                  >
+                    <span className="h-full w-1/3 bg-neutral-950" />
+                    <span className="h-full w-1/3" style={{ background: p.accent || '#171717' }} />
+                    <span className="h-full w-1/3" style={{ background: p.highlight || '#f0f4f8' }} />
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-4 pt-1 text-xs text-muted-foreground">
+                <label className="flex items-center gap-1.5">
+                  <input
+                    type="color"
+                    value={cfg.accent}
+                    onChange={(e) => patch({ paleta: 'propia', accent: e.target.value })}
+                    className="h-6 w-8 cursor-pointer rounded border"
+                  />
+                  Principal
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <input
+                    type="color"
+                    value={cfg.highlight}
+                    onChange={(e) => patch({ paleta: 'propia', highlight: e.target.value })}
+                    className="h-6 w-8 cursor-pointer rounded border"
+                  />
+                  Resalte
+                </label>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="inf-notas">Notas del cuerpo técnico</Label>
+              <Textarea
+                id="inf-notas"
+                rows={4}
+                value={notas}
+                onChange={(e) => setNotas(e.target.value)}
+                placeholder="Opcional. Se imprime tal cual en la página de notas."
+              />
+            </div>
+          </section>
 
-          <div className="flex flex-wrap gap-2 pt-4">
-            <Button type="button" onClick={() => generar(false)} disabled={busy}>
-              {busy ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileStack className="h-4 w-4 mr-1" />}
-              Descargar PDF
-            </Button>
-            <Button type="button" variant="outline" onClick={() => generar(true)} disabled={busy}>
-              Vista previa
-            </Button>
-          </div>
-        </section>
-
-        <aside className="rounded-xl border bg-card p-4 lg:sticky lg:top-20 space-y-3">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-            Este dossier
-          </p>
-          <ul className="text-sm space-y-1.5">
-            <li><span className="text-muted-foreground">Para</span> {AUDIENCIA_LABEL[spec.audiencia]}</li>
-            <li><span className="text-muted-foreground">Asunto</span> {plantilla?.nombre}</li>
-            <li><span className="text-muted-foreground">Ámbito</span> {ambitoLabel(spec.ambito)}</li>
-            <li><span className="text-muted-foreground">Periodo</span> {periodoLabel}</li>
-            <li>
-              <span className="text-muted-foreground">Profundidad</span> {PROF_LABEL[spec.profundidad]}
-              <span className="text-muted-foreground"> · hasta {LIMITE_FILAS[spec.profundidad]} filas</span>
-            </li>
-          </ul>
-          <div>
-            <p className="text-xs font-medium mb-1.5">Entra en el PDF</p>
-            <ol className="text-xs space-y-1 text-muted-foreground">
-              {spec.secciones.map((id) => (
-                <li key={id}>{SECCION_LABEL[id]}</li>
-              ))}
-              {spec.notas?.trim() ? <li>Notas del CT</li> : null}
-              {spec.asunto === 'microciclo' && spec.profundidad !== 'breve' ? (
-                <li>
-                  {spec.profundidad === 'extendido'
-                    ? 'Sala del lunes + pizarras, plantilla, cargas, margen y lesiones'
-                    : 'Sala del lunes + pizarras, asistencia y cargas'}
-                </li>
-              ) : null}
-            </ol>
-          </div>
-          {spec.asunto === 'jugador' && !spec.jugador_id ? (
-            <p className="text-xs text-amber-700 dark:text-amber-400">Falta el jugador.</p>
-          ) : null}
-          {spec.asunto === 'microciclo' && !spec.microciclo_id ? (
-            <p className="text-xs text-amber-700 dark:text-amber-400">Falta el microciclo.</p>
-          ) : null}
+          <section className="space-y-2 rounded-lg border bg-card p-4">
+            <h2 className="text-sm font-semibold">Mis plantillas</h2>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Nombre (p. ej. Charla del lunes)"
+                value={presetNombre}
+                onChange={(e) => setPresetNombre(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') guardarPreset()
+                }}
+              />
+              <Button variant="outline" size="icon" onClick={guardarPreset} disabled={!presetNombre.trim()} aria-label="Guardar plantilla">
+                <Save className="h-4 w-4" />
+              </Button>
+            </div>
+            {presetsKind.length ? (
+              <ul className="space-y-1">
+                {presetsKind.map((p) => (
+                  <li key={p.id} className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="flex-1 truncate rounded px-2 py-1 text-left text-sm hover:bg-muted"
+                      onClick={() => aplicarPreset(p)}
+                    >
+                      {p.nombre}
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded p-1 text-muted-foreground hover:text-destructive"
+                      onClick={() => borrarPreset(p.id)}
+                      aria-label={`Borrar ${p.nombre}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-[11px] text-muted-foreground">
+                Guarda bloques, orden, título y colores para reutilizarlos.
+              </p>
+            )}
+          </section>
         </aside>
+
+        <main className="min-w-0 rounded-xl border bg-neutral-200/70 dark:bg-neutral-900">
+          <div className="flex items-center justify-between border-b bg-card/60 px-4 py-2 text-xs text-muted-foreground">
+            <span>
+              {doc ? `${doc.pages.length} ${doc.pages.length === 1 ? 'página' : 'páginas'} · A4` : 'Vista previa'}
+            </span>
+            {isLoading ? (
+              <span className="flex items-center gap-1.5">
+                <Loader2 className="h-3 w-3 animate-spin" /> Cargando datos
+              </span>
+            ) : null}
+          </div>
+          {!equipoId ? (
+            <p className="p-10 text-center text-sm text-muted-foreground">Elige un equipo para generar informes.</p>
+          ) : error ? (
+            <p className="p-10 text-center text-sm text-destructive">
+              No se pudieron cargar los datos: {error instanceof Error ? error.message : 'error'}
+            </p>
+          ) : doc ? (
+            <InformeLienzo meta={doc.meta} pages={doc.pages} accent={cfg.accent} highlight={cfg.highlight} />
+          ) : (
+            <div className="flex h-[60vh] items-center justify-center text-sm text-muted-foreground">
+              {datosKey ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Elige qué analizar'}
+            </div>
+          )}
+        </main>
       </div>
+
+      {printing && doc ? (
+        <InformeImpresion
+          meta={doc.meta}
+          pages={doc.pages}
+          accent={cfg.accent}
+          highlight={cfg.highlight}
+          fileName={fileName}
+          onDone={() => setPrinting(false)}
+        />
+      ) : null}
     </div>
   )
 }
