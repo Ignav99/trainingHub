@@ -19,7 +19,11 @@ import time as _time
 
 from app.database import get_supabase
 import app.services.rfef_scraper_service as _scraper_mod
-from app.services.rfef_scraper_service import RFAFScraper, DEFAULT_RFAF_TEMPORADA
+from app.services.rfef_scraper_service import (
+    RFAFScraper,
+    DEFAULT_RFAF_TEMPORADA,
+    completar_calendario,
+)
 from app.services.competition_linker_service import link_competition
 from app.services.pre_match_service import auto_populate_upcoming_matches
 from app.services.load_calculation_service import recalculate_all_teams
@@ -159,6 +163,97 @@ def _upsert_jornada(supabase, comp_id: str, jornada: dict):
         }).execute()
 
 
+def _jornada_sin_fechas(partidos: list | None) -> bool:
+    return not any((p or {}).get("fecha") for p in partidos or [])
+
+
+def ordenar_jornadas_a_refrescar(numeros: list[int], guardadas: dict[int, list]) -> list[int]:
+    """Primero las que faltan, luego las guardadas sin fecha, luego el resto.
+
+    La RFAF corta tras una ráfaga de peticiones: lo que falta debe entrar
+    antes de que el corte llegue.
+    """
+    unicos = sorted({int(n) for n in numeros if n})
+    faltan = [n for n in unicos if n not in guardadas]
+    sin_fecha = [n for n in unicos if n in guardadas and _jornada_sin_fechas(guardadas[n])]
+    resto = [n for n in unicos if n not in faltan and n not in sin_fecha]
+    return faltan + sin_fecha + resto
+
+
+def jornadas_calendario_faltantes(supabase, comp_id: str, calendario: list) -> list[int]:
+    """Jornadas del calendario que no están guardadas o no tienen ninguna fecha."""
+    numeros = sorted({int(j["numero"]) for j in calendario or [] if j.get("numero")})
+    if not numeros:
+        return []
+    try:
+        res = supabase.table("rfef_jornadas").select("numero, partidos").eq(
+            "competicion_id", comp_id
+        ).execute()
+        guardadas = {int(r["numero"]): r.get("partidos") or [] for r in res.data or []}
+    except Exception:
+        return []
+    return [n for n in numeros if n not in guardadas or _jornada_sin_fechas(guardadas[n])]
+
+
+JORNADA_RETRY_PAUSAS_SECS = (90, 240)
+JORNADA_PAUSA_TRAS_FALLO_SECS = 20
+
+
+async def refrescar_jornadas(
+    supabase,
+    scraper: RFAFScraper,
+    comp: dict,
+    numeros: list[int],
+    *,
+    pausas_reintento: tuple[int, ...] = JORNADA_RETRY_PAUSAS_SECS,
+    pausa_tras_fallo: float = JORNADA_PAUSA_TRAS_FALLO_SECS,
+    sleep=asyncio.sleep,
+) -> list[int]:
+    """Scrapea y guarda jornadas; reintenta las fallidas tras enfriar. Devuelve las que siguen sin guardar."""
+    comp_id = comp["id"]
+    codcompeticion = comp.get("rfef_codcompeticion")
+    codgrupo = comp.get("rfef_codgrupo")
+    codtemporada = comp.get("rfef_codtemporada", DEFAULT_RFAF_TEMPORADA)
+
+    try:
+        res = supabase.table("rfef_jornadas").select("numero, partidos").eq(
+            "competicion_id", comp_id
+        ).execute()
+        guardadas = {int(r["numero"]): r.get("partidos") or [] for r in res.data or []}
+    except Exception:
+        guardadas = {}
+
+    pendientes = ordenar_jornadas_a_refrescar(numeros, guardadas)
+    for ronda in range(len(pausas_reintento) + 1):
+        if ronda:
+            await sleep(pausas_reintento[ronda - 1])
+        fallidas: list[int] = []
+        for num in pendientes:
+            try:
+                jornada = await scraper.scrape_jornada_combined(
+                    codcompeticion, codgrupo, str(num), codtemporada
+                )
+                if jornada.get("partidos"):
+                    _upsert_jornada(supabase, comp_id, jornada)
+                else:
+                    fallidas.append(num)
+                await sleep(0.3)
+            except Exception as e:
+                fallidas.append(num)
+                logger.debug("Jornada %d de %s falló: %s", num, comp.get("nombre", comp_id), e)
+                await sleep(pausa_tras_fallo)
+        pendientes = fallidas
+        if not pendientes:
+            break
+
+    if pendientes:
+        logger.warning(
+            "RFAF: %s sigue sin jornadas %s tras %d reintentos",
+            comp.get("nombre", comp_id), pendientes, len(pausas_reintento),
+        )
+    return pendientes
+
+
 async def _sync_one(supabase, scraper: RFAFScraper, comp: dict):
     """Sincroniza una competición individual.
 
@@ -197,18 +292,16 @@ async def _sync_one(supabase, scraper: RFAFScraper, comp: dict):
 
         # --- Refresh adjacent jornadas (N-2..N-1, N+1..N+3) for pre/post match dates ---
         if jornada_num:
-            for adj_num in [jornada_num - 2, jornada_num - 1, jornada_num + 1, jornada_num + 2, jornada_num + 3]:
-                if adj_num < 1:
-                    continue
-                try:
-                    adj_jornada = await scraper.scrape_jornada_combined(
-                        codcompeticion, codgrupo, str(adj_num), codtemporada
-                    )
-                    if adj_jornada.get("partidos"):
-                        _upsert_jornada(supabase, comp_id, adj_jornada)
-                    await asyncio.sleep(0.3)
-                except Exception as e:
-                    logger.debug("Could not scrape adjacent jornada %d: %s", adj_num, e)
+            a_refrescar = [
+                n for n in (jornada_num - 2, jornada_num - 1, jornada_num + 1, jornada_num + 2, jornada_num + 3)
+                if n >= 1
+            ]
+            a_refrescar += jornadas_calendario_faltantes(
+                supabase, comp_id, data.get("calendario") or comp.get("calendario") or [],
+            )[:6]
+            await refrescar_jornadas(
+                supabase, scraper, comp, a_refrescar, pausas_reintento=(60,),
+            )
 
         supabase.table("rfef_competiciones").update(update).eq(
             "id", comp_id
@@ -541,27 +634,15 @@ async def daily_sync_data():
                     supabase.table("rfef_competiciones").update(update).eq("id", comp_id).execute()
 
                     # Refresh ALL jornadas from calendario
-                    calendario = comp.get("calendario") or []
-                    if not calendario:
-                        try:
-                            calendario = await scraper.scrape_calendario(
-                                codcompeticion, codgrupo, codtemporada
-                            )
-                        except Exception:
-                            calendario = [{"numero": n} for n in range(1, 31)]
+                    calendario = completar_calendario(
+                        data.get("calendario") or comp.get("calendario") or [],
+                        len(data.get("clasificacion") or comp.get("clasificacion") or []),
+                    )
 
-                    for j_info in calendario:
-                        num = j_info["numero"]
-                        try:
-                            jornada = await scraper.scrape_jornada_combined(
-                                codcompeticion, codgrupo, str(num), codtemporada
-                            )
-                            if jornada.get("partidos"):
-                                _upsert_jornada(supabase, comp_id, jornada)
-                            await asyncio.sleep(0.3)
-                        except Exception as e:
-                            logger.debug("Daily sync: error jornada %d for %s: %s", num, comp_name, e)
-                            continue
+                    await refrescar_jornadas(
+                        supabase, scraper, comp,
+                        [j_info["numero"] for j_info in calendario if j_info.get("numero")],
+                    )
 
                     # Auto-link if mi_equipo_nombre is set
                     if comp.get("mi_equipo_nombre"):

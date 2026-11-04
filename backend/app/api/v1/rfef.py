@@ -18,6 +18,7 @@ from app.services.rfef_scraper_service import (
     RFAFScraper,
     RFAFScraperError,
     DEFAULT_RFAF_TEMPORADA,
+    completar_calendario,
     default_rfaf_temporada,
     rfaf_temporada_label,
 )
@@ -450,16 +451,16 @@ async def sync_competicion_full(
 
         # Fallback: if calendario is empty or too short, generate full range
         # Standard league has 30 jornadas; use existing DB calendario or default
-        if len(calendario) < 20:
-            existing_cal = comp.data.get("calendario", [])
-            max_from_db = max((j["numero"] for j in existing_cal), default=0) if existing_cal else 0
-            max_jornada = max(30, max_from_db)
-            calendario = [{"numero": n, "texto": f"Jornada {n}"} for n in range(1, max_jornada + 1)]
-            # Save the full calendario to DB
+        completo = completar_calendario(
+            calendario or comp.data.get("calendario") or [],
+            len(clasificacion or comp.data.get("clasificacion") or []),
+        )
+        if len(completo) != len(calendario):
             supabase.table("rfef_competiciones").update({
-                "calendario": calendario,
+                "calendario": completo,
             }).eq("id", comp_id).execute()
-            logger.info("Sync-full: generated full calendario (1-%d)", max_jornada)
+            logger.info("Sync-full: calendario completado (%d jornadas)", len(completo))
+        calendario = completo
 
         await asyncio.sleep(0.3)
 
@@ -479,20 +480,19 @@ async def sync_competicion_full(
 
         # --- Step 4: All jornadas (save each one immediately) ---
         # Try each jornada — empty jornadas (future) will simply return no partidos
-        for j_info in calendario:
-            num = j_info["numero"]
-            try:
-                jornada = await scraper.scrape_jornada_combined(
-                    codcompeticion, codgrupo, str(num), codtemporada
-                )
-                if jornada.get("partidos"):
-                    _upsert_jornada(supabase, comp_id, jornada)
-                    jornadas_saved += 1
-                await asyncio.sleep(0.3)
-            except Exception as e:
-                logger.warning("Sync-full: error jornada %d: %s", num, e)
-                errors.append(f"jornada {num}: {e}")
-                continue
+        from app.services.rfef_scheduler_service import refrescar_jornadas
+
+        numeros = [j_info["numero"] for j_info in calendario]
+        sin_guardar = await refrescar_jornadas(
+            supabase, scraper, comp.data, numeros, pausas_reintento=(45,),
+        )
+        jornadas_saved = len(numeros) - len(sin_guardar)
+        if sin_guardar:
+            errors.append(
+                "La RFAF no devolvió las jornadas "
+                + ", ".join(str(n) for n in sin_guardar)
+                + "; el sync nocturno las reintentará."
+            )
 
         # --- Step 5: Update sync timestamp ---
         sync_time = datetime.utcnow().isoformat()
