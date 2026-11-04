@@ -482,7 +482,7 @@ def datos_partido(supabase, equipo_id: str, partido_id: str) -> dict:
             "tercios_recibidas": tercios(recibidas),
         },
         "carriles": carriles if any(sum(v.values()) for v in carriles.values()) else None,
-        "equipo": {
+        "media_equipo": {
             "convocados": len(filas),
             "jugaron": len(jugados),
             "nota_media": media(f["nota"] for f in jugados if f["nota"] is not None),
@@ -896,7 +896,7 @@ def datos_jugadores(
         "ambito": ambito,
         "ambito_label": AMBITO_LABELS.get(ambito, ambito),
         "partidos": [_partido_row(p) for p in partidos],
-        "equipo": equipo,
+        "media_equipo": equipo,
         "jugadores": fichas,
         "plantilla": [
             {
