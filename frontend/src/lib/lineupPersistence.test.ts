@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { mergeNotasPre, parseNotasPre } from './anotador.ts'
 import {
   hydrateLineup,
+  kickoffTitularidadSync,
   lineupNeedsKickoffRepair,
   mergeLineupIntoNotasPre,
   shouldPersistLineup,
@@ -204,5 +205,37 @@ describe('lineup persistence', () => {
     )
     const hydrated = hydrateLineup({ notasPre })
     assert.equal(hydrated.slots.DC, 'c-otro')
+  })
+
+  it('kickoffTitularidadSync rewrites flags only when the anotador XI disagrees with them', () => {
+    const notasPre = {
+      formacion: '4-3-3',
+      formacion_slots: { POR: 'c-por', DC: 'c-sub' },
+      anotador: {
+        started: true,
+        slots: { POR: 'c-por', DC: 'c-sub' },
+        kickoffSlots: { POR: 'c-por', DC: 'c-dc', EXD: 'c-borrado' },
+        events: [{ id: 'c1', minute: 60, half: 2, type: 'cambio', convId: 'c-dc', relatedConvId: 'c-sub', slotId: 'DC' }],
+      },
+    }
+    const wrong = [
+      { id: 'c-por', titular: true, posicion_asignada: 'POR' },
+      { id: 'c-sub', titular: true, posicion_asignada: 'DC' },
+      { id: 'c-dc', titular: false },
+    ]
+    assert.deepEqual(kickoffTitularidadSync({ notasPre, convocados: wrong }), [
+      { id: 'c-sub', titular: false },
+      { id: 'c-dc', titular: true, posicion_asignada: 'DC' },
+    ])
+
+    const right = [
+      { id: 'c-por', titular: true, posicion_asignada: 'POR' },
+      { id: 'c-sub', titular: false },
+      { id: 'c-dc', titular: true, posicion_asignada: 'MC' },
+    ]
+    assert.deepEqual(kickoffTitularidadSync({ notasPre, convocados: right }), [])
+
+    const sinAnotador = { formacion: '4-3-3', formacion_slots: { POR: 'c-por', DC: 'c-dc' } }
+    assert.deepEqual(kickoffTitularidadSync({ notasPre: sinAnotador, convocados: wrong }), [])
   })
 })
