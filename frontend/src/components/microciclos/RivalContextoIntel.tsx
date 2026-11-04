@@ -3,14 +3,12 @@
 import { useState } from 'react'
 import useSWR from 'swr'
 import {
-  AlertTriangle,
   Flame,
   Goal,
   Home,
   Loader2,
   Plane,
   RefreshCw,
-  ShieldAlert,
   Snowflake,
   TrendingUp,
 } from 'lucide-react'
@@ -22,6 +20,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { rivalesApi } from '@/lib/api/partidos'
 import { apiKey } from '@/lib/swr'
 import { ResultadoPills } from '@/components/rivales/DossierSlides'
+import { SancionesPartidoWidget } from '@/components/pre-match/SancionesPartidoWidget'
 import type { PreMatchIntel, PreMatchRachaEstado } from '@/types'
 
 interface RivalContextoIntelProps {
@@ -473,8 +472,6 @@ export function RivalContextoIntel({ rivalId, competicionId, rivalNombre }: Riva
   const rachaStyle = RACHA_STYLES[racha.estado]
   const RachaIcon = rachaStyle.icon
 
-  const sancionados = (intel.tarjetas?.jugadores ?? []).filter((j) => j.estado === 'Sancionado')
-  const apercibidos = (intel.tarjetas?.jugadores ?? []).filter((j) => j.estado === 'Apercibido')
   const goalInsights = ctx ? buildGoalInsights(ctx) : []
   const historicoTemporadas = Object.values(intel.historico_temporadas ?? {}).sort(
     (a, b) => Number(b.codigo) - Number(a.codigo),
@@ -735,39 +732,9 @@ export function RivalContextoIntel({ rivalId, competicionId, rivalNombre }: Riva
           </Card>
         )}
 
-        {/* Sancionados / Apercibidos */}
-        {(sancionados.length > 0 || apercibidos.length > 0 || (intel.sanciones_oficiales?.length ?? 0) > 0) && (
-          <Card className="border-amber-200">
-            <CardContent className="p-4 space-y-2">
-              <div className="flex items-center gap-1.5">
-                <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
-                <p className="text-xs font-semibold">Sanciones jornada</p>
-              </div>
-              {sancionados.map((j, i) => (
-                <div key={`s-${i}`} className="flex items-center gap-2 text-xs rounded bg-red-50 px-2 py-1">
-                  <ShieldAlert className="h-3 w-3 text-red-600 shrink-0" />
-                  <span className="font-medium text-red-800">{j.nombre}</span>
-                  <Badge variant="destructive" className="text-[9px] ml-auto">Sancionado</Badge>
-                </div>
-              ))}
-              {apercibidos.map((j, i) => (
-                <div key={`a-${i}`} className="flex items-center gap-2 text-xs rounded bg-amber-50 px-2 py-1">
-                  <AlertTriangle className="h-3 w-3 text-amber-600 shrink-0" />
-                  <span className="font-medium text-amber-800">{j.nombre}</span>
-                  <Badge className="bg-amber-100 text-amber-800 text-[9px] ml-auto">Apercibido</Badge>
-                </div>
-              ))}
-              {(intel.sanciones_oficiales ?? [])
-                .filter((s) => s.categoria?.toLowerCase().includes('jugador'))
-                .slice(0, 3)
-                .map((s, i) => (
-                  <div key={`o-${i}`} className="text-[10px] text-muted-foreground truncate">
-                    {s.persona_nombre}: {s.descripcion}
-                  </div>
-                ))}
-            </CardContent>
-          </Card>
-        )}
+        {intel.sanciones_partido ? (
+          <SancionesPartidoWidget data={intel.sanciones_partido} tone="light" className="md:col-span-2" />
+        ) : null}
       </div>
 
       {intel.ultimos_resultados && intel.ultimos_resultados.length > 0 && (

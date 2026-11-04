@@ -3,22 +3,21 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Users, ShieldAlert, AlertTriangle, ArrowRight } from 'lucide-react'
-import type { PreMatchOnceProbable, PreMatchSancion, PreMatchTarjetas } from '@/types'
+import type { PreMatchOnceProbable, PreMatchTarjetas, SancionesPartido } from '@/types'
 
 interface OnceProbableWidgetProps {
   data: PreMatchOnceProbable
-  sanciones?: PreMatchSancion[]
+  sancionesPartido?: SancionesPartido | null
   tarjetas?: PreMatchTarjetas
 }
 
-export function OnceProbableWidget({ data, sanciones, tarjetas }: OnceProbableWidgetProps) {
+export function OnceProbableWidget({ data, sancionesPartido, tarjetas }: OnceProbableWidgetProps) {
   const totalActas = data.actas_analizadas
 
-  // Build set of officially sanctioned names (from rfef_sanciones)
-  const sancionadosOficiales = new Set(
-    (sanciones || [])
-      .filter((s) => s.categoria?.toLowerCase().includes('jugador'))
-      .map((s) => s.persona_nombre)
+  const bajas = new Set(
+    (sancionesPartido?.sancionados ?? [])
+      .filter((s) => s.baja && s.categoria === 'jugador')
+      .map((s) => s.nombre)
   )
 
   // Build set of apercibido names from tarjetas data
@@ -31,7 +30,7 @@ export function OnceProbableWidget({ data, sanciones, tarjetas }: OnceProbableWi
   // Enrich players with combined sanction status
   const jugadores = data.jugadores.map((j) => ({
     ...j,
-    sancionado: j.sancionado || sancionadosOficiales.has(j.nombre),
+    sancionado: sancionesPartido ? bajas.has(j.nombre) : j.sancionado,
     apercibido: apercibidos.has(j.nombre),
   }))
 
