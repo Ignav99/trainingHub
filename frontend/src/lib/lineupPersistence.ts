@@ -168,6 +168,20 @@ export function titularidadFix(args: {
   return { starters, toTitular, toSuplente, source }
 }
 
+/**
+ * Filas a escribir cuando el anotador dice otro once de saque que la
+ * convocatoria: las estadísticas del jugador cuentan `titular`.
+ */
+export function kickoffTitularidadSync(args: {
+  notasPre?: unknown
+  convocados: LineupConvocado[]
+}): Array<{ id: string; titular: boolean; posicion_asignada?: string }> {
+  const fix = titularidadFix(args)
+  if (!fix || fix.source !== 'anotador') return []
+  if (fix.toTitular.length === 0 && fix.toSuplente.length === 0) return []
+  return titularidadUpdates(fix, args.convocados)
+}
+
 /** Filas para `batchUpdateStats` que dejan la convocatoria como el once del saque. */
 export function titularidadUpdates(
   fix: TitularidadFix,

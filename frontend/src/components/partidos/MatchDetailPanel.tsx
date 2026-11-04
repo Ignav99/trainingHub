@@ -77,7 +77,7 @@ import { AnotacionesImportDialog } from './AnotacionesImportDialog'
 import { ConvocatoriaCartelDialog } from './ConvocatoriaCartelDialog'
 import type { AnotacionesPlan, PlayerStatRow } from '@/lib/partidoAnotacionesJson'
 import { periodReportFromNotasPre, parseNotasPre, informeFromSnapshot, hasAnotadorLiveData, resolveGolDetalleNames, remapFormationSlots } from '@/lib/anotador'
-import { hydrateLineup, mergeLineupIntoNotasPre, shouldPersistLineup } from '@/lib/lineupPersistence'
+import { hydrateLineup, kickoffTitularidadSync, mergeLineupIntoNotasPre, shouldPersistLineup } from '@/lib/lineupPersistence'
 
 const PartidoPlanTab = dynamic(() => import('./PartidoPlanTab').then(m => ({ default: m.PartidoPlanTab })), {
   loading: () => <div className="animate-pulse space-y-4 p-4"><div className="h-8 bg-muted rounded w-1/3" /><div className="h-32 bg-muted rounded" /><div className="h-32 bg-muted rounded" /></div>
@@ -349,6 +349,20 @@ export function MatchDetailPanel({
     })
     setSelectedFormation(next.formation)
     setSlotAssignments(next.slots)
+  }, [lineupSourceKey, selectedPartido, convocados, loadingConv])
+
+  // Partidos pitados con el anotador antes de guardar el saque dejaron el once
+  // final en `titular`; la ficha del jugador cuenta ese campo.
+  const titularSyncTried = useRef(new Set<string>())
+  useEffect(() => {
+    if (!selectedPartido || loadingConv || convocados.length === 0) return
+    if (titularSyncTried.current.has(lineupSourceKey)) return
+    titularSyncTried.current.add(lineupSourceKey)
+    const updates = kickoffTitularidadSync({ notasPre: selectedPartido.notas_pre, convocados })
+    if (updates.length === 0) return
+    convocatoriasApi.batchUpdateStats(updates)
+      .then(() => mutate((key: string) => typeof key === 'string' && key.includes('/convocatorias'), undefined, { revalidate: true }))
+      .catch(() => {})
   }, [lineupSourceKey, selectedPartido, convocados, loadingConv])
 
   const activeFormation = FORMATIONS.find((f) => f.name === selectedFormation) || null
