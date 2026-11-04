@@ -221,3 +221,25 @@ html {
     max-width: 100%;
   }
 }
+
+/* Informes: only the report document is printed */
+#informe-print-root {
+  display: none;
+}
+
+@media print {
+  html.informe-printing,
+  html.informe-printing body {
+    background: #fff !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  html.informe-printing body > *:not(#informe-print-root) {
+    display: none !important;
+  }
+
+  html.informe-printing #informe-print-root {
+    display: block;
+  }
+}
