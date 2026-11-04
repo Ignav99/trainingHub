@@ -1,5 +1,11 @@
 # TrainingHub — estado actual
 
+## Titularidades (4 nov 2026)
+LIVE PR #466 (merge 10:22Z). 79 filas de `convocatorias` del Filial reescritas para que `titular`/`posicion_asignada` = once de la pestaña Convocatoria (once del saque del anotador). Copia previa en /tmp/filial_before.json (solo esa VM). 87 titularidades de liga = 7×11 + Écija 10. Convocatorias borradas tras el partido (no recuperables): Alcalá `5f17cae2`, `bc995e4a` (Carlos Vega, gol 42′), `b142e126`; Écija `9d4983be` (titular MCD_R), `b8b8e084` (entra 82′ por Nacho). Palomares solo tiene a Heredero en el once; Samcam sin minutos. `MatchDetailPanel` ahora escribe `kickoffTitularidadSync` al abrir el partido.
+
+## Estudio de informes (4 nov 2026, rama cursor/informes-estudio-9a4e)
+Referencias del usuario (uploads): Fichas_jugadores, Preparacion_partidos, Sesiones_entrenamiento (A4), Presentacion_Revision_Filial (16:9). Todas HTML→PDF con Chrome headless. Estilo: cabecera negra, Big Shoulders Display + Archivo + Fragment Mono, rosa #FF4FA3, lima #B8FF5A, papel #FAFAF7. Usuario: 4 tipos (partido, entrenamiento/microciclo, jugadores, temporada), solo estadísticas sin conclusiones, personalizable, un escudo + colores del club. Club CAC: #171717 / #f0f4f8 → acento elegible (por defecto rosa). Decisión: páginas A4 en React (vista previa en vivo) + PDF con la impresión del navegador (`@page A4 margin 0`); backend solo JSON (`/informes/datos/*`). Render starter no aguanta Chromium; WeasyPrint 60 sin grid.
+
 ## Visión rediseño RF-DETR (29 oct 2026, rama cursor/vision-nota-rfdetr-9a4e)
 - `camera.py`: cámara física (sitio fijo + tamaño de campo por partido), bootstrap ~290 s, seguimiento 0,12 s/fotograma, 184/189 en prueba2.
 - `broadcast.py`: BroadcastDetector (RF-DETR personas+balón, keypoints desde H, colores por paleta+kmeans, árbitro = grupo que sale 1 vez por fotograma lejos de porterías, balón en 2 teselas si falta, puntos de penalti fuera).

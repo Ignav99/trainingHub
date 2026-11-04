@@ -25,6 +25,13 @@ from app.services.informe_spec import (
     interpretar_prompt_ai,
     parse_informe_prompt,
 )
+from app.services.informes_datos import (
+    cabecera,
+    datos_entrenamiento,
+    datos_jugadores,
+    datos_partido,
+    datos_temporada,
+)
 from app.services.partido_ambito import AMBITO_LABELS, AMBITOS
 from app.database import get_supabase
 
@@ -142,6 +149,100 @@ async def generar_informe_post(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generando informe: {e}") from e
     return _pdf_response(pdf_bytes, filename, body.preview)
+
+
+def _org_del_equipo(supabase, equipo_id: UUID, auth: AuthContext) -> str:
+    rows = (
+        supabase.table("equipos").select("organizacion_id").eq("id", str(equipo_id)).limit(1).execute().data
+        or []
+    )
+    org = str(rows[0].get("organizacion_id")) if rows else ""
+    superadmin = getattr(auth.user, "rol", None) == "superadmin_plataforma"
+    if not org or (org != str(auth.organizacion_id) and not superadmin):
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+    return org
+
+
+@router.get("/datos/partido")
+async def datos_informe_partido(
+    equipo_id: UUID = Query(...),
+    partido_id: UUID = Query(...),
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
+):
+    supabase = get_supabase()
+    org = _org_del_equipo(supabase, equipo_id, auth)
+    try:
+        data = await asyncio.to_thread(datos_partido, supabase, str(equipo_id), str(partido_id))
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    return {**cabecera(supabase, org, str(equipo_id)), **data}
+
+
+@router.get("/datos/entrenamiento")
+async def datos_informe_entrenamiento(
+    equipo_id: UUID = Query(...),
+    microciclo_id: Optional[UUID] = Query(None),
+    fecha_desde: Optional[date] = Query(None),
+    fecha_hasta: Optional[date] = Query(None),
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
+):
+    supabase = get_supabase()
+    org = _org_del_equipo(supabase, equipo_id, auth)
+    try:
+        data = await asyncio.to_thread(
+            datos_entrenamiento,
+            supabase,
+            str(equipo_id),
+            str(microciclo_id) if microciclo_id else None,
+            fecha_desde,
+            fecha_hasta,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    return {**cabecera(supabase, org, str(equipo_id)), **data}
+
+
+@router.get("/datos/jugadores")
+async def datos_informe_jugadores(
+    equipo_id: UUID = Query(...),
+    jugador_ids: Optional[str] = Query(None, description="ids separados por coma; vacío = toda la plantilla"),
+    ambito: str = Query("competicion"),
+    fecha_desde: Optional[date] = Query(None),
+    fecha_hasta: Optional[date] = Query(None),
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
+):
+    supabase = get_supabase()
+    org = _org_del_equipo(supabase, equipo_id, auth)
+    ids = [i.strip() for i in (jugador_ids or "").split(",") if i.strip()] or None
+    perms = auth.permissions or set()
+    data = await asyncio.to_thread(
+        datos_jugadores,
+        supabase,
+        str(equipo_id),
+        ids,
+        ambito,
+        fecha_desde,
+        fecha_hasta,
+        con_rpe=Permission.RPE_READ in perms,
+        con_medico=bool({Permission.MEDICAL_READ, Permission.MEDICAL_READ_SUMMARY} & perms),
+    )
+    return {**cabecera(supabase, org, str(equipo_id)), **data}
+
+
+@router.get("/datos/temporada")
+async def datos_informe_temporada(
+    equipo_id: UUID = Query(...),
+    ambito: str = Query("competicion"),
+    fecha_desde: Optional[date] = Query(None),
+    fecha_hasta: Optional[date] = Query(None),
+    auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
+):
+    supabase = get_supabase()
+    org = _org_del_equipo(supabase, equipo_id, auth)
+    data = await asyncio.to_thread(
+        datos_temporada, supabase, str(equipo_id), ambito, fecha_desde, fecha_hasta
+    )
+    return {**cabecera(supabase, org, str(equipo_id)), **data}
 
 
 @router.get("/pdf")
