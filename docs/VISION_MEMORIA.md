@@ -1,12 +1,111 @@
 # Visión — memoria para otra IA
 
-Consulta rápida. El chat largo no hace falta. Última pasada: 28 oct 2026, Europe/Madrid.
+Consulta rápida. El chat largo no hace falta. Última pasada: 4 nov 2026, Europe/Madrid.
 
 Producto: **Kabine / TrainingHub**. Módulo **Visión**, dentro de Video Análisis (`/video-analisis`). No es una ruta nueva.
 
 Los módulos 2 (dibujo tipo Sportscode) y 3 (eventos y recortes automáticos) están descritos en `docs/VISION_PLAN.md` y **no se construyen** hasta que un partido real de noche deje jugadores, equipos, balón y homografía creíbles.
 
-El partido (4–5 GB, Veo) **no sale del PC**. Ni Render, ni Supabase, ni una GPU alquilada.
+El partido completo (4–5 GB, Veo) se queda en el Mac. Desde el 2 nov 2026 las pruebas se hacen en una GPU alquilada (RunPod), con un recorte de 6 minutos, por decisión del usuario.
+
+---
+
+## Retomar aquí (estado al 4 nov 2026)
+
+**Decisión del usuario:** no se hacen más partidos completos hasta que la prueba de 3 minutos por parte salga "a la perfección extrema". El progreso se mide con la **nota Kabine**, que es el único número que se le enseña al jefe.
+
+### Dónde estamos
+
+- La infraestructura funciona:
+  - RF-DETR medium FP16 con 8 procesos, a 16 fotogramas/s en la GPU.
+  - La fase final (unir jugadores) es lineal: 12 min de juego pasan de 128 s a 16 s (PR #463).
+- La calidad está muy lejos. Línea base, la prueba de 3 min anterior a #462/#463: **NOTA 4,5/100**.
+  - Jugadores 2,3/40, identidad 0,1/20, balón 1,8/20, árbitro 0/10, equipo+dorsal 0,3/10.
+  - Cámara calibrada: 0 % en la 1ª parte, 13 % en la 2ª.
+  - Segundos con metros: 0 % y 21 %.
+  - Balón: 0 % y 19 %.
+  - Tracks por persona real: 9,2 y 18 (objetivo 3).
+  - Id mediano: 2 s y 3,4 s (objetivo 30 s).
+- Partido entero de Nervión (código anterior a #462), 8.068 s:
+  - 57.254 fotogramas.
+  - 2.690 homografías (4,7 %).
+  - 11.361 tracks para unas 25 personas.
+  - Cobertura en metros 9,8 %.
+  - Balón 6 %.
+  - Equipos 99,9 %.
+  - Dorsales 0, porque no se pasó el acta.
+- PR #462 (cámara con sol y sombra): calibran 2 de 7 fotogramas reales (450 s y 4400 s); antes solo 4400. Siguen fallando las vistas laterales (1500 s y 2800 s), donde el banquillo y las barandillas salen como líneas.
+- PR #464: `scripts/vision_match.py` imprime `NOTA KABINE` y una tabla por parte, y la guarda en `tiempos.json["nota"]`. Además, `scripts/vision_score.py a.json b.json` puntúa JSON antiguos. Código en `score.py` (`scorecard`, `scorecard_lines`, `TARGETS`).
+
+### Hitos (misma prueba de 6 minutos)
+
+| Hito | Nota | Condición |
+|---|---|---|
+| 1 | ≥ 25 | Cámara calibrada ≥ 60 % en las dos partes |
+| 2 | ≥ 45 | Id mediano ≥ 30 s y balón ≥ 40 % |
+| 3 | ≥ 60 | Dorsales del acta y árbitro |
+
+Referencia científica: SoccerNet Game State Reconstruction 2025, métrica GS-HOTA. El sistema de base saca 29 y el mejor, unos 64 (KIST-GSR). Otra métrica, misma escala.
+
+### Líneas de trabajo, por orden
+
+1. **Cámara con un modelo de puntos del campo**, al estilo PnLCalib o Roboflow `sports` (32 keypoints).
+   - Se entrena con SoccerNet calibration-2023 y se ajusta con unos 200 fotogramas nuestros.
+   - Es la decisión clave: si la cámara no supera el 60 %, hay que replantear la estrategia.
+   - Necesita una GPU unas horas, una sola vez, por unos pocos dólares. Avisar al usuario antes.
+   - Ojo: PnLCalib es GPL-2 (ver licencias). Entrenar un modelo propio o usar uno Apache/MIT.
+2. **Identidad:** re-ID por apariencia (tipo BoT-SORT o Deep-EIoU) junto con equipo y dorsal.
+3. **Balón:** detector específico por teselas (SAHI) y relleno de huecos cortos.
+4. **Dorsales:** pasar siempre el acta y un lector entrenado (SoccerNet jersey). **Árbitro:** hoy 0.
+5. **Jugadores fuera de cámara**, al estilo Graph Imputer (DeepMind 2022, arXiv 2106.04219).
+   - Solo después del hito 2.
+   - Primero una versión simple: la forma del bloque de cada equipo.
+   - Pintar siempre esos jugadores como «estimados».
+   - Datos abiertos: SkillCorner open data (9 partidos de retransmisión con jugadores extrapolados), Metrica Sports (3) y la DFL de Bassek 2025 (7).
+
+### Cómo se hace una prueba barata
+
+**1. En el Mac (gratis).** Se recorta la prueba una sola vez. Cortes en 400 s y 4342 s, 200 s cada uno:
+
+```bash
+cd ~/Desktop
+VIDEO="RUTA_DEL_VIDEO"
+FF=$(/Users/User/.pyenv/versions/3.11.9/bin/python3 -c "import imageio_ffmpeg;print(imageio_ffmpeg.get_ffmpeg_exe())")
+"$FF" -ss 400  -i "$VIDEO" -t 200 -an -c:v libx264 -preset veryfast -crf 18 parte1.mp4
+"$FF" -ss 4342 -i "$VIDEO" -t 200 -an -c:v libx264 -preset veryfast -crf 18 parte2.mp4
+printf "file 'parte1.mp4'\nfile 'parte2.mp4'\n" > lista.txt
+"$FF" -f concat -safe 0 -i lista.txt -c copy prueba-6min.mp4
+mkdir -p fotos && "$FF" -i prueba-6min.mp4 -vf fps=1/3 -q:v 3 fotos/f_%03d.jpg && zip -qr fotos.zip fotos
+```
+
+`fotos.zip` (1 fotograma cada 3 s) sirve para que la IA itere la cámara sin GPU. Hasta ahora solo hay 7 fotogramas reales, y no están en el repo.
+
+**2. En RunPod:**
+- Configuración:
+  - La GPU más barata con al menos 8 vCPU (L4, A4000, A4500, 3090 o RTX PRO 4500; esta última funciona con torch 2.8 cu128).
+  - Plantilla RunPod PyTorch 2.x, Container Disk de 60 GB, Secure Cloud.
+  - Tiempo esperado: unos 15 min, unos 0,10–0,20 $.
+- Comandos, después de `runpodctl send prueba-6min.mp4` en el Mac:
+
+```bash
+cd /workspace
+[ -d trainingHub ] || git clone --depth 1 https://github.com/Ignav99/trainingHub.git
+cd /workspace/trainingHub && git pull -q origin main
+pip install -q -r vision-worker/requirements-rfdetr.txt
+cd /workspace && runpodctl receive CODIGO
+cd /workspace/trainingHub && python scripts/vision_match.py --video /workspace/prueba-6min.mp4 \
+  --pitidos 7.8 187.8 207.8 387.8 --nuestra "#ffffff" --rival "#fff157"
+```
+
+- Pegar en el chat el bloque `NOTA KABINE` y hacer **Terminate**.
+- La primera prueba con el recorte es la nueva línea base: la cámara arranca con fotogramas solo de esos 6 minutos.
+- Pitidos originales de Nervión: 407.8, 3252.1, 4349.8 y 7236.5. Camisetas: nuestra `#ffffff`, rival `#fff157`.
+
+### Pendiente del usuario
+
+- Recortar `prueba-6min.mp4` y mandar `fotos.zip`.
+- Prueba de 6 min en RunPod con `main` (incluye #462, #463 y #464) para la nueva nota.
+- Comprobar en RunPod que no queda ningún pod en Running.
 
 ---
 
