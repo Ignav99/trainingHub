@@ -73,6 +73,30 @@ _cb_open: bool = False
 _cb_open_until: float = 0.0  # monotonic timestamp
 
 
+def total_jornadas_liga(n_equipos: int) -> int:
+    """Jornadas de una liga a doble vuelta (con jornada de descanso si son impares)."""
+    if n_equipos < 2:
+        return 0
+    return 2 * (n_equipos - 1 if n_equipos % 2 == 0 else n_equipos)
+
+
+def completar_calendario(calendario: list[dict], n_equipos: int = 0) -> list[dict]:
+    """Rellena las jornadas que el calendario RFAF no listó.
+
+    Sin clasificación se mantiene el mínimo histórico de 30 jornadas.
+    """
+    numeros = {int(j["numero"]) for j in calendario or [] if j.get("numero")}
+    esperado = total_jornadas_liga(n_equipos)
+    if not esperado and len(numeros) < 20:
+        esperado = 30
+    numeros |= set(range(1, esperado + 1))
+    textos = {int(j["numero"]): j.get("texto") for j in calendario or [] if j.get("numero")}
+    return [
+        {"numero": n, "texto": textos.get(n) or f"Jornada {n}"}
+        for n in sorted(numeros)
+    ]
+
+
 def _safe_int(text: str) -> int:
     """Convierte texto a int, devuelve 0 si falla."""
     try:
@@ -520,9 +544,10 @@ class RFAFScraper:
 
         # Calendario: try scraping, fallback to 1..30
         time.sleep(0.3)
-        calendario = self._scrape_calendario(codcompeticion, codgrupo, codtemporada)
-        if len(calendario) < 20:
-            calendario = [{"numero": n, "texto": f"Jornada {n}"} for n in range(1, 31)]
+        calendario = completar_calendario(
+            self._scrape_calendario(codcompeticion, codgrupo, codtemporada),
+            len(full_data.get("clasificacion") or []),
+        )
 
         time.sleep(0.3)
         goleadores = self._scrape_goleadores(codcompeticion, codgrupo, codtemporada)
@@ -550,9 +575,10 @@ class RFAFScraper:
 
         # 2. Calendario (jornada numbers) — fallback to 1..30 if scraping fails
         time.sleep(0.3)
-        calendario = self._scrape_calendario(codcompeticion, codgrupo, codtemporada)
-        if len(calendario) < 20:
-            calendario = [{"numero": n, "texto": f"Jornada {n}"} for n in range(1, 31)]
+        calendario = completar_calendario(
+            self._scrape_calendario(codcompeticion, codgrupo, codtemporada),
+            len(clasificacion or []),
+        )
 
         # 3. Goleadores
         time.sleep(0.3)

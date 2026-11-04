@@ -2052,6 +2052,49 @@ export interface PreMatchSancion {
   articulo?: string
 }
 
+export interface SancionPartidoDetalle {
+  jornada: number
+  partidos: number
+  cumplidos: number
+  pendientes: number
+  cumplidos_en: number[]
+  motivo: string
+  articulo?: string
+  deducida?: boolean
+}
+
+export interface SancionadoPartido {
+  nombre: string
+  categoria: 'jugador' | 'tecnico' | string
+  partidos_total: number
+  cumplidos: number
+  pendientes: number
+  pendientes_para_partido: number
+  baja: boolean
+  temporal?: { cantidad: number; unidad: 'meses' | 'anos'; desde?: string | null; motivo: string } | null
+  sanciones: SancionPartidoDetalle[]
+}
+
+export interface SancionesPartido {
+  jornada_objetivo: number
+  fecha_partido?: string | null
+  ultima_jornada_rival?: number | null
+  partidos_previos: number
+  partidos_por_jugar: number[]
+  comite: {
+    estado: 'publicado' | 'pendiente' | 'retrasado' | 'faltan_partidos' | 'sin_partidos'
+    jornada?: number | null
+    fecha_esperada?: string | null
+    jornadas_por_jugar?: number[]
+  }
+  sancionados: SancionadoPartido[]
+  provisionales: { nombre: string; tipo: 'roja' | 'doble_amarilla' | 'ciclo'; jornada: number; detalle: string }[]
+  apercibidos: { nombre: string; amarillas: number; jornada?: number | null }[]
+  cumplidas_recientes: SancionadoPartido[]
+  avisos: string[]
+  sin_datos: boolean
+}
+
 export interface PreMatchResultado {
   jornada: number
   local: string
@@ -2082,6 +2125,7 @@ export interface PreMatchIntel {
   once_probable?: PreMatchOnceProbable
   tarjetas?: PreMatchTarjetas
   sanciones_oficiales?: PreMatchSancion[]
+  sanciones_partido?: SancionesPartido
   ultimos_resultados?: PreMatchResultado[]
   head_to_head?: PreMatchH2H[]
   contexto_stats?: PreMatchContextoStats

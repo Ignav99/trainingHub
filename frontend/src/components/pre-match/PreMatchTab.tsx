@@ -33,6 +33,7 @@ import { ClasificacionWidget } from './ClasificacionWidget'
 import { GoleadoresWidget } from './GoleadoresWidget'
 import { OnceProbableWidget } from './OnceProbableWidget'
 import { TarjetasWidget } from './TarjetasWidget'
+import { SancionesPartidoWidget } from './SancionesPartidoWidget'
 import { ResultadosWidget } from './ResultadosWidget'
 import { HeadToHeadWidget } from './HeadToHeadWidget'
 import { InformeRivalSection } from './InformeRivalSection'
@@ -102,7 +103,10 @@ export function PreMatchTab({ partido, onMutate }: PreMatchTabProps) {
   // Fetch rival intel LIVE (same as rivales page) — source of truth for tarjetas/once probable
   const { data: rivalIntel, mutate: mutateRivalIntel } = useSWR<PreMatchIntel>(
     partido.rival_id && partido.rfef_competicion_id
-      ? apiKey(`/rivales/${partido.rival_id}/intel`, { competicion_id: partido.rfef_competicion_id })
+      ? apiKey(`/rivales/${partido.rival_id}/intel`, {
+          competicion_id: partido.rfef_competicion_id,
+          partido_id: partido.id,
+        })
       : null
   )
 
@@ -198,6 +202,12 @@ export function PreMatchTab({ partido, onMutate }: PreMatchTabProps) {
 
           {intel ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {(rivalIntel?.sanciones_partido ?? intel.sanciones_partido) && (
+                <SancionesPartidoWidget
+                  data={rivalIntel?.sanciones_partido ?? intel.sanciones_partido}
+                  className="md:col-span-2"
+                />
+              )}
               {intel.clasificacion && <ClasificacionWidget data={intel.clasificacion} />}
               {intel.ultimos_resultados && intel.ultimos_resultados.length > 0 && (
                 <ResultadosWidget data={intel.ultimos_resultados} rivalNombre={intel.rival_nombre} />
@@ -206,7 +216,7 @@ export function PreMatchTab({ partido, onMutate }: PreMatchTabProps) {
                 <GoleadoresWidget data={intel.goleadores_rival} />
               )}
               {(rivalIntel?.once_probable ?? intel.once_probable) && (
-                <OnceProbableWidget data={(rivalIntel?.once_probable ?? intel.once_probable)!} sanciones={rivalIntel?.sanciones_oficiales ?? intel.sanciones_oficiales} tarjetas={rivalIntel?.tarjetas ?? intel.tarjetas} />
+                <OnceProbableWidget data={(rivalIntel?.once_probable ?? intel.once_probable)!} sancionesPartido={rivalIntel?.sanciones_partido ?? intel.sanciones_partido} tarjetas={rivalIntel?.tarjetas ?? intel.tarjetas} />
               )}
               {((rivalIntel?.tarjetas ?? intel.tarjetas) || ((rivalIntel?.sanciones_oficiales ?? intel.sanciones_oficiales) && (rivalIntel?.sanciones_oficiales ?? intel.sanciones_oficiales)!.length > 0)) && (
                 <TarjetasWidget tarjetas={rivalIntel?.tarjetas ?? intel.tarjetas} sanciones={rivalIntel?.sanciones_oficiales ?? intel.sanciones_oficiales} />

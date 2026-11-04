@@ -39,6 +39,7 @@ const WidgetSkeleton = () => (
 const ClasificacionWidget = dynamic(() => import('@/components/pre-match/ClasificacionWidget').then(m => ({ default: m.ClasificacionWidget })), { loading: () => <WidgetSkeleton /> })
 const GoleadoresWidget = dynamic(() => import('@/components/pre-match/GoleadoresWidget').then(m => ({ default: m.GoleadoresWidget })), { loading: () => <WidgetSkeleton /> })
 const OnceProbableWidget = dynamic(() => import('@/components/pre-match/OnceProbableWidget').then(m => ({ default: m.OnceProbableWidget })), { loading: () => <WidgetSkeleton /> })
+const SancionesPartidoWidget = dynamic(() => import('@/components/pre-match/SancionesPartidoWidget').then(m => ({ default: m.SancionesPartidoWidget })), { loading: () => <WidgetSkeleton /> })
 const TarjetasWidget = dynamic(() => import('@/components/pre-match/TarjetasWidget').then(m => ({ default: m.TarjetasWidget })), { loading: () => <WidgetSkeleton /> })
 const ResultadosWidget = dynamic(() => import('@/components/pre-match/ResultadosWidget').then(m => ({ default: m.ResultadosWidget })), { loading: () => <WidgetSkeleton /> })
 const HeadToHeadWidget = dynamic(() => import('@/components/pre-match/HeadToHeadWidget').then(m => ({ default: m.HeadToHeadWidget })), { loading: () => <WidgetSkeleton /> })
@@ -381,6 +382,9 @@ function ScoutingTab({
 
       {intel ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {intel.sanciones_partido && (
+            <SancionesPartidoWidget data={intel.sanciones_partido} className="md:col-span-2" />
+          )}
           {intel.clasificacion && <ClasificacionWidget data={intel.clasificacion} />}
           {intel.ultimos_resultados && intel.ultimos_resultados.length > 0 && (
             <ResultadosWidget data={intel.ultimos_resultados} rivalNombre={intel.rival_nombre || rivalNombre} />
@@ -389,7 +393,7 @@ function ScoutingTab({
             <GoleadoresWidget data={intel.goleadores_rival} />
           )}
           {intel.once_probable && (
-            <OnceProbableWidget data={intel.once_probable} tarjetas={intel.tarjetas} />
+            <OnceProbableWidget data={intel.once_probable} tarjetas={intel.tarjetas} sancionesPartido={intel.sanciones_partido} />
           )}
           {(intel.tarjetas || (intel.sanciones_oficiales && intel.sanciones_oficiales.length > 0)) && (
             <TarjetasWidget tarjetas={intel.tarjetas} sanciones={intel.sanciones_oficiales} />

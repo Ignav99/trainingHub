@@ -64,6 +64,49 @@ def _parse_hora(hora_str: str) -> str | None:
     return None
 
 
+def _fecha_publicada_jornada(jornada: dict) -> date | None:
+    """Fecha más repetida entre los partidos de la jornada (la RFAF la publica por partido)."""
+    fechas = [
+        f for f in (_parse_fecha(p.get("fecha") or "") for p in jornada.get("partidos") or [])
+        if f
+    ]
+    if not fechas:
+        return None
+    return max(set(fechas), key=lambda f: (fechas.count(f), -f.toordinal()))
+
+
+def estimar_fechas_jornadas(jornadas: list[dict]) -> dict[int, date]:
+    """Fecha por jornada: la publicada o, si falta, una semana por jornada desde la más cercana.
+
+    `partidos.fecha` es NOT NULL; sin estimación no se puede crear el partido
+    y el calendario quedaría cortado en la primera jornada sin horario.
+    """
+    publicadas: dict[int, date] = {}
+    for j in jornadas:
+        num = j.get("numero")
+        if num is None:
+            continue
+        f = _fecha_publicada_jornada(j)
+        if f:
+            publicadas[int(num)] = f
+    if not publicadas:
+        return {}
+
+    conocidas = sorted(publicadas)
+    out = dict(publicadas)
+    for j in jornadas:
+        num = j.get("numero")
+        if num is None or int(num) in out:
+            continue
+        num = int(num)
+        ref = min(conocidas, key=lambda k: (abs(k - num), k > num))
+        estimada = publicadas[ref] + timedelta(days=7 * (num - ref))
+        if estimada.weekday() == 5:
+            estimada += timedelta(days=1)
+        out[num] = estimada
+    return out
+
+
 def _is_same_team(mi_equipo: str, team_name: str) -> bool:
     """Check if team_name matches mi_equipo. Uses exact match first, then substring."""
     a = mi_equipo.lower().strip()
@@ -147,6 +190,109 @@ def cleanup_outdated_rivals(
     if deleted:
         logger.info("Cleaned up %d rivals from previous seasons", deleted)
     return deleted
+
+
+def _upsert_partido_jornada(
+    supabase,
+    match: dict,
+    rival_lookup: dict,
+    partido_by_jornada: dict,
+    fechas_jornada: dict[int, date],
+    *,
+    equipo_id: str,
+    comp_id: str,
+) -> str | None:
+    """Crea o actualiza el partido auto-creado de una jornada. Devuelve created/updated/None."""
+    jornada_num = match["jornada_num"]
+    rival_nombre = match["rival_nombre"]
+    rival_record = rival_lookup.get(rival_nombre.lower())
+    if not rival_record:
+        logger.warning("Rival not found for: %s", rival_nombre)
+        return None
+
+    fecha_publicada = _parse_fecha(match.get("fecha", ""))
+    hora = _parse_hora(match.get("hora", ""))
+    fecha = fecha_publicada or fechas_jornada.get(jornada_num)
+
+    # Fin de semana sin horario publicado: preferir domingo, sin hora.
+    # El sync de martes actualizará la hora cuando la RFAF la publique.
+    if fecha and not hora and fecha.weekday() == 5:
+        fecha = fecha + timedelta(days=1)
+
+    is_local = match["localia"] == "local"
+    goles_local = match.get("goles_local")
+    goles_visitante = match.get("goles_visitante")
+    goles_favor = goles_local if is_local else goles_visitante
+    goles_contra = goles_visitante if is_local else goles_local
+
+    lugar, arbitro = split_campo_arbitro(match.get("campo", ""))
+    existing = partido_by_jornada.get(jornada_num)
+
+    if existing and existing.get("auto_creado"):
+        update_data = {}
+        if goles_favor is not None and goles_contra is not None:
+            if existing.get("goles_favor") != goles_favor or existing.get("goles_contra") != goles_contra:
+                update_data["goles_favor"] = goles_favor
+                update_data["goles_contra"] = goles_contra
+        if existing.get("rival_id") != rival_record["id"]:
+            update_data["rival_id"] = rival_record["id"]
+        if lugar and existing.get("ubicacion") != lugar:
+            update_data["ubicacion"] = lugar
+        if arbitro and existing.get("arbitro") != arbitro:
+            update_data["arbitro"] = arbitro
+        if hora and existing.get("hora") != hora:
+            update_data["hora"] = hora
+        # Una fecha estimada no pisa la que ya hay: solo la publicada por la RFAF.
+        if fecha_publicada and fecha and existing.get("fecha") != fecha.isoformat():
+            update_data["fecha"] = fecha.isoformat()
+        elif fecha and not existing.get("fecha"):
+            update_data["fecha"] = fecha.isoformat()
+        if not update_data:
+            return None
+        write_partido_row(
+            lambda body: supabase.table("partidos").update(body).eq(
+                "id", existing["id"]
+            ).execute(),
+            update_data,
+        )
+        return "updated"
+
+    if existing:
+        return None
+
+    if not fecha:
+        logger.warning(
+            "Link competition %s: jornada %s sin fecha publicada ni estimable",
+            comp_id, jornada_num,
+        )
+        return None
+
+    partido_data = {
+        "equipo_id": equipo_id,
+        "rival_id": rival_record["id"],
+        "localia": match["localia"],
+        "competicion": "liga",
+        "jornada": jornada_num,
+        "rfef_competicion_id": comp_id,
+        "auto_creado": True,
+        "ubicacion": lugar or None,
+        "arbitro": arbitro or None,
+        "fecha": fecha.isoformat(),
+    }
+    if hora:
+        partido_data["hora"] = hora
+    if goles_favor is not None and goles_contra is not None:
+        partido_data["goles_favor"] = goles_favor
+        partido_data["goles_contra"] = goles_contra
+
+    result = write_partido_row(
+        lambda body: supabase.table("partidos").insert(body).execute(),
+        partido_data,
+    )
+    if result.data:
+        partido_by_jornada[jornada_num] = result.data[0]
+        return "created"
+    return None
 
 
 def link_competition(supabase, comp: dict) -> dict:
@@ -316,107 +462,29 @@ def link_competition(supabase, comp: dict) -> dict:
     # Create/update partidos
     partidos_created = 0
     partidos_updated = 0
+    partidos_fallidos = 0
+    fechas_jornada = estimar_fechas_jornadas(jornadas)
 
     for match in my_matches:
-        jornada_num = match["jornada_num"]
-        rival_nombre = match["rival_nombre"]
-        rival_record = rival_lookup.get(rival_nombre.lower())
-
-        if not rival_record:
-            logger.warning("Rival not found for: %s", rival_nombre)
-            continue
-
-        # Parse fecha and hora
-        fecha = _parse_fecha(match.get("fecha", ""))
-        hora = _parse_hora(match.get("hora", ""))
-
-        # Fin de semana sin horario publicado: preferir domingo, sin hora.
-        # El sync de martes actualizará la hora cuando la RFAF la publique.
-        if fecha and not hora and fecha.weekday() == 5:  # sábado → domingo
-            from datetime import timedelta
-            fecha = fecha + timedelta(days=1)
-        if not fecha:
-            # Si solo hay texto de jornada con fecha, _parse_fecha ya falló; dejar null
-            pass
-
-        # Determine goals
-        is_local = match["localia"] == "local"
-        goles_local = match.get("goles_local")
-        goles_visitante = match.get("goles_visitante")
-
-        goles_favor = goles_local if is_local else goles_visitante
-        goles_contra = goles_visitante if is_local else goles_local
-
-        campo = match.get("campo", "")
-        lugar, arbitro = split_campo_arbitro(campo)
-
-        existing = partido_by_jornada.get(jornada_num)
-
-        if existing and existing.get("auto_creado"):
-            # Update existing auto-created partido
-            update_data = {}
-            if goles_favor is not None and goles_contra is not None:
-                if existing.get("goles_favor") != goles_favor or existing.get("goles_contra") != goles_contra:
-                    update_data["goles_favor"] = goles_favor
-                    update_data["goles_contra"] = goles_contra
-            # Update rival if it changed
-            if existing.get("rival_id") != rival_record["id"]:
-                update_data["rival_id"] = rival_record["id"]
-            # Always update fecha/hora/ubicación/árbitro from RFEF when available
-            # (RFEF may publish or correct dates after initial partido creation)
-            if lugar and existing.get("ubicacion") != lugar:
-                update_data["ubicacion"] = lugar
-            if arbitro and existing.get("arbitro") != arbitro:
-                update_data["arbitro"] = arbitro
-            if hora and existing.get("hora") != hora:
-                update_data["hora"] = hora
-            if fecha and existing.get("fecha") != fecha.isoformat():
-                update_data["fecha"] = fecha.isoformat()
-
-            if update_data:
-                write_partido_row(
-                    lambda body: supabase.table("partidos").update(body).eq(
-                        "id", existing["id"]
-                    ).execute(),
-                    update_data,
-                )
-                partidos_updated += 1
-
-        elif not existing:
-            # Create new auto-created partido
-            partido_data = {
-                "equipo_id": equipo_id,
-                "rival_id": rival_record["id"],
-                "localia": match["localia"],
-                "competicion": "liga",
-                "jornada": jornada_num,
-                "rfef_competicion_id": comp_id,
-                "auto_creado": True,
-                "ubicacion": lugar or None,
-                "arbitro": arbitro or None,
-            }
-
-            # Only set fecha if available (don't skip the match)
-            if fecha:
-                partido_data["fecha"] = fecha.isoformat()
-            if hora:
-                partido_data["hora"] = hora
-
-            if goles_favor is not None and goles_contra is not None:
-                partido_data["goles_favor"] = goles_favor
-                partido_data["goles_contra"] = goles_contra
-
-            result = write_partido_row(
-                lambda body: supabase.table("partidos").insert(body).execute(),
-                partido_data,
+        try:
+            resultado = _upsert_partido_jornada(
+                supabase, match, rival_lookup, partido_by_jornada, fechas_jornada,
+                equipo_id=equipo_id, comp_id=comp_id,
             )
-            if result.data:
-                partido_by_jornada[jornada_num] = result.data[0]
+            if resultado == "created":
                 partidos_created += 1
+            elif resultado == "updated":
+                partidos_updated += 1
+        except Exception as exc:
+            partidos_fallidos += 1
+            logger.error(
+                "Link competition %s: jornada %s no se pudo guardar: %s",
+                comp_id, match.get("jornada_num"), exc,
+            )
 
     logger.info(
         "Link competition %s: %d rivales created, %d removed, %d escudos, "
-        "%d partidos created, %d updated, %d deleted",
+        "%d partidos created, %d updated, %d deleted, %d failed",
         comp_id,
         rivales_created,
         rivales_removed,
@@ -424,6 +492,7 @@ def link_competition(supabase, comp: dict) -> dict:
         partidos_created,
         partidos_updated,
         partidos_deleted,
+        partidos_fallidos,
     )
 
     # Backfill escudos after actas / clasificación updates

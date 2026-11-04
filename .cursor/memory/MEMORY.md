@@ -68,3 +68,10 @@ LIVE merge `13614e3b3bdc5245a14d842913b63f4eef506d4b`. Frontend `dep-dbfq45jrjlh
 Tablas `biblioteca_cortes` + `biblioteca_corte_jugadores`. Migración `091` / `supabase/migrations/20261026190000_biblioteca_cortes.sql`. El usuario la aplica en Supabase; no aplicarla en silencio. Sin esas tablas la pantalla pide la migración.
 Prefijo R2 `biblioteca/{equipo}/{corte}.ext`. La purga de revisión no borra esos objetos. Enviar a revisión copia a un path de revisión. Desde revisión copia al prefijo biblioteca. Sin límite de espacio; `GET /biblioteca-cortes/uso` muestra bytes. Permisos VIDEO_READ / VIDEO_UPLOAD.
 UI: `/biblioteca-cortes`, guardar desde Video Análisis, «A biblioteca» en Revisión, pestaña Vídeos en `/plantilla/[id]?tab=videos`.
+
+## Calendario de liga cortado en J13 (PR #468)
+Causa: la RFAF limita tras ~13 jornadas seguidas; J14–J22 fallaban cada noche. J14 guardada sin fechas + `partidos.fecha` NOT NULL rompía el bucle del linker. Arreglo: `completar_calendario` (2(n−1) jornadas), `refrescar_jornadas` (faltantes primero, reintentos 90/240 s), `estimar_fechas_jornadas` (±7 días, domingo), try/except por partido. Desde la VM la RFAF bloquea la IP: no se puede scrapear en local.
+
+## Sancionados del rival para nuestro partido (PR #468)
+`sanciones_rival_service.calcular_sanciones_partido`: suma sanciones por persona y las cumple FIFO, una por partido jugado del rival tras la jornada de sanción y antes del nuestro. Comité del viernes previo (`publicado/pendiente/retrasado/faltan_partidos/sin_partidos`). Provisionales del último acta solo si el comité no salió. Ciclo de 5 amarillas, 4 = apercibido; 5ª sin sanción explícita → 1 partido deducido. `intel.sanciones_partido` se recalcula en cada lectura; GET `/rivales/{id}/intel?partido_id=` no guarda. Widget `SancionesPartidoWidget` en pre-partido, ficha rival y contexto; el 11 probable tacha solo jugadores con `baja`.
+Pendiente con el usuario: feedback de informes; jugadores fantasma (Écija, Alcalá), alineación de Palomares incompleta, Samcam sin minutos.
