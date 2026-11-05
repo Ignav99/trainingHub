@@ -918,8 +918,13 @@
   cursor: pointer;
 }
 
-.vd-menu button:hover {
+.vd-menu button:hover:not(:disabled) {
   background: color-mix(in srgb, var(--vd-line) 14%, transparent);
+}
+
+.vd-menu button:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .vd-menu-hint {

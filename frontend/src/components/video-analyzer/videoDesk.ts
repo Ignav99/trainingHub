@@ -449,17 +449,21 @@ export function uniqueZipPath(used: Set<string>, path: string): string {
 }
 
 export function planDeskZip(opts: {
-  kind: 'folder' | 'all-folders' | 'all-flat'
+  kind: 'folder' | 'all-folders' | 'all-flat' | 'marked'
   clips: CodeEvent[]
   buttons: CodeButton[]
   selectedButtonId?: string | null
+  markedClipIds?: string[]
   matchLabel: string
   archiveName?: string
 }): { zipName: string; files: Array<{ clipId: string; path: string }> } {
   const buttonById = new Map(opts.buttons.map((button) => [button.id, button]))
+  const marked = new Set(opts.markedClipIds ?? [])
   const selected = opts.kind === 'folder'
     ? opts.clips.filter((clip) => clip.buttonId === opts.selectedButtonId)
-    : opts.clips.slice()
+    : opts.kind === 'marked'
+      ? opts.clips.filter((clip) => marked.has(clip.id))
+      : opts.clips.slice()
   selected.sort((a, b) => {
     const left = buttonById.get(a.buttonId)
     const right = buttonById.get(b.buttonId)
@@ -485,6 +489,8 @@ export function planDeskZip(opts: {
       ? `${zipFolderName(phaseFolderLabel(folderButton))} — recortes.zip`
       : opts.kind === 'all-flat'
         ? `${zipFolderName(opts.matchLabel)} — clips.zip`
+        : opts.kind === 'marked'
+          ? `${zipFolderName(opts.matchLabel)} — marcados.zip`
         : `${zipFolderName(opts.matchLabel)} — carpetas.zip`
   return { zipName, files }
 }
