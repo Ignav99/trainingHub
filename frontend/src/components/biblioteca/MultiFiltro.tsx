@@ -2,21 +2,28 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
-import type { Partido } from '@/types'
 
-function etiqueta(partido: Partido): string {
-  const rival = partido.rival?.nombre_corto || partido.rival?.nombre
-  return [(partido.fecha || '').slice(0, 10), rival].filter(Boolean).join(' · ')
+export interface MultiFiltroOpcion {
+  id: string
+  label: string
+  /** Subelemento (subfase): va sangrado bajo su padre. */
+  hija?: boolean
 }
 
-export function PartidosFiltro({
-  partidos,
+export function MultiFiltro({
+  opciones,
   value,
   onChange,
+  todos,
+  plural,
+  ariaLabel,
 }: {
-  partidos: Partido[]
+  opciones: MultiFiltroOpcion[]
   value: string[]
   onChange: (ids: string[]) => void
+  todos: string
+  plural: string
+  ariaLabel: string
 }) {
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -40,12 +47,12 @@ export function PartidosFiltro({
   const toggle = (id: string) => {
     onChange(value.includes(id) ? value.filter((item) => item !== id) : [...value, id])
   }
-  const unico = value.length === 1 ? partidos.find((p) => p.id === value[0]) : null
+  const unico = value.length === 1 ? opciones.find((o) => o.id === value[0]) : null
   const resumen = value.length === 0
-    ? 'Todos los partidos'
+    ? todos
     : unico
-      ? etiqueta(unico)
-      : `${value.length} partidos`
+      ? unico.label
+      : `${value.length} ${plural}`
 
   return (
     <div ref={wrapRef} className="relative">
@@ -53,7 +60,7 @@ export function PartidosFiltro({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        aria-label="Partidos"
+        aria-label={ariaLabel}
         className="flex h-9 w-full items-center justify-between gap-2 rounded-md border bg-background px-2 text-left text-sm"
       >
         <span className="truncate">{resumen}</span>
@@ -70,26 +77,26 @@ export function PartidosFiltro({
             )}
           </div>
           <ul className="max-h-72 overflow-y-auto p-1" role="listbox" aria-multiselectable="true">
-            {partidos.map((partido) => {
-              const on = value.includes(partido.id)
+            {opciones.map((opcion) => {
+              const on = value.includes(opcion.id)
               return (
-                <li key={partido.id}>
+                <li key={opcion.id}>
                   <button
                     type="button"
                     role="option"
                     aria-selected={on}
-                    onClick={() => toggle(partido.id)}
-                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
+                    onClick={() => toggle(opcion.id)}
+                    className={`flex w-full items-center gap-2 rounded-md py-1.5 pr-2 text-left text-sm hover:bg-muted ${opcion.hija ? 'pl-7 text-muted-foreground' : 'pl-2 font-medium'}`}
                   >
                     <span className={`grid h-4 w-4 shrink-0 place-items-center rounded border ${on ? 'border-primary bg-primary text-primary-foreground' : ''}`}>
                       {on ? <Check className="h-3 w-3" /> : null}
                     </span>
-                    <span className="truncate">{etiqueta(partido)}</span>
+                    <span className="truncate">{opcion.label}</span>
                   </button>
                 </li>
               )
             })}
-            {partidos.length === 0 && <li className="px-2 py-1.5 text-sm text-muted-foreground">No hay partidos</li>}
+            {opciones.length === 0 && <li className="px-2 py-1.5 text-sm text-muted-foreground">Nada que elegir</li>}
           </ul>
         </div>
       )}

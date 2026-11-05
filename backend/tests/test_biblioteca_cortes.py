@@ -78,3 +78,14 @@ def test_several_matches_can_be_filtered_at_once():
     assert mod.partido_ids_filter(None, f"{a}, {b},{a},nope,") == [a, b]
     assert mod.partido_ids_filter(a, b) == [a, b]
     assert mod.partido_ids_filter(None, None) == []
+
+
+def test_several_phases_and_subphases_filter_together():
+    query, enteras, subs = mod.fases_filter(["abp_ofensiva", "ataque_organizado|creacion"])
+    assert "balon_parado_ofensivo" in query and "abp_ofensiva" in query and "ataque_organizado" in query
+    assert enteras == {"balon_parado_ofensivo"}
+    assert subs == {"creacion"}
+    assert mod.corte_en_fases({"fase": "abp_ofensiva"}, enteras, subs)
+    assert mod.corte_en_fases({"fase": "ataque_organizado", "subfase": "creacion"}, enteras, subs)
+    assert not mod.corte_en_fases({"fase": "ataque_organizado", "subfase": "finalizacion"}, enteras, subs)
+    assert mod.csv_ids("a, b,a", None, "c") == ["a", "b", "c"]

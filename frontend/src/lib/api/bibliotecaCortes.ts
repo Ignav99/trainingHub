@@ -50,7 +50,9 @@ export interface BibliotecaFiltro {
   partido_ids?: string
   fase?: string
   subfase?: string
+  fases?: string
   jugador_id?: string
+  jugador_ids?: string
   minuto_desde?: number
   minuto_hasta?: number
 }

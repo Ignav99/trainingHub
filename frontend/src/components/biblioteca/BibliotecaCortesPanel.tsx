@@ -17,7 +17,7 @@ import { descargarCortes } from '@/lib/bibliotecaDescarga'
 import { EditarCorteDialog } from '@/components/biblioteca/EditarCorteDialog'
 import { EnviarCorteDialog } from '@/components/biblioteca/EnviarCorteDialog'
 import { CorteMiniatura } from '@/components/biblioteca/CorteMiniatura'
-import { PartidosFiltro } from '@/components/biblioteca/PartidosFiltro'
+import { MultiFiltro, type MultiFiltroOpcion } from '@/components/biblioteca/MultiFiltro'
 import { BibliotecaReproductor, ListaInicios } from '@/components/biblioteca/BibliotecaReproductor'
 import { revisionApi } from '@/lib/api/revision'
 import type { Partido } from '@/types'
@@ -25,6 +25,11 @@ import type { Partido } from '@/types'
 const PresentacionSala = lazy(() =>
   import('@/components/revision/PresentacionSala').then((m) => ({ default: m.PresentacionSala }))
 )
+
+const FASE_OPCIONES: MultiFiltroOpcion[] = FASES_JUEGO.flatMap((item) => [
+  { id: item.codigo, label: item.nombre },
+  ...(subfasesForFase(item.codigo) || []).map((sub) => ({ id: `${item.codigo}|${sub.codigo}`, label: sub.nombre, hija: true })),
+])
 
 const subfaseNombre = (codigo?: string | null) =>
   [...SUBFASES_ATAQUE, ...SUBFASES_DEFENSA].find((item) => item.codigo === codigo)?.nombre || codigo || ''
@@ -51,9 +56,8 @@ export function BibliotecaCortesPanel({
   const [q, setQ] = useState('')
   const [qDebounced, setQDebounced] = useState('')
   const [partidoIds, setPartidoIds] = useState<string[]>([])
-  const [fase, setFase] = useState('')
-  const [subfase, setSubfase] = useState('')
-  const [jugadorFiltro, setJugadorFiltro] = useState('')
+  const [fasesSel, setFasesSel] = useState<string[]>([])
+  const [jugadoresSel, setJugadoresSel] = useState<string[]>([])
   const [minutoDesde, setMinutoDesde] = useState('')
   const [minutoHasta, setMinutoHasta] = useState('')
   const [selected, setSelected] = useState<string[]>([])
@@ -76,20 +80,20 @@ export function BibliotecaCortesPanel({
     equipo_id: equipoId,
     q: qDebounced || undefined,
     partido_ids: partidoIds.length ? partidoIds.join(',') : undefined,
-    fase: fase || undefined,
-    subfase: subfase || undefined,
-    jugador_id: jugadorId || jugadorFiltro || undefined,
+    fases: fasesSel.length ? fasesSel.join(',') : undefined,
+    jugador_id: jugadorId || undefined,
+    jugador_ids: !jugadorId && jugadoresSel.length ? jugadoresSel.join(',') : undefined,
     minuto_desde: minutoDesde === '' ? undefined : Number(minutoDesde),
     minuto_hasta: minutoHasta === '' ? undefined : Number(minutoHasta),
-  }), [equipoId, qDebounced, partidoIds, fase, subfase, jugadorId, jugadorFiltro, minutoDesde, minutoHasta])
+  }), [equipoId, qDebounced, partidoIds, fasesSel, jugadorId, jugadoresSel, minutoDesde, minutoHasta])
 
   const filtroKey = [
     filtro.equipo_id,
     filtro.q || '',
     filtro.partido_ids || '',
-    filtro.fase || '',
-    filtro.subfase || '',
+    filtro.fases || '',
     filtro.jugador_id || '',
+    filtro.jugador_ids || '',
     filtro.minuto_desde ?? '',
     filtro.minuto_hasta ?? '',
   ].join('|')
@@ -124,6 +128,18 @@ export function BibliotecaCortesPanel({
   const plantilla = (jugadores?.data || []).filter((jugador: Jugador) => (
     jugador.tipo_jugador ? jugador.tipo_jugador === 'plantilla' : !jugador.es_invitado
   ))
+
+  const partidoOpciones = useMemo<MultiFiltroOpcion[]>(
+    () => (partidos?.data || []).map((partido: Partido) => ({
+      id: partido.id,
+      label: [(partido.fecha || '').slice(0, 10), partido.rival?.nombre_corto || partido.rival?.nombre].filter(Boolean).join(' · '),
+    })),
+    [partidos?.data],
+  )
+  const jugadorOpciones = useMemo<MultiFiltroOpcion[]>(
+    () => plantilla.map((jugador) => ({ id: jugador.id, label: jugadorNombreVisible(jugador) })),
+    [plantilla],
+  )
 
   const onDirtyChange = useCallback((value: boolean) => setDirty(value), [])
   const onBack = useCallback(() => {
@@ -329,46 +345,33 @@ export function BibliotecaCortesPanel({
               aria-label="Buscar cortes"
             />
           </div>
-          <PartidosFiltro partidos={partidos?.data || []} value={partidoIds} onChange={setPartidoIds} />
-          <select
-            className="h-9 rounded-md border bg-background px-2 text-sm"
-            value={subfase ? `${fase}|${subfase}` : fase}
-            onChange={(e) => {
-              const [nextFase = '', nextSubfase = ''] = e.target.value.split('|')
-              setFase(nextFase)
-              setSubfase(nextSubfase)
-            }}
-            aria-label="Fase o subfase"
-          >
-            <option value="">Todas las fases</option>
-            {FASES_JUEGO.map((item) => {
-              const hijas = subfasesForFase(item.codigo) || []
-              return hijas.length ? (
-                <optgroup key={item.codigo} label={item.nombre}>
-                  <option value={item.codigo}>{item.nombre} · todas</option>
-                  {hijas.map((sub) => (
-                    <option key={sub.codigo} value={`${item.codigo}|${sub.codigo}`}>{sub.nombre}</option>
-                  ))}
-                </optgroup>
-              ) : (
-                <option key={item.codigo} value={item.codigo}>{item.nombre}</option>
-              )
-            })}
-          </select>
+          <MultiFiltro
+            opciones={partidoOpciones}
+            value={partidoIds}
+            onChange={setPartidoIds}
+            todos="Todos los partidos"
+            plural="partidos"
+            ariaLabel="Partidos"
+          />
+          <MultiFiltro
+            opciones={FASE_OPCIONES}
+            value={fasesSel}
+            onChange={setFasesSel}
+            todos="Todas las fases"
+            plural="fases"
+            ariaLabel="Fases y subfases"
+          />
           <Input inputMode="numeric" value={minutoDesde} onChange={(e) => setMinutoDesde(e.target.value.replace(/[^\d]/g, ''))} placeholder="Minuto desde" aria-label="Minuto desde" />
           <Input inputMode="numeric" value={minutoHasta} onChange={(e) => setMinutoHasta(e.target.value.replace(/[^\d]/g, ''))} placeholder="Minuto hasta" aria-label="Minuto hasta" />
           {!jugadorId && (
-            <select
-              className="h-9 rounded-md border bg-background px-2 text-sm"
-              value={jugadorFiltro}
-              onChange={(e) => setJugadorFiltro(e.target.value)}
-              aria-label="Jugador protagonista"
-            >
-              <option value="">Todos los jugadores</option>
-              {plantilla.map((jugador) => (
-                <option key={jugador.id} value={jugador.id}>{jugadorNombreVisible(jugador)}</option>
-              ))}
-            </select>
+            <MultiFiltro
+              opciones={jugadorOpciones}
+              value={jugadoresSel}
+              onChange={setJugadoresSel}
+              todos="Todos los jugadores"
+              plural="jugadores"
+              ariaLabel="Jugadores protagonistas"
+            />
           )}
         </div>
       )}
