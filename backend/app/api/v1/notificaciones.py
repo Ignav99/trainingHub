@@ -146,6 +146,25 @@ async def marcar_presentadas(
     return {"message": "ok"}
 
 
+@router.put("/leer-hilo/{post_id}")
+async def marcar_hilo_leido(
+    post_id: UUID,
+    auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
+):
+    """Abrir un hilo del tablero da por leído lo que te avisaba de él."""
+    supabase = get_supabase()
+    filas = supabase.table("notificaciones").update({"leida": True}).eq(
+        "usuario_id", auth.user_id
+    ).eq("entidad_tipo", "staff_post").eq("entidad_id", str(post_id)).eq("leida", False).execute()
+    ids = [f["id"] for f in (filas.data or []) if f.get("id")]
+    if ids:
+        try:
+            supabase.table("notificaciones").update({"presentada": True}).in_("id", ids).execute()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("No se pudo marcar como presentada: %s", exc)
+    return {"leidas": len(ids)}
+
+
 @router.put("/{notificacion_id}/leer")
 async def marcar_leida(
     notificacion_id: UUID,

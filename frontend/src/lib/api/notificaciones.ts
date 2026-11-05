@@ -19,6 +19,9 @@ export const notificacionesApi = {
   markRead: (id: string) =>
     api.put(`/notificaciones/${id}/leer`),
 
+  markThreadRead: (postId: string) =>
+    api.put<{ leidas: number }>(`/notificaciones/leer-hilo/${postId}`),
+
   markAllRead: (ambito: AmbitoNotificaciones = 'todo') =>
     api.put(`/notificaciones/leer-todas?ambito=${ambito}`),
 

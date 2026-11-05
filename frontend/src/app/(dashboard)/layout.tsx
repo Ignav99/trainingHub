@@ -504,16 +504,18 @@ const SidebarContent = memo(function SidebarContent({
                 </p>
               </div>
             )}
-            <Link
-              href="/configuracion"
-              onClick={onClose}
-              title="Configuración"
-              aria-label="Configuración"
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/80 transition-colors shrink-0"
-            >
-              <Settings className="h-4 w-4" />
-            </Link>
-            <NotificationBell />
+            <div className={cn('flex shrink-0 items-center', collapsed ? 'flex-col gap-1' : 'gap-1.5')}>
+              <NotificationBell />
+              <Link
+                href="/configuracion"
+                onClick={onClose}
+                title="Configuración"
+                aria-label="Configuración"
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/80 transition-colors shrink-0"
+              >
+                <Settings className="h-4 w-4" />
+              </Link>
+            </div>
           </div>
         </div>
       )}

@@ -526,6 +526,8 @@ def enviar_avisos(
             "entidad_tipo": "staff_post",
             "entidad_id": raiz_id,
             "prioridad": a.prioridad,
+            "leida": False,
+            "presentada": False,
             "actor_id": actor_id,
             "equipo_id": equipo_id,
             "url": f"/tablero?post={raiz_id}",
@@ -538,7 +540,7 @@ def enviar_avisos(
         logger.warning("Notificaciones del tablero sin columnas nuevas (%s); reintento básico", exc)
         try:
             basicas = [
-                {k: v for k, v in f.items() if k not in ("actor_id", "equipo_id", "url")}
+                {k: v for k, v in f.items() if k not in ("actor_id", "equipo_id", "url", "presentada")}
                 for f in filas
             ]
             supabase.table("notificaciones").insert(basicas).execute()

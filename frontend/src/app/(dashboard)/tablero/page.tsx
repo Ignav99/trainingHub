@@ -3,12 +3,13 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import useSWR from 'swr'
+import useSWR, { mutate as mutateGlobal } from 'swr'
 import { AtSign, CheckCircle2, Circle, HelpCircle, ListTodo, Megaphone, MessagesSquare, X } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
 import { apiKey } from '@/lib/swr'
-import { tableroApi, type FiltroTablero } from '@/lib/api/tablero'
+import { isNotificacionesKey, tableroApi, type FiltroTablero } from '@/lib/api/tablero'
+import { notificacionesApi } from '@/lib/api/notificaciones'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
 import { useEquipoStore } from '@/stores/equipoStore'
@@ -52,9 +53,17 @@ function HiloEnfocado({
   const ref = useRef<HTMLElement>(null)
   const { data, error, mutate } = useSWR<StaffHilo>(apiKey(`/tablero/${postId}`, { equipo_id: equipoId }))
 
+  const hiloId = data?.id
   useEffect(() => {
-    if (data) ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [data?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (!hiloId) return
+    ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    notificacionesApi
+      .markThreadRead(hiloId)
+      .then((r) => {
+        if (r.leidas > 0) void mutateGlobal(isNotificacionesKey)
+      })
+      .catch(() => {})
+  }, [hiloId])
 
   if (error) {
     return (
@@ -71,7 +80,7 @@ function HiloEnfocado({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>Desde la notificación</span>
+        <span>Publicación seleccionada</span>
         <button type="button" onClick={onCerrar} className="inline-flex items-center gap-1 hover:text-foreground">
           <X className="h-3.5 w-3.5" />
           Cerrar

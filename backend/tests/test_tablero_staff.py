@@ -124,6 +124,7 @@ def test_publicar_con_mencion_crea_notificacion_con_enlace():
     assert n["usuario_id"] == LUIS and n["tipo"] == "mencion"
     assert n["url"] == f"/tablero?post={hilo['id']}"
     assert n["actor_id"] == ANA and n["equipo_id"] == EQ
+    assert n["leida"] is False and n["presentada"] is False
     assert n["titulo"] == "Ana Ruiz te ha mencionado en una pregunta"
     assert n["contenido"].startswith("@Luis Mora ¿tienes")
 
@@ -268,3 +269,22 @@ def test_autoguardados_seguidos_cuentan_como_una_entrada():
     assert [(e["cambios"], e["titulo"]) for e in salida] == [(6, "MD-1"), (1, "MD-1")]
     assert salida[0]["texto"] == "ha editado la sesión"
     assert salida[0]["usuario"]["nombre"] == "Ana"
+
+
+def test_abrir_un_hilo_da_por_leidos_solo_sus_avisos(monkeypatch):
+    import asyncio
+    import uuid
+    from types import SimpleNamespace
+
+    from app.api.v1 import notificaciones as notif
+
+    fake = db()
+    hilo = tb.crear_post(fake, EQ, ACTOR_ANA, {"contenido": f"{tok('Luis Mora', LUIS)} mira la sesión"})
+    otro = tb.crear_post(fake, EQ, ACTOR_ANA, {"contenido": f"{tok('Luis Mora', LUIS)} y el partido"})
+    monkeypatch.setattr(notif, "get_supabase", lambda: fake)
+
+    res = asyncio.run(notif.marcar_hilo_leido(uuid.UUID(hilo["id"]), auth=SimpleNamespace(user_id=LUIS)))
+
+    assert res == {"leidas": 1}
+    estado = {n["entidad_id"]: (n["leida"], n["presentada"]) for n in notifs(fake, LUIS)}
+    assert estado == {hilo["id"]: (True, True), otro["id"]: (False, False)}
