@@ -18,6 +18,7 @@ from app.services.biblioteca_cortes import (
     fase_aliases,
     download_filename,
     corte_id_from_path,
+    partido_ids_filter,
     format_storage_bytes,
     is_allowed_biblioteca_path,
     extension_for,
@@ -300,6 +301,7 @@ async def list_cortes(
     equipo_id: UUID,
     q: str | None = None,
     partido_id: UUID | None = None,
+    partido_ids: str | None = None,
     fase: str | None = None,
     subfase: str | None = None,
     jugador_id: UUID | None = None,
@@ -313,8 +315,9 @@ async def list_cortes(
     _verify_equipo(supabase, equipo)
     _check_minutes(minuto_desde, minuto_hasta)
     query = supabase.table("biblioteca_cortes").select("*").eq("equipo_id", equipo)
-    if partido_id:
-        query = query.eq("partido_id", str(partido_id))
+    partidos = partido_ids_filter(str(partido_id) if partido_id else None, partido_ids)
+    if partidos:
+        query = query.in_("partido_id", partidos)
     if fase:
         query = query.in_("fase", fase_aliases(fase))
     if subfase:

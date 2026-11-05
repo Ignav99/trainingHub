@@ -47,6 +47,7 @@ export interface BibliotecaFiltro {
   equipo_id: string
   q?: string
   partido_id?: string
+  partido_ids?: string
   fase?: string
   subfase?: string
   jugador_id?: string

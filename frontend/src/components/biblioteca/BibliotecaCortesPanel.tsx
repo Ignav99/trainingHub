@@ -17,6 +17,7 @@ import { descargarCortes } from '@/lib/bibliotecaDescarga'
 import { EditarCorteDialog } from '@/components/biblioteca/EditarCorteDialog'
 import { EnviarCorteDialog } from '@/components/biblioteca/EnviarCorteDialog'
 import { CorteMiniatura } from '@/components/biblioteca/CorteMiniatura'
+import { PartidosFiltro } from '@/components/biblioteca/PartidosFiltro'
 import { BibliotecaReproductor, ListaInicios } from '@/components/biblioteca/BibliotecaReproductor'
 import { revisionApi } from '@/lib/api/revision'
 import type { Partido } from '@/types'
@@ -49,7 +50,7 @@ export function BibliotecaCortesPanel({
 }) {
   const [q, setQ] = useState('')
   const [qDebounced, setQDebounced] = useState('')
-  const [partidoId, setPartidoId] = useState('')
+  const [partidoIds, setPartidoIds] = useState<string[]>([])
   const [fase, setFase] = useState('')
   const [subfase, setSubfase] = useState('')
   const [jugadorFiltro, setJugadorFiltro] = useState('')
@@ -74,18 +75,18 @@ export function BibliotecaCortesPanel({
   const filtro = useMemo(() => ({
     equipo_id: equipoId,
     q: qDebounced || undefined,
-    partido_id: partidoId || undefined,
+    partido_ids: partidoIds.length ? partidoIds.join(',') : undefined,
     fase: fase || undefined,
     subfase: subfase || undefined,
     jugador_id: jugadorId || jugadorFiltro || undefined,
     minuto_desde: minutoDesde === '' ? undefined : Number(minutoDesde),
     minuto_hasta: minutoHasta === '' ? undefined : Number(minutoHasta),
-  }), [equipoId, qDebounced, partidoId, fase, subfase, jugadorId, jugadorFiltro, minutoDesde, minutoHasta])
+  }), [equipoId, qDebounced, partidoIds, fase, subfase, jugadorId, jugadorFiltro, minutoDesde, minutoHasta])
 
   const filtroKey = [
     filtro.equipo_id,
     filtro.q || '',
-    filtro.partido_id || '',
+    filtro.partido_ids || '',
     filtro.fase || '',
     filtro.subfase || '',
     filtro.jugador_id || '',
@@ -110,7 +111,6 @@ export function BibliotecaCortesPanel({
     () => jugadoresApi.list({ equipo_id: equipoId, solo_plantilla: true }),
   )
 
-  const subfases = useMemo(() => subfasesForFase(fase) || [], [fase])
   const rows = useMemo(
     () => (cortes || []).map((corte) => overrides[corte.id] || corte),
     [cortes, overrides],
@@ -329,28 +329,32 @@ export function BibliotecaCortesPanel({
               aria-label="Buscar cortes"
             />
           </div>
-          <select className="h-9 rounded-md border bg-background px-2 text-sm" value={partidoId} onChange={(e) => setPartidoId(e.target.value)} aria-label="Partido">
-            <option value="">Todos los partidos</option>
-            {(partidos?.data || []).map((partido: Partido) => (
-              <option key={partido.id} value={partido.id}>
-                {(partido.fecha || '').slice(0, 10)} {partido.rival?.nombre ? `· ${partido.rival.nombre}` : ''}
-              </option>
-            ))}
-          </select>
-          <select className="h-9 rounded-md border bg-background px-2 text-sm" value={fase} onChange={(e) => { setFase(e.target.value); setSubfase('') }} aria-label="Fase">
+          <PartidosFiltro partidos={partidos?.data || []} value={partidoIds} onChange={setPartidoIds} />
+          <select
+            className="h-9 rounded-md border bg-background px-2 text-sm"
+            value={subfase ? `${fase}|${subfase}` : fase}
+            onChange={(e) => {
+              const [nextFase = '', nextSubfase = ''] = e.target.value.split('|')
+              setFase(nextFase)
+              setSubfase(nextSubfase)
+            }}
+            aria-label="Fase o subfase"
+          >
             <option value="">Todas las fases</option>
-            {FASES_JUEGO.map((item) => (
-              <option key={item.codigo} value={item.codigo}>{item.nombre}</option>
-            ))}
-          </select>
-          {subfases.length > 0 && (
-            <select className="h-9 rounded-md border bg-background px-2 text-sm" value={subfase} onChange={(e) => setSubfase(e.target.value)} aria-label="Subfase">
-              <option value="">Todas las subfases</option>
-              {subfases.map((item) => (
+            {FASES_JUEGO.map((item) => {
+              const hijas = subfasesForFase(item.codigo) || []
+              return hijas.length ? (
+                <optgroup key={item.codigo} label={item.nombre}>
+                  <option value={item.codigo}>{item.nombre} · todas</option>
+                  {hijas.map((sub) => (
+                    <option key={sub.codigo} value={`${item.codigo}|${sub.codigo}`}>{sub.nombre}</option>
+                  ))}
+                </optgroup>
+              ) : (
                 <option key={item.codigo} value={item.codigo}>{item.nombre}</option>
-              ))}
-            </select>
-          )}
+              )
+            })}
+          </select>
           <Input inputMode="numeric" value={minutoDesde} onChange={(e) => setMinutoDesde(e.target.value.replace(/[^\d]/g, ''))} placeholder="Minuto desde" aria-label="Minuto desde" />
           <Input inputMode="numeric" value={minutoHasta} onChange={(e) => setMinutoHasta(e.target.value.replace(/[^\d]/g, ''))} placeholder="Minuto hasta" aria-label="Minuto hasta" />
           {!jugadorId && (

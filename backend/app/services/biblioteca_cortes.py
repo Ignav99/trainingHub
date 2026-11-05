@@ -80,6 +80,24 @@ def clean_search(value: str | None) -> str:
     return text[:80]
 
 
+def partido_ids_filter(single: str | None, many: str | None) -> list[str]:
+    """Partidos del filtro: el de siempre más una lista separada por comas. Lo que no es UUID se ignora."""
+    from uuid import UUID
+
+    out: list[str] = []
+    for raw in [single or "", *(many or "").split(",")]:
+        text = raw.strip()
+        if not text:
+            continue
+        try:
+            value = str(UUID(text))
+        except ValueError:
+            continue
+        if value not in out:
+            out.append(value)
+    return out[:80]
+
+
 def minute_ok(value: int | None) -> bool:
     if value is None:
         return True
