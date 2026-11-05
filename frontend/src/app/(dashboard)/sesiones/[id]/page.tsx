@@ -105,6 +105,12 @@ import {
   PASO_LABEL,
   readCreacionPaso,
 } from '@/lib/sesionBorrador'
+import dynamic from 'next/dynamic'
+
+const StaffThreadPanel = dynamic(
+  () => import('@/components/tablero/StaffThreadPanel').then((m) => m.StaffThreadPanel),
+  { ssr: false }
+)
 
 const MATCH_DAY_COLORS: Record<string, string> = {
   'MD+1': 'bg-green-100 text-green-800',
@@ -2064,6 +2070,10 @@ export default function SesionDetailPage() {
           onDownloadPdf={handleGeneratePdf}
         />
       )}
+
+      <div className="mt-8">
+        <StaffThreadPanel entidadTipo="sesion" entidadId={sesionId} />
+      </div>
 
       {/* Footer */}
       <div className="mt-8 flex justify-between items-center">

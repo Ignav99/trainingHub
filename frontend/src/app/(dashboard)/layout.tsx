@@ -16,7 +16,6 @@ import {
   Users,
   Check,
   Swords,
-  Bell,
   ScanSearch,
   Shield,
   BarChart3,
@@ -29,7 +28,10 @@ import {
   FileStack,
   Library,
   Watch,
+  MessagesSquare,
 } from 'lucide-react'
+import { NotificationBell } from '@/components/notificaciones/NotificationBell'
+import { MentionPopups } from '@/components/notificaciones/MentionPopups'
 import { OpenVideoTabLink } from '@/components/video-analyzer/OpenVideoTabLink'
 import { usePersistHydrated } from '@/hooks/usePersistHydrated'
 import { preload } from 'swr'
@@ -81,6 +83,7 @@ type NavItem = {
 
 const navigation: NavItem[] = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Tablero', href: '/tablero', icon: MessagesSquare },
   { name: 'Sesiones', href: '/sesiones', icon: Calendar },
   { name: 'Plantilla', href: '/plantilla', icon: Users },
   { name: 'Partidos', href: '/partidos', icon: Swords },
@@ -360,14 +363,7 @@ export default function DashboardLayout({
             </span>
           </div>
 
-          <Link
-            href="/alertas"
-            className="relative p-2"
-            style={{ color: 'rgba(255,255,255,0.85)' }}
-            aria-label="Notificaciones"
-          >
-            <Bell className="h-5 w-5" />
-          </Link>
+          <NotificationBell variant="header" />
           <Link
             href="/configuracion"
             className="p-2"
@@ -382,6 +378,7 @@ export default function DashboardLayout({
       </div>
       <MobileBottomNav />
       <InstallPrompt />
+      <MentionPopups />
       <Toaster />
     </div>
   )
@@ -489,7 +486,7 @@ const SidebarContent = memo(function SidebarContent({
           <div
             className={cn(
               'flex items-center rounded-xl border bg-muted/50',
-              collapsed ? 'justify-center p-2' : 'gap-2.5 px-3 py-2.5'
+              collapsed ? 'flex-col justify-center gap-1 p-2' : 'gap-2.5 px-3 py-2.5'
             )}
           >
             <Avatar
@@ -516,17 +513,7 @@ const SidebarContent = memo(function SidebarContent({
             >
               <Settings className="h-4 w-4" />
             </Link>
-            {!collapsed && (
-              <Link
-                href="/alertas"
-                onClick={onClose}
-                title="Notificaciones"
-                aria-label="Notificaciones"
-                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/80 transition-colors shrink-0"
-              >
-                <Bell className="h-4 w-4" />
-              </Link>
-            )}
+            <NotificationBell />
           </div>
         </div>
       )}
