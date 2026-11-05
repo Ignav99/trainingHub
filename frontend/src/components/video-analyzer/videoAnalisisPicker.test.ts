@@ -7,6 +7,7 @@ import {
   resumeWatchChoice,
   revisionLinkForMode,
   matchArchiveLabel,
+  partidosCercanos,
   videoTrabajoBadge,
   watchedMatchNote,
   watchModeLabel,
@@ -24,6 +25,26 @@ describe('video analisis picker', () => {
     assert.equal(groups[1].key, '2026-08')
     assert.equal(localiaLabel('local'), 'Casa · ida')
     assert.equal(localiaLabel('visitante'), 'Fuera · vuelta')
+  })
+
+  it('shows the two matches before today and the two after, the rest goes to the list', () => {
+    const p = (id: string, fecha: string) => ({ id, fecha, localia: 'local' })
+    const todos = [
+      p('a', '2026-09-01'), p('b', '2026-09-14'), p('c', '2026-10-01'), p('d', '2026-10-20'),
+      p('e', '2026-11-05T18:00:00'), p('f', '2026-11-15'), p('g', '2026-11-29'), p('h', '2026-12-10'),
+    ]
+    const r = partidosCercanos(todos, '2026-11-05')
+    assert.deepEqual(r.anteriores.map((x) => x.id), ['c', 'd'])
+    assert.deepEqual(r.siguientes.map((x) => x.id), ['e', 'f'])
+    assert.deepEqual(r.resto.map((x) => x.id).sort(), ['a', 'b', 'g', 'h'])
+
+    const finTemporada = partidosCercanos(todos, '2027-01-01')
+    assert.deepEqual(finTemporada.anteriores.map((x) => x.id), ['e', 'f', 'g', 'h'])
+    assert.deepEqual(finTemporada.siguientes, [])
+
+    const inicio = partidosCercanos(todos, '2026-09-10')
+    assert.deepEqual(inicio.anteriores.map((x) => x.id), ['a'])
+    assert.deepEqual(inicio.siguientes.map((x) => x.id), ['b', 'c', 'd'])
   })
 
   it('keeps rival footage out of our match review and labels the other opponent', () => {
