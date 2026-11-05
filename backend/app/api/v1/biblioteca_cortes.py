@@ -19,6 +19,9 @@ from app.services.biblioteca_cortes import (
     download_filename,
     corte_id_from_path,
     partido_ids_filter,
+    csv_ids,
+    fases_filter,
+    corte_en_fases,
     format_storage_bytes,
     is_allowed_biblioteca_path,
     extension_for,
@@ -304,7 +307,9 @@ async def list_cortes(
     partido_ids: str | None = None,
     fase: str | None = None,
     subfase: str | None = None,
+    fases: str | None = None,
     jugador_id: UUID | None = None,
+    jugador_ids: str | None = None,
     minuto_desde: int | None = None,
     minuto_hasta: int | None = None,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_READ)),
@@ -318,10 +323,14 @@ async def list_cortes(
     partidos = partido_ids_filter(str(partido_id) if partido_id else None, partido_ids)
     if partidos:
         query = query.in_("partido_id", partidos)
+    fase_sel = csv_ids(fases)
     if fase:
-        query = query.in_("fase", fase_aliases(fase))
-    if subfase:
-        query = query.eq("subfase", subfase)
+        fase_sel.append(f"{fase}|{subfase}" if subfase else fase)
+    fase_query, fases_enteras, subfases_sel = fases_filter(fase_sel)
+    if fase_sel and not fase_query:
+        return []
+    if fase_query:
+        query = query.in_("fase", fase_query)
     needle = clean_search(q)
     if needle:
         query = query.or_(f"titulo.ilike.%{needle}%,descripcion.ilike.%{needle}%,partido_etiqueta.ilike.%{needle}%")
@@ -329,19 +338,22 @@ async def list_cortes(
         query = query.gte("minuto_inicio", minuto_desde)
     if minuto_hasta is not None:
         query = query.lte("minuto_inicio", minuto_hasta)
-    if jugador_id:
+    jugadores = partido_ids_filter(str(jugador_id) if jugador_id else None, jugador_ids)
+    if jugadores:
         links = (
             supabase.table("biblioteca_corte_jugadores")
             .select("corte_id")
-            .eq("jugador_id", str(jugador_id))
+            .in_("jugador_id", jugadores)
             .execute()
         )
-        ids = [row["corte_id"] for row in (links.data or [])]
+        ids = list(dict.fromkeys(row["corte_id"] for row in (links.data or [])))
         if not ids:
             return []
         query = query.in_("id", ids)
     result = query.order("created_at", desc=True).limit(300).execute()
     rows = result.data or []
+    if fase_query:
+        rows = [row for row in rows if corte_en_fases(row, fases_enteras, subfases_sel)]
     grouped = _load_jugadores(supabase, equipo, [row["id"] for row in rows])
     return [_decorate(row, grouped.get(row["id"], [])) for row in rows]
 

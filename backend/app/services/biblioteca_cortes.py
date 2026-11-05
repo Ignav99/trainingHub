@@ -98,6 +98,48 @@ def partido_ids_filter(single: str | None, many: str | None) -> list[str]:
     return out[:80]
 
 
+def csv_ids(*values: str | None) -> list[str]:
+    """Varias listas separadas por comas en una, sin repetir ni vacíos."""
+    out: list[str] = []
+    for value in values:
+        for raw in (value or "").split(","):
+            text = raw.strip()
+            if text and text not in out:
+                out.append(text)
+    return out[:80]
+
+
+def fases_filter(selection: list[str]) -> tuple[list[str], set[str], set[str]]:
+    """Cada elección es «fase» o «fase|subfase». Devuelve los códigos de fase para la
+    consulta, las fases enteras y las subfases sueltas."""
+    enteras: set[str] = set()
+    subfases: set[str] = set()
+    parents: list[str] = []
+    for item in selection:
+        fase, _, sub = item.partition("|")
+        code = catalog_fase(fase)
+        if not code:
+            continue
+        if code not in parents:
+            parents.append(code)
+        if sub.strip():
+            subfases.add(sub.strip())
+        else:
+            enteras.add(code)
+    query: list[str] = []
+    for code in parents:
+        for alias in fase_aliases(code):
+            if alias not in query:
+                query.append(alias)
+    return query, enteras, subfases
+
+
+def corte_en_fases(row: dict, enteras: set[str], subfases: set[str]) -> bool:
+    if catalog_fase(row.get("fase")) in enteras:
+        return True
+    return (row.get("subfase") or "") in subfases
+
+
 def minute_ok(value: int | None) -> bool:
     if value is None:
         return True
