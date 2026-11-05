@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useId, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Avatar } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 import type { MiembroStaff } from '@/types'
@@ -79,10 +79,15 @@ export function MentionTextarea({
       .filter((m) => {
         if (!q) return true
         const completo = normalizar(`${m.nombre} ${m.apellidos}`)
-        return completo.startsWith(q) || completo.split(/\s+/).some((p) => p.startsWith(q))
+        const rol = normalizar(ROL_LABEL[m.rol_en_equipo || ''] || '')
+        return [completo, rol].some((t) => t.startsWith(q) || t.split(/\s+/).some((p) => p.startsWith(q)))
       })
-      .slice(0, 6)
   }, [consulta, miembros, meId])
+
+  const listaRef = useRef<HTMLUListElement>(null)
+  useEffect(() => {
+    listaRef.current?.children[activo]?.scrollIntoView({ block: 'nearest' })
+  }, [activo])
 
   const abierto = consulta !== null && candidatos.length > 0
 
@@ -166,9 +171,10 @@ export function MentionTextarea({
       />
       {abierto && (
         <ul
+          ref={listaRef}
           id={listId}
           role="listbox"
-          className="absolute left-0 top-full z-50 mt-1 w-full max-w-xs overflow-hidden rounded-lg border bg-popover p-1 shadow-lg animate-in fade-in-0 slide-in-from-top-1"
+          className="absolute left-0 top-full z-50 mt-1 max-h-64 w-full max-w-xs overflow-y-auto overscroll-contain rounded-lg border bg-popover p-1 shadow-lg animate-in fade-in-0 slide-in-from-top-1"
         >
           {candidatos.map((m, i) => (
             <li

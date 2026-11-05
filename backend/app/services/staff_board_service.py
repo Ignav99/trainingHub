@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Iterable, Optional
@@ -22,6 +23,10 @@ MENCION_RE = re.compile(
 )
 
 ROLES_NO_STAFF = {"jugador", "tutor"}
+# Administradores del club sin plaza en el equipo: se les puede mencionar y
+# asignar, pero los avisos y preguntas a todo el staff no les llegan.
+ROL_CLUB = "club"
+ROLES_CLUB_MENCIONABLES = ("admin",)
 
 TIPOS_POST = ("comentario", "pregunta", "tarea", "aviso")
 
@@ -88,6 +93,7 @@ class ContextoPost:
     raiz: Optional[dict] = None
     participantes_hilo: list[str] = field(default_factory=list)
     actor_nombre: str = "Alguien"
+    difusion_ids: Optional[list[str]] = None
 
 
 def destinatarios_post_nuevo(ctx: ContextoPost) -> list[Aviso]:
@@ -131,11 +137,12 @@ def destinatarios_post_nuevo(ctx: ContextoPost) -> list[Aviso]:
             poner(uid, Aviso(uid, "respuesta", f"{quien} ha respondido en un hilo en el que participas"))
         return list(avisos.values())
 
+    difusion = ctx.staff_ids if ctx.difusion_ids is None else ctx.difusion_ids
     if ctx.tipo == "aviso":
-        for uid in ctx.staff_ids:
+        for uid in difusion:
             poner(uid, Aviso(uid, "aviso_staff", f"Aviso de {quien}", "alta"))
     elif ctx.tipo == "pregunta" and not ctx.menciones:
-        for uid in ctx.staff_ids:
+        for uid in difusion:
             poner(uid, Aviso(uid, "pregunta_staff", f"{quien} pregunta al staff"))
 
     return list(avisos.values())
@@ -252,8 +259,31 @@ def _ahora() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _orden(texto: str) -> str:
+    return unicodedata.normalize("NFKD", texto or "").encode("ascii", "ignore").decode().lower()
+
+
+def _administradores_club(supabase, equipo_id: str) -> list[dict]:
+    equipo = (
+        supabase.table("equipos").select("organizacion_id").eq("id", equipo_id).execute().data or []
+    )
+    org = equipo[0].get("organizacion_id") if equipo else None
+    if not org:
+        return []
+    return (
+        supabase.table("usuarios")
+        .select(USUARIO_CAMPOS + ", activo")
+        .eq("organizacion_id", org)
+        .in_("rol", list(ROLES_CLUB_MENCIONABLES))
+        .eq("activo", True)
+        .execute()
+        .data
+        or []
+    )
+
+
 def miembros_staff(supabase, equipo_id: str) -> list[dict]:
-    """Staff activo del equipo (sin jugadores ni tutores), ordenado por nombre."""
+    """Staff activo del equipo (sin jugadores ni tutores) y administración del club, por nombre."""
     filas = (
         supabase.table("usuarios_equipos")
         .select("usuario_id, rol_en_equipo")
@@ -267,8 +297,6 @@ def miembros_staff(supabase, equipo_id: str) -> list[dict]:
         for f in filas
         if (f.get("rol_en_equipo") or "") not in ROLES_NO_STAFF
     }
-    if not roles:
-        return []
     usuarios = (
         supabase.table("usuarios")
         .select(USUARIO_CAMPOS + ", activo")
@@ -276,7 +304,11 @@ def miembros_staff(supabase, equipo_id: str) -> list[dict]:
         .execute()
         .data
         or []
-    )
+    ) if roles else []
+    for u in _administradores_club(supabase, equipo_id):
+        if u["id"] not in roles:
+            roles[u["id"]] = ROL_CLUB
+            usuarios.append(u)
     salida = []
     for u in usuarios:
         if u.get("activo") is False:
@@ -288,7 +320,7 @@ def miembros_staff(supabase, equipo_id: str) -> list[dict]:
             "avatar_url": u.get("avatar_url"),
             "rol_en_equipo": roles.get(u["id"]),
         })
-    salida.sort(key=lambda m: (m["nombre"].lower(), m["apellidos"].lower()))
+    salida.sort(key=lambda m: (_orden(m["nombre"]), _orden(m["apellidos"])))
     return salida
 
 
@@ -641,6 +673,7 @@ def crear_post(
         tipo=tipo,
         menciones=menciones,
         staff_ids=staff_ids,
+        difusion_ids=[m["id"] for m in staff if m.get("rol_en_equipo") != ROL_CLUB],
         asignado_a=fila["asignado_a"],
         raiz=raiz,
         participantes_hilo=_participantes(supabase, raiz_id) if raiz else [],

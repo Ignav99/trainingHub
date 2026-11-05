@@ -22,7 +22,9 @@ export default function NotificacionesPage() {
   const router = useRouter()
   const [notificaciones, setNotificaciones] = useState<Notificacion[]>([])
   const [loading, setLoading] = useState(true)
-  const [ambito, setAmbito] = useState<AmbitoNotificaciones>('para_ti')
+  const [ambito, setAmbito] = useState<AmbitoNotificaciones>(() =>
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('ambito') === 'todo' ? 'todo' : 'para_ti'
+  )
   const [soloNoLeidas, setSoloNoLeidas] = useState(false)
   const [pagina, setPagina] = useState(1)
   const [paginas, setPaginas] = useState(1)

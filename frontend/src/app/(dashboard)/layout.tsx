@@ -28,10 +28,9 @@ import {
   FileStack,
   Library,
   Watch,
-  MessagesSquare,
 } from 'lucide-react'
 import { NotificationBell } from '@/components/notificaciones/NotificationBell'
-import { MentionPopups } from '@/components/notificaciones/MentionPopups'
+import { StaffPanel } from '@/components/tablero/StaffPanel'
 import { OpenVideoTabLink } from '@/components/video-analyzer/OpenVideoTabLink'
 import { usePersistHydrated } from '@/hooks/usePersistHydrated'
 import { preload } from 'swr'
@@ -83,7 +82,6 @@ type NavItem = {
 
 const navigation: NavItem[] = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Tablero', href: '/tablero', icon: MessagesSquare },
   { name: 'Sesiones', href: '/sesiones', icon: Calendar },
   { name: 'Plantilla', href: '/plantilla', icon: Users },
   { name: 'Partidos', href: '/partidos', icon: Swords },
@@ -378,7 +376,7 @@ export default function DashboardLayout({
       </div>
       <MobileBottomNav />
       <InstallPrompt />
-      <MentionPopups />
+      <StaffPanel />
       <Toaster />
     </div>
   )

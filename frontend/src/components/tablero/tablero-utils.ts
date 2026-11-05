@@ -51,6 +51,8 @@ export const ROL_LABEL: Record<string, string> = {
   nutricionista: 'Nutricionista',
   delegado: 'Delegado',
   delegado_equipo: 'Delegado',
+  entrenador_asistente: 'Entrenador asistente',
+  club: 'Club',
 }
 
 export function nombreVisible(m?: Pick<MiembroStaff, 'nombre' | 'apellidos'> | null): string {

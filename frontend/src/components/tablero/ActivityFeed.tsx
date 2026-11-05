@@ -6,6 +6,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { apiKey } from '@/lib/swr'
 import type { StaffActividad } from '@/types'
+import { hiloDeEnlace, useStaffPanel } from '@/stores/staffPanelStore'
 import { fechaHora, hace, nombreVisible } from './tablero-utils'
 
 export function ActivityFeed({ equipoId, meId, limite = 25 }: { equipoId: string; meId?: string; limite?: number }) {
@@ -54,8 +55,16 @@ export function ActivityFeed({ equipoId, meId, limite = 25 }: { equipoId: string
               className="relative h-7 w-7 shrink-0 text-[10px] ring-2 ring-background"
             />
             <div className="min-w-0 flex-1 text-xs leading-snug text-muted-foreground">
-              {e.href ? (
-                <Link href={e.href} className="line-clamp-2 hover:[&_span]:underline">
+              {hiloDeEnlace(e.href) ? (
+                <button
+                  type="button"
+                  onClick={() => useStaffPanel.getState().verHilo(hiloDeEnlace(e.href)!)}
+                  className="line-clamp-2 text-left hover:[&_span]:underline"
+                >
+                  {contenido}
+                </button>
+              ) : e.href ? (
+                <Link href={e.href} onClick={() => useStaffPanel.getState().cerrar()} className="line-clamp-2 hover:[&_span]:underline">
                   {contenido}
                 </Link>
               ) : (

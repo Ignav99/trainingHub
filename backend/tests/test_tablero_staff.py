@@ -14,6 +14,7 @@ LUIS = "bbbbbbbb-0000-0000-0000-000000000002"
 PACO = "cccccccc-0000-0000-0000-000000000003"
 JUGADOR = "dddddddd-0000-0000-0000-000000000004"
 FUERA = "ffffffff-0000-0000-0000-000000000005"
+ADMIN_CLUB = "abababab-0000-0000-0000-000000000006"
 
 
 def tok(nombre, uid):
@@ -68,6 +69,31 @@ def test_mencion_a_alguien_de_fuera_queda_como_texto():
 def test_staff_excluye_jugadores_y_otros_equipos():
     ids = [m["id"] for m in tb.miembros_staff(db(), EQ)]
     assert ids == [ANA, LUIS, PACO]
+
+
+def con_admin_club(fake):
+    fake.tables["equipos"] = [{"id": EQ, "organizacion_id": "org1"}, {"id": OTRO_EQ, "organizacion_id": "org2"}]
+    fake.tables["usuarios"] += [
+        {"id": ADMIN_CLUB, "nombre": "Carmen", "apellidos": "Club", "rol": "admin", "activo": True, "organizacion_id": "org1"},
+        {"id": "admin-baja", "nombre": "Zoe", "apellidos": "Baja", "rol": "admin", "activo": False, "organizacion_id": "org1"},
+        {"id": "admin-otro", "nombre": "Otto", "apellidos": "Otro", "rol": "admin", "activo": True, "organizacion_id": "org2"},
+    ]
+    return fake
+
+
+def test_administrador_del_club_se_puede_mencionar_aunque_no_este_en_el_equipo():
+    staff = tb.miembros_staff(con_admin_club(db()), EQ)
+    assert [(m["id"], m["rol_en_equipo"]) for m in staff] == [
+        (ANA, "entrenador_principal"), (ADMIN_CLUB, "club"), (LUIS, "analista"), (PACO, "preparador_fisico"),
+    ]
+
+
+def test_aviso_a_todo_el_staff_no_llega_al_club_pero_la_mencion_si():
+    fake = con_admin_club(db())
+    tb.crear_post(fake, EQ, ACTOR_ANA, {"tipo": "aviso", "contenido": "Mañana a las 10"})
+    assert {n["usuario_id"] for n in notifs(fake)} == {LUIS, PACO}
+    tb.crear_post(fake, EQ, ACTOR_ANA, {"contenido": f"{tok('Carmen Club', ADMIN_CLUB)} ¿lo ves?"})
+    assert [n["tipo"] for n in notifs(fake, ADMIN_CLUB)] == ["mencion"]
 
 
 # ─── A quién se avisa ─────────────────────────────────────────────────────────
