@@ -447,26 +447,27 @@ export default function VideoAnalisisPage() {
                   <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                     {month.label}
                   </h2>
-                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{month.partidos.map(tarjetaPartido)}</div>
+                  <div className="grid gap-3 md:grid-cols-2">{month.partidos.map(tarjetaPartido)}</div>
                 </section>
               ))}
           </div>
         )}
 
         {cercanos.anteriores.length + cercanos.siguientes.length > 0 && (
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_auto_1fr_1fr] xl:items-stretch">
-            {cercanos.anteriores.map(tarjetaPartido)}
-            <div
-              className="flex items-center gap-2 sm:col-span-2 xl:col-span-1 xl:flex-col xl:px-1"
-              aria-label="Hoy"
-            >
-              <span className="h-px flex-1 bg-[hsl(var(--club-primary))] xl:h-auto xl:w-px" />
-              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--club-primary))]">
+          <div className="space-y-3">
+            {cercanos.anteriores.length > 0 && (
+              <div className="grid gap-3 md:grid-cols-2">{cercanos.anteriores.map(tarjetaPartido)}</div>
+            )}
+            <div className="flex items-center gap-3" aria-label="Hoy">
+              <span className="h-px flex-1 bg-[hsl(var(--club-primary))]" />
+              <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--club-primary))]">
                 Hoy
               </span>
-              <span className="h-px flex-1 bg-[hsl(var(--club-primary))] xl:h-auto xl:w-px" />
+              <span className="h-px flex-1 bg-[hsl(var(--club-primary))]" />
             </div>
-            {cercanos.siguientes.map(tarjetaPartido)}
+            {cercanos.siguientes.length > 0 && (
+              <div className="grid gap-3 md:grid-cols-2">{cercanos.siguientes.map(tarjetaPartido)}</div>
+            )}
           </div>
         )}
 
