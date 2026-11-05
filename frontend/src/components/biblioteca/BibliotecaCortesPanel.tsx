@@ -1,9 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import useSWR from 'swr'
 import Link from 'next/link'
-import { CheckSquare, Download, Film, Loader2, Play, Search, Send, Square, Trash2 } from 'lucide-react'
+import { CheckSquare, Download, Film, Loader2, PenLine, Play, Search, Send, Square, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -18,7 +18,12 @@ import { EditarCorteDialog } from '@/components/biblioteca/EditarCorteDialog'
 import { EnviarCorteDialog } from '@/components/biblioteca/EnviarCorteDialog'
 import { CorteMiniatura } from '@/components/biblioteca/CorteMiniatura'
 import { BibliotecaReproductor, ListaInicios } from '@/components/biblioteca/BibliotecaReproductor'
+import { revisionApi } from '@/lib/api/revision'
 import type { Partido } from '@/types'
+
+const PresentacionSala = lazy(() =>
+  import('@/components/revision/PresentacionSala').then((m) => ({ default: m.PresentacionSala }))
+)
 
 const subfaseNombre = (codigo?: string | null) =>
   [...SUBFASES_ATAQUE, ...SUBFASES_DEFENSA].find((item) => item.codigo === codigo)?.nombre || codigo || ''
@@ -57,6 +62,9 @@ export function BibliotecaCortesPanel({
   const [sendOpen, setSendOpen] = useState(false)
   const [sendIds, setSendIds] = useState<string[]>([])
   const [downloading, setDownloading] = useState<string | null>(null)
+  const [directo, setDirecto] = useState<{ code: string; pass: string; share: boolean; clips: { src: string; title: string }[] } | null>(null)
+  const [directoMenu, setDirectoMenu] = useState(false)
+  const directoMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const timer = window.setTimeout(() => setQDebounced(q.trim()), 250)
@@ -144,6 +152,58 @@ export function BibliotecaCortesPanel({
     setScreen({ ids: playable.map((corte) => corte.id), index: 0 })
   }
 
+  useEffect(() => {
+    if (!directoMenu) return
+    const close = (e: MouseEvent) => {
+      if (!directoMenuRef.current?.contains(e.target as Node)) setDirectoMenu(false)
+    }
+    window.addEventListener('mousedown', close)
+    return () => window.removeEventListener('mousedown', close)
+  }, [directoMenu])
+
+  const startDirecto = async (ids: string[], share: boolean) => {
+    setDirectoMenu(false)
+    const clips = playlistFromIds(rows, ids)
+      .filter((corte) => corte.url)
+      .map((corte) => ({ src: corte.url as string, title: corte.titulo }))
+    if (!clips.length) {
+      toast.error('Esos cortes no tienen vídeo para revisar')
+      return
+    }
+    if (clips.length < ids.length) toast.message('Algún corte sin vídeo se queda fuera')
+    let room = { code: '', pass: '' }
+    let shared = share
+    let playlist = clips
+    if (share) {
+      try {
+        room = await revisionApi.openVideoRoom()
+      } catch {
+        toast.error('No se ha podido abrir la sala de la tablet. Sigue solo en este ordenador.')
+        shared = false
+      }
+    }
+    if (shared) {
+      // La tablet recibe fotogramas capturados del vídeo; un vídeo de otro dominio no se deja capturar.
+      setDownloading('Preparando…')
+      try {
+        playlist = []
+        for (let i = 0; i < clips.length; i++) {
+          setDownloading(`Bajando ${i + 1}/${clips.length}`)
+          const res = await fetch(clips[i].src)
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+          playlist.push({ ...clips[i], src: URL.createObjectURL(await res.blob()) })
+        }
+      } catch {
+        for (const clip of playlist) URL.revokeObjectURL(clip.src)
+        playlist = clips
+        toast.message('No se han podido bajar los cortes; la tablet puede no ver la imagen.')
+      } finally {
+        setDownloading(null)
+      }
+    }
+    setDirecto({ code: room.code, pass: room.pass, share: shared, clips: playlist })
+  }
+
   const download = async (ids: string[]) => {
     if (downloading || ids.length === 0) return
     setDownloading('Preparando…')
@@ -205,6 +265,32 @@ export function BibliotecaCortesPanel({
                 <Play className="mr-1 h-3.5 w-3.5" />
                 Reproducir selección
               </Button>
+              <div ref={directoMenuRef} className="relative">
+                <Button size="sm" variant="outline" onClick={() => setDirectoMenu((open) => !open)} aria-expanded={directoMenu}>
+                  <PenLine className="mr-1 h-3.5 w-3.5" />
+                  Revisar en directo
+                </Button>
+                {directoMenu && (
+                  <div className="absolute right-0 top-full z-30 mt-1 w-64 space-y-1 rounded-lg border bg-popover p-1.5 shadow-lg">
+                    <button
+                      type="button"
+                      onClick={() => { void startDirecto(selected, false) }}
+                      className="block w-full rounded-md p-2 text-left transition-colors hover:bg-muted"
+                    >
+                      <span className="block text-sm font-medium">Solo en este ordenador</span>
+                      <span className="block text-xs text-muted-foreground">La lista de {selected.length} cortes a la derecha. Sin sala ni QR.</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { void startDirecto(selected, true) }}
+                      className="block w-full rounded-md p-2 text-left transition-colors hover:bg-muted"
+                    >
+                      <span className="block text-sm font-medium">Con tablet</span>
+                      <span className="block text-xs text-muted-foreground">Sale un QR. La tablet ve el vídeo y la misma lista.</span>
+                    </button>
+                  </div>
+                )}
+              </div>
               <Button size="sm" onClick={() => { setSendIds(selected); setSendOpen(true) }}>
                 <Send className="mr-1 h-3.5 w-3.5" />
                 Enviar {selected.length} a revisión
@@ -406,6 +492,22 @@ export function BibliotecaCortesPanel({
         corteIds={sendIds}
         onSent={() => { setSelected([]); void mutate() }}
       />
+      {directo ? (
+        <Suspense fallback={null}>
+          <PresentacionSala
+            role="host"
+            code={directo.code}
+            guestPass={directo.share ? directo.pass : null}
+            shareDevice={directo.share}
+            directoRoom
+            localPlaylist={directo.clips}
+            onClose={() => {
+              for (const clip of directo.clips) if (clip.src.startsWith('blob:')) URL.revokeObjectURL(clip.src)
+              setDirecto(null)
+            }}
+          />
+        </Suspense>
+      ) : null}
     </div>
   )
 }
