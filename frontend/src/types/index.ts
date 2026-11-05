@@ -1409,7 +1409,78 @@ export interface Notificacion {
   entidad_id?: string
   prioridad: PrioridadNotificacion
   leida: boolean
+  presentada?: boolean
+  actor_id?: string | null
+  actor?: { id: string; nombre: string; apellidos?: string | null; avatar_url?: string | null } | null
+  equipo_id?: string | null
+  url?: string | null
   created_at: string
+}
+
+// ============================================
+// TABLERO DEL CUERPO TÉCNICO
+// ============================================
+
+export type TipoStaffPost = 'comentario' | 'pregunta' | 'tarea' | 'aviso'
+export type EntidadStaffPost = 'sesion' | 'partido' | 'jugador'
+
+export interface MiembroStaff {
+  id: string
+  nombre: string
+  apellidos: string
+  avatar_url?: string | null
+  rol_en_equipo?: string | null
+}
+
+export interface StaffPost {
+  id: string
+  equipo_id: string
+  parent_id: string | null
+  tipo: TipoStaffPost
+  contenido: string
+  menciones: string[]
+  autor: MiembroStaff | null
+  asignado: MiembroStaff | null
+  fecha_limite: string | null
+  estado: 'abierta' | 'resuelta'
+  resuelto_por: MiembroStaff | null
+  resuelto_at: string | null
+  entidad_tipo: EntidadStaffPost | null
+  entidad_id: string | null
+  entidad_titulo: string | null
+  entidad_href: string | null
+  fijado: boolean
+  editado_at: string | null
+  created_at: string
+  ultima_actividad_at: string
+}
+
+export interface StaffHilo extends StaffPost {
+  respuestas: StaffPost[]
+  respuestas_count: number
+}
+
+export interface StaffResumen {
+  mis_tareas: StaffPost[]
+  mis_tareas_total: number
+  tareas_abiertas: number
+  preguntas_abiertas: StaffPost[]
+  preguntas_abiertas_total: number
+}
+
+export interface StaffActividad {
+  id: string
+  usuario_id: string | null
+  usuario: MiembroStaff | null
+  accion: string
+  entidad_tipo: string
+  entidad_id: string | null
+  texto: string
+  titulo: string | null
+  href: string | null
+  created_at: string
+  desde: string
+  cambios: number
 }
 
 // ============================================

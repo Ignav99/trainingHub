@@ -13,6 +13,7 @@ class _Query:
         self.body = None
         self._single = False
         self._order = None
+        self._limit = None
 
     def select(self, *_a, **_k):
         return self
@@ -32,6 +33,15 @@ class _Query:
 
     def gte(self, col, val):
         self.filters.append(lambda r: r.get(col) is not None and r.get(col) >= val)
+        return self
+
+    def lt(self, col, val):
+        self.filters.append(lambda r: r.get(col) is not None and r.get(col) < val)
+        return self
+
+    def contains(self, col, vals):
+        vals = list(vals)
+        self.filters.append(lambda r: all(v in (r.get(col) or []) for v in vals))
         return self
 
     def lte(self, col, val):
@@ -59,7 +69,8 @@ class _Query:
         self._order = (col, desc)
         return self
 
-    def limit(self, _n):
+    def limit(self, n):
+        self._limit = n
         return self
 
     def single(self):
@@ -92,9 +103,10 @@ class _Query:
             hook = self.db.insert_hooks.get(self.name)
             if hook:
                 hook(self.body)
-            row = {"id": str(uuid.uuid4()), **self.body}
-            rows.append(row)
-            return SimpleNamespace(data=[row])
+            cuerpos = self.body if isinstance(self.body, list) else [self.body]
+            nuevos = [{"id": str(uuid.uuid4()), **b} for b in cuerpos]
+            rows.extend(nuevos)
+            return SimpleNamespace(data=nuevos)
         if self.op == "update":
             hit = self._rows()
             for r in hit:
@@ -108,6 +120,8 @@ class _Query:
         if self._order:
             col, desc = self._order
             hit.sort(key=lambda r: (r.get(col) is None, r.get(col)), reverse=desc)
+        if self._limit is not None:
+            hit = hit[: self._limit]
         if self._single:
             return SimpleNamespace(data=hit[0] if hit else None)
         return SimpleNamespace(data=hit)

@@ -23,6 +23,7 @@ from app.api.v1 import (
     estadisticas_partido,
     estadisticas_dashboard,
     notificaciones,
+    tablero,
     comunicacion,
     ai_chat,
     knowledge_base,
@@ -207,6 +208,12 @@ api_router.include_router(
     notificaciones.router,
     prefix="/notificaciones",
     tags=["Notificaciones"]
+)
+
+api_router.include_router(
+    tablero.router,
+    prefix="/tablero",
+    tags=["Tablero staff"]
 )
 
 api_router.include_router(

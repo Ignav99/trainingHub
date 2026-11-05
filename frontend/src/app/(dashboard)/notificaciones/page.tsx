@@ -1,192 +1,179 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import {
-  Bell,
-  Check,
-  CheckCheck,
-  Trash2,
-  Loader2,
-  AlertCircle,
-  Calendar,
-  Users,
-  Activity,
-  MessageSquare,
-} from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { mutate } from 'swr'
+import { Bell, Check, CheckCheck, Trash2 } from 'lucide-react'
+import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { PageHeader } from '@/components/ui/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
-import { notificacionesApi } from '@/lib/api/notificaciones'
-import { formatDate } from '@/lib/utils'
+import { notificacionesApi, type AmbitoNotificaciones } from '@/lib/api/notificaciones'
+import { isNotificacionesKey } from '@/lib/api/tablero'
+import { cn } from '@/lib/utils'
 import type { Notificacion } from '@/types'
+import { fechaHora, hace } from '@/components/tablero/tablero-utils'
+import { destinoNotificacion, iconoNotificacion } from '@/components/notificaciones/notificacion-utils'
+import { abrirNotificacion } from '@/components/notificaciones/NotificationBell'
 
-const TIPO_ICONS: Record<string, any> = {
-  sesion: Calendar,
-  partido: Activity,
-  jugador: Users,
-  mensaje: MessageSquare,
-}
-
-const PRIORIDAD_COLORS: Record<string, string> = {
-  urgente: 'bg-red-100 text-red-800',
-  alta: 'bg-orange-100 text-orange-800',
-  normal: 'bg-blue-100 text-blue-700',
-  baja: 'bg-gray-100 text-gray-700',
-}
+const POR_PAGINA = 30
 
 export default function NotificacionesPage() {
+  const router = useRouter()
   const [notificaciones, setNotificaciones] = useState<Notificacion[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<'todas' | 'no_leidas'>('todas')
-
-  const fetchNotificaciones = async () => {
-    setLoading(true)
-    try {
-      const res = await notificacionesApi.list({
-        solo_no_leidas: filter === 'no_leidas' ? true : undefined,
-        limit: 50,
-      })
-      setNotificaciones(res?.data || [])
-    } catch (err) {
-      console.error(err)
-    } finally {
-      setLoading(false)
-    }
-  }
+  const [ambito, setAmbito] = useState<AmbitoNotificaciones>('para_ti')
+  const [soloNoLeidas, setSoloNoLeidas] = useState(false)
+  const [pagina, setPagina] = useState(1)
+  const [paginas, setPaginas] = useState(1)
 
   useEffect(() => {
-    fetchNotificaciones()
-  }, [filter])
-
-  const handleMarkRead = async (id: string) => {
-    try {
-      await notificacionesApi.markRead(id)
-      setNotificaciones((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, leida: true } : n))
-      )
-    } catch (err) {
-      console.error(err)
+    let vivo = true
+    setLoading(true)
+    notificacionesApi
+      .list({ ambito, solo_no_leidas: soloNoLeidas || undefined, limit: POR_PAGINA, page: pagina })
+      .then((res) => {
+        if (!vivo) return
+        setNotificaciones((prev) => (pagina === 1 ? res.data : [...prev, ...res.data]))
+        setPaginas(res.pages || 1)
+      })
+      .catch(() => undefined)
+      .finally(() => vivo && setLoading(false))
+    return () => {
+      vivo = false
     }
+  }, [ambito, soloNoLeidas, pagina])
+
+  const refrescarCampana = () => mutate(isNotificacionesKey, undefined, { revalidate: true })
+
+  const marcarLeida = async (id: string) => {
+    setNotificaciones((prev) => prev.map((n) => (n.id === id ? { ...n, leida: true } : n)))
+    await notificacionesApi.markRead(id).catch(() => undefined)
+    void refrescarCampana()
   }
 
-  const handleMarkAllRead = async () => {
-    try {
-      await notificacionesApi.markAllRead()
-      setNotificaciones((prev) => prev.map((n) => ({ ...n, leida: true })))
-    } catch (err) {
-      console.error(err)
-    }
+  const marcarTodas = async () => {
+    await notificacionesApi.markAllRead(ambito).catch(() => undefined)
+    setNotificaciones((prev) => prev.map((n) => ({ ...n, leida: true })))
+    void refrescarCampana()
   }
 
-  const handleDelete = async (id: string) => {
-    try {
-      await notificacionesApi.delete(id)
-      setNotificaciones((prev) => prev.filter((n) => n.id !== id))
-    } catch (err) {
-      console.error(err)
-    }
+  const borrar = async (id: string) => {
+    setNotificaciones((prev) => prev.filter((n) => n.id !== id))
+    await notificacionesApi.delete(id).catch(() => undefined)
+    void refrescarCampana()
   }
 
-  const unreadCount = notificaciones.filter((n) => !n.leida).length
+  const cambiar = (fn: () => void) => {
+    setPagina(1)
+    fn()
+  }
+
+  const sinLeer = notificaciones.filter((n) => !n.leida).length
 
   return (
-    <div className="space-y-6 max-w-3xl">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Bell className="h-6 w-6 text-primary" />
-            Notificaciones
-            {unreadCount > 0 && (
-              <Badge className="bg-red-500 text-white">{unreadCount}</Badge>
-            )}
-          </h1>
-        </div>
-        {unreadCount > 0 && (
-          <Button variant="outline" size="sm" onClick={handleMarkAllRead}>
-            <CheckCheck className="h-4 w-4 mr-2" />
-            Marcar todas como leidas
+    <div className="mx-auto max-w-3xl">
+      <PageHeader
+        title="Notificaciones"
+        description="Menciones, tareas y respuestas del staff, y los avisos automáticos del equipo."
+        actions={
+          sinLeer > 0 ? (
+            <Button variant="outline" size="sm" onClick={marcarTodas}>
+              <CheckCheck className="mr-2 h-4 w-4" />
+              Marcar todas como leídas
+            </Button>
+          ) : undefined
+        }
+      />
+
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        {([
+          ['para_ti', 'Para ti'],
+          ['todo', 'Todo'],
+        ] as const).map(([v, label]) => (
+          <Button key={v} size="sm" variant={ambito === v ? 'club' : 'outline'} onClick={() => cambiar(() => setAmbito(v))}>
+            {label}
           </Button>
-        )}
+        ))}
+        <label className="ml-auto inline-flex items-center gap-2 text-sm text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={soloNoLeidas}
+            onChange={(e) => cambiar(() => setSoloNoLeidas(e.target.checked))}
+            className="rounded border-input"
+          />
+          Solo sin leer
+        </label>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-2">
-        <Button
-          variant={filter === 'todas' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setFilter('todas')}
-        >
-          Todas
-        </Button>
-        <Button
-          variant={filter === 'no_leidas' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setFilter('no_leidas')}
-        >
-          No leidas {unreadCount > 0 && `(${unreadCount})`}
-        </Button>
-      </div>
-
-      {/* List */}
-      {loading ? (
+      {loading && pagina === 1 ? (
         <div className="space-y-2">
-          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)}
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-16 w-full rounded-lg" />
+          ))}
         </div>
       ) : notificaciones.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-            <h3 className="text-lg font-medium mb-1">Sin notificaciones</h3>
-            <p className="text-sm text-muted-foreground">
-              {filter === 'no_leidas' ? 'Todas las notificaciones estan leidas' : 'No tienes notificaciones'}
-            </p>
-          </CardContent>
-        </Card>
+        <div className="rounded-xl border border-dashed py-12 text-center">
+          <Bell className="mx-auto mb-3 h-8 w-8 text-muted-foreground/60" />
+          <p className="font-medium">Sin notificaciones</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {ambito === 'para_ti' ? 'Cuando alguien te mencione o te asigne algo aparecerá aquí.' : 'Todo al día.'}
+          </p>
+        </div>
       ) : (
-        <div className="space-y-1">
-          {notificaciones.map((notif) => {
-            const Icon = TIPO_ICONS[notif.tipo] || AlertCircle
+        <ul className="divide-y overflow-hidden rounded-xl border bg-card">
+          {notificaciones.map((n) => {
+            const { icon: Icon, tono } = iconoNotificacion(n.tipo)
+            const destino = destinoNotificacion(n)
             return (
-              <div
-                key={notif.id}
-                className={`flex items-start gap-3 p-3 rounded-lg transition-colors ${
-                  notif.leida ? 'bg-background' : 'bg-primary/5 border border-primary/10'
-                }`}
-              >
-                <div className={`p-2 rounded-lg shrink-0 ${notif.leida ? 'bg-muted' : 'bg-primary/10'}`}>
-                  <Icon className={`h-4 w-4 ${notif.leida ? 'text-muted-foreground' : 'text-primary'}`} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm ${notif.leida ? 'text-muted-foreground' : 'font-medium'}`}>
-                    {notif.titulo}
-                  </p>
-                  {notif.contenido && (
-                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{notif.contenido}</p>
-                  )}
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-[10px] text-muted-foreground">{formatDate(notif.created_at)}</span>
-                    {notif.prioridad !== 'normal' && (
-                      <Badge className={`text-[9px] ${PRIORIDAD_COLORS[notif.prioridad] || ''}`}>
-                        {notif.prioridad}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  {!notif.leida && (
-                    <Button variant="ghost" size="icon" onClick={() => handleMarkRead(notif.id)} title="Marcar como leida">
+              <li key={n.id} className={cn('flex items-start gap-3 p-3', !n.leida && 'bg-[hsl(var(--club-primary)/0.04)]')}>
+                {n.actor ? (
+                  <Avatar src={n.actor.avatar_url} fallback={(n.actor.nombre || '?')[0]} size="sm" className="h-9 w-9" />
+                ) : (
+                  <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-full', tono)}>
+                    <Icon className="h-4 w-4" />
+                  </span>
+                )}
+                <button
+                  type="button"
+                  disabled={!destino}
+                  onClick={() => abrirNotificacion(n, (url) => router.push(url))}
+                  className="min-w-0 flex-1 text-left disabled:cursor-default"
+                >
+                  <p className={cn('text-sm', n.leida ? 'text-muted-foreground' : 'font-medium')}>{n.titulo}</p>
+                  {n.contenido && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{n.contenido}</p>}
+                  <time className="mt-1 block text-[11px] tabular-nums text-muted-foreground" title={fechaHora(n.created_at)}>
+                    {hace(n.created_at)}
+                  </time>
+                </button>
+                <div className="flex shrink-0 items-center gap-1">
+                  {!n.leida && (
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => marcarLeida(n.id)} title="Marcar como leída" aria-label="Marcar como leída">
                       <Check className="h-3.5 w-3.5" />
                     </Button>
                   )}
-                  <Button variant="ghost" size="icon" onClick={() => handleDelete(notif.id)} className="text-muted-foreground hover:text-destructive">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                    onClick={() => borrar(n.id)}
+                    title="Borrar"
+                    aria-label="Borrar notificación"
+                  >
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
-              </div>
+              </li>
             )
           })}
+        </ul>
+      )}
+
+      {pagina < paginas && notificaciones.length > 0 && (
+        <div className="mt-4 flex justify-center">
+          <Button variant="outline" size="sm" disabled={loading} onClick={() => setPagina((p) => p + 1)}>
+            Cargar más
+          </Button>
         </div>
       )}
     </div>
