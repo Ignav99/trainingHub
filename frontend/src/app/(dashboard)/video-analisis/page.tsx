@@ -24,6 +24,7 @@ import {
   Film,
   Clapperboard,
   PenLine,
+  ChevronDown,
 } from 'lucide-react'
 import { formatTime } from '@/components/video-analyzer/utils'
 import { readLocalVideoFingerprint } from '@/components/video-analyzer/extractClip'
@@ -32,6 +33,7 @@ import {
   groupPartidosByMonth,
   localiaLabel,
   matchArchiveLabel,
+  partidosCercanos,
   resumeWatchChoice,
   revisionLinkForMode,
   videoTrabajoBadge,
@@ -115,7 +117,30 @@ export default function VideoAnalisisPage() {
   const selectedTrabajo = selectedPartido ? trabajoByPartido.get(selectedPartido.id) : undefined
   const resumedChoice = resumeWatchChoice(selectedTrabajo)
   const isResuming = Boolean(selectedTrabajo && watchMode && watchMode === resumedChoice.mode)
-  const months = groupPartidosByMonth(partidos)
+  const cercanos = useMemo(
+    () => partidosCercanos(partidos, new Date().toLocaleDateString('sv-SE')),
+    [partidos],
+  )
+  const [verResto, setVerResto] = useState(false)
+  const seleccionEnResto = source?.kind === 'match' && cercanos.resto.some((p) => p.id === source.id)
+  const restoAbierto = verResto || seleccionEnResto
+  const months = groupPartidosByMonth(cercanos.resto)
+  const tarjetaPartido = (p: Partido) => (
+    <MatchPickCard
+      key={p.id}
+      partido={p}
+      clubName={clubName}
+      clubCrest={clubCrest}
+      selected={source?.kind === 'match' && source.id === p.id}
+      trabajo={trabajoByPartido.get(p.id)}
+      onSelect={() => {
+        const choice = resumeWatchChoice(trabajoByPartido.get(p.id))
+        setSource({ kind: 'match', id: p.id })
+        setWatchMode(choice.mode)
+        setWatchedOpponent(choice.opponent)
+      }}
+    />
+  )
   const rivalName = selectedPartido?.rival?.nombre_corto || selectedPartido?.rival?.nombre || 'el rival'
   const link = watchMode ? revisionLinkForMode(watchMode) : null
   const opponentNote = watchMode === 'informe_rival' ? watchedMatchNote(watchedOpponent) : undefined
@@ -403,31 +428,47 @@ export default function VideoAnalisisPage() {
           </span>
         </button>
 
-        {months.map((month) => (
-          <section key={month.key} className="space-y-2">
-            <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              {month.label}
-            </h2>
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-              {month.partidos.map((p) => (
-                <MatchPickCard
-                  key={p.id}
-                  partido={p}
-                  clubName={clubName}
-                  clubCrest={clubCrest}
-                  selected={source?.kind === 'match' && source.id === p.id}
-                  trabajo={trabajoByPartido.get(p.id)}
-                  onSelect={() => {
-                    const choice = resumeWatchChoice(trabajoByPartido.get(p.id))
-                    setSource({ kind: 'match', id: p.id })
-                    setWatchMode(choice.mode)
-                    setWatchedOpponent(choice.opponent)
-                  }}
-                />
+        {cercanos.resto.length > 0 && (
+          <div className="space-y-4">
+            <button
+              type="button"
+              onClick={() => setVerResto((v) => !v)}
+              aria-expanded={restoAbierto}
+              className="flex w-full items-center justify-between rounded-lg border border-dashed px-4 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+            >
+              <span>
+                Otros partidos <span className="tabular-nums">({cercanos.resto.length})</span>
+              </span>
+              <ChevronDown className={`h-4 w-4 transition-transform ${restoAbierto ? 'rotate-180' : ''}`} />
+            </button>
+            {restoAbierto &&
+              months.map((month) => (
+                <section key={month.key} className="space-y-2">
+                  <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    {month.label}
+                  </h2>
+                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{month.partidos.map(tarjetaPartido)}</div>
+                </section>
               ))}
+          </div>
+        )}
+
+        {cercanos.anteriores.length + cercanos.siguientes.length > 0 && (
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_auto_1fr_1fr] xl:items-stretch">
+            {cercanos.anteriores.map(tarjetaPartido)}
+            <div
+              className="flex items-center gap-2 sm:col-span-2 xl:col-span-1 xl:flex-col xl:px-1"
+              aria-label="Hoy"
+            >
+              <span className="h-px flex-1 bg-[hsl(var(--club-primary))] xl:h-auto xl:w-px" />
+              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--club-primary))]">
+                Hoy
+              </span>
+              <span className="h-px flex-1 bg-[hsl(var(--club-primary))] xl:h-auto xl:w-px" />
             </div>
-          </section>
-        ))}
+            {cercanos.siguientes.map(tarjetaPartido)}
+          </div>
+        )}
 
         {partidos.length === 0 ? (
           <Card className="p-8 text-center text-sm text-muted-foreground">

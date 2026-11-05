@@ -37,6 +37,33 @@ export function groupPartidosByMonth<T extends PickerPartido>(partidos: T[]): Pa
     }))
 }
 
+export interface PartidosCercanos<T extends PickerPartido> {
+  /** Ya jugados, del más antiguo al más reciente. */
+  anteriores: T[]
+  /** De hoy en adelante, del más próximo al más lejano. */
+  siguientes: T[]
+  resto: T[]
+}
+
+/**
+ * Los partidos alrededor de hoy (dos antes y dos después). Si a un lado no hay
+ * bastantes, se completa con el otro para enseñar siempre los mismos.
+ */
+export function partidosCercanos<T extends PickerPartido>(partidos: T[], hoy: string, porLado = 2): PartidosCercanos<T> {
+  const dia = (p: T) => String(p.fecha || '').slice(0, 10)
+  const conFecha = partidos.filter((p) => dia(p)).slice().sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)))
+  const corte = conFecha.findIndex((p) => dia(p) >= hoy)
+  const pasados = corte === -1 ? conFecha : conFecha.slice(0, corte)
+  const futuros = corte === -1 ? [] : conFecha.slice(corte)
+  const total = porLado * 2
+  const nSig = Math.min(futuros.length, Math.max(porLado, total - pasados.length))
+  const nAnt = Math.min(pasados.length, total - nSig)
+  const anteriores = pasados.slice(pasados.length - nAnt)
+  const siguientes = futuros.slice(0, nSig)
+  const vistos = new Set([...anteriores, ...siguientes].map((p) => p.id))
+  return { anteriores, siguientes, resto: partidos.filter((p) => !vistos.has(p.id)) }
+}
+
 export function localiaLabel(localia: string): string {
   return localia === 'local' ? 'Casa · ida' : 'Fuera · vuelta'
 }
