@@ -1,9 +1,9 @@
 'use client'
 
-import Link from 'next/link'
 import { MessagesSquare } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { useEquipoStore } from '@/stores/equipoStore'
+import { useStaffPanel } from '@/stores/staffPanelStore'
 import type { EntidadStaffPost } from '@/types'
 import { PostComposer } from './PostComposer'
 import { StaffThreadList } from './StaffThreadList'
@@ -34,9 +34,13 @@ export function StaffThreadPanel({ entidadTipo, entidadId }: { entidadTipo: Enti
           <MessagesSquare className="h-4 w-4 text-[hsl(var(--club-primary))]" />
           Comentarios del staff
         </h2>
-        <Link href="/tablero" className="text-xs text-muted-foreground hover:text-foreground">
+        <button
+          type="button"
+          onClick={() => useStaffPanel.getState().abrir('tablero')}
+          className="text-xs text-muted-foreground hover:text-foreground"
+        >
           Abrir tablero
-        </Link>
+        </button>
       </div>
       <PostComposer equipoId={equipoId} miembros={miembros} meId={user.id} entidad={entidad} />
       <StaffThreadList
