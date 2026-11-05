@@ -70,3 +70,11 @@ def test_download_name_is_readable_and_safe():
     assert mod.download_filename('a/b:c*"d', None, "webm") == "a_b_c_d.webm"
     assert mod.download_filename("", 3, "mp4") == "03' corte.mp4"
     assert len(mod.download_filename("x" * 300, None, "mp4")) <= 84
+
+
+def test_several_matches_can_be_filtered_at_once():
+    a = "11111111-1111-1111-1111-111111111111"
+    b = "22222222-2222-2222-2222-222222222222"
+    assert mod.partido_ids_filter(None, f"{a}, {b},{a},nope,") == [a, b]
+    assert mod.partido_ids_filter(a, b) == [a, b]
+    assert mod.partido_ids_filter(None, None) == []
