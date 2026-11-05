@@ -3,7 +3,7 @@ import { clipDisplayTitle, clipFileName, planDeskZip } from './videoDesk'
 import { buildZipStore, downloadBlob } from './zipStore'
 import type { CodeButton, CodeEvent } from './types'
 
-export type DeskDownloadKind = 'clip' | 'folder' | 'all-folders' | 'all-flat'
+export type DeskDownloadKind = 'clip' | 'marked' | 'folder' | 'all-folders' | 'all-flat'
 
 function blobToBytes(blob: Blob): Promise<Uint8Array> {
   return blob.arrayBuffer().then((buf) => new Uint8Array(buf))
@@ -16,6 +16,7 @@ export async function extractAndDownloadDeskClips(opts: {
   buttons: CodeButton[]
   selectedClipId?: string | null
   selectedButtonId?: string | null
+  markedClipIds?: string[]
   matchLabel: string
   archiveName?: string
   sourceFile?: File
@@ -47,12 +48,19 @@ export async function extractAndDownloadDeskClips(opts: {
     clips,
     buttons,
     selectedButtonId: opts.selectedButtonId,
+    markedClipIds: opts.markedClipIds,
     matchLabel,
     archiveName: opts.archiveName,
   })
   if (kind === 'folder' && !opts.selectedButtonId) throw new Error('Elige una carpeta')
   if (!plan.files.length) {
-    throw new Error(kind === 'folder' ? 'Esa carpeta no tiene recortes' : 'No hay recortes para descargar')
+    throw new Error(
+      kind === 'folder'
+        ? 'Esa carpeta no tiene recortes'
+        : kind === 'marked'
+          ? 'Marca los recortes para revisión (⌘+clic o en el previsualizador)'
+          : 'No hay recortes para descargar',
+    )
   }
 
   const clipById = new Map(clips.map((clip) => [clip.id, clip]))

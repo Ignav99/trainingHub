@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Download, Library, Maximize, Minimize, Send, Trash2, X } from 'lucide-react'
+import { Library, Maximize, Minimize, Send, Trash2, X } from 'lucide-react'
 import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
 import { useCodeWindowStore } from './useCodeWindowStore'
 import { SendToRevisionDialog } from '@/components/revision/SendToRevisionDialog'
@@ -48,6 +48,19 @@ interface VideoAnalyzerProps {
   escapeGuardRef?: React.MutableRefObject<() => void>
 }
 
+type ZipKind = Exclude<DeskDownloadKind, 'clip'>
+
+const ZIP_TITLE: Record<ZipKind, string> = {
+  marked: 'Descargar marcados para revisión',
+  folder: 'Descargar esta línea',
+  'all-folders': 'Descargar todo en carpetas',
+  'all-flat': 'Descargar todos los clips sueltos',
+}
+
+function defaultZipName(kind: ZipKind, matchLabel: string): string {
+  return kind === 'marked' ? `${matchLabel} — marcados` : matchLabel
+}
+
 export function VideoAnalyzer({
   localFile,
   videoUrl,
@@ -85,7 +98,8 @@ export function VideoAnalyzer({
   const [armedButtonId, setArmedButtonId] = useState<string | null>(null)
   const [stage, setStage] = useState<ClipStagePlaylist | null>(null)
   const [videoFullscreen, setVideoFullscreen] = useState(false)
-  const [extractOpen, setExtractOpen] = useState(false)
+  const [extractKind, setExtractKind] = useState<ZipKind | null>(null)
+  const extractOpen = extractKind !== null
   const [visionOpen, setVisionOpen] = useState(false)
   const [extractName, setExtractName] = useState('')
 
@@ -140,6 +154,7 @@ export function VideoAnalyzer({
   const revisionClips = (selectedClipIds.length ? selectedClipIds : (selectedClipId ? [selectedClipId] : []))
     .map((id) => events.find((e) => e.id === id))
     .filter((e): e is CodeEvent => !!e)
+  const markedClipIds = selectedClipIds.filter((id) => events.some((e) => e.id === id))
   const canSendToRevision = destinos.length > 0 || Boolean(partidoId || rivalId)
 
   const openBiblioteca = useCallback((clips: CodeEvent[]) => {
@@ -293,7 +308,7 @@ export function VideoAnalyzer({
       return
     }
     if (extractOpen) {
-      setExtractOpen(false)
+      setExtractKind(null)
       return
     }
     if (rangeArmRef.current) {
@@ -397,6 +412,7 @@ export function VideoAnalyzer({
         buttons,
         selectedClipId: target?.id,
         selectedButtonId: selectedLaneId || target?.buttonId || activeButtonId,
+        markedClipIds,
         matchLabel: title.replace(/\.[^.]+$/, ''),
         archiveName,
         sourceFile: localFile,
@@ -408,7 +424,7 @@ export function VideoAnalyzer({
     } finally {
       setProgress(null)
     }
-  }, [activeButtonId, buttons, events, localFile, selectedClip, selectedLaneId, title])
+  }, [activeButtonId, buttons, events, localFile, markedClipIds, selectedClip, selectedLaneId, title])
 
   const onVSplit = (e: React.PointerEvent) => {
     const startX = e.clientX
@@ -495,19 +511,19 @@ export function VideoAnalyzer({
             {videoFullscreen ? <Minimize size={14} /> : <Maximize size={14} />}
             {videoFullscreen ? 'Salir' : 'Pantalla completa'}
           </button>
-          <button
-            type="button"
-            className="vd-btn"
+<VideoDeskDownloadMenu
             disabled={!events.length}
-            onClick={() => {
-              setExtractName(title.replace(/\.[^.]+$/, ''))
-              setExtractOpen(true)
+            hasClip={Boolean(selectedClip)}
+            markedCount={markedClipIds.length}
+            onPick={(kind) => {
+              if (kind === 'clip') {
+                void runDownload('clip')
+                return
+              }
+              setExtractName(defaultZipName(kind, title.replace(/\.[^.]+$/, '')))
+              setExtractKind(kind)
             }}
-          >
-            <Download size={14} />
-            Extraer clips en comprimido
-          </button>
-          <VideoDeskDownloadMenu disabled={!events.length} onPick={(kind) => void runDownload(kind)} />
+          />
           <button
             type="button"
             className="vd-btn vd-btn-danger"
@@ -644,19 +660,26 @@ export function VideoAnalyzer({
         <form
           className="vd-modal-back"
           onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setExtractOpen(false)
+            if (e.target === e.currentTarget) setExtractKind(null)
           }}
           onSubmit={(e) => {
             e.preventDefault()
-            const name = extractName.trim() || title.replace(/\.[^.]+$/, '')
-            setExtractOpen(false)
-            void runDownload('all-folders', undefined, name)
+            const kind = extractKind
+            if (!kind) return
+            const name = extractName.trim() || defaultZipName(kind, title.replace(/\.[^.]+$/, ''))
+            setExtractKind(null)
+            void runDownload(kind, undefined, name)
           }}
         >
           <div className="vd-modal" onMouseDown={(e) => e.stopPropagation()}>
-            <h2>Extraer clips en comprimido</h2>
+            <h2>{ZIP_TITLE[extractKind ?? 'all-folders']}</h2>
             <p>
-              Una carpeta por cada fase con recortes. Si le pusiste nombre a un clip, el archivo lo conserva.
+              {extractKind === 'all-flat'
+                ? 'Todos los recortes sueltos, sin carpetas.'
+                : extractKind === 'folder'
+                  ? 'Los recortes de la línea elegida.'
+                  : 'Una carpeta por cada fase con recortes.'}{' '}
+              Si le pusiste nombre a un clip, el archivo lo conserva.
             </p>
             <label>
               Nombre del archivo
@@ -667,7 +690,7 @@ export function VideoAnalyzer({
               />
             </label>
             <div className="vd-modal-actions">
-              <button type="button" className="vd-btn" onClick={() => setExtractOpen(false)}>Cancelar</button>
+              <button type="button" className="vd-btn" onClick={() => setExtractKind(null)}>Cancelar</button>
               <button type="submit" className="vd-btn vd-btn-accent">Descargar</button>
             </div>
           </div>

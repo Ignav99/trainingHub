@@ -184,6 +184,23 @@ describe('video desk coding', () => {
     assert.equal(sameName.zipName, 'x — carpetas.zip')
   })
 
+  it('zips only the clips marked for revision, under the name the coach gives', () => {
+    const clips = [
+      { id: 'a', buttonId: 'fase-ataque-org', timestamp: 10, startTime: 5, endTime: 18 },
+      { id: 'b', buttonId: 'fase-abp-of', timestamp: 40, startTime: 32, endTime: 52, title: 'Córner corto' },
+      { id: 'c', buttonId: 'fase-ataque-org', timestamp: 70, startTime: 68, endTime: 74 },
+    ]
+    const plan = planDeskZip({
+      kind: 'marked', matchLabel: 'Motilla vs Herrera', buttons: DEFAULT_DESK_BUTTONS, clips,
+      markedClipIds: ['b', 'c'], archiveName: 'Para el lunes',
+    })
+    assert.equal(plan.zipName, 'Para el lunes.zip')
+    assert.deepEqual(plan.files.map((file) => file.clipId), ['c', 'b'])
+    const sinNombre = planDeskZip({ kind: 'marked', matchLabel: 'x', buttons: DEFAULT_DESK_BUTTONS, clips, markedClipIds: [] })
+    assert.equal(sinNombre.files.length, 0)
+    assert.equal(sinNombre.zipName, 'x — marcados.zip')
+  })
+
   it('preselects the revision folder even when informe uses other fase ids', () => {
     const folders = [
       { id: 'a', fase: 'balon_parado_ofensivo', parent_id: null },
