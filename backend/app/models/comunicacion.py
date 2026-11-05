@@ -133,6 +133,11 @@ class NotificacionResponse(NotificacionBase):
     id: UUID
     usuario_id: UUID
     leida: bool = False
+    presentada: bool = True
+    actor_id: Optional[UUID] = None
+    actor: Optional[dict] = None
+    equipo_id: Optional[UUID] = None
+    url: Optional[str] = None
     created_at: datetime
 
     class Config:
