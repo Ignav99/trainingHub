@@ -63,6 +63,7 @@ from app.api.v1 import (
     escritura,
     informes,
     ficha_clinica,
+    plan_individual,
     presentaciones,
 )
 
@@ -306,6 +307,12 @@ api_router.include_router(
     ficha_clinica.router,
     prefix="/ficha-clinica",
     tags=["Ficha Clinica"]
+)
+
+api_router.include_router(
+    plan_individual.router,
+    prefix="/plan-individual",
+    tags=["Plan Individual"]
 )
 
 api_router.include_router(
