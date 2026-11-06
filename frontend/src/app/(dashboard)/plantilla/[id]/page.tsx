@@ -17,7 +17,7 @@ import {
   CheckCircle,
   Activity,
   Camera,
-  HeartPulse,
+  ClipboardList,
   Plus,
   ExternalLink,
   BarChart3,
@@ -42,7 +42,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { jugadoresApi, POSICIONES, ESTADOS_JUGADOR } from '@/lib/api/jugadores'
 import type { Jugador, JugadorUpdate } from '@/lib/api/jugadores'
 import { PlayerAvatar } from '@/components/player/PlayerAvatar'
-import { FichaClinicaPanel, UltimaAntropometria } from '@/components/ficha-clinica/FichaClinicaPanel'
+import { UltimaAntropometria } from '@/components/ficha-clinica/FichaClinicaPanel'
+import { TrabajoIndividualPanel, type SeccionTrabajo } from '@/components/trabajo-individual/TrabajoIndividualPanel'
 import { BibliotecaCortesPanel } from '@/components/biblioteca/BibliotecaCortesPanel'
 import { cargaApi } from '@/lib/api/carga'
 import { wellnessApi } from '@/lib/api/wellness'
@@ -74,12 +75,19 @@ export default function JugadorDetailPage() {
   const searchParams = useSearchParams()
   const [saving, setSaving] = useState(false)
   const [isEditing, setIsEditing] = useState(searchParams.get('edit') === 'true')
-  const [activeTab, setActiveTab] = useState<'datos' | 'estadisticas' | 'carga' | 'ficha_clinica' | 'nutricion' | 'videos'>(
-    searchParams.get('tab') === 'videos' ? 'videos' : 'datos'
+  const [activeTab, setActiveTab] = useState<'datos' | 'estadisticas' | 'carga' | 'trabajo' | 'videos'>(
+    () => tabDesdeUrl(searchParams.get('tab'))
+  )
+  const [seccionTrabajo, setSeccionTrabajo] = useState<SeccionTrabajo>(
+    () => (searchParams.get('tab') === 'plan' ? 'plan' : 'valoracion')
   )
 
   useEffect(() => {
-    if (searchParams.get('tab') === 'videos') setActiveTab('videos')
+    const tab = searchParams.get('tab')
+    if (tab) {
+      setActiveTab(tabDesdeUrl(tab))
+      if (tab === 'plan') setSeccionTrabajo('plan')
+    }
   }, [searchParams])
 
   // Form state
@@ -299,7 +307,7 @@ export default function JugadorDetailPage() {
               : 'text-gray-500 hover:text-gray-700'
           }`}
         >
-          Datos
+          Datos generales
         </button>
         <button
           onClick={() => setActiveTab('estadisticas')}
@@ -310,7 +318,7 @@ export default function JugadorDetailPage() {
           }`}
         >
           <BarChart3 className="h-4 w-4" />
-          Estadisticas
+          Estadísticas
         </button>
         <button
           onClick={() => setActiveTab('carga')}
@@ -324,31 +332,20 @@ export default function JugadorDetailPage() {
           Carga / RPE
         </button>
         <button
-          onClick={() => setActiveTab('ficha_clinica')}
-          className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
-            activeTab === 'ficha_clinica'
+          onClick={() => setActiveTab('trabajo')}
+          className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 whitespace-nowrap ${
+            activeTab === 'trabajo'
               ? 'bg-white text-gray-900 shadow-sm'
               : 'text-gray-500 hover:text-gray-700'
           }`}
         >
-          <HeartPulse className="h-4 w-4" />
-          Ficha Clinica
+          <ClipboardList className="h-4 w-4" />
+          Trabajo individual
           {activeIncident ? (
-            <span className="w-2 h-2 rounded-full bg-red-500" />
+            <span className="w-2 h-2 rounded-full bg-red-500" aria-label="Lesión activa" />
           ) : openMolestias.length ? (
-            <span className="w-2 h-2 rounded-full bg-amber-500" />
+            <span className="w-2 h-2 rounded-full bg-amber-500" aria-label="Molestias abiertas" />
           ) : null}
-        </button>
-        <button
-          onClick={() => setActiveTab('nutricion')}
-          className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
-            activeTab === 'nutricion'
-              ? 'bg-white text-gray-900 shadow-sm'
-              : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <UtensilsCrossed className="h-4 w-4" />
-          Nutrición
         </button>
         <button
           onClick={() => setActiveTab('videos')}
@@ -486,7 +483,7 @@ export default function JugadorDetailPage() {
               </div>
             </div>
             <div className="mt-4">
-              <UltimaAntropometria jugadorId={jugador.id} onOpenClinica={() => setActiveTab('ficha_clinica')} />
+              <UltimaAntropometria jugadorId={jugador.id} onOpenClinica={() => { setSeccionTrabajo('valoracion'); setActiveTab('trabajo') }} />
             </div>
           </div>
         </div>
@@ -744,14 +741,14 @@ export default function JugadorDetailPage() {
         <PlayerLoadTab jugadorId={jugador.id} equipoId={jugador.equipo_id} />
       )}
 
-      {/* Tab: Ficha Clínica */}
-      {activeTab === 'ficha_clinica' && (
-        <FichaClinicaPanel jugador={jugador} estadoConfig={estadoConfig} />
-      )}
-
-      {/* Tab: Nutrición */}
-      {activeTab === 'nutricion' && jugador && (
-        <PlayerNutritionTab jugadorId={jugador.id} equipoId={jugador.equipo_id} />
+      {activeTab === 'trabajo' && jugador && (
+        <TrabajoIndividualPanel
+          key={seccionTrabajo}
+          jugador={jugador}
+          estadoConfig={estadoConfig}
+          seccionInicial={seccionTrabajo}
+          nutricion={<PlayerNutritionTab jugadorId={jugador.id} equipoId={jugador.equipo_id} />}
+        />
       )}
     </div>
   )
@@ -776,6 +773,12 @@ const DIETA_LABELS: Record<string, string> = {
   vegana: 'Vegana',
   sin_gluten: 'Sin gluten',
   sin_lactosa: 'Sin lactosa',
+}
+
+function tabDesdeUrl(tab: string | null): 'datos' | 'videos' | 'trabajo' {
+  if (tab === 'videos') return 'videos'
+  if (tab === 'trabajo' || tab === 'plan' || tab === 'ficha_clinica' || tab === 'nutricion') return 'trabajo'
+  return 'datos'
 }
 
 function PlayerNutritionTab({ jugadorId, equipoId }: { jugadorId: string; equipoId: string }) {

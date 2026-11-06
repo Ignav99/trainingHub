@@ -11,12 +11,9 @@ import {
   Loader2,
   Pencil,
   Plus,
-  Stethoscope,
-  Timer,
   Trash2,
   Upload,
   X,
-  Coffee,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -25,7 +22,6 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { EvaluacionCuaderno } from '@/components/ficha-clinica/EvaluacionCuaderno'
-import { HabitosPanel } from '@/components/ficha-clinica/HabitosPanel'
 import { BodyInjuryMap } from '@/components/ficha-clinica/BodyInjuryMap'
 import { FaseTratamientoStepper, faseEntrada, stepperModeForLesion } from '@/components/ficha-clinica/FaseTratamientoStepper'
 import { PasarMolestiaALesion } from '@/components/enfermeria/PasarMolestiaALesion'
@@ -54,8 +50,6 @@ const TIPOS_MEDICO: { value: TipoRegistroMedico; label: string }[] = [
   { value: 'otro', label: 'Otro' },
 ]
 
-type SubTab = 'valoracion' | 'tests' | 'habitos' | 'lesiones'
-
 function daysSince(dateStr: string): number {
   const start = new Date(dateStr)
   const now = new Date()
@@ -67,110 +61,60 @@ function unwrapEvaluaciones(raw: EvaluacionClinica[] | { data?: EvaluacionClinic
   return Array.isArray(raw) ? raw : raw.data || []
 }
 
-export function FichaClinicaPanel({
-  jugador,
-  estadoConfig,
-}: {
-  jugador: Jugador
-  estadoConfig?: { color?: string; nombre?: string }
-}) {
-  const [subTab, setSubTab] = useState<SubTab>('valoracion')
-
+export function useFichaClinicaDatos(jugadorId: string) {
   const { data: valoracionRaw, error: valoracionError } = useSWR<EvaluacionClinica[] | { data: EvaluacionClinica[] }>(
-    apiKey('/ficha-clinica', { jugador_id: jugador.id, bloque: 'valoracion' }, ['jugador_id']),
+    apiKey('/ficha-clinica', { jugador_id: jugadorId, bloque: 'valoracion' }, ['jugador_id']),
   )
   const { data: testsRaw, error: testsError } = useSWR<EvaluacionClinica[] | { data: EvaluacionClinica[] }>(
-    apiKey('/ficha-clinica', { jugador_id: jugador.id, bloque: 'tests' }, ['jugador_id']),
+    apiKey('/ficha-clinica', { jugador_id: jugadorId, bloque: 'tests' }, ['jugador_id']),
   )
   const { data: registrosMedicos } = useSWR<RegistroMedico[] | { data: RegistroMedico[] }>(
-    apiKey('/medico', { jugador_id: jugador.id }, ['jugador_id']),
+    apiKey('/medico', { jugador_id: jugadorId }, ['jugador_id']),
   )
 
-  const valoraciones = unwrapEvaluaciones(valoracionRaw)
-  const tests = unwrapEvaluaciones(testsRaw)
   const medicalRecords: RegistroMedico[] = registrosMedicos
     ? Array.isArray(registrosMedicos) ? registrosMedicos : registrosMedicos.data || []
     : []
   const openRecords = medicalRecords.filter((r) => r.estado === 'activo' || r.estado === 'en_recuperacion')
-  const activeLesion = openRecords.find((r) => r.tipo !== 'molestias')
-  const openMolestias = openRecords.filter((r) => r.tipo === 'molestias')
+  return {
+    valoraciones: unwrapEvaluaciones(valoracionRaw),
+    tests: unwrapEvaluaciones(testsRaw),
+    cuadernoError: Boolean(valoracionError || testsError),
+    medicalRecords,
+    activeLesion: openRecords.find((r) => r.tipo !== 'molestias'),
+    openMolestias: openRecords.filter((r) => r.tipo === 'molestias'),
+  }
+}
 
-  const tabs: { id: SubTab; label: string; icon: typeof Stethoscope; count?: number }[] = [
-    { id: 'valoracion', label: 'Valoración', icon: Stethoscope, count: valoraciones.length },
-    { id: 'tests', label: 'Tests', icon: Timer, count: tests.length },
-    { id: 'habitos', label: 'Hábitos', icon: Coffee },
-    { id: 'lesiones', label: 'Lesiones', icon: HeartPulse, count: medicalRecords.length },
-  ]
-
+export function CuadernoClinico({
+  jugador,
+  bloque,
+  evaluaciones,
+  error,
+}: {
+  jugador: Jugador
+  bloque: BloqueEvaluacion
+  evaluaciones: EvaluacionClinica[]
+  error?: boolean
+}) {
   return (
-    <div className="space-y-5">
-      <div className="flex gap-1 rounded-lg bg-[#16324F] p-1">
-        {tabs.map((tab) => {
-          const Icon = tab.icon
-          const active = subTab === tab.id
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setSubTab(tab.id)}
-              className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                active ? 'bg-white text-[#16324F] shadow-sm' : 'text-white/75 hover:text-white'
-              }`}
-            >
-              <Icon className="h-4 w-4" />
-              {tab.label}
-              {typeof tab.count === 'number' && tab.count > 0 ? (
-                <span className={`tabular-nums text-[11px] ${active ? 'text-slate-500' : 'text-white/60'}`}>
-                  {tab.count}
-                </span>
-              ) : null}
-              {tab.id === 'lesiones' && activeLesion ? (
-                <span className="h-2 w-2 rounded-full bg-red-400" />
-              ) : tab.id === 'lesiones' && openMolestias.length ? (
-                <span className="h-2 w-2 rounded-full bg-amber-400" />
-              ) : null}
-            </button>
-          )
-        })}
-      </div>
-
-      {(valoracionError || testsError) ? (
+    <div className="space-y-4">
+      {error ? (
         <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           El cuaderno clínico aún no está disponible en la base de datos (migración 076). Los registros de lesiones siguen funcionando.
         </p>
       ) : null}
-
-      {subTab === 'valoracion' ? (
-        <EvaluacionCuaderno
-          jugadorId={jugador.id}
-          equipoId={jugador.equipo_id}
-          bloque={'valoracion' as BloqueEvaluacion}
-          evaluaciones={valoraciones}
-        />
-      ) : null}
-      {subTab === 'tests' ? (
-        <EvaluacionCuaderno
-          jugadorId={jugador.id}
-          equipoId={jugador.equipo_id}
-          bloque={'tests' as BloqueEvaluacion}
-          evaluaciones={tests}
-        />
-      ) : null}
-      {subTab === 'habitos' ? <HabitosPanel jugadorId={jugador.id} /> : null}
-      {subTab === 'lesiones' ? (
-        <LesionesTab
-          jugador={jugador}
-          estadoConfig={estadoConfig}
-          medicalRecords={medicalRecords}
-          activeLesion={activeLesion}
-          openMolestias={openMolestias}
-        />
-      ) : null}
+      <EvaluacionCuaderno
+        jugadorId={jugador.id}
+        equipoId={jugador.equipo_id}
+        bloque={bloque}
+        evaluaciones={evaluaciones}
+      />
     </div>
   )
 }
 
-function LesionesTab({
+export function LesionesTab({
   jugador,
   estadoConfig,
   medicalRecords,
