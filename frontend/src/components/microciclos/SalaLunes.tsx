@@ -18,6 +18,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { TeamCrest } from '@/components/ui/team-crest'
 import { microciclosApi } from '@/lib/api/microciclos'
+import { createLatestWrite } from '@/lib/latestWrite'
+import { planForScreen, rememberPlan } from '@/lib/microcicloPlanMemory'
 import { rivalesApi, partidosApi } from '@/lib/api/partidos'
 import { extractPersistentScout, mergeScoutOnLoad } from '@/lib/rivalScoutSync'
 import { shouldPersistOwnedDoc, weeklyFallbackForRival } from '@/lib/ownedDocument'
@@ -178,17 +180,30 @@ interface SalaLunesProps {
 }
 
 export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLunesProps) {
-  const [planCT, setPlanCT] = useState<PlanCT>(data.microciclo.plan_ct ?? {})
+  const initialPlanRef = useRef<PlanCT | null>(null)
+  if (initialPlanRef.current === null) {
+    initialPlanRef.current = planForScreen(microcicloId, data.microciclo.updated_at, data.microciclo.plan_ct)
+  }
+  const [planCT, setPlanCT] = useState<PlanCT>(initialPlanRef.current)
+  const lastSentRef = useRef(JSON.stringify(initialPlanRef.current))
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [planTramo, setPlanTramo] = useState<PlanTramo>('ida')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const isMountedRef = useRef(false)
+  const armedRef = useRef(false)
+  const skipSaveRef = useRef(false)
+  const dirtyRef = useRef(false)
+  const mountedRef = useRef(true)
+  const unloadRef = useRef(false)
+  const planRef = useRef(planCT)
+  planRef.current = planCT
   const planStoreRef = useRef<Record<PlanTramo, Partial<PlanPartidoData>>>({ ida: {}, vuelta: {} })
   const planTramoRef = useRef<PlanTramo>('ida')
   planTramoRef.current = planTramo
 
   const micro = data.microciclo
+  const microRef = useRef(micro)
+  microRef.current = micro
   const reflexionAnterior = data.reflexion_partido_anterior
   const rangeLabel = `${formatDateShort(micro.fecha_inicio.slice(0, 10))} - ${formatDateShort(micro.fecha_fin.slice(0, 10))}`
 
@@ -233,6 +248,7 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
         planStoreRef.current = store
         setPlanTramo(tramo)
         displayedRivalRef.current = rivalId
+        dirtyRef.current = true
         setPlanCT((prev) => {
           const next = { ...prev }
           const localScout = weeklyFallbackForRival(switching, prev.rival_scout)
@@ -252,6 +268,7 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
         console.error('Error cargando perfil del rival:', err)
         displayedRivalRef.current = rivalId
         if (switching) {
+          dirtyRef.current = true
           setPlanCT((prev) => ({ ...prev, rival_scout: {}, plan_partido: {} }))
         }
       })
@@ -260,60 +277,117 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
     }
   }, [micro.rival_id, micro.equipo_id, micro.partidos?.fecha])
 
-  // Auto-save
+  const saverRef = useRef<ReturnType<typeof createLatestWrite<PlanCT>> | null>(null)
+  if (!saverRef.current) {
+    saverRef.current = createLatestWrite(async (plan) => {
+      const rivalId = microRef.current.rival_id
+      const saved = await microciclosApi.patchPlanCT(microcicloId, plan, { keepalive: unloadRef.current })
+      rememberPlan(microcicloId, saved.updated_at, saved.plan_ct ?? plan)
+      // El perfil del rival se copia aparte. Si aún no ha cargado, el plan
+      // de la semana (olfato, objetivos) ya quedó guardado igualmente.
+      if (!rivalId || displayedRivalRef.current !== rivalId) return
+      if (
+        plan.rival_scout &&
+        shouldPersistOwnedDoc(displayedRivalRef.current, rivalId, scoutDirtyRef.current)
+      ) {
+        await rivalesApi.putScoutManual(rivalId, extractPersistentScout(plan.rival_scout))
+        if (displayedRivalRef.current === rivalId) scoutDirtyRef.current = false
+      }
+      if (
+        plan.plan_partido &&
+        shouldPersistOwnedDoc(displayedRivalRef.current, rivalId, planDirtyRef.current)
+      ) {
+        const store = { ...planStoreRef.current }
+        store[planTramoRef.current] = extractPersistentPlanPartido(plan.plan_partido)
+        planStoreRef.current = store
+        await rivalesApi.putPlanPartidoManual(rivalId, wrapPlanTramos(store))
+        if (displayedRivalRef.current === rivalId) planDirtyRef.current = false
+      }
+    })
+  }
+
+  const persistPlan = () => {
+    const snapshot = planRef.current
+    return saverRef.current!.submit(snapshot).then(() => {
+      lastSentRef.current = JSON.stringify(snapshot)
+      if (planRef.current !== snapshot) return
+      dirtyRef.current = false
+      if (!mountedRef.current) return
+      setSaveStatus('saved')
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
+      idleTimerRef.current = setTimeout(() => {
+        if (mountedRef.current) setSaveStatus('idle')
+      }, 2000)
+    }).catch((err: any) => {
+      if (!mountedRef.current) return
+      setSaveStatus('error')
+      toast.error(err?.message || 'Error al guardar la Sala del Lunes')
+      console.error('Error guardando plan_ct:', err)
+    })
+  }
+
+  // Lo que ya está en el servidor entra si nadie está escribiendo. Si no,
+  // la vista se quedaba con la copia de la primera carga y el olfato no salía.
   useEffect(() => {
-    if (!isMountedRef.current) {
-      isMountedRef.current = true
+    if (dirtyRef.current) return
+    const next = planForScreen(microcicloId, data.microciclo.updated_at, data.microciclo.plan_ct)
+    if (JSON.stringify(next) === JSON.stringify(planRef.current)) return
+    lastSentRef.current = JSON.stringify(next)
+    skipSaveRef.current = true
+    setPlanCT(next)
+  }, [microcicloId, data.microciclo.updated_at, data.microciclo.plan_ct])
+
+  // Auto-save. Al salir se manda ya, sin esperar al temporizador.
+  useEffect(() => {
+    const skipped = skipSaveRef.current
+    if (skipped) skipSaveRef.current = false
+    if (!armedRef.current) {
+      armedRef.current = true
       return
     }
+    if (skipped) return
+    if (JSON.stringify(planCT) === lastSentRef.current) {
+      dirtyRef.current = false
+      return
+    }
+    dirtyRef.current = true
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
-
     setSaveStatus('pending')
-
-    const rivalId = micro.rival_id
-    saveTimerRef.current = setTimeout(async () => {
-      if (rivalId && displayedRivalRef.current !== rivalId) {
-        setSaveStatus('idle')
-        return
-      }
-      try {
-        await microciclosApi.patchPlanCT(microcicloId, planCT)
-        if (
-          rivalId &&
-          planCT.rival_scout &&
-          shouldPersistOwnedDoc(displayedRivalRef.current, rivalId, scoutDirtyRef.current)
-        ) {
-          await rivalesApi.putScoutManual(rivalId, extractPersistentScout(planCT.rival_scout))
-          if (displayedRivalRef.current === rivalId) scoutDirtyRef.current = false
-        }
-        if (
-          rivalId &&
-          planCT.plan_partido &&
-          shouldPersistOwnedDoc(displayedRivalRef.current, rivalId, planDirtyRef.current)
-        ) {
-          const store = { ...planStoreRef.current }
-          store[planTramoRef.current] = extractPersistentPlanPartido(planCT.plan_partido)
-          planStoreRef.current = store
-          await rivalesApi.putPlanPartidoManual(rivalId, wrapPlanTramos(store))
-          if (displayedRivalRef.current === rivalId) planDirtyRef.current = false
-        }
-        setSaveStatus('saved')
-        idleTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000)
-      } catch (err: any) {
-        setSaveStatus('error')
-        toast.error(err?.message || 'Error al guardar la Sala del Lunes')
-        console.error('Error guardando plan_ct:', err)
-      }
-    }, 1500)
-
+    saveTimerRef.current = setTimeout(() => {
+      void persistPlan()
+    }, 400)
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-      if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
     }
-  }, [planCT, microcicloId])
+  }, [planCT])
 
-  const updatePlanCT = (patch: Partial<PlanCT>) => setPlanCT((prev) => ({ ...prev, ...patch }))
+  useEffect(() => {
+    mountedRef.current = true
+    const flushNow = (closing: boolean) => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      if (!dirtyRef.current && !saverRef.current?.pending()) return
+      unloadRef.current = closing
+      const pending = dirtyRef.current
+        ? saverRef.current?.submit(planRef.current)
+        : saverRef.current?.flush()
+      void pending?.finally(() => {
+        unloadRef.current = false
+      })
+    }
+    const onHide = () => flushNow(true)
+    window.addEventListener('pagehide', onHide)
+    return () => {
+      mountedRef.current = false
+      window.removeEventListener('pagehide', onHide)
+      flushNow(false)
+    }
+  }, [microcicloId])
+
+  const updatePlanCT = (patch: Partial<PlanCT>) => {
+    dirtyRef.current = true
+    setPlanCT((prev) => ({ ...prev, ...patch }))
+  }
 
   const selectedTipo = TIPO_MICROCICLO_OPTIONS.find((o) => o.value === planCT.tipo_microciclo)
   const pretemporada = isPretemporada(planCT)

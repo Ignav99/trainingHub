@@ -140,7 +140,7 @@ export default function MicrocicloDetallePage() {
         partido_id: form.partido_id || null,
         rival_id: form.rival_id || null,
         ...(cleared
-          ? { plan_ct: { ...(data.microciclo.plan_ct ?? {}), auto_link_partido: false } }
+          ? { plan_ct: { auto_link_partido: false } }
           : {}),
       } as Parameters<typeof microciclosApi.update>[1])
       setShowEdit(false)

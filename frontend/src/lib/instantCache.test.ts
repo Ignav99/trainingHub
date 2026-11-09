@@ -118,6 +118,28 @@ describe('applyInstantWrite', () => {
     assert.equal((store.map.get(`/sesiones/${JUGADOR}`) as { notas: string }).notas, 'del cuerpo técnico')
   })
 
+  it('el olfato guardado entra en la vista completa del microciclo', () => {
+    const store = memoryStore([{
+      key: `/microciclos/${JUGADOR}/completo`,
+      data: {
+        microciclo: { id: JUGADOR, plan_ct: { olfato_ct: '', objetivos_semana: [] } },
+        sesiones: [{ id: OTRO }],
+      },
+    }])
+    const plan = { olfato_ct: 'El grupo llega justo', objetivos_semana: ['Presionar la salida'] }
+    applyInstantWrite(store, 'start', {
+      method: 'PUT',
+      path: `/microciclos/${JUGADOR}`,
+      body: { plan_ct: plan },
+    })
+    const view = store.map.get(`/microciclos/${JUGADOR}/completo`) as {
+      microciclo: { plan_ct: typeof plan }
+      sesiones: { id: string }[]
+    }
+    assert.deepEqual(view.microciclo.plan_ct, plan)
+    assert.equal(view.sesiones[0].id, OTRO)
+  })
+
   it('una subtarea no se cuela como sesión; pide refrescar la lista', () => {
     const store = memoryStore([{
       key: '/sesiones?page=1&limit=10',

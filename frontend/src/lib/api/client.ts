@@ -284,7 +284,11 @@ class ApiClient {
   ): Promise<T> {
     const url = this.buildUrl(path, options?.params)
     const authHeaders = await this.getAuthHeaders()
-    const { signal, clear } = this.createAbortSignal(options?.timeout)
+    const body = data ? JSON.stringify(data) : undefined
+    // keepalive sobrevive a cerrar la pestaña, pero el navegador lo rechaza
+    // por encima de 64 KB y no admite AbortSignal a la vez.
+    const keepalive = options?.keepalive === true && (!body || body.length < 60_000)
+    const abort = keepalive ? null : this.createAbortSignal(options?.timeout)
     const pending = this.instantStart(method, path, data, options?.params)
     let response: Response
     try {
@@ -295,15 +299,16 @@ class ApiClient {
           ...authHeaders,
           ...options?.headers,
         },
-        body: data ? JSON.stringify(data) : undefined,
-        signal,
+        body,
+        keepalive,
+        signal: abort?.signal,
       })
     } catch (err) {
-      clear()
+      abort?.clear()
       pending.rollback()
       throw err
     }
-    clear()
+    abort?.clear()
 
     if (!response.ok) {
       pending.rollback()
