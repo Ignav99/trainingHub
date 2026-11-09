@@ -50,6 +50,7 @@ from app.api.v1 import (
     nutricion,
     entrenamientos_margen,
     tactical_boards,
+    video_analisis,
     game_models,
     # Fase 1 — Plan de Partido + Informe Rival + Alertas
     plan_partido,
@@ -367,6 +368,11 @@ api_router.include_router(
     tactical_boards.router,
     prefix="/tactical-boards",
     tags=["Pizarra Tactica"]
+)
+api_router.include_router(
+    video_analisis.router,
+    prefix="/video-analisis",
+    tags=["Video Analisis"]
 )
 
 api_router.include_router(

@@ -8,6 +8,7 @@ import { isLiteMode } from '@/lib/appMode'
 import { partidosApi } from '@/lib/api/partidos'
 import { videoAnotacionesApi } from '@/lib/api/videoAnotaciones'
 import { videosApi } from '@/lib/api/videos'
+import { videoAnalisisApi, type VideoAnalisis, type VideoAnalisisSummary } from '@/lib/api/videoAnalisis'
 import type { Partido, VideoAnotacion } from '@/types'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
@@ -24,6 +25,7 @@ import {
   Film,
   Clapperboard,
   PenLine,
+  FolderOpen,
 } from 'lucide-react'
 import { formatTime } from '@/components/video-analyzer/utils'
 import { readLocalVideoFingerprint } from '@/components/video-analyzer/extractClip'
@@ -86,6 +88,37 @@ export default function VideoAnalisisPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [localVideoId, setLocalVideoId] = useState<string | null>(null)
 
+  // Lite: saved analyses (botonera + clips per video), reopened by loading the video again.
+  const { data: analisisData, mutate: mutateAnalisis } = useSWR(
+    equipoId && isLiteMode ? `/video-analisis?equipo_id=${equipoId}` : null,
+    () => videoAnalisisApi.list(equipoId)
+  )
+  const savedAnalyses: VideoAnalisisSummary[] = analisisData?.data || []
+  // Analysis the user clicked on; the file picker is open and we are waiting for its video.
+  const openingAnalysisRef = useRef<VideoAnalisisSummary | null>(null)
+  const [activeAnalysis, setActiveAnalysis] = useState<VideoAnalisis | null>(null)
+  const [videoMeta, setVideoMeta] = useState<{ fingerprint: string; durationMs: number } | null>(null)
+  const [deletingAnalysisId, setDeletingAnalysisId] = useState<string | null>(null)
+
+  const openSavedAnalysis = (summary: VideoAnalisisSummary) => {
+    openingAnalysisRef.current = summary
+    fileRef.current?.click()
+  }
+
+  const handleDeleteAnalysis = async (summary: VideoAnalisisSummary) => {
+    if (!confirm(`¿Eliminar el análisis "${summary.nombre}"? El vídeo no se toca; se pierden los recortes.`)) return
+    setDeletingAnalysisId(summary.id)
+    try {
+      await videoAnalisisApi.delete(summary.id)
+      mutateAnalisis()
+      toast.success('Análisis eliminado')
+    } catch {
+      toast.error('No se pudo eliminar el análisis')
+    } finally {
+      setDeletingAnalysisId(null)
+    }
+  }
+
   const replaceDirecto = (next: { src: string; title: string } | null) => {
     setDirecto((current) => {
       if (current && current.src !== next?.src) URL.revokeObjectURL(current.src)
@@ -106,6 +139,7 @@ export default function VideoAnalisisPage() {
   }
 
   const handleFileSelect = () => {
+    openingAnalysisRef.current = null
     if (!source) {
       toast.error('Elige un partido o un vídeo suelto')
       return
@@ -121,14 +155,43 @@ export default function VideoAnalisisPage() {
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
+    const opening = openingAnalysisRef.current
+    openingAnalysisRef.current = null
     if (!f) return
     if (!f.type.startsWith('video/')) {
       toast.error('Solo se permiten archivos de video')
       return
     }
 
+    let meta: { fingerprint: string; durationMs: number } | null = null
     try {
-      const { fingerprint, durationMs } = await readLocalVideoFingerprint(f)
+      meta = await readLocalVideoFingerprint(f)
+    } catch {
+      meta = null
+    }
+    setVideoMeta(meta)
+
+    if (isLiteMode && opening) {
+      try {
+        const full = await videoAnalisisApi.get(opening.id)
+        if (full.video_fingerprint && meta && full.video_fingerprint !== meta.fingerprint) {
+          toast.warning(
+            `Este vídeo no es el que se guardó con "${full.nombre}" (${full.video_filename || 'otro archivo'}). Los recortes pueden no cuadrar.`,
+            { duration: 8000 }
+          )
+        }
+        setActiveAnalysis(full)
+      } catch {
+        toast.error('No se pudo abrir el análisis guardado')
+        if (fileRef.current) fileRef.current.value = ''
+        return
+      }
+    } else {
+      setActiveAnalysis(null)
+    }
+
+    try {
+      const { fingerprint, durationMs } = meta ?? await readLocalVideoFingerprint(f)
       const session = await videosApi.createLocalSession({
         partido_id: link?.attachUpcomingMatch ? selectedPartido?.id : undefined,
         equipo_id: equipoId,
@@ -212,7 +275,7 @@ export default function VideoAnalisisPage() {
             </p>
             <Button onClick={handleFileSelect} disabled={!canLoad}>
               <Upload className="h-4 w-4 mr-2" />
-              Cargar video local
+              {isLiteMode ? 'Nuevo análisis' : 'Cargar video local'}
             </Button>
           </div>
           {selectedPartido ? (
@@ -273,6 +336,37 @@ export default function VideoAnalisisPage() {
             </span>
           </span>
         </button>
+
+        {isLiteMode ? (
+          <section className="space-y-3">
+            <h2 className="text-sm font-semibold flex items-center gap-1.5">
+              <FolderOpen className="h-4 w-4" />
+              Análisis guardados
+              {savedAnalyses.length > 0 && (
+                <span className="text-muted-foreground font-normal">({savedAnalyses.length})</span>
+              )}
+            </h2>
+            {savedAnalyses.length === 0 ? (
+              <Card className="p-6 text-center text-muted-foreground text-sm">
+                <ScanSearch className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                <p>Carga un vídeo, marca recortes y guárdalos con un nombre.</p>
+                <p className="mt-1">Para volver a verlos, abre el análisis y vuelve a cargar el mismo vídeo.</p>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {savedAnalyses.map((a) => (
+                  <SavedAnalysisCard
+                    key={a.id}
+                    analysis={a}
+                    onOpen={() => openSavedAnalysis(a)}
+                    onDelete={() => handleDeleteAnalysis(a)}
+                    deleting={deletingAnalysisId === a.id}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        ) : null}
 
         {/* Lite: there are no matches, "loose" is the only (and preselected) source. */}
         {!isLiteMode && (
@@ -381,10 +475,16 @@ export default function VideoAnalisisPage() {
             watchMode={watchMode || undefined}
             watchedOpponent={opponentNote}
             rivalName={selectedPartido ? rivalName : undefined}
+            savedAnalysis={isLiteMode ? activeAnalysis : undefined}
+            videoMeta={isLiteMode ? videoMeta : undefined}
+            onSaved={isLiteMode ? () => { mutateAnalisis() } : undefined}
             onClose={() => {
               setAnalyzerFile(null)
               setLocalVideoId(null)
+              setActiveAnalysis(null)
+              setVideoMeta(null)
               mutateAnotaciones()
+              if (isLiteMode) mutateAnalisis()
             }}
           />
         </Suspense>
@@ -440,6 +540,52 @@ function MatchPickCard({
         {localiaLabel(partido.localia)}
       </span>
     </button>
+  )
+}
+
+function SavedAnalysisCard({
+  analysis,
+  onOpen,
+  onDelete,
+  deleting,
+}: {
+  analysis: VideoAnalisisSummary
+  onOpen: () => void
+  onDelete: () => void
+  deleting: boolean
+}) {
+  const updated = analysis.updated_at ? new Date(analysis.updated_at) : null
+  const dateLabel = updated && !Number.isNaN(updated.getTime())
+    ? updated.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
+    : ''
+  return (
+    <Card className="p-3 flex items-start gap-3">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="min-w-0 flex-1 text-left"
+        title="Abrir: te pedirá volver a cargar el vídeo"
+      >
+        <p className="text-sm font-medium truncate">{analysis.nombre}</p>
+        <p className="text-xs text-muted-foreground truncate">
+          {analysis.video_filename || 'Sin archivo'}
+        </p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {analysis.clips_count} {analysis.clips_count === 1 ? 'recorte' : 'recortes'}
+          {dateLabel ? ` · ${dateLabel}` : ''}
+        </p>
+      </button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7 text-destructive shrink-0"
+        onClick={onDelete}
+        disabled={deleting}
+        title="Eliminar análisis"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </Button>
+    </Card>
   )
 }
 

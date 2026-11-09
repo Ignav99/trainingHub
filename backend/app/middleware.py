@@ -172,6 +172,7 @@ class CacheControlMiddleware:
         # refetch (SWR mutate). With the default 30s cache the browser
         # replayed the old list and the change looked like it never happened.
         "/v1/tactical-boards",
+        "/v1/video-analisis",
     )
 
     def __init__(self, app: ASGIApp):

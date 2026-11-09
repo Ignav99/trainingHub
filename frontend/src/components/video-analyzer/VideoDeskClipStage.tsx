@@ -153,6 +153,7 @@ export function VideoDeskClipStage({
                 {marked ? 'Quitar de revisión' : 'Marcar a revisión'}
               </button>
             ) : null}
+            {onToggleRevision || onSendRevision ? (
             <button
               type="button"
               className="vd-btn vd-btn-accent"
@@ -163,6 +164,7 @@ export function VideoDeskClipStage({
               <Send size={14} />
               {markedCount > 0 ? `Enviar marcados (${markedCount})` : 'Enviar marcados'}
             </button>
+            ) : null}
             {onDelete ? (
               <button
                 type="button"

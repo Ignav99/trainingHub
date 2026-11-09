@@ -14,6 +14,7 @@ Run in the DEV project's SQL editor, in order:
 4. `03_seed_planes.sql`  (plan catalogue; registration needs `free_trial`)
 5. `04_seed_plan_lite.sql`  (plan for the lite edition; needed by `backend/scripts/create_lite_user.py`)
 6. `05_fix_videos_partido_tipo.sql`  (allow `tipo='local_session'`, used by the video tool)
+7. `06_video_analisis.sql`  (saved analyses of the video tool; mirror of migration 092)
 
 Not covered by these files (do by hand in the dashboard):
 

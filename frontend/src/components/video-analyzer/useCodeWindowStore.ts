@@ -40,6 +40,11 @@ interface CodeWindowState {
   getEventsForVideo: (videoKey?: string) => CodeEvent[]
   getEventsByButton: (buttonId: string, videoKey?: string) => CodeEvent[]
   resetEvents: (videoKey?: string) => void
+  /**
+   * Replace the botonera and the clips of `videoKey` with a saved snapshot
+   * (análisis guardado) and make it the current video.
+   */
+  loadSnapshot: (videoKey: string, buttons: CodeButton[], events: CodeEvent[]) => void
 }
 
 export const useCodeWindowStore = create<CodeWindowState>()(
@@ -169,6 +174,15 @@ export const useCodeWindowStore = create<CodeWindowState>()(
         } else {
           set({ events: {} })
         }
+      },
+
+      loadSnapshot: (videoKey, buttons, events) => {
+        set((s) => ({
+          buttons: migrateDeskButtons(buttons.map((b) => ({ ...b }))),
+          events: { ...s.events, [videoKey]: events.map((e) => ({ ...e })) },
+          currentVideoKey: videoKey,
+          activeButtonId: null,
+        }))
       },
     }),
     {

@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Send, Trash2, X } from 'lucide-react'
+import { Save, Send, Trash2, X } from 'lucide-react'
 import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
 import { useCodeWindowStore } from './useCodeWindowStore'
 import { SendToRevisionDialog } from '@/components/revision/SendToRevisionDialog'
 import { prefetchRevisionFolders, type RevisionAmbito } from '@/lib/api/revision'
+import { isLiteMode } from '@/lib/appMode'
+import { videoAnalisisApi, type VideoAnalisis } from '@/lib/api/videoAnalisis'
 import { revisionLinkForMode, type VideoWatchMode } from './videoAnalisisPicker'
 import { VideoDeskBotonera } from './VideoDeskBotonera'
 import { VideoDeskFolders } from './VideoDeskFolders'
@@ -37,8 +39,16 @@ interface VideoAnalyzerProps {
   watchMode?: VideoWatchMode
   watchedOpponent?: string
   rivalName?: string
+  /** Lite: análisis guardado que se está reabriendo (botonera + recortes). */
+  savedAnalysis?: VideoAnalisis | null
+  /** Lite: identidad del archivo cargado, para guardarla con el análisis. */
+  videoMeta?: { fingerprint: string; durationMs: number } | null
+  /** Lite: llamado tras guardar (crear o actualizar). */
+  onSaved?: (analysis: VideoAnalisis) => void
   onClose: () => void
 }
+
+const analysisKey = (id: string) => `analisis:${id}`
 
 export function VideoAnalyzer({
   localFile,
@@ -51,6 +61,9 @@ export function VideoAnalyzer({
   watchMode,
   watchedOpponent,
   rivalName,
+  savedAnalysis,
+  videoMeta,
+  onSaved,
   onClose,
 }: VideoAnalyzerProps) {
   const playerRef = useRef<VideoPlayerHandle>(null)
@@ -71,8 +84,16 @@ export function VideoAnalyzer({
   const [objectUrl, setObjectUrl] = useState('')
   const [armedButtonId, setArmedButtonId] = useState<string | null>(null)
   const [stage, setStage] = useState<ClipStagePlaylist | null>(null)
+  // Lite: saved analysis (id + name) and the snapshot last written to the server.
+  const [analysisId, setAnalysisId] = useState<string | null>(savedAnalysis?.id ?? null)
+  const [analysisName, setAnalysisName] = useState(savedAnalysis?.nombre ?? '')
+  const [saving, setSaving] = useState(false)
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(
+    savedAnalysis ? JSON.stringify({ b: savedAnalysis.buttons, e: savedAnalysis.events }) : null
+  )
 
   const buttons = useCodeWindowStore((s) => s.buttons)
+  const loadSnapshot = useCodeWindowStore((s) => s.loadSnapshot)
   const activeButtonId = useCodeWindowStore((s) => s.activeButtonId)
   const setCodeVideoKey = useCodeWindowStore((s) => s.setCurrentVideoKey)
   const recordEvent = useCodeWindowStore((s) => s.recordEvent)
@@ -93,9 +114,19 @@ export function VideoAnalyzer({
   const lockedAmbito: RevisionAmbito | undefined = watchMode
     ? revisionLinkForMode(watchMode).lockAmbito || undefined
     : undefined
-  const videoKey = informeRival
+  const videoKey = isLiteMode && analysisId
+    ? analysisKey(analysisId)
+    : informeRival
     ? `informe-rival:${rivalId || 'x'}:${watchedOpponent || localFile?.name || '_local'}`
     : (partidoId || (localFile?.name ?? '_local'))
+
+  // Reopening a saved analysis: restore its botonera and clips before anything renders.
+  const savedAnalysisId = savedAnalysis?.id
+  useEffect(() => {
+    if (!isLiteMode || !savedAnalysis || !savedAnalysisId) return
+    loadSnapshot(analysisKey(savedAnalysisId), savedAnalysis.buttons || [], savedAnalysis.events || [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedAnalysisId, loadSnapshot])
 
   useEffect(() => {
     setCodeVideoKey(videoKey)
@@ -125,9 +156,48 @@ export function VideoAnalyzer({
   const revisionClips = (selectedClipIds.length ? selectedClipIds : (selectedClipId ? [selectedClipId] : []))
     .map((id) => events.find((e) => e.id === id))
     .filter((e): e is CodeEvent => !!e)
-  const canSendToRevision = Boolean(revisionPartidoId || rivalId)
+  const canSendToRevision = !isLiteMode && Boolean(revisionPartidoId || rivalId)
+
+  const currentSnapshot = JSON.stringify({ b: buttons, e: events })
+  const isDirty = isLiteMode && (savedSnapshot === null ? events.length > 0 : currentSnapshot !== savedSnapshot)
+
+  const saveAnalysis = useCallback(async () => {
+    const nombre = analysisName.trim()
+    if (!nombre) {
+      toast.error('Ponle un nombre al análisis')
+      return
+    }
+    setSaving(true)
+    try {
+      const payload = {
+        nombre,
+        video_filename: localFile?.name ?? null,
+        video_fingerprint: videoMeta?.fingerprint ?? null,
+        video_duration_ms: videoMeta?.durationMs ?? null,
+        buttons,
+        events,
+      }
+      let saved: VideoAnalisis
+      if (analysisId) {
+        saved = await videoAnalisisApi.update(analysisId, payload)
+      } else {
+        saved = await videoAnalisisApi.create({ equipo_id: equipoId, ...payload })
+        // From now on the clips live under the analysis key, not the file name.
+        loadSnapshot(analysisKey(saved.id), buttons, events)
+        setAnalysisId(saved.id)
+      }
+      setSavedSnapshot(JSON.stringify({ b: buttons, e: events }))
+      onSaved?.(saved)
+      toast.success('Análisis guardado')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo guardar el análisis')
+    } finally {
+      setSaving(false)
+    }
+  }, [analysisId, analysisName, buttons, equipoId, events, loadSnapshot, localFile?.name, onSaved, videoMeta])
 
   useEffect(() => {
+    if (isLiteMode) return
     if (informeRival) {
       if (rivalId) {
         void prefetchRevisionFolders({ equipo_id: equipoId, ambito: 'rival', rival_id: rivalId }).catch(() => {})
@@ -431,16 +501,40 @@ export function VideoAnalyzer({
             <Trash2 size={14} />
             Eliminar
           </button>
-          <button
-            type="button"
-            className="vd-btn vd-btn-accent"
-            disabled={revisionClips.length === 0 || !canSendToRevision}
-            title={!canSendToRevision ? 'Asocia un partido para enviar a Revisión' : 'Enviar los recortes marcados en el previsualizador o con ⌘+clic.'}
-            onClick={() => revisionClips[0] && setSendClipId(revisionClips[0].id)}
-          >
-            <Send size={14} />
-            {revisionClips.length > 1 ? `A revisión (${revisionClips.length})` : 'A revisión'}
-          </button>
+          {isLiteMode ? (
+            <>
+              <input
+                className="vd-name-input"
+                value={analysisName}
+                onChange={(e) => setAnalysisName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') void saveAnalysis() }}
+                placeholder="Nombre del análisis…"
+                aria-label="Nombre del análisis"
+                maxLength={200}
+              />
+              <button
+                type="button"
+                className="vd-btn vd-btn-accent"
+                disabled={saving}
+                title={analysisId ? 'Guardar cambios del análisis' : 'Guardar el análisis con nombre'}
+                onClick={() => void saveAnalysis()}
+              >
+                <Save size={14} />
+                {saving ? 'Guardando…' : isDirty ? 'Guardar •' : 'Guardar'}
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="vd-btn vd-btn-accent"
+              disabled={revisionClips.length === 0 || !canSendToRevision}
+              title={!canSendToRevision ? 'Asocia un partido para enviar a Revisión' : 'Enviar los recortes marcados en el previsualizador o con ⌘+clic.'}
+              onClick={() => revisionClips[0] && setSendClipId(revisionClips[0].id)}
+            >
+              <Send size={14} />
+              {revisionClips.length > 1 ? `A revisión (${revisionClips.length})` : 'A revisión'}
+            </button>
+          )}
         </div>
       </header>
 
@@ -530,10 +624,10 @@ export function VideoAnalyzer({
           buttons={buttons}
           playlist={stage}
           onClose={() => setStage(null)}
-          revisionIds={selectedClipIds}
+          revisionIds={isLiteMode ? [] : selectedClipIds}
           onSelect={handleStageSelect}
           onRename={renameClip}
-          onToggleRevision={toggleRevision}
+          onToggleRevision={isLiteMode ? undefined : toggleRevision}
           onSendRevision={canSendToRevision && selectedClipIds.length > 0 ? () => setSendClipId(selectedClipIds[0]) : undefined}
           onDelete={(clip) => deleteClips([clip.id])}
         />

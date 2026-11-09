@@ -106,6 +106,12 @@ class Permission(str, Enum):
     TACTICAL_BOARD_UPDATE = "tactical_board.update"
     TACTICAL_BOARD_DELETE = "tactical_board.delete"
 
+    # Video Analisis (herramienta de vídeo: análisis guardados)
+    VIDEO_ANALISIS_CREATE = "video_analisis.create"
+    VIDEO_ANALISIS_READ = "video_analisis.read"
+    VIDEO_ANALISIS_UPDATE = "video_analisis.update"
+    VIDEO_ANALISIS_DELETE = "video_analisis.delete"
+
     # Game Model (Modelo de Juego)
     GAME_MODEL_CREATE = "game_model.create"
     GAME_MODEL_READ = "game_model.read"
@@ -175,6 +181,9 @@ _CT_FULL_PERMISSIONS = {
     # Tactical Board
     Permission.TACTICAL_BOARD_CREATE, Permission.TACTICAL_BOARD_READ,
     Permission.TACTICAL_BOARD_UPDATE, Permission.TACTICAL_BOARD_DELETE,
+    # Video Analisis
+    Permission.VIDEO_ANALISIS_CREATE, Permission.VIDEO_ANALISIS_READ,
+    Permission.VIDEO_ANALISIS_UPDATE, Permission.VIDEO_ANALISIS_DELETE,
     # Game Model
     Permission.GAME_MODEL_CREATE, Permission.GAME_MODEL_READ,
     Permission.GAME_MODEL_UPDATE, Permission.GAME_MODEL_DELETE,

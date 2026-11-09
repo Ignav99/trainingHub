@@ -1145,3 +1145,26 @@
     transition: none;
   }
 }
+
+/* Lite: name of the saved analysis, in the header next to Guardar. */
+.vd-name-input {
+  height: 32px;
+  width: 220px;
+  max-width: 32vw;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--vd-line) 35%, transparent);
+  border-radius: 2px;
+  background: var(--vd-panel-2);
+  color: var(--vd-text);
+  font-family: var(--vd-sans);
+  font-size: 12px;
+}
+
+.vd-name-input:focus {
+  outline: none;
+  border-color: var(--vd-line);
+}
+
+.vd-name-input::placeholder {
+  color: var(--vd-muted);
+}
