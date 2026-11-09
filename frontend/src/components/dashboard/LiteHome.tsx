@@ -15,7 +15,7 @@ const SECTIONS = [
     href: '/video-analisis',
     icon: ScanSearch,
     title: 'Herramienta de Vídeo',
-    description: 'Analiza un vídeo, recorta clips y usa el anotador en directo.',
+    description: 'Analiza un vídeo, recorta clips y guarda el análisis con nombre.',
   },
 ] as const
 
