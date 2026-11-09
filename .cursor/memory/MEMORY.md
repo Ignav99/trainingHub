@@ -1,5 +1,8 @@
 # TrainingHub — estado actual
 
+## Guardado instantáneo (9 nov 2026, rama cursor/guardado-instantaneo-9a4e)
+Sin suscripción nueva. La espera era la portada (18 preloads con claves que no coincidían con plantilla/sesiones) y auth síncrono en cada request (get_user + usuarios + roles + permisos) sobre un solo worker. Hecho: portada al hidratar auth/equipo; preload crítico con las claves reales; caché 20 s de usuario/roles/permisos en `auth_cache.py` + `asyncio.to_thread` (apagada si PYTEST_CURRENT_TEST); escritura optimista en `instantCacheCore.ts` (listas amplias, rollback, POST de subtarea no pisa al padre); hover prefetch de ficha y sesión; búsqueda de sesiones a 180 ms. No añadir workers (salas WebSocket en memoria). Un cambio de rol puede tardar hasta 20 s.
+
 ## Titularidades (4 nov 2026)
 LIVE PR #466 (merge 10:22Z). 79 filas de `convocatorias` del Filial reescritas para que `titular`/`posicion_asignada` = once de la pestaña Convocatoria (once del saque del anotador). Copia previa en /tmp/filial_before.json (solo esa VM). 87 titularidades de liga = 7×11 + Écija 10. Convocatorias borradas tras el partido (no recuperables): Alcalá `5f17cae2`, `bc995e4a` (Carlos Vega, gol 42′), `b142e126`; Écija `9d4983be` (titular MCD_R), `b8b8e084` (entra 82′ por Nacho). Palomares solo tiene a Heredero en el once; Samcam sin minutos. `MatchDetailPanel` ahora escribe `kickoffTitularidadSync` al abrir el partido.
 

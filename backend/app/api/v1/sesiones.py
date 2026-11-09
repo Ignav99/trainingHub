@@ -235,6 +235,7 @@ from app.models import (
 )
 from app.database import get_supabase
 from app.dependencies import require_permission, require_any_permission, AuthContext
+from app.security.dependencies import cached_team_ids
 from app.security.permissions import Permission
 from app.services.pdf_service import generate_sesion_pdf, generate_sesion_pdf_v2
 from app.services.storage_service import upload_file
@@ -528,28 +529,24 @@ async def list_sesiones(
         count="exact"
     )
 
-    # Filter by team: skip org-wide equipos query when equipo_id is provided
-    if equipo_id:
-        # Verify the requesting user actually belongs to the requested team
-        # (not just that it exists in the same org) before filtering by it.
-        membership = supabase.table("usuarios_equipos").select("id").eq(
-            "usuario_id", auth.user_id
-        ).eq("equipo_id", str(equipo_id)).execute()
-        if not membership.data:
-            raise HTTPException(status_code=404, detail="Equipo no encontrado")
-        query = query.eq("equipo_id", str(equipo_id))
-    else:
-        # Default to the teams the user actually belongs to -- NOT every team
-        # in the organization, which would leak other teams' sessions to any
-        # staff member (a coach/delegate/physio only sees their own team(s)).
+    # The permission dependency already loaded this user's teams. Reuse that
+    # instead of a second round trip on every list.
+    equipo_ids = cached_team_ids(auth.user_id)
+    if equipo_ids is None:
         membresias = supabase.table("usuarios_equipos").select("equipo_id").eq(
             "usuario_id", auth.user_id
         ).execute()
         equipo_ids = [m["equipo_id"] for m in (membresias.data or [])]
-        if equipo_ids:
-            query = query.in_("equipo_id", equipo_ids)
-        else:
-            return SesionListResponse(data=[], total=0, page=page, limit=limit, pages=0)
+
+    if equipo_id:
+        # The user must belong to the requested team, not merely share an organization.
+        if str(equipo_id) not in {str(item) for item in equipo_ids}:
+            raise HTTPException(status_code=404, detail="Equipo no encontrado")
+        query = query.eq("equipo_id", str(equipo_id))
+    elif equipo_ids:
+        query = query.in_("equipo_id", equipo_ids)
+    else:
+        return SesionListResponse(data=[], total=0, page=page, limit=limit, pages=0)
 
     if match_day:
         query = query.eq("match_day", match_day.value)

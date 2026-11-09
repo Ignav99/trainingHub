@@ -3,6 +3,7 @@ TrainingHub Pro - Permission Dependencies
 FastAPI dependencies for role-based access control and license enforcement.
 """
 
+import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
@@ -14,11 +15,14 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from app.database import get_supabase
 from app.models.usuario import UsuarioResponse
+from app.security.auth_cache import cache_enabled, jwt_exp, token_cache_key, token_still_valid
 from app.security.permissions import (
     Permission,
     DEFAULT_PERMISSIONS,
     CLUB_ROLE_PERMISSIONS,
 )
+
+logger = logging.getLogger(__name__)
 
 def _team_role_rows(supabase, user_id: str, equipo_id: Optional[str]):
     """Role rows for this user. One retry: a dropped Supabase connection must not become a 403."""
@@ -83,6 +87,15 @@ class TTLCache:
 
 
 _subscription_cache = TTLCache(ttl_seconds=300, max_size=512)
+# Verified user, team roles and custom permissions. Long enough to cover a
+# page of parallel requests, short enough that a deactivated user or a role
+# change takes effect within a few seconds.
+_user_cache = TTLCache(ttl_seconds=20, max_size=1024)
+_roles_cache = TTLCache(ttl_seconds=20, max_size=2048)
+_perms_cache = TTLCache(ttl_seconds=20, max_size=2048)
+_user_inflight: dict[str, asyncio.Task] = {}
+_roles_inflight: dict[str, asyncio.Task] = {}
+_perms_inflight: dict[str, asyncio.Task] = {}
 
 
 def invalidate_subscription_cache(org_id: str) -> None:
@@ -110,45 +123,76 @@ class AuthContext:
     is_read_only: bool = False  # True during grace_period
 
 
+def _load_user_sync(token: str) -> UsuarioResponse:
+    supabase = get_supabase()
+    user_response = supabase.auth.get_user(token)
+    if not user_response or not user_response.user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token invalido o expirado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user_id = user_response.user.id
+    db_user = (
+        supabase.table("usuarios")
+        .select("*, organizaciones(*)")
+        .eq("id", user_id)
+        .single()
+        .execute()
+    )
+    if not db_user.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuario no encontrado en la base de datos",
+        )
+
+    if db_user.data.get("activo") is False:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Usuario desactivado. Contacte al administrador.",
+        )
+
+    user_data = db_user.data
+    user_data["organizacion"] = user_data.pop("organizaciones", None)
+    return UsuarioResponse(**user_data)
+
+
+async def _cached_user(token: str) -> UsuarioResponse:
+    key = token_cache_key(token)
+    if not token_still_valid(jwt_exp(token), time.time()):
+        _user_cache.invalidate(key)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token invalido o expirado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if not cache_enabled():
+        return _load_user_sync(token)
+
+    cached = _user_cache.get(key)
+    if cached is not None:
+        return cached
+
+    task = _user_inflight.get(key)
+    if task is None:
+        task = asyncio.create_task(asyncio.to_thread(_load_user_sync, token))
+        _user_inflight[key] = task
+    try:
+        user = await task
+    finally:
+        if _user_inflight.get(key) is task:
+            _user_inflight.pop(key, None)
+    _user_cache.set(key, user)
+    return user
+
+
 async def get_current_user_from_token(
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ) -> UsuarioResponse:
     """Validates JWT token and returns the current user."""
-    token = credentials.credentials
     try:
-        supabase = get_supabase()
-        user_response = supabase.auth.get_user(token)
-        if not user_response or not user_response.user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token invalido o expirado",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
-        user_id = user_response.user.id
-        db_user = (
-            supabase.table("usuarios")
-            .select("*, organizaciones(*)")
-            .eq("id", user_id)
-            .single()
-            .execute()
-        )
-        if not db_user.data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Usuario no encontrado en la base de datos",
-            )
-
-        if db_user.data.get("activo") is False:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Usuario desactivado. Contacte al administrador.",
-            )
-
-        user_data = db_user.data
-        user_data["organizacion"] = user_data.pop("organizaciones", None)
-        return UsuarioResponse(**user_data)
-
+        return await _cached_user(credentials.credentials)
     except HTTPException:
         raise
     except Exception as e:
@@ -157,6 +201,101 @@ async def get_current_user_from_token(
             detail=f"Error de autenticacion: {str(e)}",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+def _fetch_roles_sync(user_id: str):
+    supabase = get_supabase()
+    last_error = None
+    for _ in range(2):
+        try:
+            result = (
+                supabase.table("usuarios_equipos")
+                .select("rol_en_equipo, equipo_id")
+                .eq("usuario_id", user_id)
+                .execute()
+            )
+            return result.data or []
+        except Exception as exc:
+            last_error = exc
+    logger.warning("usuarios_equipos lookup failed for %s: %s", user_id, last_error)
+    return None
+
+
+async def _roles_for_user(user_id: str):
+    if not cache_enabled():
+        return _fetch_roles_sync(user_id)
+    cached = _roles_cache.get(user_id)
+    if cached is not None:
+        return cached
+    task = _roles_inflight.get(user_id)
+    if task is None:
+        task = asyncio.create_task(asyncio.to_thread(_fetch_roles_sync, user_id))
+        _roles_inflight[user_id] = task
+    try:
+        rows = await task
+    finally:
+        if _roles_inflight.get(user_id) is task:
+            _roles_inflight.pop(user_id, None)
+    if rows is not None:
+        _roles_cache.set(user_id, rows)
+    return rows
+
+
+def cached_team_ids(user_id: str) -> Optional[list[str]]:
+    """Team ids already resolved for this user, or None if they are not cached yet."""
+    rows = _roles_cache.get(user_id)
+    if rows is None:
+        return None
+    return [str(row["equipo_id"]) for row in rows if row.get("equipo_id")]
+
+
+def _fetch_custom_sync(user_id: str, equipo_id: str, rol_en_equipo: Optional[str]):
+    supabase = get_supabase()
+    try:
+        user_custom = (
+            supabase.table("permisos_personalizados")
+            .select("*")
+            .eq("equipo_id", equipo_id)
+            .eq("usuario_id", user_id)
+            .execute()
+        )
+        if user_custom.data:
+            return user_custom.data[0]
+        if rol_en_equipo:
+            role_custom = (
+                supabase.table("permisos_personalizados")
+                .select("*")
+                .eq("equipo_id", equipo_id)
+                .eq("rol_en_equipo", rol_en_equipo)
+                .execute()
+            )
+            if role_custom.data:
+                return role_custom.data[0]
+        return {}
+    except Exception:
+        return None
+
+
+async def _custom_override(user_id: str, equipo_id: str, rol_en_equipo: Optional[str]):
+    key = f"{user_id}:{equipo_id}:{rol_en_equipo or ''}"
+    if not cache_enabled():
+        return _fetch_custom_sync(user_id, equipo_id, rol_en_equipo) or {}
+    cached = _perms_cache.get(key)
+    if cached is not None:
+        return cached
+    task = _perms_inflight.get(key)
+    if task is None:
+        task = asyncio.create_task(asyncio.to_thread(_fetch_custom_sync, user_id, equipo_id, rol_en_equipo))
+        _perms_inflight[key] = task
+    try:
+        row = await task
+    finally:
+        if _perms_inflight.get(key) is task:
+            _perms_inflight.pop(key, None)
+    if row is None:
+        return {}
+    _perms_cache.set(key, row)
+    return row
 
 
 async def _resolve_equipo_id(request: Request, equipo_id_param: str) -> Optional[str]:
@@ -333,19 +472,24 @@ def require_permission(
         # 4. Resolve equipo_id
         equipo_id = await _resolve_equipo_id(request, equipo_id_param)
 
-        # 5. Get team role
+        # 5. Get team role (cached, so the rest of this page does not repeat the query)
         rol_en_equipo = None
-        if equipo_id:
+        rows = await _roles_for_user(user_id)
+        if rows:
+            if equipo_id:
+                match = next((r for r in rows if str(r.get("equipo_id")) == str(equipo_id)), None)
+                if match:
+                    rol_en_equipo = match["rol_en_equipo"]
+            else:
+                rol_en_equipo = rows[0]["rol_en_equipo"]
+                equipo_id = rows[0]["equipo_id"]
+        elif rows is None:
             ue_result = _team_role_rows(supabase, user_id, equipo_id)
             if ue_result and ue_result.data:
-                rol_en_equipo = ue_result.data[0]["rol_en_equipo"] if isinstance(ue_result.data, list) else ue_result.data["rol_en_equipo"]
-
-        # If no specific team, try to get role from any team
-        if not rol_en_equipo and not equipo_id:
-            ue_result = _team_role_rows(supabase, user_id, None)
-            if ue_result and ue_result.data:
-                rol_en_equipo = ue_result.data[0]["rol_en_equipo"]
-                equipo_id = ue_result.data[0]["equipo_id"]
+                first = ue_result.data[0] if isinstance(ue_result.data, list) else ue_result.data
+                rol_en_equipo = first["rol_en_equipo"]
+                if not equipo_id:
+                    equipo_id = first.get("equipo_id")
 
         # 6. Get default permissions for the role
         effective_permissions: set[Permission] = set()
@@ -368,29 +512,9 @@ def require_permission(
 
         # 7. Apply custom permission overrides
         if equipo_id:
-            try:
-                custom_result = supabase.table("permisos_personalizados").select("*")
-                # Check user-specific overrides first
-                user_custom = (
-                    custom_result.eq("equipo_id", equipo_id)
-                    .eq("usuario_id", user_id)
-                    .execute()
-                )
-                if user_custom.data:
-                    _apply_custom_permissions(effective_permissions, user_custom.data[0])
-                elif rol_en_equipo:
-                    # Check role-level overrides
-                    role_custom = (
-                        supabase.table("permisos_personalizados")
-                        .select("*")
-                        .eq("equipo_id", equipo_id)
-                        .eq("rol_en_equipo", rol_en_equipo)
-                        .execute()
-                    )
-                    if role_custom.data:
-                        _apply_custom_permissions(effective_permissions, role_custom.data[0])
-            except Exception:
-                pass
+            override = await _custom_override(user_id, str(equipo_id), rol_en_equipo)
+            if override:
+                _apply_custom_permissions(effective_permissions, override)
 
         # 8. Check required permissions
         missing = set(permissions) - effective_permissions
@@ -444,7 +568,6 @@ def require_any_permission(
         request: Request,
         current_user: UsuarioResponse = Depends(get_current_user_from_token),
     ) -> AuthContext:
-        supabase = get_supabase()
         user_id = str(current_user.id)
         org_id = str(current_user.organizacion_id) if current_user.organizacion_id else None
 
@@ -459,36 +582,15 @@ def require_any_permission(
         equipo_id = await _resolve_equipo_id(request, equipo_id_param)
 
         rol_en_equipo = None
-        if equipo_id:
-            try:
-                ue = (
-                    supabase.table("usuarios_equipos")
-                    .select("rol_en_equipo")
-                    .eq("usuario_id", user_id)
-                    .eq("equipo_id", equipo_id)
-                    .maybe_single()
-                    .execute()
-                )
-                if ue.data:
-                    rol_en_equipo = ue.data["rol_en_equipo"]
-            except Exception:
-                pass
-
-        # Fallback: if no equipo_id in request, find user's team role
-        if not rol_en_equipo and not equipo_id:
-            try:
-                ue_result = (
-                    supabase.table("usuarios_equipos")
-                    .select("rol_en_equipo, equipo_id")
-                    .eq("usuario_id", user_id)
-                    .limit(1)
-                    .execute()
-                )
-                if ue_result.data:
-                    rol_en_equipo = ue_result.data[0]["rol_en_equipo"]
-                    equipo_id = ue_result.data[0]["equipo_id"]
-            except Exception:
-                pass
+        rows = await _roles_for_user(user_id)
+        if rows:
+            if equipo_id:
+                match = next((r for r in rows if str(r.get("equipo_id")) == str(equipo_id)), None)
+                if match:
+                    rol_en_equipo = match["rol_en_equipo"]
+            else:
+                rol_en_equipo = rows[0]["rol_en_equipo"]
+                equipo_id = rows[0]["equipo_id"]
 
         effective = set()
         if rol_en_equipo and rol_en_equipo in DEFAULT_PERMISSIONS:
@@ -502,30 +604,10 @@ def require_any_permission(
         elif current_user.rol == "tecnico_asistente" and not rol_en_equipo:
             effective = DEFAULT_PERMISSIONS.get("segundo_entrenador", set()).copy()
 
-        # Apply custom permission overrides
         if equipo_id:
-            try:
-                user_custom = (
-                    supabase.table("permisos_personalizados")
-                    .select("*")
-                    .eq("equipo_id", equipo_id)
-                    .eq("usuario_id", user_id)
-                    .execute()
-                )
-                if user_custom.data:
-                    _apply_custom_permissions(effective, user_custom.data[0])
-                elif rol_en_equipo:
-                    role_custom = (
-                        supabase.table("permisos_personalizados")
-                        .select("*")
-                        .eq("equipo_id", equipo_id)
-                        .eq("rol_en_equipo", rol_en_equipo)
-                        .execute()
-                    )
-                    if role_custom.data:
-                        _apply_custom_permissions(effective, role_custom.data[0])
-            except Exception:
-                pass
+            override = await _custom_override(user_id, str(equipo_id), rol_en_equipo)
+            if override:
+                _apply_custom_permissions(effective, override)
 
         if not effective.intersection(permissions):
             raise HTTPException(
