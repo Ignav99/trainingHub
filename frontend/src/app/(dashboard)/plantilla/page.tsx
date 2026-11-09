@@ -34,6 +34,7 @@ import {
 import { equiposApi } from '@/lib/api/equipos'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { apiKey } from '@/lib/swr'
+import { prefetchRecord } from '@/lib/prefetchRecord'
 import { CardGridSkeleton } from '@/components/ui/page-skeletons'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -114,6 +115,10 @@ function JugadorCard({
           : isNoDisponible ? 'border-gray-300 bg-gray-50' : 'hover:border-primary/30'
       }`}
       onClick={() => router.push(`/plantilla/${jugador.id}`)}
+      onPointerEnter={() => {
+        router.prefetch(`/plantilla/${jugador.id}`)
+        prefetchRecord(`/jugadores/${jugador.id}`)
+      }}
     >
       {/* Indicador de capitan */}
       {jugador.es_capitan && (

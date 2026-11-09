@@ -52,6 +52,28 @@ function extractPermissionError(error: any, status: number): Error {
   return err
 }
 
+export type InstantWriteOp = {
+  method: 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+  path: string
+  body?: unknown
+  params?: Record<string, string | number | boolean | undefined>
+  result?: unknown
+}
+
+type InstantReflector = {
+  start(op: InstantWriteOp): { rollback(): void }
+  commit(op: InstantWriteOp): void
+}
+
+let instantReflector: InstantReflector | null = null
+
+/** Registered once from the instant cache. Kept here so the client does not import SWR. */
+export function registerInstantCache(reflector: InstantReflector) {
+  instantReflector = reflector
+}
+
+const noopInstant = { rollback() {} }
+
 class ApiClient {
   private baseUrl: string
   private defaultTimeout: number
@@ -95,6 +117,26 @@ class ApiClient {
     }
 
     return token ? { Authorization: `Bearer ${token}` } : {}
+  }
+
+  private instantStart(
+    method: InstantWriteOp['method'],
+    path: string,
+    body?: unknown,
+    params?: InstantWriteOp['params'],
+  ) {
+    if (!instantReflector) return noopInstant
+    return instantReflector.start({ method, path, body, params })
+  }
+
+  private instantCommit(
+    method: InstantWriteOp['method'],
+    path: string,
+    body: unknown,
+    params: InstantWriteOp['params'],
+    result: unknown,
+  ) {
+    instantReflector?.commit({ method, path, body, params, result })
   }
 
   private buildUrl(path: string, params?: Record<string, string | number | boolean | undefined>): string {
@@ -144,7 +186,10 @@ class ApiClient {
     const url = this.buildUrl(path, options?.params)
     const authHeaders = await this.getAuthHeaders()
     const { signal, clear } = this.createAbortSignal(options?.timeout)
-    const response = await fetch(url, {
+    const pending = this.instantStart('POST', path, data, options?.params)
+    let response: Response
+    try {
+      response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -154,16 +199,24 @@ class ApiClient {
       body: data ? JSON.stringify(data) : undefined,
       signal,
     })
+    } catch (err) {
+      clear()
+      pending.rollback()
+      throw err
+    }
     clear()
 
     if (!response.ok) {
+      pending.rollback()
       const error = await response.json().catch(() => ({}))
       if (response.status === 401) throw new Error('Error de autenticación: ' + (error.detail || 'Sesión expirada'))
       if (response.status === 403 || response.status === 402) throw extractPermissionError(error, response.status)
       throw new Error(extractErrorMessage(error, response.status))
     }
 
-    return response.json()
+    const result = await response.json() as T
+    this.instantCommit('POST', path, data, options?.params, result)
+    return result
   }
 
   async *postStream<T>(path: string, data?: unknown): AsyncGenerator<T, void, unknown> {
@@ -216,55 +269,53 @@ class ApiClient {
   }
 
   async put<T>(path: string, data?: unknown, options?: FetchOptions): Promise<T> {
-    const url = this.buildUrl(path, options?.params)
-    const authHeaders = await this.getAuthHeaders()
-    const { signal, clear } = this.createAbortSignal(options?.timeout)
-    const response = await fetch(url, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...authHeaders,
-        ...options?.headers,
-      },
-      body: data ? JSON.stringify(data) : undefined,
-      signal,
-    })
-    clear()
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
-      if (response.status === 401) throw new Error('Error de autenticación: ' + (error.detail || 'Sesión expirada'))
-      if (response.status === 403 || response.status === 402) throw extractPermissionError(error, response.status)
-      throw new Error(extractErrorMessage(error, response.status))
-    }
-
-    return response.json()
+    return this.sendJson<T>('PUT', path, data, options)
   }
 
   async patch<T>(path: string, data?: unknown, options?: FetchOptions): Promise<T> {
+    return this.sendJson<T>('PATCH', path, data, options)
+  }
+
+  private async sendJson<T>(
+    method: 'PUT' | 'PATCH',
+    path: string,
+    data?: unknown,
+    options?: FetchOptions,
+  ): Promise<T> {
     const url = this.buildUrl(path, options?.params)
     const authHeaders = await this.getAuthHeaders()
     const { signal, clear } = this.createAbortSignal(options?.timeout)
-    const response = await fetch(url, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        ...authHeaders,
-        ...options?.headers,
-      },
-      body: data ? JSON.stringify(data) : undefined,
-      signal,
-    })
+    const pending = this.instantStart(method, path, data, options?.params)
+    let response: Response
+    try {
+      response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+          ...options?.headers,
+        },
+        body: data ? JSON.stringify(data) : undefined,
+        signal,
+      })
+    } catch (err) {
+      clear()
+      pending.rollback()
+      throw err
+    }
     clear()
 
     if (!response.ok) {
+      pending.rollback()
       const error = await response.json().catch(() => ({}))
       if (response.status === 401) throw new Error('Error de autenticación: ' + (error.detail || 'Sesión expirada'))
       if (response.status === 403 || response.status === 402) throw extractPermissionError(error, response.status)
       throw new Error(extractErrorMessage(error, response.status))
     }
 
-    return response.json()
+    const result = await response.json() as T
+    this.instantCommit(method, path, data, options?.params, result)
+    return result
   }
 
   async upload<T>(path: string, formData: FormData, options?: FetchOptions): Promise<T> {
@@ -291,7 +342,9 @@ class ApiClient {
       throw new Error(extractErrorMessage(error, response.status))
     }
 
-    return response.json()
+    const result = await response.json() as T
+    this.instantCommit('POST', path, undefined, options?.params, result)
+    return result
   }
 
   async getBlob(path: string, options?: FetchOptions): Promise<Blob> {
@@ -344,23 +397,33 @@ class ApiClient {
     const url = this.buildUrl(path, options?.params)
     const authHeaders = await this.getAuthHeaders()
     const { signal, clear } = this.createAbortSignal(options?.timeout)
-    const response = await fetch(url, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        ...authHeaders,
-        ...options?.headers,
-      },
-      signal,
-    })
+    const pending = this.instantStart('DELETE', path, undefined, options?.params)
+    let response: Response
+    try {
+      response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+          ...options?.headers,
+        },
+        signal,
+      })
+    } catch (err) {
+      clear()
+      pending.rollback()
+      throw err
+    }
     clear()
 
     if (!response.ok) {
+      pending.rollback()
       const error = await response.json().catch(() => ({}))
       if (response.status === 401) throw new Error('Error de autenticación: ' + (error.detail || 'Sesión expirada'))
       if (response.status === 403 || response.status === 402) throw extractPermissionError(error, response.status)
       throw new Error(extractErrorMessage(error, response.status))
     }
+    this.instantCommit('DELETE', path, undefined, options?.params, undefined)
   }
 }
 

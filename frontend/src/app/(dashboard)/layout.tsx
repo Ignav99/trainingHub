@@ -128,8 +128,6 @@ export default function DashboardLayout({
   const equipoHydrated = usePersistHydrated(useEquipoStore.persist)
   const { collapsed, toggle: toggleSidebar } = useSidebarStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [dataReady, setDataReady] = useState(false)
-  const genRef = useRef(0)
 
   const isRevisionSala = pathname.startsWith('/revision/')
 
@@ -178,18 +176,11 @@ export default function DashboardLayout({
   }, [authHydrated, clubHydrated, isAuthenticated, isOnboardingComplete, pathname, router, isRevisionSala])
 
   useEffect(() => {
-    // Club-admin/superadmin manage the whole club from /gestion, not a single
-    // team's operational data — there is no `equipoActivo` to preload for them,
-    // so mark data as ready immediately instead of waiting on team endpoints
-    // that will never resolve.
-    if (isClubOnlyRole) {
-      setDataReady(true)
-      return
-    }
-    if (!isAuthenticated || !equipoActivo?.id) return
+    // The shell used to stay on the splash until every one of these requests
+    // finished (up to 15s). Paint as soon as the team is known and warm the
+    // lists the pages actually read, in the background.
+    if (isClubOnlyRole || !isAuthenticated || !equipoActivo?.id) return
     const eid = equipoActivo.id
-    genRef.current += 1
-    const gen = genRef.current
 
     const now = new Date()
     const y = now.getFullYear()
@@ -197,13 +188,20 @@ export default function DashboardLayout({
     const fechaDesde = `${y}-${String(m + 1).padStart(2, '0')}-01`
     const lastDay = new Date(y, m + 1, 0).getDate()
     const fechaHasta = `${y}-${String(m + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+    const hoy = `${y}-${String(m + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 
-    const allEndpoints = [
+    const critical = [
+      apiKey('/jugadores', { equipo_id: eid }),
+      apiKey('/sesiones', { page: 1, limit: 10 }),
+      apiKey('/partidos', { equipo_id: eid, orden: 'fecha', direccion: 'desc', limit: 50 }),
       apiKey('/dashboard/resumen', { equipo_id: eid }),
       apiKey('/dashboard/plantilla', { equipo_id: eid }),
-      apiKey('/jugadores', { equipo_id: eid, estado: 'activo' }),
-      apiKey('/catalogos/categorias-tarea'),
       apiKey('/microciclos', { equipo_id: eid, estado: 'en_curso', limit: 1 }),
+      apiKey('/carga/equipo/' + eid),
+    ].filter(Boolean) as string[]
+
+    const later = [
+      apiKey('/catalogos/categorias-tarea'),
       apiKey('/sesiones', { equipo_id: eid, estado: 'borrador', limit: 1 }),
       apiKey('/partidos', { equipo_id: eid, solo_jugados: true, limit: 1, orden: 'fecha', direccion: 'desc' }),
       apiKey('/rfef/competiciones', { equipo_id: eid }),
@@ -212,41 +210,28 @@ export default function DashboardLayout({
       apiKey('/microciclos', { equipo_id: eid, fecha_desde: fechaDesde, fecha_hasta: fechaHasta }),
       apiKey('/descansos', { equipo_id: eid, fecha_desde: fechaDesde, fecha_hasta: fechaHasta }),
       apiKey('/partidos', { equipo_id: eid, solo_pendientes: true, orden: 'fecha', direccion: 'asc', limit: 20 }),
-      apiKey('/sesiones', { page: 1, limit: 10, equipo_id: eid }),
       apiKey('/tareas', { page: 1, limit: 20, equipo_id: eid }),
-      apiKey('/partidos', { equipo_id: eid, orden: 'fecha', direccion: 'desc', limit: 50 }),
-      apiKey('/carga/equipo/' + eid),
+      apiKey('/medico', { equipo_id: eid }),
+      apiKey('/nutricion/planes', { equipo_id: eid, fecha: hoy }),
+      apiKey('/nutricion/composicion', { equipo_id: eid }),
+      apiKey('/nutricion/suplementos', { equipo_id: eid, activo: true }),
+      apiKey('/estadisticas/dashboard', { equipo_id: eid, ambito: 'competicion' }),
+      apiKey('/dashboard/carga-semanal', { equipo_id: eid, semanas: 12 }),
+      apiKey('/abp', { equipo_id: eid }),
+      apiKey('/tactical-boards', { equipo_id: eid }),
+      apiKey('/game-models', { equipo_id: eid }),
+      apiKey('/rivales', { orden: 'nombre', direccion: 'asc' }),
+      apiKey('/wellness/equipo/' + eid),
+      apiKey('/wellness/equipo/' + eid + '/alertas'),
     ].filter(Boolean) as string[]
 
-    Promise.allSettled(allEndpoints.map((key) => preload(key, apiFetcher))).then(() => {
-      if (gen === genRef.current) {
-        setDataReady(true)
-      }
-
-      const hoy = `${y}-${String(m + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-      const bgEndpoints = [
-        apiKey('/medico', { equipo_id: eid }),
-        apiKey('/nutricion/planes', { equipo_id: eid, fecha: hoy }),
-        apiKey('/nutricion/composicion', { equipo_id: eid }),
-        apiKey('/nutricion/suplementos', { equipo_id: eid, activo: true }),
-        apiKey('/estadisticas/dashboard', { equipo_id: eid, ambito: 'competicion' }),
-        apiKey('/dashboard/carga-semanal', { equipo_id: eid, semanas: 12 }),
-        apiKey('/abp', { equipo_id: eid }),
-        apiKey('/tactical-boards', { equipo_id: eid }),
-        apiKey('/game-models', { equipo_id: eid }),
-        apiKey('/rivales', { orden: 'nombre', direccion: 'asc' }),
-        apiKey('/wellness/equipo/' + eid),
-        apiKey('/wellness/equipo/' + eid + '/alertas'),
-      ].filter(Boolean) as string[]
-      bgEndpoints.forEach((key) => preload(key, apiFetcher))
+    critical.forEach((key) => { preload(key, apiFetcher) })
+    const idle = window.requestIdleCallback ?? ((cb: IdleRequestCallback) => window.setTimeout(() => cb({} as IdleDeadline), 400))
+    const cancel = window.cancelIdleCallback ?? window.clearTimeout
+    const handle = idle(() => {
+      later.forEach((key) => { preload(key, apiFetcher) })
     })
-
-    const timeout = setTimeout(() => {
-      if (gen === genRef.current) {
-        setDataReady(true)
-      }
-    }, 15000)
-    return () => clearTimeout(timeout)
+    return () => cancel(handle)
   }, [isAuthenticated, equipoActivo?.id, isClubOnlyRole])
 
   useEffect(() => {
@@ -274,7 +259,7 @@ export default function DashboardLayout({
     )
   }
 
-  if (!authHydrated || !clubHydrated || !isAuthenticated || !dataReady || (!isClubOnlyRole && (!equipoHydrated || !activeTeam))) {
+  if (!authHydrated || !clubHydrated || !isAuthenticated || (!isClubOnlyRole && (!equipoHydrated || !activeTeam))) {
     return <SplashScreen />
   }
 

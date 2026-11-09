@@ -27,6 +27,7 @@ import { ListPageSkeleton } from '@/components/ui/page-skeletons'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { apiKey } from '@/lib/swr'
+import { prefetchRecord } from '@/lib/prefetchRecord'
 import { Sesion, MatchDay, PaginatedResponse } from '@/types'
 import { sesionesApi } from '@/lib/api/sesiones'
 import { uniqueById } from '@/lib/uniqueById'
@@ -87,6 +88,10 @@ function EstadoBadge({ estado, creacionPaso }: { estado: string; creacionPaso?: 
 
 export default function SesionesPage() {
   const router = useRouter()
+  const warmSesion = (sesion: Sesion) => {
+    router.prefetch(continueHref(sesion.id, sesion.fase_notas, sesion.estado))
+    prefetchRecord(`/sesiones/${sesion.id}`)
+  }
 
   // Paginación
   const [page, setPage] = useState(1)
@@ -156,6 +161,16 @@ export default function SesionesPage() {
     setPage(1)
     setSearchTerm(busqueda)
   }
+
+  // La lista filtra mientras se escribe, sin esperar a pulsar buscar.
+  useEffect(() => {
+    if (busqueda === searchTerm) return
+    const timer = setTimeout(() => {
+      setPage(1)
+      setSearchTerm(busqueda)
+    }, 180)
+    return () => clearTimeout(timer)
+  }, [busqueda, searchTerm])
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -504,6 +519,7 @@ export default function SesionesPage() {
                 <button
                   type="button"
                   onClick={() => router.push(continueHref(sesion.id, sesion.fase_notas, sesion.estado))}
+                  onPointerEnter={() => warmSesion(sesion)}
                   className="w-full text-left min-w-0"
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -644,6 +660,7 @@ export default function SesionesPage() {
                   <tr
                     key={sesion.id}
                     onClick={() => router.push(continueHref(sesion.id, sesion.fase_notas, sesion.estado))}
+                    onPointerEnter={() => warmSesion(sesion)}
                     className="row-hover cursor-pointer"
                   >
                     <td className="px-6 py-4 whitespace-nowrap">

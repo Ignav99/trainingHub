@@ -2,6 +2,9 @@
 
 import { SWRConfig } from 'swr'
 import { apiFetcher } from '@/lib/swr'
+import { installInstantCache } from '@/lib/instantCache'
+
+installInstantCache()
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/v1').replace('/v1', '')
 
