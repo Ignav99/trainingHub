@@ -1,4 +1,5 @@
 import { getSupabaseClient } from '@/lib/supabase/client'
+import { jwtExpiresSoon } from '@/lib/authSession'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/v1'
 
@@ -77,9 +78,12 @@ class ApiClient {
       return { Authorization: `Bearer ${this.cachedToken}` }
     }
 
-    // Try persisted token first (synchronous, no network round-trip)
+    // Try persisted token first (synchronous, no network round-trip) — but
+    // only while it is still valid. A tab left open past the token lifetime
+    // kept sending the stale persisted token and every save failed with
+    // "token is expired"; the Supabase client below refreshes it instead.
     const persisted = getPersistedToken()
-    if (persisted) {
+    if (persisted && !jwtExpiresSoon(persisted, now)) {
       this.cachedToken = persisted
       this.tokenExpiry = now + 30_000
       return { Authorization: `Bearer ${persisted}` }

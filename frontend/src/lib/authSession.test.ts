@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  jwtExpiresSoon,
   localSupabaseSessionPresent,
   readPersistedAuth,
   shouldClearSharedAuthOnSignedOut,
@@ -56,5 +57,30 @@ describe('shared auth across tabs', () => {
       getItem: (key: string) => entries.get(key) ?? null,
     }
     assert.equal(localSupabaseSessionPresent(gone), false)
+  })
+})
+
+describe('jwtExpiresSoon', () => {
+  const makeJwt = (exp: number) => {
+    const b64 = (s: string) => Buffer.from(s).toString('base64url')
+    return `${b64('{"alg":"HS256"}')}.${b64(JSON.stringify({ exp }))}.sig`
+  }
+  const now = 1_700_000_000_000
+
+  it('is false for a token with plenty of time left', () => {
+    assert.equal(jwtExpiresSoon(makeJwt(now / 1000 + 3600), now), false)
+  })
+
+  it('is true for an expired token', () => {
+    assert.equal(jwtExpiresSoon(makeJwt(now / 1000 - 10), now), true)
+  })
+
+  it('is true inside the skew window', () => {
+    assert.equal(jwtExpiresSoon(makeJwt(now / 1000 + 30), now, 60_000), true)
+  })
+
+  it('treats garbage and missing tokens as expiring', () => {
+    assert.equal(jwtExpiresSoon(null, now), true)
+    assert.equal(jwtExpiresSoon('not-a-jwt', now), true)
   })
 })

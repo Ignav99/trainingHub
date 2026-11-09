@@ -59,3 +59,26 @@ export function shouldClearSharedAuthOnSignedOut(
 ): boolean {
   return explicitLogout && !supabaseSessionPresent
 }
+
+/**
+ * True when a JWT is expired or expires within `skewMs`. Unparseable tokens
+ * count as expiring so the caller falls back to the Supabase client, which
+ * refreshes sessions itself.
+ */
+export function jwtExpiresSoon(token: string | null, nowMs = Date.now(), skewMs = 60_000): boolean {
+  if (!token) return true
+  const parts = token.split('.')
+  if (parts.length !== 3) return true
+  try {
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4)
+    const json = typeof atob === 'function'
+      ? atob(padded)
+      : Buffer.from(padded, 'base64').toString('utf8')
+    const payload = JSON.parse(json) as { exp?: number }
+    if (typeof payload.exp !== 'number') return true
+    return payload.exp * 1000 <= nowMs + skewMs
+  } catch {
+    return true
+  }
+}
