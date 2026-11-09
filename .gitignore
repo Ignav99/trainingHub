@@ -103,3 +103,6 @@ _inbox/*
 # Pesos locales de probes de Visión
 yolo*.pt
 runs/
+
+# Claude Code local launch config (machine-specific paths)
+.claude/launch.json

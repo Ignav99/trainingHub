@@ -190,6 +190,14 @@ export default function VideoAnalisisPage() {
       setActiveAnalysis(null)
     }
 
+    // The local-session row only feeds "enviar a revisión", which lite does not have.
+    if (isLiteMode) {
+      setLocalVideoId(null)
+      setAnalyzerFile(f)
+      if (fileRef.current) fileRef.current.value = ''
+      return
+    }
+
     try {
       const { fingerprint, durationMs } = meta ?? await readLocalVideoFingerprint(f)
       const session = await videosApi.createLocalSession({
