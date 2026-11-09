@@ -1,5 +1,8 @@
 # TrainingHub — estado actual
 
+## Microciclo: olfato y objetivos (9 nov 2026, rama cursor/microciclo-guardado-9a4e)
+El texto vivía en el estado local. El autoguardado esperaba 1,5 s y al salir se cancelaba; mientras cargaba el rival, el guardado se tiraba y el indicador pasaba a idle. Al volver, SWR enseñaba `/microciclos/{id}/completo` de la primera carga y SalaLunes no lo actualizaba. Arreglo: cola `createLatestWrite` (una escritura vieja no pisa la nueva), flush al salir y en pagehide, el plan se guarda aunque el rival no haya cargado, `merge_plan_ct` no deja que un parcial borre olfato/objetivos, la vista completa se pinta al guardar y `planForScreen` ignora una recarga más vieja.
+
 ## Guardado instantáneo (9 nov 2026, rama cursor/guardado-instantaneo-9a4e)
 Sin suscripción nueva. La espera era la portada (18 preloads con claves que no coincidían con plantilla/sesiones) y auth síncrono en cada request (get_user + usuarios + roles + permisos) sobre un solo worker. Hecho: portada al hidratar auth/equipo; preload crítico con las claves reales; caché 20 s de usuario/roles/permisos en `auth_cache.py` + `asyncio.to_thread` (apagada si PYTEST_CURRENT_TEST); escritura optimista en `instantCacheCore.ts` (listas amplias, rollback, POST de subtarea no pisa al padre); hover prefetch de ficha y sesión; búsqueda de sesiones a 180 ms. No añadir workers (salas WebSocket en memoria). Un cambio de rol puede tardar hasta 20 s.
 

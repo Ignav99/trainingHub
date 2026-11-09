@@ -55,8 +55,8 @@ export const microciclosApi = {
     return api.delete(`/microciclos/${id}`)
   },
 
-  async patchPlanCT(id: string, plan_ct: PlanCT): Promise<Microciclo> {
-    return api.put<Microciclo>(`/microciclos/${id}`, { plan_ct })
+  async patchPlanCT(id: string, plan_ct: PlanCT, options?: { keepalive?: boolean }): Promise<Microciclo> {
+    return api.put<Microciclo>(`/microciclos/${id}`, { plan_ct }, options)
   },
 
   async linkSesiones(id: string): Promise<{ linked: number }> {

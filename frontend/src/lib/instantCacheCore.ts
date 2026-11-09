@@ -116,6 +116,23 @@ function plainObject(value: unknown): Record<string, unknown> | null {
   return isRecord(value) ? value : null
 }
 
+function paintRecord(data: unknown, id: string, patch: Record<string, unknown>): unknown | null {
+  if (!isRecord(data)) return null
+  if (data.id === id) {
+    if (Object.entries(patch).every(([key, value]) => data[key] === value)) return null
+    return { ...data, ...patch }
+  }
+  let changed = false
+  const next: Record<string, unknown> = { ...data }
+  for (const [key, value] of Object.entries(data)) {
+    if (!isRecord(value) || value.id !== id) continue
+    if (Object.entries(patch).every(([field, fieldValue]) => value[field] === fieldValue)) continue
+    next[key] = { ...value, ...patch }
+    changed = true
+  }
+  return changed ? next : null
+}
+
 function patchOnto(current: Record<string, unknown>, op: WriteOp, strict: boolean): { next: Record<string, unknown>; changed: boolean } {
   const patch: Record<string, unknown> = {}
   const sources = [plainObject(op.body), op.params].filter(Boolean) as Record<string, unknown>[]
@@ -229,6 +246,20 @@ export function applyInstantWrite(store: InstantStore, phase: 'start' | 'commit'
 
     if (!parsed.id) continue
     const detailKey = `/${parsed.collection}/${parsed.id}`
+    // Vista completa: { microciclo: { id, plan_ct } }. El guardado tiene que
+    // pintar dentro, o al volver a entrar se ve el plan de antes.
+    if (entry.key.startsWith(`${detailKey}/`)) {
+      const patch = phase === 'commit' && entity && entity.id === parsed.id
+        ? entity
+        : phase === 'start' && exact && (op.method === 'PUT' || op.method === 'PATCH')
+          ? plainObject(op.body)
+          : null
+      if (patch) {
+        const next = paintRecord(entry.data, parsed.id, patch)
+        if (next) put(entry.key, next, entry.data)
+      }
+      continue
+    }
     if (entry.key !== detailKey && !entry.key.startsWith(`${detailKey}?`)) continue
     if (!isRecord(entry.data) || (entry.data.id && entry.data.id !== parsed.id)) continue
 

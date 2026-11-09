@@ -35,6 +35,7 @@ from app.services.microciclo_estado import (
     persist_estado,
 )
 from app.services.microciclo_partido import apply_auto_link_partido
+from app.services.microciclo_plan import merge_plan_ct
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -517,6 +518,8 @@ async def update_microciclo(
 
     update_data = microciclo.model_dump(exclude_unset=True, mode="json")
     update_data.pop("estado", None)
+    if "plan_ct" in update_data:
+        update_data["plan_ct"] = merge_plan_ct(existing.data.get("plan_ct"), update_data.get("plan_ct"))
 
     ini = update_data.get("fecha_inicio", existing.data.get("fecha_inicio"))
     fin = update_data.get("fecha_fin", existing.data.get("fecha_fin"))
