@@ -47,9 +47,6 @@ from app.api.v1 import (
     videos,
     revision,
     video_anotaciones,
-    video_tag_categories,
-    video_tags,
-    video_playlists,
     nutricion,
     entrenamientos_margen,
     tactical_boards,
@@ -352,24 +349,6 @@ api_router.include_router(
     video_anotaciones.router,
     prefix="/video-anotaciones",
     tags=["Video Anotaciones"]
-)
-
-api_router.include_router(
-    video_tag_categories.router,
-    prefix="/video-tagging",
-    tags=["Video Tagging"]
-)
-
-api_router.include_router(
-    video_tags.router,
-    prefix="/video-tagging",
-    tags=["Video Tags"]
-)
-
-api_router.include_router(
-    video_playlists.router,
-    prefix="/video-playlists",
-    tags=["Video Playlists"]
 )
 
 api_router.include_router(

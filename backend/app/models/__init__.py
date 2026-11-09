@@ -387,27 +387,6 @@ from app.models.medico import (
     PermisosPersonalizadosResponse,
 )
 
-from app.models.video_tag import (
-    VideoTagCategoryCreate,
-    VideoTagCategoryUpdate,
-    VideoTagCategoryResponse,
-    VideoTagDescriptorCreate,
-    VideoTagDescriptorUpdate,
-    VideoTagDescriptorResponse,
-    VideoTagCreate,
-    VideoTagBulkCreate,
-    VideoTagUpdate,
-    VideoTagResponse,
-)
-
-from app.models.video_playlist import (
-    VideoPlaylistCreate,
-    VideoPlaylistUpdate,
-    VideoPlaylistResponse,
-    VideoPlaylistItemCreate,
-    VideoPlaylistItemResponse,
-)
-
 from app.models.entrenamiento_margen import (
     EstadoEntrenamientoMargen,
     FaseRecuperacion,
@@ -600,13 +579,6 @@ __all__ = [
     "ABPSesionJugadaCreate", "ABPSesionJugadaResponse",
     "ABPPartidoPlanJugadaItem", "ABPPartidoPlanFullSave",
     "ABPPartidoPlanResponse", "ABPPartidoPlanFullResponse",
-    # Video Tags
-    "VideoTagCategoryCreate", "VideoTagCategoryUpdate", "VideoTagCategoryResponse",
-    "VideoTagDescriptorCreate", "VideoTagDescriptorUpdate", "VideoTagDescriptorResponse",
-    "VideoTagCreate", "VideoTagBulkCreate", "VideoTagUpdate", "VideoTagResponse",
-    # Video Playlists
-    "VideoPlaylistCreate", "VideoPlaylistUpdate", "VideoPlaylistResponse",
-    "VideoPlaylistItemCreate", "VideoPlaylistItemResponse",
     # Fase 1 — Plan de Partido + Informe Rival + Alertas
     "EstadoPlanPartido", "AlturaBloque", "TipoPresion", "TipoEmparejamiento",
     "MovimientoClave", "Emparejamiento", "EspacioCampo",
