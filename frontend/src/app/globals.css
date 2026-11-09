@@ -7,7 +7,49 @@
    ============================================ */
 
 @layer base {
+  /* Acta: hoja de trabajo del vestuario. Superficie fría, banco oscuro,
+     el color del club solo marca dónde estás y las acciones. */
   :root {
+    --background: 150 14% 95%;
+    --foreground: 155 22% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 155 22% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 155 22% 10%;
+    --primary: 158 42% 22%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 150 12% 92%;
+    --secondary-foreground: 155 22% 10%;
+    --muted: 150 12% 92%;
+    --muted-foreground: 155 8% 36%;
+    --accent: 150 14% 90%;
+    --accent-foreground: 155 22% 10%;
+    --destructive: 4 72% 40%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 150 10% 86%;
+    --input: 150 10% 86%;
+    --ring: 158 42% 22%;
+    --radius: 0.35rem;
+    --badge-radius: 0.2rem;
+
+    --success: 152 62% 28%;
+    --warning: 32 64% 38%;
+    --info: 196 32% 34%;
+
+    --club-primary: 158 42% 22%;
+    --club-primary-foreground: 0 0% 100%;
+    --club-secondary: 150 12% 92%;
+    --club-secondary-foreground: 155 22% 10%;
+
+    --shell: 160 18% 8%;
+    --shell-foreground: 140 20% 96%;
+    --shell-muted: 150 8% 68%;
+    --shell-hover: 160 14% 14%;
+    --shell-line: 160 10% 18%;
+  }
+
+  /* Copia exacta del aspecto anterior. Se activa con data-appearance="clasico". */
+  html[data-appearance="clasico"] {
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
@@ -28,17 +70,22 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 217 91% 24%;
     --radius: 0.5rem;
-    
-    /* Colores personalizados */
+    --badge-radius: 9999px;
+
     --success: 142 76% 36%;
     --warning: 38 92% 50%;
     --info: 199 89% 48%;
 
-    /* Club colors (overridden by ThemeProvider) */
     --club-primary: 217 91% 24%;
     --club-primary-foreground: 0 0% 100%;
     --club-secondary: 210 40% 96%;
     --club-secondary-foreground: 222.2 84% 4.9%;
+
+    --shell: 0 0% 100%;
+    --shell-foreground: 222.2 84% 4.9%;
+    --shell-muted: 215.4 16.3% 46.9%;
+    --shell-hover: 210 40% 96.1%;
+    --shell-line: 214.3 31.8% 91.4%;
   }
 
   .dark {
@@ -69,7 +116,14 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: var(--font-ui), system-ui, sans-serif;
+    font-variant-numeric: tabular-nums;
+  }
+  html[data-appearance="clasico"] body {
+    font-family: var(--font-classic), system-ui, sans-serif;
+    font-variant-numeric: normal;
   }
 }
 
@@ -134,9 +188,9 @@
    ============================================ */
 
 @layer components {
-  .card-primary { @apply bg-card border shadow-sm rounded-lg; }
+  .card-primary { @apply bg-card border rounded-lg; }
   .card-secondary { @apply bg-muted/50 border-none rounded-lg; }
-  .card-interactive { @apply bg-card border shadow-sm rounded-lg hover:shadow-md transition-shadow cursor-pointer; }
+  .card-interactive { @apply bg-card border rounded-lg cursor-pointer; }
 }
 
 /* ============================================
@@ -207,6 +261,122 @@
 
 html {
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Banco: la barra es el único sitio oscuro. El trabajo sigue en la hoja. */
+.shell {
+  background: hsl(var(--shell));
+  color: hsl(var(--shell-foreground));
+  border-color: hsl(var(--shell-line));
+}
+
+html:not([data-appearance="clasico"]) .shell .text-muted-foreground {
+  color: hsl(var(--shell-muted));
+}
+
+.shell .bg-popover {
+  color: hsl(var(--popover-foreground));
+}
+
+.shell-chip {
+  background: hsl(var(--shell-hover));
+  border-color: hsl(var(--shell-line));
+}
+
+html[data-appearance="clasico"] .shell-chip {
+  background: hsl(var(--muted) / 0.5);
+  border-color: hsl(var(--border));
+}
+
+.kabine-nav {
+  border-left: 3px solid transparent;
+  color: hsl(var(--shell-muted));
+  border-radius: 0;
+  transition: background-color 120ms linear, color 120ms linear;
+}
+
+.kabine-nav:hover {
+  background: hsl(var(--shell-hover));
+  color: hsl(var(--shell-foreground));
+}
+
+.kabine-nav[data-active="true"] {
+  background: hsl(var(--shell-hover));
+  color: hsl(var(--shell-foreground));
+  border-left-color: hsl(var(--club-primary));
+}
+
+html[data-appearance="clasico"] .kabine-nav {
+  border-radius: 0.5rem;
+}
+
+html[data-appearance="clasico"] .kabine-nav[data-active="true"] {
+  background: hsl(var(--club-primary) / 0.1);
+  color: hsl(var(--club-primary));
+}
+
+.kabine-section {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: hsl(var(--shell-muted));
+}
+
+html[data-appearance="clasico"] .kabine-section {
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+html:not([data-appearance="clasico"]) .club-banner {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html:not([data-appearance="clasico"]) .mobile-bar {
+  background: hsl(var(--shell)) !important;
+  color: hsl(var(--shell-foreground));
+  border-color: hsl(var(--shell-line));
+}
+
+.kabine-nav:focus-visible {
+  outline: 2px solid hsl(var(--club-primary));
+  outline-offset: 2px;
+}
+
+html:not([data-appearance="clasico"]) .shadow-sm,
+html:not([data-appearance="clasico"]) .shadow,
+html:not([data-appearance="clasico"]) .shadow-md,
+html:not([data-appearance="clasico"]) .shadow-lg,
+html:not([data-appearance="clasico"]) .shadow-xl,
+html:not([data-appearance="clasico"]) .shadow-2xl {
+  box-shadow: none;
+}
+
+html:not([data-appearance="clasico"]) .app-canvas {
+  background: hsl(var(--background));
+}
+
+@keyframes fadeInFlat {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+html:not([data-appearance="clasico"]) .animate-fade-in {
+  animation: fadeInFlat 80ms linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Phone / tablet: keep the page itself from panning sideways.
