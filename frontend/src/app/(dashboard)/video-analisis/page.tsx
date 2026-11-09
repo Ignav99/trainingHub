@@ -245,7 +245,7 @@ export default function VideoAnalisisPage() {
         title={isLiteMode ? 'Herramienta de Vídeo' : 'Video Análisis'}
         description={
           isLiteMode
-            ? 'Carga un vídeo para analizarlo y recortar clips, o usa el anotador en directo'
+            ? 'Carga un vídeo, marca recortes y guarda el análisis con nombre'
             : 'Elige el partido que vais a jugar y si el vídeo es el vuestro o del rival contra otro equipo'
         }
       />
@@ -270,7 +270,7 @@ export default function VideoAnalisisPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">
               {isLiteMode
-                ? 'Entrenamiento, ejercicio o cualquier vídeo. El archivo se queda en este dispositivo.'
+                ? 'Entrenamiento, ejercicio o cualquier vídeo.'
                 : source?.kind === 'loose'
                 ? 'Vídeo suelto — entrenamiento, charla o lo que sea, sin asociar a un partido'
                 : selectedPartido && watchMode === 'informe_rival'
@@ -329,6 +329,8 @@ export default function VideoAnalisisPage() {
           ) : null}
         </Card>
 
+        {/* Lite: the live annotator is out for now (Diego, 2026-11-09). */}
+        {!isLiteMode && (
         <button
           type="button"
           onClick={() => directoRef.current?.click()}
@@ -344,6 +346,7 @@ export default function VideoAnalisisPage() {
             </span>
           </span>
         </button>
+        )}
 
         {isLiteMode ? (
           <section className="space-y-3">

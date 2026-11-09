@@ -486,6 +486,8 @@ export function VideoAnalyzer({
           <div className="vd-header-meta">
             {informeRival
               ? `Informe de ${rivalName || 'rival'}${watchedOpponent ? ` · ${watchedOpponent}` : ''} · ${events.length} recortes · el archivo se queda en el PC`
+              : isLiteMode
+              ? `${events.length} recortes · ←/→ fotograma · mantén para acelerar · ⌫ borra`
               : `${events.length} recortes · ←/→ fotograma · mantén para acelerar · ⌫ borra · el archivo se queda en el PC`}
           </div>
         </div>
