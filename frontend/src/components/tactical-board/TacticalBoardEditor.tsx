@@ -20,6 +20,8 @@ import BoardArrow from './BoardArrow'
 import { BoardDefs, ElementSymbol, ELEMENT_TOOLS, ROTATABLE_ELEMENTS } from './BoardSymbols'
 import { RESIZE_HANDLES, HANDLE_CURSORS, type ResizeHandle } from './types'
 import type { Jugador } from '@/types'
+import { isLiteMode } from '@/lib/appMode'
+import { useBrandWatermarkDataUri, watermarkBox } from '@/lib/brandWatermark'
 
 interface TacticalBoardEditorProps {
   onSave: () => void
@@ -52,6 +54,7 @@ export default function TacticalBoardEditor({
   const nombre = useTacticalBoardStore((s) => s.nombre)
   const tipo = useTacticalBoardStore((s) => s.tipo)
   const pitchType = useTacticalBoardStore((s) => s.pitchType)
+  const watermarkUri = useBrandWatermarkDataUri(isLiteMode)
   const activeTool = useTacticalBoardStore((s) => s.activeTool)
   const selectedElementId = useTacticalBoardStore((s) => s.selectedElementId)
   const selectedElementIds = useTacticalBoardStore((s) => s.selectedElementIds)
@@ -979,6 +982,11 @@ export default function TacticalBoardEditor({
 
   const abpRolesOpen = roleMode === 'abp' && !isPlaying
   const pitchAspect = pitchType === 'half' ? '680 / 525' : isHorizontal ? '1050 / 680' : '680 / 1050'
+  // Lite: Kabin-e logo in the bottom-right corner of the pitch. Lives inside the
+  // SVG so PNG/WebM exports carry it too. Same viewBox as ABPPitch.
+  const pitchVbW = pitchType === 'half' ? 680 : isHorizontal ? 1050 : 680
+  const pitchVbH = pitchType === 'half' ? 525 : isHorizontal ? 680 : 1050
+  const watermark = watermarkBox(pitchVbW, pitchVbH)
 
   const boardCanvas = (
     <div
@@ -1001,6 +1009,19 @@ export default function TacticalBoardEditor({
         onMouseDown={handlePitchMouseDown}
       >
         <BoardDefs uid={uid} />
+        {watermarkUri ? (
+          <image
+            href={watermarkUri}
+            x={watermark.x}
+            y={watermark.y}
+            width={watermark.size}
+            height={watermark.size}
+            opacity={0.55}
+            preserveAspectRatio="xMidYMid meet"
+            pointerEvents="none"
+            aria-hidden
+          />
+        ) : null}
         <g ref={gRef}>
           {renderZones.map(renderZone)}
           {!isPlaying && renderZoneDragPreview()}

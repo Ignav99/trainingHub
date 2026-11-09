@@ -21,6 +21,8 @@ import {
 } from 'lucide-react'
 import { formatTime } from './utils'
 import { JOG_SECONDS } from '@/lib/videoZoom'
+import { isLiteMode } from '@/lib/appMode'
+import { BRAND_WATERMARK_SRC } from '@/lib/brandWatermark'
 import {
   ARROW_HOLD_MS,
   BROADCAST_FPS,
@@ -954,6 +956,18 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             className="pointer-events-none absolute inset-0 h-full w-full object-contain opacity-0"
             aria-hidden
           />
+          {isLiteMode ? (
+            // Lite: Kabin-e logo over the picture (on screen only; downloaded
+            // clips are copied without re-encoding and don't carry it).
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={BRAND_WATERMARK_SRC}
+              alt=""
+              aria-hidden
+              className="pointer-events-none absolute bottom-3 right-3 w-[9%] min-w-[48px] max-w-[120px] opacity-60 select-none"
+              draggable={false}
+            />
+          ) : null}
         </div>
 
         {/* Controls: skip bar + seek bar + [Play] [Rewind] [-5] [<f] [f>] [+5] | time | mute | speed */}
