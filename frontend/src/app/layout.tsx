@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter } from 'next/font/google'
+import { IBM_Plex_Mono, Inter, Schibsted_Grotesk } from 'next/font/google'
+import Script from 'next/script'
 import './globals.css'
 import { AuthProvider } from '@/components/providers/AuthProvider'
 import { ThemeProvider } from '@/components/providers/ThemeProvider'
@@ -7,7 +8,11 @@ import { SWRProvider } from '@/components/providers/SWRProvider'
 import CookieConsent from '@/components/legal/CookieConsent'
 import { WritingAssistProvider } from '@/components/providers/WritingAssistProvider'
 
-const inter = Inter({ subsets: ['latin'] })
+const ui = Schibsted_Grotesk({ subsets: ['latin'], variable: '--font-ui', display: 'swap' })
+const mono = IBM_Plex_Mono({ subsets: ['latin'], weight: ['400', '500'], variable: '--font-mono', display: 'swap' })
+const classic = Inter({ subsets: ['latin'], variable: '--font-classic', display: 'swap' })
+
+const appearanceBoot = `(function(){try{if(localStorage.getItem('kabine-appearance:v1')==='clasico'){document.documentElement.setAttribute('data-appearance','clasico')}}catch(e){}})()`
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -38,8 +43,9 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="es">
-      <body className={inter.className}>
+    <html lang="es" className={`${ui.variable} ${mono.variable} ${classic.variable}`}>
+      <body>
+        <Script id="kabine-appearance" strategy="beforeInteractive">{appearanceBoot}</Script>
         <AuthProvider>
           <SWRProvider>
             <ThemeProvider>

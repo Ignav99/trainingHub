@@ -44,6 +44,7 @@ import { ClubAvatar, Avatar } from '@/components/ui/avatar'
 import { SplashScreen } from '@/components/ui/splash-screen'
 import { Toaster } from '@/components/ui/toast'
 import { MobileBottomNav } from '@/components/ui/mobile-nav'
+import { AppearanceToggle } from '@/components/appearance/AppearanceToggle'
 import { InstallPrompt } from '@/components/ui/install-prompt'
 import { registerServiceWorker } from '@/lib/register-sw'
 import { isSaludPath } from '@/components/salud/SaludTabs'
@@ -267,11 +268,11 @@ export default function DashboardLayout({
   const contentPad = collapsed ? 'lg:pl-[4.5rem]' : 'lg:pl-72'
 
   return (
-    <div className="min-h-screen bg-muted/30 max-lg:max-w-full max-lg:overflow-x-clip">
+    <div className="app-canvas min-h-screen bg-muted/30 max-lg:max-w-full max-lg:overflow-x-clip">
       {/* Mobile sidebar overlay */}
       <div className={cn('fixed inset-0 z-50 lg:hidden', sidebarOpen ? '' : 'hidden')}>
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={handleCloseSidebar} />
-        <div className="fixed inset-y-0 left-0 w-72 bg-card shadow-xl">
+        <div className="shell fixed inset-y-0 left-0 w-72 border-r">
           <SidebarContent
             pathname={pathname}
             equipos={equipos}
@@ -288,7 +289,7 @@ export default function DashboardLayout({
 
       {/* Desktop sidebar */}
       <div className={cn('hidden lg:fixed lg:inset-y-0 lg:z-30 lg:flex lg:flex-col transition-[width] duration-200 ease-out', sidebarWidth)}>
-        <div className="relative flex min-h-0 flex-1 flex-col border-r bg-card">
+        <div className="shell relative flex min-h-0 flex-1 flex-col border-r">
           <SidebarContent
             pathname={pathname}
             equipos={equipos}
@@ -326,7 +327,7 @@ export default function DashboardLayout({
       <div className={cn('min-w-0 max-lg:max-w-full max-lg:overflow-x-clip transition-[padding] duration-200 ease-out', contentPad)}>
         {/* Mobile header */}
         <div
-          className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-x-3 border-b px-4 shadow-sm lg:hidden"
+          className="mobile-bar sticky top-0 z-40 flex h-14 shrink-0 items-center gap-x-3 border-b px-4 shadow-sm lg:hidden"
           style={{ backgroundColor: theme.colorPrimario }}
         >
           <button
@@ -386,12 +387,10 @@ function NavLink({
       href={item.href}
       onClick={onClose}
       title={collapsed ? item.name : undefined}
+      data-active={active ? 'true' : 'false'}
       className={cn(
-        'group flex items-center gap-x-3 rounded-lg text-sm font-medium transition-all',
-        collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2',
-        active
-          ? 'bg-[hsl(var(--club-primary)/0.1)] text-[hsl(var(--club-primary))] border-l-[3px] border-[hsl(var(--club-primary))]'
-          : 'text-muted-foreground hover:bg-muted hover:text-foreground border-l-[3px] border-transparent'
+        'kabine-nav group flex items-center gap-x-3 text-sm font-medium',
+        collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2'
       )}
     >
       <item.icon className="h-5 w-5 shrink-0" />
@@ -439,7 +438,7 @@ const SidebarContent = memo(function SidebarContent({
     <div className="flex grow flex-col gap-y-4 overflow-y-auto pb-4 scrollbar-thin">
       {/* Club header */}
       <div
-        className={cn('flex shrink-0 items-center justify-between shadow-sm', collapsed ? 'px-2 py-3' : 'px-5 py-4')}
+        className={cn('club-banner flex shrink-0 items-center justify-between', collapsed ? 'px-2 py-3' : 'px-5 py-4')}
         style={{ backgroundColor: theme.colorPrimario }}
       >
         <Link href="/" className={cn('flex items-center gap-3 group min-w-0', collapsed && 'justify-center w-full')}>
@@ -468,7 +467,7 @@ const SidebarContent = memo(function SidebarContent({
         <div className={cn(collapsed ? 'px-2' : 'px-5')}>
           <div
             className={cn(
-              'flex items-center rounded-xl border bg-muted/50',
+              'shell-chip flex items-center rounded-md border',
               collapsed ? 'flex-col justify-center gap-1 p-2' : 'gap-2.5 px-3 py-2.5'
             )}
           >
@@ -524,14 +523,14 @@ const SidebarContent = memo(function SidebarContent({
               <button
                 type="button"
                 onClick={() => setSaludOpen((v) => !v)}
-                className="w-full flex items-center justify-between px-3 mb-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+                className="kabine-section w-full flex items-center justify-between px-3 mb-2 hover:text-[hsl(var(--shell-foreground))]"
               >
                 <span>Salud</span>
                 <ChevronRight className={cn('h-3.5 w-3.5 transition-transform', saludOpen && 'rotate-90')} />
               </button>
             )}
             {collapsed && (
-              <div className="text-center text-[9px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+              <div className="kabine-section text-center mb-1.5">
                 Salud
               </div>
             )}
@@ -551,12 +550,12 @@ const SidebarContent = memo(function SidebarContent({
           {!isClubOnlyRole && (
           <li>
             {!collapsed && (
-              <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-3">
+              <div className="kabine-section mb-2 px-3">
                 Herramientas
               </div>
             )}
             {collapsed && (
-              <div className="text-center text-[9px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+              <div className="kabine-section text-center mb-1.5">
                 Tools
               </div>
             )}
@@ -585,7 +584,7 @@ const SidebarContent = memo(function SidebarContent({
           {!isClubOnlyRole && equipos.length > 1 && (
           <li className="mt-auto" ref={dropdownRef}>
             {!collapsed && (
-              <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-3">
+              <div className="kabine-section mb-2 px-3">
                 Equipo
               </div>
             )}
@@ -594,7 +593,7 @@ const SidebarContent = memo(function SidebarContent({
                 onClick={() => setEquipoDropdownOpen(!equipoDropdownOpen)}
                 title={collapsed ? equipoActivo?.nombre : undefined}
                 className={cn(
-                  'flex w-full items-center rounded-lg bg-muted/70 text-sm font-medium hover:bg-muted transition-colors',
+                  'shell-chip flex w-full items-center rounded-md border text-sm font-medium',
                   collapsed ? 'justify-center p-2' : 'gap-x-3 p-2.5'
                 )}
               >
@@ -682,6 +681,7 @@ const SidebarContent = memo(function SidebarContent({
           )}
 
           <li className={cn((isClubOnlyRole || equipos.length <= 1) && 'mt-auto')}>
+            <AppearanceToggle collapsed={collapsed} />
             <button
               onClick={onLogout}
               title={collapsed ? 'Cerrar sesión' : undefined}

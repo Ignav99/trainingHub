@@ -1,5 +1,8 @@
 # TrainingHub — estado actual
 
+## Diseño Acta (9 nov 2026, rama cursor/diseno-acta-9a4e)
+El aspecto anterior era la plantilla shadcn: Inter, blanco, sombra, radio 0.5rem. Queda guardado en `html[data-appearance="clasico"]` y en localStorage `kabine-appearance:v1`. El botón «Aspecto anterior» de la barra lo activa. El nuevo (por defecto) es Acta: hoja fría, banco oscuro `#111916`-equivalente HSL `160 18% 8%`, Schibsted Grotesk + IBM Plex Mono en las secciones, el color del club solo en la marca de dónde estás y en los botones, sin sombras. No es crema+serif, ni negro+verde ácido, ni periódico.
+
 ## Microciclo: olfato y objetivos (9 nov 2026, rama cursor/microciclo-guardado-9a4e)
 El texto vivía en el estado local. El autoguardado esperaba 1,5 s y al salir se cancelaba; mientras cargaba el rival, el guardado se tiraba y el indicador pasaba a idle. Al volver, SWR enseñaba `/microciclos/{id}/completo` de la primera carga y SalaLunes no lo actualizaba. Arreglo: cola `createLatestWrite` (una escritura vieja no pisa la nueva), flush al salir y en pagehide, el plan se guarda aunque el rival no haya cargado, `merge_plan_ct` no deja que un parcial borre olfato/objetivos, la vista completa se pinta al guardar y `planForScreen` ignora una recarga más vieja.
 
