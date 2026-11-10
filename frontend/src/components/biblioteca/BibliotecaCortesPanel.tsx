@@ -21,6 +21,7 @@ import { MultiFiltro, type MultiFiltroOpcion } from '@/components/biblioteca/Mul
 import { BibliotecaReproductor, ListaInicios } from '@/components/biblioteca/BibliotecaReproductor'
 import { revisionApi } from '@/lib/api/revision'
 import type { Partido } from '@/types'
+import { useAppearance } from '@/lib/useAppearance'
 
 const PresentacionSala = lazy(() =>
   import('@/components/revision/PresentacionSala').then((m) => ({ default: m.PresentacionSala }))
@@ -53,6 +54,7 @@ export function BibliotecaCortesPanel({
   jugadorId?: string
   compact?: boolean
 }) {
+  const cal = useAppearance() === 'cal'
   const [q, setQ] = useState('')
   const [qDebounced, setQDebounced] = useState('')
   const [partidoIds, setPartidoIds] = useState<string[]>([])
@@ -441,7 +443,7 @@ export function BibliotecaCortesPanel({
           {rows.map((corte) => {
             const on = selected.includes(corte.id)
             return (
-              <Card key={corte.id} className="overflow-hidden [content-visibility:auto] [contain-intrinsic-size:auto_280px]">
+              <Card key={corte.id} className={`overflow-hidden ${cal ? 'rounded-none shadow-none ' : ''}[content-visibility:auto] [contain-intrinsic-size:auto_280px]`}>
                 <div className="relative">
                   <button
                     type="button"
@@ -464,15 +466,15 @@ export function BibliotecaCortesPanel({
                     <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openClips([corte.id])}>
                       <p className="truncate text-sm font-medium">{corte.titulo}</p>
                     </button>
-                    <Button size="sm" variant="ghost" onClick={() => { void download([corte.id]) }} disabled={!corte.url || Boolean(downloading)} aria-label={`Descargar ${corte.titulo}`}>
+                    <Button size={cal ? 'icon' : 'sm'} variant="ghost" className={cal ? 'h-10 w-10 shrink-0 rounded-none' : undefined} onClick={() => { void download([corte.id]) }} disabled={!corte.url || Boolean(downloading)} aria-label={`Descargar ${corte.titulo}`}>
                       <Download className="h-3.5 w-3.5" />
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => { void remove(corte) }} aria-label="Quitar de la biblioteca">
+                    <Button size={cal ? 'icon' : 'sm'} variant="ghost" className={cal ? 'h-10 w-10 shrink-0 rounded-none' : undefined} onClick={() => { void remove(corte) }} aria-label={`Quitar ${corte.titulo} de la biblioteca`}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                   {corte.descripcion && <p className="line-clamp-2 text-xs text-muted-foreground">{corte.descripcion}</p>}
-                  <p className="text-[11px] text-muted-foreground">{etiquetasDe(corte)}</p>
+                  <p className={cal ? 'truncate font-mono text-[11px] text-muted-foreground' : 'text-[11px] text-muted-foreground'}>{etiquetasDe(corte)}</p>
                   {corte.jugadores.length > 0 && (
                     <p className="text-[11px] text-muted-foreground">
                       {corte.jugadores.map((jugador, jugadorIndex) => (

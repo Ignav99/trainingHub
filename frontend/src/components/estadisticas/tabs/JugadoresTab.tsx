@@ -11,6 +11,10 @@ import {
 } from 'recharts'
 import { Users, ArrowUpDown } from 'lucide-react'
 import type { JugadorStats } from '@/lib/api/estadisticasDashboard'
+import { useAppearance } from '@/lib/useAppearance'
+import {
+  C, barraCal, ejeXCal, ejeYCal, ejeCategoriaCal, rejillaCal, tooltipCal, radarCal, TOOLTIP_CAL_CLASE,
+} from '@/lib/graficoCal'
 
 interface Props {
   jugadores: JugadorStats[]
@@ -27,6 +31,9 @@ const POS_GROUPS: Record<string, string[]> = {
 }
 
 export function JugadoresTab({ jugadores }: Props) {
+  const cal = useAppearance() === 'cal'
+  const num = cal ? 'text-right tabular-nums' : 'text-center'
+  const tono = (clase: string) => (cal ? '' : clase)
   const [sortKey, setSortKey] = useState<SortKey>('minutos_totales')
   const [sortAsc, setSortAsc] = useState(false)
   const [posFilter, setPosFilter] = useState<string>('todos')
@@ -53,7 +60,7 @@ export function JugadoresTab({ jugadores }: Props) {
 
   const SortHeader = ({ k, label }: { k: SortKey; label: string }) => (
     <th
-      className="pb-2 font-medium text-center cursor-pointer hover:text-foreground select-none"
+      className={`pb-2 font-medium cursor-pointer hover:text-foreground select-none ${cal ? 'text-right' : 'text-center'}`}
       onClick={() => handleSort(k)}
     >
       <span className="inline-flex items-center gap-0.5">
@@ -112,7 +119,7 @@ export function JugadoresTab({ jugadores }: Props) {
       {/* Table */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2"><Users className="h-5 w-5" /> Jugadores ({filtered.length})</CardTitle>
+          <CardTitle className="text-base flex items-center gap-2">{!cal && <Users className="h-5 w-5" />} Jugadores ({filtered.length})</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -129,13 +136,13 @@ export function JugadoresTab({ jugadores }: Props) {
                   <SortHeader k="asistencias" label="Ast" />
                   <SortHeader k="amarillas" label="TA" />
                   <SortHeader k="rojas" label="TR" />
-                  <th className="pb-2 font-medium text-center">Min/Gol</th>
-                  <th className="pb-2 font-medium text-center">% Tit</th>
+                  <th className={`pb-2 font-medium ${cal ? 'text-right' : 'text-center'}`}>Min/Gol</th>
+                  <th className={`pb-2 font-medium ${cal ? 'text-right' : 'text-center'}`}>% Tit</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((j) => (
-                  <tr key={j.jugador_id} className="border-b last:border-0 row-hover">
+                  <tr key={j.jugador_id} className={cal ? 'border-b last:border-0 row-hover h-9 [@media(pointer:coarse)]:h-11' : 'border-b last:border-0 row-hover'}>
                     <td className="py-2">
                       <input
                         type="checkbox"
@@ -149,16 +156,16 @@ export function JugadoresTab({ jugadores }: Props) {
                       <span className="text-muted-foreground text-xs mr-1.5">{j.dorsal || '-'}</span>
                       {j.nombre} {j.apellidos}
                     </td>
-                    <td className="py-2 text-center"><Badge variant="outline" className="text-[10px]">{j.posicion_principal}</Badge></td>
-                    <td className="py-2 text-center">{j.convocatorias}</td>
-                    <td className="py-2 text-center">{j.titularidades}</td>
-                    <td className="py-2 text-center font-medium">{j.minutos_totales}</td>
-                    <td className="py-2 text-center font-medium text-emerald-600">{j.goles || '-'}</td>
-                    <td className="py-2 text-center text-blue-600">{j.asistencias || '-'}</td>
-                    <td className="py-2 text-center text-amber-600">{j.amarillas || '-'}</td>
-                    <td className="py-2 text-center text-red-600">{j.rojas || '-'}</td>
-                    <td className="py-2 text-center text-muted-foreground">{j.minutos_por_gol ?? '-'}</td>
-                    <td className="py-2 text-center">{j.ratio_titular}%</td>
+                    <td className="py-2 text-center">{cal ? j.posicion_principal : <Badge variant="outline" className="text-[10px]">{j.posicion_principal}</Badge>}</td>
+                    <td className={`py-2 ${num}`}>{j.convocatorias}</td>
+                    <td className={`py-2 ${num}`}>{j.titularidades}</td>
+                    <td className={`py-2 ${num} font-medium`}>{j.minutos_totales}</td>
+                    <td className={`py-2 ${num} font-medium ${tono('text-emerald-600')}`}>{j.goles || '-'}</td>
+                    <td className={`py-2 ${num} ${tono('text-blue-600')}`}>{j.asistencias || '-'}</td>
+                    <td className={`py-2 ${num} ${tono('text-amber-600')}`}>{j.amarillas || '-'}</td>
+                    <td className={`py-2 ${num} ${tono('text-red-600')}`}>{j.rojas || '-'}</td>
+                    <td className={`py-2 ${num} text-muted-foreground`}>{j.minutos_por_gol ?? '-'}</td>
+                    <td className={`py-2 ${num}`}>{j.ratio_titular}%</td>
                   </tr>
                 ))}
               </tbody>
@@ -170,6 +177,17 @@ export function JugadoresTab({ jugadores }: Props) {
       <div className="grid md:grid-cols-2 gap-6">
         {/* Minutes bar chart */}
         <ChartCard title="Minutos por jugador (Top 20)" isEmpty={minutosData.length === 0}>
+{cal ? (
+<ResponsiveContainer width="100%" height={400}>
+  <BarChart data={minutosData} layout="vertical">
+    <CartesianGrid {...rejillaCal} vertical horizontal={false} />
+    <XAxis type="number" {...ejeXCal} />
+    <YAxis dataKey="name" type="category" width={80} {...ejeCategoriaCal} />
+    <Tooltip {...tooltipCal} />
+    <Bar dataKey="min" fill={C.primary} name="Minutos" {...barraCal} />
+  </BarChart>
+</ResponsiveContainer>
+) : (
           <ResponsiveContainer width="100%" height={400}>
             <BarChart data={minutosData} layout="vertical">
               <XAxis type="number" tick={{ fontSize: 10 }} />
@@ -178,10 +196,36 @@ export function JugadoresTab({ jugadores }: Props) {
               <Bar dataKey="min" fill="#3B82F6" name="Minutos" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
+)}
         </ChartCard>
 
         {/* Scatter: Goles vs Asistencias */}
         <ChartCard title="Goles vs Asistencias" isEmpty={scatterData.length === 0} emptyMessage="Sin goles ni asistencias registrados">
+{cal ? (
+<ResponsiveContainer width="100%" height={400}>
+  <ScatterChart>
+    <CartesianGrid {...rejillaCal} />
+    <XAxis dataKey="x" name="Goles" {...ejeXCal} label={{ value: 'Goles', position: 'bottom', fontSize: 11, fill: C.neutro }} />
+    <YAxis dataKey="y" name="Asistencias" {...ejeYCal} label={{ value: 'Asistencias', angle: -90, position: 'insideLeft', fontSize: 11, fill: C.neutro }} />
+    <ZAxis dataKey="z" range={[40, 400]} name="Minutos" />
+    <Tooltip
+      {...tooltipCal}
+      content={({ active, payload }) => {
+        if (!active || !payload?.[0]) return null
+        const d = payload[0].payload
+        return (
+          <div className={TOOLTIP_CAL_CLASE}>
+            <p className="font-medium">{d.name}</p>
+            <p>Goles: {d.x} | Asist: {d.y}</p>
+            <p>Minutos: {d.z}</p>
+          </div>
+        )
+      }}
+    />
+    <Scatter data={scatterData} fill={C.primary} isAnimationActive={false} />
+  </ScatterChart>
+</ResponsiveContainer>
+) : (
           <ResponsiveContainer width="100%" height={400}>
             <ScatterChart>
               <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
@@ -202,12 +246,28 @@ export function JugadoresTab({ jugadores }: Props) {
               <Scatter data={scatterData} fill="#8B5CF6" />
             </ScatterChart>
           </ResponsiveContainer>
+)}
         </ChartCard>
       </div>
 
       {/* Radar comparator */}
       {comparar.length >= 2 && (
         <ChartCard title={`Comparador: ${comparar.map((id) => jugadores.find((j) => j.jugador_id === id)?.nombre).join(' vs ')}`}>
+{cal ? (
+<ResponsiveContainer width="100%" height={300}>
+  <RadarChart data={comparadosData}>
+    <PolarGrid stroke={C.linea} />
+    <PolarAngleAxis dataKey="stat" tick={{ fontSize: 11, fill: C.neutro }} />
+    <PolarRadiusAxis tick={{ fontSize: 11, fill: C.neutro }} domain={[0, 100]} axisLine={false} />
+    {comparar.map((id, i) => {
+      const j = jugadores.find((j) => j.jugador_id === id)
+      const colores = [C.primary, C.info, C.neutro]
+      return j ? <Radar key={id} name={j.nombre} dataKey={j.nombre} stroke={colores[i]} fill={colores[i]} {...radarCal} /> : null
+    })}
+    <Tooltip {...tooltipCal} />
+  </RadarChart>
+</ResponsiveContainer>
+) : (
           <ResponsiveContainer width="100%" height={300}>
             <RadarChart data={comparadosData}>
               <PolarGrid />
@@ -221,6 +281,7 @@ export function JugadoresTab({ jugadores }: Props) {
               <Tooltip />
             </RadarChart>
           </ResponsiveContainer>
+)}
         </ChartCard>
       )}
     </div>

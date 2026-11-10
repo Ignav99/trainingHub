@@ -1,14 +1,17 @@
 'use client'
 
-import { StatCard } from '../StatCard'
+import { KpiFranja } from '../KpiFranja'
+import { BarrasHorizontalCal } from '../BarrasHorizontalCal'
 import { ChartCard } from '../ChartCard'
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, ReferenceLine,
   PieChart, Pie,
 } from 'recharts'
 import { Dumbbell, CheckCircle, Clock, Zap } from 'lucide-react'
 import type { SesionesData } from '@/lib/api/estadisticasDashboard'
 import type { CargaSemanalData } from '@/lib/api/dashboard'
+import { useAppearance } from '@/lib/useAppearance'
+import { C, barraCal, ejeXCal, ejeYCal, rejillaCal, tooltipCal } from '@/lib/graficoCal'
 
 interface Props {
   sesiones: SesionesData
@@ -50,6 +53,7 @@ const CARGA_COLORS: Record<string, string> = {
 }
 
 export function SesionesTab({ sesiones, cargaSemanal }: Props) {
+  const cal = useAppearance() === 'cal'
   // Dominant load
   const cargaDominante = Object.entries(sesiones.por_carga)
     .sort((a, b) => b[1] - a[1])[0]?.[0] || '-'
@@ -97,16 +101,30 @@ export function SesionesTab({ sesiones, cargaSemanal }: Props) {
   return (
     <div className="space-y-6">
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard icon={Dumbbell} value={sesiones.total} label="Total sesiones" color="primary" />
-        <StatCard icon={CheckCircle} value={sesiones.completadas} label="Completadas" color="emerald" />
-        <StatCard icon={Clock} value={`${sesiones.duracion_media}'`} label="Duracion media" color="blue" />
-        <StatCard icon={Zap} value={CARGA_LABELS[cargaDominante] || cargaDominante} label="Carga dominante" color="amber" />
-      </div>
+      <KpiFranja
+        gridClass="grid grid-cols-2 md:grid-cols-4 gap-4"
+        items={[
+          { icon: Dumbbell, value: sesiones.total, label: 'Total sesiones', color: 'primary' },
+          { icon: CheckCircle, value: sesiones.completadas, label: 'Completadas', color: 'emerald' },
+          { icon: Clock, value: `${sesiones.duracion_media}'`, calValue: sesiones.duracion_media, unit: 'min', label: 'Duracion media', color: 'blue' },
+          { icon: Zap, value: CARGA_LABELS[cargaDominante] || cargaDominante, label: 'Carga dominante', color: 'amber' },
+        ]}
+      />
 
       <div className="grid md:grid-cols-2 gap-6">
         {/* Sessions by Match Day */}
         <ChartCard title="Sesiones por Match Day" isEmpty={mdData.length === 0}>
+          {cal ? (
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={mdData}>
+                <CartesianGrid {...rejillaCal} />
+                <XAxis dataKey="name" {...ejeXCal} />
+                <YAxis {...ejeYCal} allowDecimals={false} />
+                <Tooltip {...tooltipCal} />
+                <Bar dataKey="sesiones" fill={C.primary} {...barraCal} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={mdData}>
               <XAxis dataKey="name" tick={{ fontSize: 12 }} />
@@ -119,10 +137,14 @@ export function SesionesTab({ sesiones, cargaSemanal }: Props) {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+          )}
         </ChartCard>
 
         {/* Phases pie */}
         <ChartCard title="Distribucion por fase de juego" isEmpty={faseData.length === 0}>
+          {cal ? (
+            <BarrasHorizontalCal data={faseData.map((d) => ({ name: d.name, value: d.value }))} />
+          ) : (
           <ResponsiveContainer width="100%" height={280}>
             <PieChart>
               <Pie data={faseData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} innerRadius={45} label={({ name, value }) => `${name}: ${value}`}>
@@ -133,12 +155,24 @@ export function SesionesTab({ sesiones, cargaSemanal }: Props) {
               <Tooltip />
             </PieChart>
           </ResponsiveContainer>
+          )}
         </ChartCard>
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
         {/* Load distribution */}
         <ChartCard title="Distribucion por carga fisica" isEmpty={cargaData.length === 0}>
+          {cal ? (
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={cargaData}>
+                <CartesianGrid {...rejillaCal} />
+                <XAxis dataKey="name" {...ejeXCal} />
+                <YAxis {...ejeYCal} allowDecimals={false} />
+                <Tooltip {...tooltipCal} />
+                <Bar dataKey="sesiones" fill={C.primary} {...barraCal} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={cargaData}>
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
@@ -151,10 +185,29 @@ export function SesionesTab({ sesiones, cargaSemanal }: Props) {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+          )}
         </ChartCard>
 
         {/* RPE weekly */}
         <ChartCard title="RPE semanal" isEmpty={rpeData.length === 0} emptyMessage="Sin registros RPE">
+          {cal ? (
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={rpeData}>
+                <CartesianGrid {...rejillaCal} />
+                <XAxis dataKey="name" {...ejeXCal} />
+                <YAxis domain={[0, 10]} {...ejeYCal} />
+                <Tooltip {...tooltipCal} />
+                <ReferenceLine
+                  y={7}
+                  stroke={C.neutro}
+                  strokeWidth={1}
+                  strokeDasharray="4 3"
+                  label={{ value: 'Carga alta (7)', position: 'insideTopRight', fontSize: 11, fill: C.neutro }}
+                />
+                <Bar dataKey="rpe" name="RPE" fill={C.primary} {...barraCal} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={rpeData}>
               <XAxis dataKey="name" tick={{ fontSize: 10 }} />
@@ -167,6 +220,7 @@ export function SesionesTab({ sesiones, cargaSemanal }: Props) {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+          )}
         </ChartCard>
       </div>
     </div>

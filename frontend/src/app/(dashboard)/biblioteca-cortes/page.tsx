@@ -5,11 +5,13 @@ import { useEquipoStore } from '@/stores/equipoStore'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { BibliotecaCortesPanel } from '@/components/biblioteca/BibliotecaCortesPanel'
+import { SuperficieVisitante } from '@/components/appearance/SuperficieVisitante'
 
 export default function BibliotecaCortesPage() {
   const equipoId = useEquipoStore((s) => s.equipoActivo?.id || '')
 
   return (
+    <SuperficieVisitante>
     <div className="mx-auto max-w-6xl space-y-4">
       <PageHeader
         title="Biblioteca de cortes"
@@ -26,5 +28,6 @@ export default function BibliotecaCortesPage() {
         <p className="text-sm text-muted-foreground">Elige un equipo para ver su biblioteca.</p>
       )}
     </div>
+    </SuperficieVisitante>
   )
 }

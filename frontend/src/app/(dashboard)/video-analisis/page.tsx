@@ -43,6 +43,8 @@ import {
 } from '@/components/video-analyzer/videoAnalisisPicker'
 import { revisionApi } from '@/lib/api/revision'
 import { revisionDestinoLabel } from '@/lib/revisionDestino'
+import { useAppearance } from '@/lib/useAppearance'
+import { SuperficieVisitante } from '@/components/appearance/SuperficieVisitante'
 
 const VideoAnalyzer = lazy(() =>
   import('@/components/video-analyzer/VideoAnalyzer').then((m) => ({ default: m.VideoAnalyzer }))
@@ -52,6 +54,8 @@ const PresentacionSala = lazy(() =>
 )
 
 export default function VideoAnalisisPage() {
+  const cal = useAppearance() === 'cal'
+  const rr = cal ? 'rounded-none' : 'rounded-lg'
   const equipoActivo = useEquipoStore((s) => s.equipoActivo)
   const equipoId = equipoActivo?.id || ''
   const clubName = useClubStore((s) => s.organizacion?.nombre || equipoActivo?.nombre || 'Nosotros')
@@ -270,7 +274,7 @@ export default function VideoAnalisisPage() {
   }
 
   return (
-    <>
+    <SuperficieVisitante>
       <PageHeader
         title="Video Análisis"
         description="Elige el partido que vais a jugar y si el vídeo es el vuestro o del rival contra otro equipo"
@@ -298,7 +302,7 @@ export default function VideoAnalisisPage() {
       />
 
       <div className="space-y-6">
-        <Card className="p-4">
+        <Card className={cal ? 'rounded-none p-4 shadow-none' : 'p-4'}>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">
               {source?.kind === 'loose'
@@ -326,7 +330,7 @@ export default function VideoAnalisisPage() {
                 <button
                   type="button"
                   onClick={() => setWatchMode('revision')}
-                  className={`rounded-lg border p-3 text-left transition-colors ${
+                  className={`${rr} border p-3 text-left transition-colors ${
                     watchMode === 'revision' ? 'border-foreground bg-muted' : 'hover:bg-muted/60'
                   }`}
                 >
@@ -338,7 +342,7 @@ export default function VideoAnalisisPage() {
                 <button
                   type="button"
                   onClick={() => setWatchMode('informe_rival')}
-                  className={`rounded-lg border p-3 text-left transition-colors ${
+                  className={`${rr} border p-3 text-left transition-colors ${
                     watchMode === 'informe_rival' ? 'border-foreground bg-muted' : 'hover:bg-muted/60'
                   }`}
                 >
@@ -363,7 +367,7 @@ export default function VideoAnalisisPage() {
           ) : null}
         </Card>
 
-        <div className="rounded-lg border">
+        <div className={`${rr} border`}>
           <button
             type="button"
             onClick={() => setDirectoMenu((open) => !open)}
@@ -385,7 +389,7 @@ export default function VideoAnalisisPage() {
               <button
                 type="button"
                 onClick={() => startDirecto(false)}
-                className="rounded-lg border p-3 text-left transition-colors hover:bg-muted/60"
+                className={`${rr} border p-3 text-left transition-colors hover:bg-muted/60`}
               >
                 <span className="block text-sm font-medium">Solo en este ordenador</span>
                 <span className="mt-0.5 block text-xs text-muted-foreground">
@@ -395,7 +399,7 @@ export default function VideoAnalisisPage() {
               <button
                 type="button"
                 onClick={() => startDirecto(true)}
-                className="rounded-lg border p-3 text-left transition-colors hover:bg-muted/60"
+                className={`${rr} border p-3 text-left transition-colors hover:bg-muted/60`}
               >
                 <span className="block text-sm font-medium">Con tablet</span>
                 <span className="mt-0.5 block text-xs text-muted-foreground">
@@ -413,7 +417,7 @@ export default function VideoAnalisisPage() {
             setWatchMode(null)
             setWatchedOpponent('')
           }}
-          className={`flex w-full items-center gap-4 rounded-lg border p-4 text-left transition-colors ${
+          className={`flex w-full items-center gap-4 ${rr} border p-4 text-left transition-colors ${
             source?.kind === 'loose' ? 'border-foreground bg-muted' : 'hover:bg-muted/60'
           }`}
         >
@@ -434,7 +438,7 @@ export default function VideoAnalisisPage() {
               type="button"
               onClick={() => setVerResto((v) => !v)}
               aria-expanded={restoAbierto}
-              className="flex w-full items-center justify-between rounded-lg border border-dashed px-4 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+              className={`flex w-full items-center justify-between ${rr} border border-dashed px-4 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground`}
             >
               <span>
                 Otros partidos <span className="tabular-nums">({cercanos.resto.length})</span>
@@ -444,7 +448,7 @@ export default function VideoAnalisisPage() {
             {restoAbierto &&
               months.map((month) => (
                 <section key={month.key} className="space-y-2">
-                  <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  <h2 className={`text-xs font-semibold text-muted-foreground ${cal ? 'font-mono' : 'uppercase tracking-[0.18em]'}`}>
                     {month.label}
                   </h2>
                   <div className="grid gap-3 md:grid-cols-2">{month.partidos.map(tarjetaPartido)}</div>
@@ -460,7 +464,7 @@ export default function VideoAnalisisPage() {
             )}
             <div className="flex items-center gap-3" aria-label="Hoy">
               <span className="h-px flex-1 bg-[hsl(var(--club-primary))]" />
-              <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--club-primary))]">
+              <span className={`shrink-0 text-[11px] font-semibold text-[hsl(var(--club-primary))] ${cal ? 'font-mono' : 'uppercase tracking-[0.18em]'}`}>
                 Hoy
               </span>
               <span className="h-px flex-1 bg-[hsl(var(--club-primary))]" />
@@ -472,7 +476,7 @@ export default function VideoAnalisisPage() {
         )}
 
         {partidos.length === 0 ? (
-          <Card className="p-8 text-center text-sm text-muted-foreground">
+          <Card className={`${cal ? 'rounded-none shadow-none ' : ''}p-8 text-center text-sm text-muted-foreground`}>
             No hay partidos en este equipo. Puedes cargar un vídeo suelto igual.
           </Card>
         ) : null}
@@ -488,7 +492,7 @@ export default function VideoAnalisisPage() {
             </h3>
 
             {anotaciones.length === 0 ? (
-              <Card className="p-6 text-center text-muted-foreground text-sm">
+              <Card className={`${cal ? 'rounded-none shadow-none ' : ''}p-6 text-center text-muted-foreground text-sm`}>
                 <ScanSearch className="h-8 w-8 mx-auto mb-2 opacity-30" />
                 <p>Pulsa un botón en el momento. El recorte entra en esa línea.</p>
               </Card>
@@ -554,7 +558,7 @@ export default function VideoAnalisisPage() {
           />
         </Suspense>
       ) : null}
-    </>
+    </SuperficieVisitante>
   )
 }
 
@@ -573,6 +577,7 @@ function MatchPickCard({
   trabajo?: { partido_id: string; modo: string; rival_visto?: string | null }
   onSelect: () => void
 }) {
+  const cal = useAppearance() === 'cal'
   const fecha = new Date(partido.fecha)
   const dateLabel = Number.isNaN(fecha.getTime())
     ? 'Sin fecha'
@@ -588,12 +593,12 @@ function MatchPickCard({
     <button
       type="button"
       onClick={onSelect}
-      className={`flex items-center gap-3 rounded-lg border p-3 text-left transition-colors ${
+      className={`flex items-center gap-3 ${cal ? 'rounded-none' : 'rounded-lg'} border p-3 text-left transition-colors ${
         selected ? 'border-foreground bg-muted' : 'hover:bg-muted/60'
       }`}
     >
       <div className="min-w-[4.5rem] tabular-nums">
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">{dateLabel}</p>
+        <p className={`text-xs text-muted-foreground ${cal ? 'font-mono' : 'uppercase tracking-wide'}`}>{dateLabel}</p>
         {partido.jornada ? <p className="text-[11px] text-muted-foreground">J{partido.jornada}</p> : null}
       </div>
       <div className="flex min-w-0 flex-1 items-center justify-center gap-2">
@@ -605,11 +610,11 @@ function MatchPickCard({
       </div>
       <span className="flex shrink-0 flex-col items-end gap-1">
         {trabajo ? (
-          <span className="rounded bg-foreground px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-background">
+          <span className={`bg-foreground px-2 py-0.5 text-[10px] font-medium text-background ${cal ? 'rounded-none font-mono' : 'rounded uppercase tracking-wide'}`}>
             {videoTrabajoBadge(trabajo)}
           </span>
         ) : null}
-        <span className="rounded border px-2 py-0.5 text-[10px] uppercase tracking-wide">
+        <span className={`border px-2 py-0.5 text-[10px] ${cal ? 'rounded-none font-mono' : 'rounded uppercase tracking-wide'}`}>
           {localiaLabel(partido.localia)}
         </span>
       </span>
@@ -626,8 +631,9 @@ function AnotacionCard({
   onDelete: () => void
   deleting: boolean
 }) {
+  const cal = useAppearance() === 'cal'
   return (
-    <Card className="p-3 space-y-2">
+    <Card className={cal ? 'space-y-2 rounded-none p-3 shadow-none' : 'p-3 space-y-2'}>
       {anotacion.thumbnail_data ? (
         <img
           src={anotacion.thumbnail_data}
@@ -642,7 +648,7 @@ function AnotacionCard({
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium truncate">{anotacion.titulo}</p>
-          <p className="text-xs text-muted-foreground">
+          <p className={`text-xs text-muted-foreground ${cal ? 'font-mono' : ''}`}>
             {formatTime(anotacion.timestamp_seconds)}
           </p>
           {anotacion.descripcion && (
@@ -652,7 +658,8 @@ function AnotacionCard({
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7 text-destructive shrink-0"
+          className={cal ? 'h-10 w-10 shrink-0 text-destructive' : 'h-7 w-7 text-destructive shrink-0'}
+          aria-label="Eliminar momento"
           onClick={onDelete}
           disabled={deleting}
         >

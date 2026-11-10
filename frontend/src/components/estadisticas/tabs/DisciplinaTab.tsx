@@ -1,6 +1,6 @@
 'use client'
 
-import { StatCard } from '../StatCard'
+import { KpiFranja } from '../KpiFranja'
 import { ChartCard } from '../ChartCard'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -10,6 +10,10 @@ import {
 } from 'recharts'
 import { AlertTriangle, ShieldAlert, CreditCard, Users } from 'lucide-react'
 import type { EstadisticasDashboardResponse, JugadorStats } from '@/lib/api/estadisticasDashboard'
+import { useAppearance } from '@/lib/useAppearance'
+import {
+  C, barraCal, lineaCal, ejeXCal, ejeYCal, ejeCategoriaCal, rejillaCal, tooltipCal, leyendaCal,
+} from '@/lib/graficoCal'
 
 interface Props {
   data: EstadisticasDashboardResponse
@@ -18,6 +22,7 @@ interface Props {
 const APERCIBIMIENTO_LIMITE = 5
 
 export function DisciplinaTab({ data }: Props) {
+  const cal = useAppearance() === 'cal'
   const { estadisticas_acumuladas: stats, evolucion_partidos, jugadores } = data
 
   // KPIs
@@ -60,15 +65,31 @@ export function DisciplinaTab({ data }: Props) {
   return (
     <div className="space-y-6">
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard icon={AlertTriangle} value={faltasCometidas} label="Faltas cometidas" color="amber" />
-        <StatCard icon={ShieldAlert} value={faltasRecibidas} label="Faltas recibidas" color="blue" />
-        <StatCard icon={CreditCard} value={totalAmarillas} label="Tarjetas amarillas" color="amber" />
-        <StatCard icon={CreditCard} value={totalRojas} label="Tarjetas rojas" color="red" />
-      </div>
+      <KpiFranja
+        gridClass="grid grid-cols-2 md:grid-cols-4 gap-4"
+        items={[
+          { icon: AlertTriangle, value: faltasCometidas, label: 'Faltas cometidas', color: 'amber' },
+          { icon: ShieldAlert, value: faltasRecibidas, label: 'Faltas recibidas', color: 'blue' },
+          { icon: CreditCard, value: totalAmarillas, label: 'Tarjetas amarillas', color: 'amber' },
+          { icon: CreditCard, value: totalRojas, label: 'Tarjetas rojas', color: 'red' },
+        ]}
+      />
 
       {/* Faltas evolution */}
       <ChartCard title="Faltas cometidas vs recibidas" isEmpty={faltasData.length === 0}>
+{cal ? (
+<ResponsiveContainer width="100%" height={280}>
+  <LineChart data={faltasData}>
+    <CartesianGrid {...rejillaCal} />
+    <XAxis dataKey="name" {...ejeXCal} />
+    <YAxis {...ejeYCal} />
+    <Tooltip {...tooltipCal} />
+    <Legend {...leyendaCal} />
+    <Line dataKey="cometidas" stroke={C.primary} name="Cometidas" {...lineaCal} connectNulls />
+    <Line dataKey="recibidas" stroke={C.neutro} name="Recibidas" {...lineaCal} connectNulls />
+  </LineChart>
+</ResponsiveContainer>
+) : (
         <ResponsiveContainer width="100%" height={280}>
           <LineChart data={faltasData}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
@@ -80,11 +101,25 @@ export function DisciplinaTab({ data }: Props) {
             <Line type="monotone" dataKey="recibidas" stroke="#3B82F6" strokeWidth={2} name="Recibidas" dot={{ r: 2 }} connectNulls />
           </LineChart>
         </ResponsiveContainer>
+)}
       </ChartCard>
 
       <div className="grid md:grid-cols-2 gap-6">
         {/* Cards by player */}
         <ChartCard title="Tarjetas por jugador" isEmpty={jugadoresConTarjetas.length === 0}>
+{cal ? (
+<ResponsiveContainer width="100%" height={Math.max(200, jugadoresConTarjetas.length * 28)}>
+  <BarChart data={jugadoresConTarjetas} layout="vertical">
+    <CartesianGrid {...rejillaCal} vertical horizontal={false} />
+    <XAxis type="number" {...ejeXCal} allowDecimals={false} />
+    <YAxis dataKey="name" type="category" width={80} {...ejeCategoriaCal} />
+    <Tooltip {...tooltipCal} />
+    <Legend {...leyendaCal} />
+    <Bar dataKey="amarillas" stackId="a" fill={C.amarilla} name="Amarillas" {...barraCal} />
+    <Bar dataKey="rojas" stackId="a" fill={C.roja} name="Rojas" {...barraCal} />
+  </BarChart>
+</ResponsiveContainer>
+) : (
           <ResponsiveContainer width="100%" height={Math.max(200, jugadoresConTarjetas.length * 28)}>
             <BarChart data={jugadoresConTarjetas} layout="vertical">
               <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
@@ -95,10 +130,24 @@ export function DisciplinaTab({ data }: Props) {
               <Bar dataKey="rojas" stackId="a" fill="#EF4444" name="Rojas" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
+)}
         </ChartCard>
 
         {/* Cards by match */}
         <ChartCard title="Tarjetas por jornada" isEmpty={tarjetasPorPartido.length === 0}>
+{cal ? (
+<ResponsiveContainer width="100%" height={280}>
+  <BarChart data={tarjetasPorPartido}>
+    <CartesianGrid {...rejillaCal} />
+    <XAxis dataKey="name" {...ejeXCal} />
+    <YAxis {...ejeYCal} allowDecimals={false} />
+    <Tooltip {...tooltipCal} />
+    <Legend {...leyendaCal} />
+    <Bar dataKey="amarillas" fill={C.amarilla} name="Amarillas" {...barraCal} />
+    <Bar dataKey="rojas" fill={C.roja} name="Rojas" {...barraCal} />
+  </BarChart>
+</ResponsiveContainer>
+) : (
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={tarjetasPorPartido}>
               <XAxis dataKey="name" tick={{ fontSize: 10 }} />
@@ -109,6 +158,7 @@ export function DisciplinaTab({ data }: Props) {
               <Bar dataKey="rojas" fill="#EF4444" name="Rojas" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
+)}
         </ChartCard>
       </div>
 

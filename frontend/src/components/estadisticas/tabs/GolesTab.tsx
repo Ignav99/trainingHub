@@ -1,6 +1,7 @@
 'use client'
 
-import { StatCard } from '../StatCard'
+import { KpiFranja } from '../KpiFranja'
+import { BarrasHorizontalCal } from '../BarrasHorizontalCal'
 import { ChartCard } from '../ChartCard'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend,
@@ -9,6 +10,10 @@ import {
 } from 'recharts'
 import { Crosshair, Shield, Target, CornerDownRight } from 'lucide-react'
 import type { EstadisticasDashboardResponse } from '@/lib/api/estadisticasDashboard'
+import { useAppearance } from '@/lib/useAppearance'
+import {
+  C, barraCal, lineaCal, ejeXCal, ejeYCal, rejillaCal, tooltipCal, leyendaCal,
+} from '@/lib/graficoCal'
 
 interface Props {
   data: EstadisticasDashboardResponse
@@ -44,6 +49,7 @@ const PIE_COLORS_FAVOR = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#EC4899',
 const PIE_COLORS_CONTRA = ['#EF4444', '#F97316', '#FBBF24', '#9CA3AF', '#6B7280', '#374151', '#DC2626', '#FB923C']
 
 export function GolesTab({ data }: Props) {
+  const cal = useAppearance() === 'cal'
   const { goles, equipo, estadisticas_acumuladas: stats } = data
   const gf = equipo.goles_favor
   const gc = equipo.goles_contra
@@ -101,15 +107,31 @@ export function GolesTab({ data }: Props) {
   return (
     <div className="space-y-6">
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard icon={Crosshair} value={gf} label="Goles a favor" color="emerald" />
-        <StatCard icon={Shield} value={gc} label="Goles en contra" color="red" />
-        <StatCard icon={Target} value={`${pctABPFavor}%`} label="Goles ABP favor" sublabel={`${golesABPFavor} de ${gf}`} color="blue" />
-        <StatCard icon={CornerDownRight} value={`${pctABPContra}%`} label="Goles ABP contra" sublabel={`${golesABPContra} de ${gc}`} color="amber" />
-      </div>
+      <KpiFranja
+        gridClass="grid grid-cols-2 md:grid-cols-4 gap-4"
+        items={[
+          { icon: Crosshair, value: gf, label: 'Goles a favor', color: 'emerald' },
+          { icon: Shield, value: gc, label: 'Goles en contra', color: 'red' },
+          { icon: Target, value: `${pctABPFavor}%`, calValue: pctABPFavor, unit: '%', label: 'Goles ABP favor', sublabel: `${golesABPFavor} de ${gf}`, color: 'blue' },
+          { icon: CornerDownRight, value: `${pctABPContra}%`, calValue: pctABPContra, unit: '%', label: 'Goles ABP contra', sublabel: `${golesABPContra} de ${gc}`, color: 'amber' },
+        ]}
+      />
 
       {/* Goals by period */}
       <ChartCard title="Goles por periodo" isEmpty={periodData.length === 0}>
+{cal ? (
+<ResponsiveContainer width="100%" height={280}>
+  <BarChart data={periodData}>
+    <CartesianGrid {...rejillaCal} />
+    <XAxis dataKey="name" {...ejeXCal} />
+    <YAxis {...ejeYCal} allowDecimals={false} />
+    <Tooltip {...tooltipCal} />
+    <Legend {...leyendaCal} />
+    <Bar dataKey="favor" fill={C.primary} name="A favor" {...barraCal} />
+    <Bar dataKey="contra" fill={C.neutro} name="En contra" {...barraCal} />
+  </BarChart>
+</ResponsiveContainer>
+) : (
         <ResponsiveContainer width="100%" height={280}>
           <BarChart data={periodData}>
             <XAxis dataKey="name" tick={{ fontSize: 12 }} />
@@ -120,11 +142,15 @@ export function GolesTab({ data }: Props) {
             <Bar dataKey="contra" fill="#EF4444" name="En contra" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
+)}
       </ChartCard>
 
       {/* Pie charts */}
       <div className="grid md:grid-cols-2 gap-6">
         <ChartCard title="Como marcamos" isEmpty={pieDataFavor.length === 0}>
+{cal ? (
+<BarrasHorizontalCal data={pieDataFavor.map((d) => ({ name: d.name, value: d.value }))} />
+) : (
           <ResponsiveContainer width="100%" height={280}>
             <PieChart>
               <Pie data={pieDataFavor} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} innerRadius={45} label={({ name, value }) => `${name}: ${value}`}>
@@ -135,9 +161,13 @@ export function GolesTab({ data }: Props) {
               <Tooltip />
             </PieChart>
           </ResponsiveContainer>
+)}
         </ChartCard>
 
         <ChartCard title="Como nos marcan" isEmpty={pieDataContra.length === 0}>
+{cal ? (
+<BarrasHorizontalCal data={pieDataContra.map((d) => ({ name: d.name, value: d.value, color: C.neutro }))} />
+) : (
           <ResponsiveContainer width="100%" height={280}>
             <PieChart>
               <Pie data={pieDataContra} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} innerRadius={45} label={({ name, value }) => `${name}: ${value}`}>
@@ -148,6 +178,7 @@ export function GolesTab({ data }: Props) {
               <Tooltip />
             </PieChart>
           </ResponsiveContainer>
+)}
         </ChartCard>
       </div>
 
@@ -171,6 +202,19 @@ export function GolesTab({ data }: Props) {
           }))
         return (
           <ChartCard title="Goles por zona de ataque" isEmpty={zoneData.length === 0}>
+{cal ? (
+<ResponsiveContainer width="100%" height={240}>
+  <BarChart data={zoneData}>
+    <CartesianGrid {...rejillaCal} />
+    <XAxis dataKey="name" {...ejeXCal} />
+    <YAxis {...ejeYCal} allowDecimals={false} />
+    <Tooltip {...tooltipCal} />
+    <Legend {...leyendaCal} />
+    <Bar dataKey="favor" fill={C.primary} name="A favor" {...barraCal} />
+    <Bar dataKey="contra" fill={C.neutro} name="En contra" {...barraCal} />
+  </BarChart>
+</ResponsiveContainer>
+) : (
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={zoneData}>
                 <XAxis dataKey="name" tick={{ fontSize: 12 }} />
@@ -181,12 +225,26 @@ export function GolesTab({ data }: Props) {
                 <Bar dataKey="contra" fill="#EF4444" name="En contra" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
+)}
           </ChartCard>
         )
       })()}
 
       {/* Cumulative line */}
       <ChartCard title="GF y GC acumulados" isEmpty={acumData.length === 0}>
+{cal ? (
+<ResponsiveContainer width="100%" height={280}>
+  <LineChart data={acumData}>
+    <CartesianGrid {...rejillaCal} />
+    <XAxis dataKey="name" {...ejeXCal} />
+    <YAxis {...ejeYCal} />
+    <Tooltip {...tooltipCal} />
+    <Legend {...leyendaCal} />
+    <Line dataKey="GF" stroke={C.primary} name="Goles a favor" {...lineaCal} />
+    <Line dataKey="GC" stroke={C.neutro} name="Goles en contra" {...lineaCal} />
+  </LineChart>
+</ResponsiveContainer>
+) : (
         <ResponsiveContainer width="100%" height={280}>
           <LineChart data={acumData}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
@@ -198,6 +256,7 @@ export function GolesTab({ data }: Props) {
             <Line type="monotone" dataKey="GC" stroke="#EF4444" strokeWidth={2} name="Goles en contra" dot={{ r: 2 }} />
           </LineChart>
         </ResponsiveContainer>
+)}
       </ChartCard>
     </div>
   )

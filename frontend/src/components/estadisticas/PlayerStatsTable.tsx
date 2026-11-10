@@ -3,6 +3,7 @@
 import { Loader2, Users, UserCheck } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { useAppearance } from '@/lib/useAppearance'
 
 interface AsistenciaHistorico {
   jugador_id: string
@@ -41,10 +42,17 @@ export function PlayerStatsTable({
   asistenciaLoading,
   asistenciaLoaded,
 }: PlayerStatsTableProps) {
+  const cal = useAppearance() === 'cal'
   return (
     <>
       {/* Media del equipo */}
       {asistenciaLoaded && (
+        cal ? (
+          <p className="border-b border-border pb-3 text-sm">
+            <span className="text-2xl font-bold tabular-nums">{asistenciaMedia}</span>
+            <span className="ml-1 text-sm text-muted-foreground">% de media de asistencia del equipo · {asistenciaData.length} jugadores</span>
+          </p>
+        ) : (
         <Card className="border-l-4 border-l-primary">
           <CardContent className="p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -65,6 +73,7 @@ export function PlayerStatsTable({
             </div>
           </CardContent>
         </Card>
+        )
       )}
 
       {/* Tabla de asistencia */}
@@ -118,7 +127,7 @@ export function PlayerStatsTable({
                         : 'text-red-700'
 
                     return (
-                      <tr key={j.jugador_id} className="border-b last:border-0 row-hover">
+                      <tr key={j.jugador_id} className={cal ? 'border-b last:border-0 row-hover h-9 [@media(pointer:coarse)]:h-11' : 'border-b last:border-0 row-hover'}>
                         <td className="py-2.5 font-medium">
                           {j.nombre} {j.apellidos}
                         </td>
@@ -126,11 +135,14 @@ export function PlayerStatsTable({
                           {j.dorsal || '-'}
                         </td>
                         <td className="py-2.5">
-                          <Badge variant="outline" className="text-[10px]">{j.posicion_principal}</Badge>
+                          {cal ? j.posicion_principal : <Badge variant="outline" className="text-[10px]">{j.posicion_principal}</Badge>}
                         </td>
                         <td className="py-2.5 text-center">{j.total_sesiones}</td>
                         <td className="py-2.5 text-center text-emerald-600 font-medium">{j.presencias}</td>
                         <td className="py-2.5 text-center text-red-600 font-medium">{j.ausencias}</td>
+                        {cal ? (
+                          <td className="py-2.5 text-right font-medium tabular-nums">{j.porcentaje}%</td>
+                        ) : (
                         <td className="py-2.5">
                           <div className="flex items-center gap-2">
                             <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
@@ -144,6 +156,7 @@ export function PlayerStatsTable({
                             </span>
                           </div>
                         </td>
+                        )}
                         <td className="py-2.5">
                           <div className="flex flex-wrap gap-1">
                             {Object.entries(j.motivos).map(([motivo, count]) => (

@@ -185,7 +185,7 @@ export function SesionesTablaCal({ sesiones, activeMenu, setActiveMenu, onWarm, 
             <th scope="col" className={`${cab} text-left`}>Día</th>
             <th scope="col" className={`${cab} text-left`}>MD</th>
             <th scope="col" className={`${cab} text-right`}>Nº</th>
-            <th scope="col" className={`${cab} text-left`}>Sesión</th>
+            <th scope="col" className={`${cab} w-full text-left`}>Sesión</th>
             <th scope="col" className={`${cab} text-right`}>Tareas</th>
             <th scope="col" className={`${cab} text-right`}>Min.</th>
             <th scope="col" className={`${cab} text-left`}>Estado</th>
