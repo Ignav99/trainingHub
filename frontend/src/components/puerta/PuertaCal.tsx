@@ -40,7 +40,7 @@ export function PuertaCal({
 }) {
   return (
     <div
-      className="puerta-cal min-h-screen bg-background text-foreground grid grid-cols-1 lg:grid-cols-carriles"
+      className="puerta-cal min-h-screen bg-background text-foreground grid grid-cols-1 grid-rows-[auto_1fr] lg:grid-cols-carriles lg:grid-rows-1"
       data-cal-zona
     >
       <section className="border-b-[1.5px] border-line p-6 lg:col-span-3 lg:border-b-0 lg:border-r-[1.5px] lg:p-10 lg:flex lg:flex-col">

@@ -273,3 +273,9 @@ html[data-appearance="cal"] .k-cookie .k-cookie-secundario.k-cookie-secundario {
   border: 1.5px solid hsl(var(--line));
   border-radius: var(--radius);
 }
+
+html[data-appearance="cal"] .puerta-cal input[type="checkbox"] + label,
+html[data-appearance="cal"] .puerta-cal label:has(input[type="checkbox"]) {
+  font-weight: 400;
+  color: hsl(var(--muted-foreground));
+}
