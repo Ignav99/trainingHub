@@ -160,7 +160,7 @@ export default function PartidosPage() {
       <RevisarTitularesDialog open={revisarOpen} onOpenChange={setRevisarOpen} partidos={jugados} />
 
       {/* Main layout */}
-      <div className={`grid gap-6 min-w-0 ${listCollapsed ? 'lg:grid-cols-[3rem_minmax(0,1fr)]' : 'grid-cols-1 lg:grid-cols-4'}`}>
+      <div className={`grid gap-6 min-w-0 ${listCollapsed ? 'lg:grid-cols-[3rem_minmax(0,1fr)]' : 'grid-cols-1 lg:grid-cols-4 lg:[html[data-appearance=cal]_&]:grid-cols-[20rem_minmax(0,1fr)]'}`}>
         {/* Left: match list (collapsible to free the board) */}
         <div className="space-y-2 min-w-0">
           {listCollapsed ? (
@@ -199,7 +199,7 @@ export default function PartidosPage() {
         </div>
 
         {/* Right: tabbed content */}
-        <div className={listCollapsed ? 'min-w-0' : 'lg:col-span-3 min-w-0'}>
+        <div className={listCollapsed ? 'min-w-0' : 'lg:col-span-3 lg:[html[data-appearance=cal]_&]:col-span-1 min-w-0'}>
           <MatchDetailPanel
             selectedPartido={selectedPartido}
             convocados={convocados}

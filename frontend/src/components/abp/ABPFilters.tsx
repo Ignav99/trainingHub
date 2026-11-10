@@ -1,6 +1,7 @@
 'use client'
 
 import { Search } from 'lucide-react'
+import { useAppearance } from '@/lib/useAppearance'
 import { ABP_TIPOS, ABP_SUBTIPOS, TipoABP, LadoABP, SubtipoABP } from '@/types'
 
 interface ABPFiltersProps {
@@ -18,10 +19,11 @@ export default function ABPFilters({
   tipo, lado, subtipo, busqueda,
   onTipoChange, onLadoChange, onSubtipoChange, onBusquedaChange,
 }: ABPFiltersProps) {
+  const cal = useAppearance() === 'cal'
   return (
     <div className="flex flex-wrap items-center gap-3">
       {/* Tabs Ofensivo/Defensivo */}
-      <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+      <div className={cal ? 'flex gap-4' : 'flex rounded-lg border border-gray-200 overflow-hidden'}>
         {[
           { value: '', label: 'Todo' },
           { value: 'ofensivo', label: 'Ofensivo' },
@@ -30,7 +32,14 @@ export default function ABPFilters({
           <button
             key={opt.value}
             onClick={() => onLadoChange(opt.value as LadoABP | '')}
-            className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+            aria-pressed={cal ? lado === opt.value : undefined}
+            className={cal
+              ? `min-h-10 border-b-2 text-sm ${
+                  lado === opt.value
+                    ? 'border-primary font-semibold text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`
+              : `px-3 py-1.5 text-sm font-medium transition-colors ${
               lado === opt.value
                 ? 'bg-orange-500 text-white'
                 : 'bg-white text-gray-600 hover:bg-gray-50'
@@ -45,7 +54,7 @@ export default function ABPFilters({
       <select
         value={tipo}
         onChange={e => onTipoChange(e.target.value as TipoABP | '')}
-        className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 bg-white text-gray-700"
+        className={cal ? 'min-h-10 border border-border bg-card px-3 py-1.5 text-sm text-foreground' : 'px-3 py-1.5 text-sm rounded-lg border border-gray-200 bg-white text-gray-700'}
       >
         <option value="">Todos los tipos</option>
         {ABP_TIPOS.map(t => (
@@ -57,7 +66,7 @@ export default function ABPFilters({
       <select
         value={subtipo}
         onChange={e => onSubtipoChange(e.target.value as SubtipoABP | '')}
-        className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 bg-white text-gray-700"
+        className={cal ? 'min-h-10 border border-border bg-card px-3 py-1.5 text-sm text-foreground' : 'px-3 py-1.5 text-sm rounded-lg border border-gray-200 bg-white text-gray-700'}
       >
         <option value="">Todos los subtipos</option>
         {ABP_SUBTIPOS.map(s => (
@@ -67,13 +76,13 @@ export default function ABPFilters({
 
       {/* Search */}
       <div className="relative flex-1 min-w-48">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+        <Search className={cal ? 'absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' : 'absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400'} />
         <input
           type="text"
           placeholder="Buscar jugada..."
           value={busqueda}
           onChange={e => onBusquedaChange(e.target.value)}
-          className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border border-gray-200 bg-white"
+          className={cal ? 'min-h-10 w-full border border-border bg-card pl-8 pr-3 py-1.5 text-sm' : 'w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border border-gray-200 bg-white'}
         />
       </div>
     </div>

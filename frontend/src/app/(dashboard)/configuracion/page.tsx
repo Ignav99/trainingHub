@@ -26,6 +26,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ColorPicker } from '@/components/ui/color-picker'
 import { EscudoUploadField } from '@/components/ui/escudo-upload-field'
 import { toast } from 'sonner'
+import { Estado } from '@/components/ui/estado'
+import { useAppearance } from '@/lib/useAppearance'
 import { useAuthStore } from '@/stores/authStore'
 import { useClubStore } from '@/stores/clubStore'
 import { organizacionApi, type Miembro } from '@/lib/api/organizacion'
@@ -46,6 +48,7 @@ const ROLES_EQUIPO = [
 ]
 
 export default function ConfiguracionPage() {
+  const cal = useAppearance() === 'cal'
   const user = useAuthStore((s) => s.user)
   const { organizacion, theme, updateTheme, setOrganizacion } = useClubStore()
 
@@ -474,7 +477,7 @@ export default function ConfiguracionPage() {
                               {formatRole(m.rol)}
                             </Badge>
                             {m.usuarios_equipos?.map((ue) => (
-                              <Badge key={ue.equipo_id} className="text-xs whitespace-nowrap bg-blue-100 text-blue-800">
+                              <Badge key={ue.equipo_id} variant={cal ? 'outline' : undefined} className={cal ? 'text-xs whitespace-nowrap' : 'text-xs whitespace-nowrap bg-blue-100 text-blue-800'}>
                                 {ue.equipos?.nombre || 'Equipo'} - {formatRole(ue.rol_en_equipo)}
                               </Badge>
                             ))}
@@ -554,11 +557,11 @@ export default function ConfiguracionPage() {
                 <CardContent>
                   {inviteLink ? (
                     <div className="space-y-4">
-                      <div className="p-4 rounded-lg bg-emerald-50 border border-emerald-200">
-                        <p className="text-sm font-medium text-emerald-800 mb-2">Invitacion creada</p>
-                        <p className="text-xs text-emerald-700 mb-3">Copia este enlace y envialo por WhatsApp:</p>
+                      <div className={cal ? 'cal-linea bg-card p-4' : 'p-4 rounded-lg bg-emerald-50 border border-emerald-200'}>
+                        <p className={cal ? 'text-sm font-medium text-foreground mb-2' : 'text-sm font-medium text-emerald-800 mb-2'}>Invitacion creada</p>
+                        <p className={cal ? 'text-xs text-muted-foreground mb-3' : 'text-xs text-emerald-700 mb-3'}>Copia este enlace y envialo por WhatsApp:</p>
                         <div className="flex gap-2">
-                          <Input value={inviteLink} readOnly className="text-xs font-mono bg-white" />
+                          <Input value={inviteLink} readOnly className={cal ? 'text-xs font-mono bg-card' : 'text-xs font-mono bg-white'} />
                           <Button
                             size="sm"
                             variant={copied ? 'default' : 'outline'}
@@ -685,30 +688,36 @@ export default function ConfiguracionPage() {
                     <Badge variant="outline" className="text-sm px-3 py-1">
                       {suscripcion.plan?.nombre || 'Plan'}
                     </Badge>
-                    <Badge className={
-                      suscripcion.estado === 'active' ? 'bg-emerald-100 text-emerald-800' :
-                      suscripcion.estado === 'trial' ? 'bg-blue-100 text-blue-800' :
-                      'bg-amber-100 text-amber-800'
-                    }>
-                      {suscripcion.estado}
-                    </Badge>
+                    {cal ? (
+                      <Estado tipo={suscripcion.estado === 'active' ? 'disponible' : suscripcion.estado === 'trial' ? 'aviso' : 'duda'}>
+                        {suscripcion.estado}
+                      </Estado>
+                    ) : (
+                      <Badge className={
+                        suscripcion.estado === 'active' ? 'bg-emerald-100 text-emerald-800' :
+                        suscripcion.estado === 'trial' ? 'bg-blue-100 text-blue-800' :
+                        'bg-amber-100 text-amber-800'
+                      }>
+                        {suscripcion.estado}
+                      </Badge>
+                    )}
                   </div>
 
                   {usage && (
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="p-3 rounded-lg bg-muted/50">
+                      <div className={cal ? 'border border-border bg-sunken p-3' : 'p-3 rounded-lg bg-muted/50'}>
                         <p className="text-xs text-muted-foreground">Equipos</p>
                         <p className="font-bold">{usage.equipos} / {usage.max_equipos}</p>
                       </div>
-                      <div className="p-3 rounded-lg bg-muted/50">
+                      <div className={cal ? 'border border-border bg-sunken p-3' : 'p-3 rounded-lg bg-muted/50'}>
                         <p className="text-xs text-muted-foreground">Llamadas AI (mes)</p>
                         <p className="font-bold">{usage.ai_calls_month} / {usage.max_ai_calls_month}</p>
                       </div>
-                      <div className="p-3 rounded-lg bg-muted/50">
+                      <div className={cal ? 'border border-border bg-sunken p-3' : 'p-3 rounded-lg bg-muted/50'}>
                         <p className="text-xs text-muted-foreground">Documentos KB</p>
                         <p className="font-bold">{usage.kb_documents} / {usage.max_kb_documents}</p>
                       </div>
-                      <div className="p-3 rounded-lg bg-muted/50">
+                      <div className={cal ? 'border border-border bg-sunken p-3' : 'p-3 rounded-lg bg-muted/50'}>
                         <p className="text-xs text-muted-foreground">Almacenamiento</p>
                         <p className="font-bold">{usage.storage_mb.toFixed(1)} / {usage.max_storage_mb} MB</p>
                       </div>

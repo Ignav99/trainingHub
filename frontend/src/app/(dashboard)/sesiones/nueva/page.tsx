@@ -46,6 +46,7 @@ import {
   microcicloCubreFecha,
   tipoDesdePlan,
 } from '@/lib/sesionMicrociclo'
+import { useAppearance } from '@/lib/useAppearance'
 import { rivalDesdeMicrociclo } from '@/lib/sesionContextoRival'
 import {
   canPersistDraft,
@@ -96,6 +97,7 @@ interface TareaEnSesion {
 
 export default function NuevaSesionPage() {
   const router = useRouter()
+  const cal = useAppearance() === 'cal'
   const searchParams = useSearchParams()
   const isAssisted = searchParams.get('mode') === 'assisted'
   const microcicloIdFromQuery = searchParams.get('microciclo_id')
@@ -634,7 +636,7 @@ export default function NuevaSesionPage() {
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold text-gray-900">Nueva Sesión</h1>
             {isAssisted && (
-              <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
+              <span className={cal ? 'inline-flex items-center gap-1 text-xs font-semibold text-warning' : 'inline-flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-medium'}>
                 <Zap className="h-3 w-3" />
                 Asistida
               </span>
@@ -655,7 +657,7 @@ export default function NuevaSesionPage() {
           {Array.from({ length: totalSteps }).map((_, i) => (
             <div
               key={i}
-              className={`flex-1 h-2 rounded-full ${i < step ? 'bg-primary' : 'bg-gray-200'}`}
+              className={cal ? `flex-1 h-1.5 ${i < step ? 'bg-primary' : 'bg-border'}` : `flex-1 h-2 rounded-full ${i < step ? 'bg-primary' : 'bg-gray-200'}`}
             />
           ))}
         </div>
@@ -780,7 +782,7 @@ export default function NuevaSesionPage() {
 
       {/* Paso 1 assisted: Recomendación IA */}
       {step === 1 && isAssisted && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-6">
+        <div className={cal ? 'cal-linea bg-card p-6 space-y-6' : 'bg-white rounded-xl border border-gray-200 p-6 space-y-6'}>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2 text-primary">
                 <Zap className="h-5 w-5" />
@@ -881,7 +883,7 @@ export default function NuevaSesionPage() {
 
       {/* Tareas: step 1 normal / step 2 assisted */}
       {((step === 1 && !isAssisted) || (step === 2 && isAssisted)) && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-6">
+        <div className={cal ? 'cal-linea bg-card p-6 space-y-6' : 'bg-white rounded-xl border border-gray-200 p-6 space-y-6'}>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2 text-primary">
                 <Target className="h-5 w-5" />
@@ -910,7 +912,7 @@ export default function NuevaSesionPage() {
 
       {/* Convocatoria opcional: último paso */}
       {((step === 2 && !isAssisted) || (step === 3 && isAssisted)) && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <div className={cal ? 'cal-linea bg-card p-6' : 'bg-white rounded-xl border border-gray-200 p-6'}>
           <p className="text-sm text-gray-500 mb-4">
             Opcional: define quién asiste ahora, o salta y hazlo en el detalle de la sesión.
           </p>

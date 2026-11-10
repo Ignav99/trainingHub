@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import useSWR, { mutate } from 'swr'
+import { useAppearance } from '@/lib/useAppearance'
 import {
   Save,
   Loader2,
@@ -35,6 +36,7 @@ const PRESSING_TIPOS = ['Alto', 'Medio', 'Bajo']
 const SALIDA_BALON = ['Corta', 'Larga', 'Mixta']
 
 export default function ModeloJuegoPage() {
+  const cal = useAppearance() === 'cal'
   const { equipoActivo } = useEquipoStore()
   const eid = equipoActivo?.id
 
@@ -143,8 +145,8 @@ export default function ModeloJuegoPage() {
     return (
       <div className="max-w-4xl mx-auto">
         <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-gray-200 rounded w-1/3" />
-          <div className="h-64 bg-gray-200 rounded-xl" />
+          <div className={cal ? 'h-8 w-1/3 bg-sunken' : 'h-8 bg-gray-200 rounded w-1/3'} />
+          <div className={cal ? 'h-64 border border-border bg-card' : 'h-64 bg-gray-200 rounded-xl'} />
         </div>
       </div>
     )
@@ -155,7 +157,7 @@ export default function ModeloJuegoPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-primary/10 rounded-lg">
+          <div className={cal ? 'border border-border bg-card p-2' : 'p-2 bg-primary/10 rounded-lg'}>
             <Crosshair className="h-6 w-6 text-primary" />
           </div>
           <div>
@@ -175,25 +177,25 @@ export default function ModeloJuegoPage() {
 
       <div className="space-y-6">
         {/* General info */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold mb-4">Informacion General</h2>
+        <div className={cal ? 'cal-linea bg-card p-6' : 'bg-white rounded-xl border border-gray-200 p-6'}>
+          <h2 className={cal ? 'cal-rotulo mb-4' : 'text-lg font-semibold mb-4'}>Informacion General</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Sistema de Juego</label>
+              <label className={cal ? 'block text-sm font-medium text-foreground mb-1' : 'block text-sm font-medium text-gray-700 mb-1'}>Sistema de Juego</label>
               <input
                 type="text"
                 value={sistemaJuego}
                 onChange={e => setSistemaJuego(e.target.value)}
                 placeholder="Ej: 1-4-3-3, 1-4-4-2"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                className={cal ? 'min-h-10 w-full px-3 py-2 text-sm border border-border bg-card outline-none focus:border-foreground' : 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none'}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Estilo de Juego</label>
+              <label className={cal ? 'block text-sm font-medium text-foreground mb-1' : 'block text-sm font-medium text-gray-700 mb-1'}>Estilo de Juego</label>
               <select
                 value={estilo}
                 onChange={e => setEstilo(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white"
+                className={cal ? 'min-h-10 w-full px-3 py-2 text-sm border border-border bg-card outline-none focus:border-foreground' : 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white'}
               >
                 <option value="">Seleccionar...</option>
                 {ESTILOS.map(e => (
@@ -202,11 +204,11 @@ export default function ModeloJuegoPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Pressing</label>
+              <label className={cal ? 'block text-sm font-medium text-foreground mb-1' : 'block text-sm font-medium text-gray-700 mb-1'}>Tipo de Pressing</label>
               <select
                 value={pressingTipo}
                 onChange={e => setPressingTipo(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white"
+                className={cal ? 'min-h-10 w-full px-3 py-2 text-sm border border-border bg-card outline-none focus:border-foreground' : 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white'}
               >
                 <option value="">Seleccionar...</option>
                 {PRESSING_TIPOS.map(p => (
@@ -215,11 +217,11 @@ export default function ModeloJuegoPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Salida de Balon</label>
+              <label className={cal ? 'block text-sm font-medium text-foreground mb-1' : 'block text-sm font-medium text-gray-700 mb-1'}>Salida de Balon</label>
               <select
                 value={salidaBalon}
                 onChange={e => setSalidaBalon(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white"
+                className={cal ? 'min-h-10 w-full px-3 py-2 text-sm border border-border bg-card outline-none focus:border-foreground' : 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white'}
               >
                 <option value="">Seleccionar...</option>
                 {SALIDA_BALON.map(s => (
@@ -228,21 +230,21 @@ export default function ModeloJuegoPage() {
               </select>
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Descripcion General</label>
+              <label className={cal ? 'block text-sm font-medium text-foreground mb-1' : 'block text-sm font-medium text-gray-700 mb-1'}>Descripcion General</label>
               <textarea
                 value={descripcionGeneral}
                 onChange={e => setDescripcionGeneral(e.target.value)}
                 placeholder="Describe la filosofia de juego del equipo..."
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none"
+                className={cal ? 'min-h-10 w-full px-3 py-2 text-sm resize-none border border-border bg-card outline-none focus:border-foreground' : 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none'}
               />
             </div>
           </div>
         </div>
 
         {/* Principles by phase */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold mb-4">Principios por Fase</h2>
+        <div className={cal ? 'cal-linea bg-card p-6' : 'bg-white rounded-xl border border-gray-200 p-6'}>
+          <h2 className={cal ? 'cal-rotulo mb-4' : 'text-lg font-semibold mb-4'}>Principios por Fase</h2>
 
           {/* Tabs */}
           <div className="flex flex-wrap gap-2 mb-4 border-b pb-3">
@@ -253,13 +255,17 @@ export default function ModeloJuegoPage() {
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={cal
+                    ? `flex min-h-10 items-center gap-1.5 border-b-2 px-3 text-sm ${
+                        isActive ? 'border-primary font-semibold text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
+                      }`
+                    : `flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                     isActive
                       ? 'bg-primary/10 text-primary'
                       : 'text-muted-foreground hover:bg-muted'
                   }`}
                 >
-                  <Icon className={`h-4 w-4 ${isActive ? 'text-primary' : tab.color}`} />
+                  <Icon className={`h-4 w-4 ${isActive ? 'text-primary' : cal ? 'text-muted-foreground' : tab.color}`} />
                   <span className="hidden sm:inline">{tab.label}</span>
                 </button>
               )
@@ -276,11 +282,12 @@ export default function ModeloJuegoPage() {
                   value={principio}
                   onChange={e => updatePrincipio(activeTab, index, e.target.value)}
                   placeholder="Escribe un principio..."
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                  className={cal ? 'min-h-10 flex-1 px-3 py-2 text-sm border border-border bg-card outline-none focus:border-foreground' : 'flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none'}
                 />
                 <button
                   onClick={() => removePrincipio(activeTab, index)}
-                  className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                  aria-label="Quitar principio"
+                  className={cal ? 'flex h-10 w-10 items-center justify-center text-muted-foreground hover:text-destructive' : 'p-1.5 text-gray-400 hover:text-red-500 transition-colors'}
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -297,8 +304,8 @@ export default function ModeloJuegoPage() {
         </div>
 
         {/* Positional roles */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold mb-4">Roles Posicionales</h2>
+        <div className={cal ? 'cal-linea bg-card p-6' : 'bg-white rounded-xl border border-gray-200 p-6'}>
+          <h2 className={cal ? 'cal-rotulo mb-4' : 'text-lg font-semibold mb-4'}>Roles Posicionales</h2>
           <p className="text-sm text-muted-foreground mb-4">
             Define las funciones especificas de cada posicion en tu modelo de juego.
           </p>
@@ -311,13 +318,13 @@ export default function ModeloJuegoPage() {
               const key = pos.toLowerCase().replace(/ /g, '_')
               return (
                 <div key={key}>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{pos}</label>
+                  <label className={cal ? 'block text-sm font-medium text-foreground mb-1' : 'block text-sm font-medium text-gray-700 mb-1'}>{pos}</label>
                   <input
                     type="text"
                     value={rolesPos[key] || ''}
                     onChange={e => setRolesPos(prev => ({ ...prev, [key]: e.target.value }))}
                     placeholder={`Funciones del ${pos.toLowerCase()}...`}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                    className={cal ? 'min-h-10 w-full px-3 py-2 text-sm border border-border bg-card outline-none focus:border-foreground' : 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none'}
                   />
                 </div>
               )

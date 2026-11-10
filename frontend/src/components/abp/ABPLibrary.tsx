@@ -4,6 +4,7 @@ import { ABPJugada, TipoABP, LadoABP, SubtipoABP } from '@/types'
 import ABPPlayCard from './ABPPlayCard'
 import ABPFilters from './ABPFilters'
 import { useState } from 'react'
+import { useAppearance } from '@/lib/useAppearance'
 
 interface ABPLibraryProps {
   jugadas: ABPJugada[]
@@ -15,6 +16,7 @@ interface ABPLibraryProps {
 }
 
 export default function ABPLibrary({ jugadas, loading, onSelect, onDuplicate, onDelete, onCreate }: ABPLibraryProps) {
+  const cal = useAppearance() === 'cal'
   const [tipo, setTipo] = useState<TipoABP | ''>('')
   const [lado, setLado] = useState<LadoABP | ''>('')
   const [subtipo, setSubtipo] = useState<SubtipoABP | ''>('')
@@ -45,11 +47,11 @@ export default function ABPLibrary({ jugadas, loading, onSelect, onDuplicate, on
       {loading ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {[...Array(8)].map((_, i) => (
-            <div key={i} className="h-52 bg-gray-100 rounded-xl animate-pulse" />
+            <div key={i} className={cal ? 'h-52 animate-pulse border border-border bg-card' : 'h-52 bg-gray-100 rounded-xl animate-pulse'} />
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-16 rounded-2xl border border-dashed bg-orange-50/30">
+        <div className={cal ? 'border border-border bg-card py-12 text-center' : 'text-center py-16 rounded-2xl border border-dashed bg-orange-50/30'}>
           <p className="text-lg font-medium text-foreground">No hay jugadas</p>
           <p className="text-sm mt-1 text-muted-foreground">
             {jugadas.length > 0
@@ -60,7 +62,7 @@ export default function ABPLibrary({ jugadas, loading, onSelect, onDuplicate, on
             <button
               type="button"
               onClick={onCreate}
-              className="mt-4 inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium bg-orange-600 text-white hover:bg-orange-700"
+              className={cal ? 'mt-4 inline-flex min-h-10 items-center bg-primary px-4 py-2 text-sm font-medium text-primary-foreground' : 'mt-4 inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium bg-orange-600 text-white hover:bg-orange-700'}
             >
               Nueva jugada
             </button>

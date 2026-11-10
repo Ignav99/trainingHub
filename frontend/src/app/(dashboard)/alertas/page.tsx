@@ -7,6 +7,8 @@ import { Bell, Loader2, CheckCircle2, AlertTriangle, ArrowLeft, RefreshCw, Trash
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Estado, type EstadoTipo } from '@/components/ui/estado'
+import { useAppearance } from '@/lib/useAppearance'
 import { apiKey } from '@/lib/swr'
 import { alertasApi } from '@/lib/api/alertas'
 import { useEquipoStore } from '@/stores/equipoStore'
@@ -19,6 +21,21 @@ const PRIORITY_COLORS: Record<string, string> = {
   urgente: 'bg-red-100 text-red-700',
 }
 
+const PRIORITY_ESTADO: Record<string, EstadoTipo> = {
+  baja: 'neutro',
+  normal: 'aviso',
+  alta: 'duda',
+  urgente: 'baja',
+}
+
+const TYPE_ICONS_CAL: Record<string, React.ReactNode> = {
+  microciclo_sin_sesion: <AlertTriangle className="h-4 w-4 text-warning" />,
+  plan_partido_faltante: <AlertTriangle className="h-4 w-4 text-destructive" />,
+  carga_critica: <AlertTriangle className="h-4 w-4 text-destructive" />,
+  jugador_sancion: <AlertTriangle className="h-4 w-4 text-warning" />,
+  default: <Bell className="h-4 w-4 text-info" />,
+}
+
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   microciclo_sin_sesion: <AlertTriangle className="h-4 w-4 text-amber-600" />,
   plan_partido_faltante: <AlertTriangle className="h-4 w-4 text-red-600" />,
@@ -28,6 +45,7 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
 }
 
 export default function AlertasPage() {
+  const cal = useAppearance() === 'cal'
   const { equipoActivo } = useEquipoStore()
   const [filter, setFilter] = useState<'todas' | 'activas' | 'resueltas'>('activas')
   const [detecting, setDetecting] = useState(false)
@@ -98,7 +116,7 @@ export default function AlertasPage() {
         </div>
         <div className="flex items-center gap-2">
           <select
-            className="rounded-md border bg-background px-3 py-2 text-sm"
+            className={cal ? 'min-h-10 border border-border bg-card px-3 py-2 text-sm' : 'rounded-md border bg-background px-3 py-2 text-sm'}
             value={filter}
             onChange={(e) => setFilter(e.target.value as any)}
           >
@@ -127,7 +145,13 @@ export default function AlertasPage() {
         </Card>
       )}
 
-      {!isLoading && !error && alertas.length === 0 && (
+      {!isLoading && !error && alertas.length === 0 && cal && (
+        <p className="cal-linea bg-card px-4 py-6 text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">No hay alertas.</span> Pulsa «Detectar» para revisar el estado del equipo.
+        </p>
+      )}
+
+      {!isLoading && !error && alertas.length === 0 && !cal && (
         <Card className="border-dashed">
           <CardContent className="py-16 text-center">
             <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-30" />
@@ -139,6 +163,43 @@ export default function AlertasPage() {
         </Card>
       )}
 
+      {cal && alertas.length > 0 && (
+        <ul className="cal-linea divide-y divide-border bg-card">
+          {alertas.map((alerta) => (
+            <li key={alerta.id} className={`flex items-start gap-4 p-4 ${alerta.resuelta ? 'opacity-60' : ''}`}>
+              <div className="mt-0.5">{TYPE_ICONS_CAL[alerta.tipo] || TYPE_ICONS_CAL.default}</div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <h3 className="font-medium">{alerta.titulo}</h3>
+                  <Estado tipo={PRIORITY_ESTADO[alerta.prioridad] || 'neutro'}>{alerta.prioridad}</Estado>
+                  {alerta.resuelta && <Estado tipo="disponible">Resuelta</Estado>}
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">{alerta.mensaje}</p>
+                <p className="mt-2 font-mono text-[11px] text-muted-foreground">
+                  {new Date(alerta.created_at).toLocaleString('es-ES')}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center">
+                {alerta.accion_url && !alerta.resuelta && (
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href={alerta.accion_url}>Ver</Link>
+                  </Button>
+                )}
+                {!alerta.resuelta && (
+                  <Button variant="ghost" size="icon" aria-label="Marcar como resuelta" onClick={() => handleResolve(alerta)}>
+                    <CheckCircle2 className="h-4 w-4 text-success" />
+                  </Button>
+                )}
+                <Button variant="ghost" size="icon" aria-label="Eliminar alerta" onClick={() => handleDelete(alerta)}>
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {!cal && (
       <div className="space-y-3">
         {alertas.map((alerta) => (
           <Card key={alerta.id} className={alerta.resuelta ? 'opacity-60' : ''}>
@@ -182,6 +243,7 @@ export default function AlertasPage() {
           </Card>
         ))}
       </div>
+      )}
     </div>
   )
 }

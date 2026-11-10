@@ -11,7 +11,7 @@ import { Estado, type EstadoTipo } from '@/components/ui/estado'
 import { continueHref, PASO_LABEL, readCreacionPaso } from '@/lib/sesionBorrador'
 import type { Sesion } from '@/types'
 
-interface Props {
+export interface Props {
   sesiones: Sesion[]
   activeMenu: string | null
   setActiveMenu: (id: string | null) => void
@@ -22,7 +22,7 @@ interface Props {
 }
 
 /** Color de cada MD con tokens (equivalentes a los que usa la pastilla clásica). */
-const MD_COLOR: Record<string, string> = {
+export const MD_COLOR: Record<string, string> = {
   'MD+1': 'bg-success',
   'MD+2': 'bg-success',
   'MD-4': 'bg-destructive',
@@ -33,7 +33,7 @@ const MD_COLOR: Record<string, string> = {
 }
 
 /** Estado escrito + forma. */
-function estadoDe(s: Sesion): { tipo: EstadoTipo; texto: string; title?: string } {
+export function estadoDe(s: Sesion): { tipo: EstadoTipo; texto: string; title?: string } {
   const paso = readCreacionPaso(s.fase_notas)
   if (s.estado === 'borrador' && paso) {
     const lugar = PASO_LABEL[paso as keyof typeof PASO_LABEL] || paso
@@ -51,7 +51,7 @@ function estadoDe(s: Sesion): { tipo: EstadoTipo; texto: string; title?: string 
   }
 }
 
-function safe<T>(fn: () => T, fallback: T): T {
+export function safe<T>(fn: () => T, fallback: T): T {
   try {
     return fn()
   } catch {
@@ -59,7 +59,7 @@ function safe<T>(fn: () => T, fallback: T): T {
   }
 }
 
-function MenuFila({
+export function MenuFila({
   sesion,
   abierto,
   setActiveMenu,
@@ -149,7 +149,7 @@ function MenuFila({
   )
 }
 
-interface Semana {
+export interface Semana {
   clave: string
   inicio: Date | null
   sesiones: Sesion[]

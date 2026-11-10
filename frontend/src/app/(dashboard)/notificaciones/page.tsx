@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { notificacionesApi, type AmbitoNotificaciones } from '@/lib/api/notificaciones'
 import { isNotificacionesKey } from '@/lib/api/tablero'
 import { cn } from '@/lib/utils'
+import { useAppearance } from '@/lib/useAppearance'
 import type { Notificacion } from '@/types'
 import { fechaHora, hace } from '@/components/tablero/tablero-utils'
 import { destinoNotificacion, iconoNotificacion } from '@/components/notificaciones/notificacion-utils'
@@ -19,6 +20,7 @@ import { abrirNotificacion } from '@/components/notificaciones/NotificationBell'
 const POR_PAGINA = 30
 
 export default function NotificacionesPage() {
+  const cal = useAppearance() === 'cal'
   const router = useRouter()
   const [notificaciones, setNotificaciones] = useState<Notificacion[]>([])
   const [loading, setLoading] = useState(true)
@@ -92,7 +94,20 @@ export default function NotificacionesPage() {
         {([
           ['para_ti', 'Para ti'],
           ['todo', 'Todo'],
-        ] as const).map(([v, label]) => (
+        ] as const).map(([v, label]) => cal ? (
+          <button
+            key={v}
+            type="button"
+            aria-pressed={ambito === v}
+            onClick={() => cambiar(() => setAmbito(v))}
+            className={cn(
+              'mr-2 min-h-10 border-b-2 px-1 text-sm',
+              ambito === v ? 'border-primary font-semibold text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
+            )}
+          >
+            {label}
+          </button>
+        ) : (
           <Button key={v} size="sm" variant={ambito === v ? 'club' : 'outline'} onClick={() => cambiar(() => setAmbito(v))}>
             {label}
           </Button>
@@ -111,10 +126,16 @@ export default function NotificacionesPage() {
       {loading && pagina === 1 ? (
         <div className="space-y-2">
           {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-16 w-full rounded-lg" />
+            <Skeleton key={i} className={cal ? 'h-16 w-full' : 'h-16 w-full rounded-lg'} />
           ))}
         </div>
       ) : notificaciones.length === 0 ? (
+        cal ? (
+          <p className="cal-linea bg-card px-4 py-6 text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">Sin notificaciones.</span>{' '}
+            {ambito === 'para_ti' ? 'Cuando alguien te mencione o te asigne algo aparecerá aquí.' : 'Todo al día.'}
+          </p>
+        ) : (
         <div className="rounded-xl border border-dashed py-12 text-center">
           <Bell className="mx-auto mb-3 h-8 w-8 text-muted-foreground/60" />
           <p className="font-medium">Sin notificaciones</p>
@@ -122,17 +143,18 @@ export default function NotificacionesPage() {
             {ambito === 'para_ti' ? 'Cuando alguien te mencione o te asigne algo aparecerá aquí.' : 'Todo al día.'}
           </p>
         </div>
+        )
       ) : (
-        <ul className="divide-y overflow-hidden rounded-xl border bg-card">
+        <ul className={cal ? 'divide-y divide-border cal-linea bg-card' : 'divide-y overflow-hidden rounded-xl border bg-card'}>
           {notificaciones.map((n) => {
             const { icon: Icon, tono } = iconoNotificacion(n.tipo)
             const destino = destinoNotificacion(n)
             return (
-              <li key={n.id} className={cn('flex items-start gap-3 p-3', !n.leida && 'bg-[hsl(var(--club-primary)/0.04)]')}>
+              <li key={n.id} className={cn('flex items-start gap-3 p-3', !n.leida && (cal ? 'bg-sunken' : 'bg-[hsl(var(--club-primary)/0.04)]'))}>
                 {n.actor ? (
                   <Avatar src={n.actor.avatar_url} fallback={(n.actor.nombre || '?')[0]} size="sm" className="h-9 w-9" />
                 ) : (
-                  <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-full', tono)}>
+                  <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center', cal ? 'border border-border text-muted-foreground' : cn('rounded-full', tono))}>
                     <Icon className="h-4 w-4" />
                   </span>
                 )}

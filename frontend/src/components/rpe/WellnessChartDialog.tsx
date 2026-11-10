@@ -25,6 +25,9 @@ import {
 import { wellnessApi } from '@/lib/api/wellness'
 import type { Jugador } from '@/lib/api/jugadores'
 import type { WellnessEntry } from '@/types'
+import { useAppearance } from '@/lib/useAppearance'
+import { Estado } from '@/components/ui/estado'
+import { C, ejeXCal, ejeYCal, rejillaCal, tooltipCal, leyendaCal, lineaCal } from '@/lib/graficoCal'
 
 interface WellnessChartDialogProps {
   open: boolean
@@ -49,6 +52,14 @@ const FIELD_LABELS: Record<string, string> = {
   humor: 'Humor',
 }
 
+const FIELD_COLORS_CAL: Record<string, { color: string; dash?: string }> = {
+  sueno: { color: C.primary },
+  fatiga: { color: C.amarilla, dash: '4 2' },
+  dolor: { color: C.roja, dash: '1 3' },
+  estres: { color: C.info, dash: '6 3' },
+  humor: { color: C.victoria, dash: '2 2' },
+}
+
 function getTotalColor(total: number): string {
   if (total >= 20) return 'text-green-600'
   if (total >= 15) return 'text-amber-600'
@@ -56,6 +67,12 @@ function getTotalColor(total: number): string {
 }
 
 export function WellnessChartDialog({ open, onOpenChange, jugadores, equipoId }: WellnessChartDialogProps) {
+  const cal = useAppearance() === 'cal'
+  const rej: Record<string, unknown> = cal ? rejillaCal : {}
+  const ejeX: Record<string, unknown> = cal ? ejeXCal : {}
+  const ejeY: Record<string, unknown> = cal ? ejeYCal : {}
+  const tip: Record<string, unknown> = cal ? tooltipCal : {}
+  const lineaC: Record<string, unknown> = cal ? lineaCal : {}
   const [selectedJugador, setSelectedJugador] = useState('')
   const [fechaDesde, setFechaDesde] = useState(() => {
     const d = new Date()
@@ -157,17 +174,18 @@ export function WellnessChartDialog({ open, onOpenChange, jugadores, equipoId }:
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="fecha" tick={{ fontSize: 11 }} />
-                      <YAxis domain={[0, 25]} tick={{ fontSize: 11 }} />
-                      <Tooltip />
+                      <CartesianGrid strokeDasharray="3 3" {...rej} />
+                      <XAxis dataKey="fecha" tick={{ fontSize: 11 }} {...ejeX} />
+                      <YAxis domain={[0, 25]} tick={{ fontSize: 11 }} {...ejeY} />
+                      <Tooltip {...tip} />
                       <Line
                         type="monotone"
                         dataKey="total"
-                        stroke="#3B82F6"
+                        stroke={cal ? C.primary : '#3B82F6'}
                         strokeWidth={2}
                         dot={{ r: 4 }}
                         name="Total"
+                        {...lineaC}
                       />
                       {/* Reference lines for thresholds */}
                     </LineChart>
@@ -181,20 +199,21 @@ export function WellnessChartDialog({ open, onOpenChange, jugadores, equipoId }:
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="fecha" tick={{ fontSize: 11 }} />
-                      <YAxis domain={[0, 5]} tick={{ fontSize: 11 }} />
-                      <Tooltip />
-                      <Legend />
+                      <CartesianGrid strokeDasharray="3 3" {...rej} />
+                      <XAxis dataKey="fecha" tick={{ fontSize: 11 }} {...ejeX} />
+                      <YAxis domain={[0, 5]} tick={{ fontSize: 11 }} {...ejeY} />
+                      <Tooltip {...tip} />
+                      <Legend {...(cal ? leyendaCal : {})} />
                       {Object.entries(FIELD_COLORS).map(([key, color]) => (
                         <Line
                           key={key}
                           type="monotone"
                           dataKey={key}
-                          stroke={color}
+                          stroke={cal ? FIELD_COLORS_CAL[key].color : color}
                           strokeWidth={1.5}
                           dot={{ r: 3 }}
                           name={FIELD_LABELS[key]}
+                          {...(cal ? ({ ...lineaCal, strokeDasharray: FIELD_COLORS_CAL[key].dash } as Record<string, unknown>) : {})}
                         />
                       ))}
                     </LineChart>
@@ -225,19 +244,19 @@ export function WellnessChartDialog({ open, onOpenChange, jugadores, equipoId }:
                         return (
                           <tr
                             key={entry.id}
-                            className={`border-b last:border-0 ${hasAlert ? 'bg-red-50/60' : ''}`}
+                            className={`border-b last:border-0 ${hasAlert && !cal ? 'bg-red-50/60' : ''}`}
                           >
                             <td className="py-1.5">{entry.fecha}</td>
-                            <td className={`py-1.5 text-center ${entry.sueno <= 2 ? 'text-red-600 font-bold' : ''}`}>{entry.sueno}</td>
+                            <td className={`py-1.5 text-center ${entry.sueno <= 2 ? (cal ? 'font-bold' : 'text-red-600 font-bold') : ''}`}>{entry.sueno}</td>
                             <td className="py-1.5 text-center">{entry.fatiga}</td>
-                            <td className={`py-1.5 text-center ${entry.dolor <= 2 ? 'text-red-600 font-bold' : ''}`}>{entry.dolor}</td>
+                            <td className={`py-1.5 text-center ${entry.dolor <= 2 ? (cal ? 'font-bold' : 'text-red-600 font-bold') : ''}`}>{entry.dolor}</td>
                             <td className="py-1.5 text-center">{entry.estres}</td>
                             <td className="py-1.5 text-center">{entry.humor}</td>
-                            <td className={`py-1.5 text-center font-bold ${getTotalColor(entry.total)}`}>
+                            <td className={`py-1.5 text-center font-bold ${cal ? 'tabular-nums' : getTotalColor(entry.total)}`}>
                               {entry.total}
                             </td>
                             <td className="py-1.5 text-center">
-                              {hasAlert && <AlertTriangle className="h-4 w-4 text-red-500 mx-auto" />}
+                              {hasAlert && (cal ? <Estado tipo="baja" className="text-xs">alerta</Estado> : <AlertTriangle className="h-4 w-4 text-red-500 mx-auto" />)}
                             </td>
                           </tr>
                         )

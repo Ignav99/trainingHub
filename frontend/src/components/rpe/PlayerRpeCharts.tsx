@@ -12,6 +12,8 @@ import {
 } from 'recharts'
 import { rpeApi } from '@/lib/api/rpe'
 import type { RPERegistro } from '@/types'
+import { useAppearance } from '@/lib/useAppearance'
+import { C, barraCal, ejeXCal, ejeYCal, rejillaCal, tooltipCal } from '@/lib/graficoCal'
 
 function kindOf(row: RPERegistro): 'partido' | 'sesion' | 'manual' {
   if (row.tipo === 'partido' || row.partido_id) return 'partido'
@@ -25,6 +27,7 @@ function dayLabel(fecha: string): string {
 }
 
 export function PlayerRpeCharts({ jugadorId }: { jugadorId: string }) {
+  const cal = useAppearance() === 'cal'
   const [rows, setRows] = useState<RPERegistro[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -71,6 +74,37 @@ export function PlayerRpeCharts({ jugadorId }: { jugadorId: string }) {
       <p className="px-4 py-3 text-xs text-muted-foreground border-t">
         Sin registros de RPE todavía.
       </p>
+    )
+  }
+
+  if (cal) {
+    return (
+      <div className="grid gap-4 border-t border-border bg-sunken px-4 py-3 md:grid-cols-2">
+        <div>
+          <p className="cal-rotulo mb-1 text-muted-foreground">RPE reciente</p>
+          <ResponsiveContainer width="100%" height={140}>
+            <BarChart data={events}>
+              <CartesianGrid {...rejillaCal} />
+              <XAxis dataKey="label" {...ejeXCal} />
+              <YAxis domain={[0, 10]} width={24} {...ejeYCal} />
+              <Tooltip {...tooltipCal} formatter={(value: any, _name: any, item: any) => [`${value} · ${item?.payload?.tipo ?? ''}`, 'RPE']} />
+              <Bar dataKey="rpe" fill={C.primary} {...barraCal} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <div>
+          <p className="cal-rotulo mb-1 text-muted-foreground">Carga (UA) = RPE × minutos</p>
+          <ResponsiveContainer width="100%" height={140}>
+            <BarChart data={events}>
+              <CartesianGrid {...rejillaCal} />
+              <XAxis dataKey="label" {...ejeXCal} />
+              <YAxis width={32} {...ejeYCal} />
+              <Tooltip {...tooltipCal} formatter={(value: any, _name: any, item: any) => [`${value} UA · ${item?.payload?.tipo ?? ''}`, 'Carga']} />
+              <Bar dataKey="ua" fill={C.neutro} {...barraCal} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
     )
   }
 

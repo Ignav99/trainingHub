@@ -6,6 +6,7 @@ import { useState } from 'react'
 import ABPBoardMini from './ABPBoardMini'
 import { jugadaToBoardData } from '@/lib/abpDiagramAdapter'
 import { boardHasAnimation } from '@/components/task-preview/TacticalBoardMini'
+import { useAppearance } from '@/lib/useAppearance'
 import { exportBoardWebM, downloadBlob } from '@/components/tactical-board/exportAnimation'
 
 interface ABPPlayCardProps {
@@ -16,6 +17,7 @@ interface ABPPlayCardProps {
 }
 
 export default function ABPPlayCard({ jugada, onClick, onDuplicate, onDelete }: ABPPlayCardProps) {
+  const cal = useAppearance() === 'cal'
   const [showMenu, setShowMenu] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const tipoInfo = ABP_TIPOS.find((t) => t.value === jugada.tipo)
@@ -32,6 +34,80 @@ export default function ABPPlayCard({ jugada, onClick, onDuplicate, onDelete }: 
       setDownloading(false)
       setShowMenu(false)
     }
+  }
+
+  if (cal) {
+    const meta = [
+      jugada.lado === 'ofensivo' ? 'OF' : 'DF',
+      (tipoInfo?.label || jugada.tipo || '').toString().toLowerCase(),
+      jugada.subtipo || null,
+      jugada.codigo || null,
+      canDownloadVideo ? 'en bucle' : null,
+    ].filter(Boolean).join(' · ')
+    const botonIcono = 'flex h-10 w-10 items-center justify-center text-muted-foreground hover:bg-sunken hover:text-foreground'
+    return (
+      <div
+        className="group relative cursor-pointer border border-border bg-card transition-colors hover:border-foreground"
+        onClick={onClick}
+      >
+        <div className="relative h-40 overflow-hidden">
+          <ABPBoardMini jugada={jugada} animate autoplay showPlayBadge={false} />
+        </div>
+        <div className="p-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <h3 className="truncate text-sm font-semibold text-foreground">{jugada.nombre}</h3>
+              <p className="truncate font-mono text-[11px] text-muted-foreground">{meta}</p>
+            </div>
+            <div className="-mr-2 -mt-2 flex shrink-0 items-center">
+              {canDownloadVideo && (
+                <button
+                  type="button"
+                  aria-label="Descargar vídeo"
+                  disabled={downloading}
+                  onClick={(e) => { e.stopPropagation(); handleDownloadVideo() }}
+                  className={`${botonIcono} disabled:opacity-50`}
+                >
+                  <Download className="h-4 w-4" />
+                </button>
+              )}
+              {onDuplicate && (
+                <button
+                  type="button"
+                  aria-label="Duplicar jugada"
+                  onClick={(e) => { e.stopPropagation(); onDuplicate() }}
+                  className={botonIcono}
+                >
+                  <Copy className="h-4 w-4" />
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  type="button"
+                  aria-label="Eliminar jugada"
+                  onClick={(e) => { e.stopPropagation(); onDelete() }}
+                  className={`${botonIcono} hover:text-destructive`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
+          {jugada.senal_codigo && (
+            <p className="mt-1 font-mono text-[11px] text-muted-foreground">Señal {jugada.senal_codigo}</p>
+          )}
+          {jugada.tags?.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {jugada.tags.slice(0, 3).map((tag) => (
+                <span key={tag} className="border border-border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    )
   }
 
   return (

@@ -22,6 +22,7 @@ import { toast } from 'sonner'
 import { Tarea, CategoriaTarea } from '@/types'
 import { tareasApi, catalogosApi } from '@/lib/api/tareas'
 import { useEquipoStore } from '@/stores/equipoStore'
+import { useAppearance } from '@/lib/useAppearance'
 import TacticalBoardMini from '@/components/task-preview/TacticalBoardMini'
 import type { TareaPizarraData } from '@/components/tactical-board/types'
 
@@ -189,6 +190,54 @@ function PreviewModal({ tarea, onClose, onCopy }: { tarea: Tarea; onClose: () =>
 
 // Tarjeta de tarea
 function TareaCard({ tarea, onView, onCopy }: { tarea: Tarea; onView: () => void; onCopy: () => void }) {
+  const cal = useAppearance() === 'cal'
+  if (cal) {
+    const jug = `${tarea.num_jugadores_min}${tarea.num_jugadores_max && tarea.num_jugadores_max !== tarea.num_jugadores_min ? `-${tarea.num_jugadores_max}` : ''} jug.`
+    const meta = [
+      tarea.categoria ? (tarea.categoria.codigo || tarea.categoria.nombre) : null,
+      `${tarea.duracion_total}'`,
+      jug,
+      tarea.espacio_largo && tarea.espacio_ancho ? `${tarea.espacio_largo}x${tarea.espacio_ancho} m` : null,
+      tarea.densidad ? `intensidad ${tarea.densidad}` : null,
+    ].filter(Boolean).join(' · ')
+    return (
+      <div className="border border-border bg-card transition-colors hover:border-foreground">
+        <button
+          type="button"
+          onClick={onView}
+          className="block w-full bg-[#2D5016]"
+          style={{ aspectRatio: '1050/680' }}
+          title="Ver tarea"
+        >
+          <TacticalBoardMini
+            data={tarea.grafico_data as TareaPizarraData | undefined}
+            width="100%"
+            height="100%"
+            animate
+          />
+        </button>
+        <div className="p-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <h3 className="line-clamp-2 text-sm font-semibold text-foreground">{tarea.titulo}</h3>
+              <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">{meta}</p>
+            </div>
+            <div className="-mr-2 -mt-2 flex shrink-0">
+              <button type="button" onClick={onView} aria-label="Ver tarea" className="flex h-10 w-10 items-center justify-center text-muted-foreground hover:bg-sunken hover:text-foreground">
+                <Eye className="h-4 w-4" />
+              </button>
+              <button type="button" onClick={onCopy} aria-label="Copiar a mi colección" className="flex h-10 w-10 items-center justify-center text-muted-foreground hover:bg-sunken hover:text-foreground">
+                <Copy className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+          {tarea.descripcion && (
+            <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{tarea.descripcion}</p>
+          )}
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="relative bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
       <IntensityIndicator densidad={tarea.densidad} />
@@ -269,6 +318,7 @@ function TareaCard({ tarea, onView, onCopy }: { tarea: Tarea; onView: () => void
 }
 
 export default function BibliotecaPage() {
+  const cal = useAppearance() === 'cal'
   const { equipoActivo } = useEquipoStore()
   const [tareas, setTareas] = useState<Tarea[]>([])
   const [categorias, setCategorias] = useState<CategoriaTarea[]>([])
@@ -384,23 +434,23 @@ export default function BibliotecaPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className={cal ? 'text-2xl font-bold text-foreground flex items-center gap-2' : 'text-2xl font-bold text-gray-900 flex items-center gap-2'}>
             <BookOpen className="h-7 w-7 text-primary" />
             Biblioteca de Tareas
           </h1>
-          <p className="text-gray-500">
+          <p className={cal ? 'text-muted-foreground' : 'text-gray-500'}>
             {total} tareas disponibles para usar en tus entrenamientos
           </p>
         </div>
       </div>
 
       {/* Info */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+      <div className={cal ? 'border border-border bg-sunken p-4' : 'bg-blue-50 border border-blue-200 rounded-xl p-4'}>
         <div className="flex gap-3">
-          <Copy className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
+          <Copy className={cal ? 'h-5 w-5 text-muted-foreground shrink-0 mt-0.5' : 'h-5 w-5 text-blue-600 shrink-0 mt-0.5'} />
           <div>
-            <h3 className="font-medium text-blue-900">¿Cómo funciona?</h3>
-            <p className="text-sm text-blue-700 mt-1">
+            <h3 className={cal ? 'font-medium text-foreground' : 'font-medium text-blue-900'}>¿Cómo funciona?</h3>
+            <p className={cal ? 'text-sm text-muted-foreground mt-1' : 'text-sm text-blue-700 mt-1'}>
               Explora las tareas de la biblioteca y cópialas a tu colección personal.
               Una vez copiadas, podrás editarlas y personalizarlas para tus sesiones de entrenamiento.
             </p>
@@ -409,7 +459,7 @@ export default function BibliotecaPage() {
       </div>
 
       {/* Filtros */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
+      <div className={cal ? 'cal-linea bg-card p-4' : 'bg-white rounded-xl border border-gray-200 p-4'}>
         <form onSubmit={handleSearch} className="space-y-4">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1 relative">
@@ -419,14 +469,14 @@ export default function BibliotecaPage() {
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
                 placeholder="Buscar tareas..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                className={cal ? 'min-h-10 w-full border border-border bg-card pl-10 pr-4 py-2 outline-none focus:border-foreground' : 'w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none'}
               />
             </div>
 
             <select
               value={categoriaFilter}
               onChange={(e) => { setCategoriaFilter(e.target.value); setPage(1) }}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
+              className={cal ? 'min-h-10 border border-border bg-card px-4 py-2 outline-none focus:border-foreground' : 'px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white'}
             >
               <option value="">Todas las categorías</option>
               {categorias.map((cat) => (
@@ -438,7 +488,7 @@ export default function BibliotecaPage() {
 
             <button
               type="submit"
-              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+              className={cal ? 'min-h-10 bg-primary px-4 py-2 text-primary-foreground' : 'px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors'}
             >
               Buscar
             </button>
@@ -452,6 +502,12 @@ export default function BibliotecaPage() {
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       ) : tareas.length === 0 ? (
+        cal ? (
+          <p className="cal-linea bg-card px-4 py-6 text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">No se encontraron tareas.</span>{' '}
+            {busqueda || categoriaFilter ? 'Prueba con otros filtros de búsqueda.' : 'La biblioteca está vacía.'}
+          </p>
+        ) : (
         <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
           <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No se encontraron tareas</h3>
@@ -462,6 +518,7 @@ export default function BibliotecaPage() {
             }
           </p>
         </div>
+        )
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -481,17 +538,17 @@ export default function BibliotecaPage() {
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                className={cal ? 'min-h-10 border border-border bg-card px-3 py-2 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-sunken' : 'px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50'}
               >
                 Anterior
               </button>
-              <span className="px-4 py-2 text-sm text-gray-600">
+              <span className={cal ? 'px-4 py-2 text-sm text-muted-foreground' : 'px-4 py-2 text-sm text-gray-600'}>
                 Página {page} de {totalPages}
               </span>
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                className="px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                className={cal ? 'min-h-10 border border-border bg-card px-3 py-2 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-sunken' : 'px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50'}
               >
                 Siguiente
               </button>
@@ -511,7 +568,7 @@ export default function BibliotecaPage() {
 
       {/* Toast de éxito */}
       {copySuccess && (
-        <div className="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-in slide-in-from-bottom-4">
+        <div className={cal ? 'fixed bottom-4 right-4 flex items-center gap-2 border border-border bg-card px-4 py-3 text-foreground' : 'fixed bottom-4 right-4 bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-in slide-in-from-bottom-4'}>
           <Check className="h-5 w-5" />
           Tarea copiada a tu colección
         </div>
