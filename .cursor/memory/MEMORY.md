@@ -1,5 +1,8 @@
 # TrainingHub — estado actual
 
+## Microciclo texto de esta semana (10 nov 2026)
+Había dos microciclos 9–15 nov del Filial. El texto de ayer estaba en `e4a701a4` (sin sesiones). La sesión de hoy «Duelos + espacio libre + comunicación» está en `ab4ea0f1`, que se abría vacío. Copiado olfato y 6 objetivos a `ab4ea0f1` y a las otras copias vacías de semanas anteriores. Trigger `keep_microciclo_week_text` (migración 092, aplicada en Supabase) impide vaciar olfato/objetivos. El código reutiliza la semana al crear, deduplica la lista hacia la copia con sesiones y refleja el texto.
+
 ## Diseño Acta (9 nov 2026, rama cursor/diseno-acta-9a4e)
 El aspecto anterior era la plantilla shadcn: Inter, blanco, sombra, radio 0.5rem. Queda guardado en `html[data-appearance="clasico"]` y en localStorage `kabine-appearance:v1`. El botón «Aspecto anterior» de la barra lo activa. El nuevo (por defecto) es Acta: hoja fría, banco oscuro `#111916`-equivalente HSL `160 18% 8%`, Schibsted Grotesk + IBM Plex Mono en las secciones, el color del club solo en la marca de dónde estás y en los botones, sin sombras. No es crema+serif, ni negro+verde ácido, ni periódico.
 

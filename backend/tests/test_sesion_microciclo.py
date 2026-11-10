@@ -37,6 +37,21 @@ def test_elige_micro_que_cubre_fecha():
     assert _elegir_micro(rows, date(2026, 9, 1)) is None
 
 
+def test_elige_la_copia_con_texto_y_sesiones():
+    rows = [
+        {"id": "vacio", "fecha_inicio": "2026-11-09", "fecha_fin": "2026-11-15", "plan_ct": {}, "_sesiones": 0},
+        {
+            "id": "escrito",
+            "fecha_inicio": "2026-11-09",
+            "fecha_fin": "2026-11-15",
+            "plan_ct": {"olfato_ct": "Campo rápido.", "objetivos_semana": ["Duelos"]},
+            "_sesiones": 1,
+        },
+    ]
+    chosen = _elegir_micro(rows, date(2026, 11, 10))
+    assert chosen and chosen["id"] == "escrito"
+
+
 def test_rival_nombre_desde_sala_lunes():
     assert rival_nombre_desde_micro({"rivales": {"nombre": "Écija Balompié"}}) == "Écija Balompié"
     assert (
