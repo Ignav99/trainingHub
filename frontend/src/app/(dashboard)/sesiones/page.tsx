@@ -35,6 +35,8 @@ import { FASES_JUEGO, MATERIALES } from '@/lib/catalogos/canonico'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { AsignarRpeDialog } from '@/components/sesiones/AsignarRpeDialog'
+import { SesionesTablaCal } from '@/components/sesiones/SesionesTablaCal'
+import { PorAspecto } from '@/components/appearance/PorAspecto'
 import { continueHref, PASO_LABEL, readCreacionPaso } from '@/lib/sesionBorrador'
 
 // Badge de Match Day
@@ -628,167 +630,184 @@ export default function SesionesPage() {
           </div>
 
           {/* Desktop table */}
-          <div className="hidden lg:block bg-white rounded-xl border border-gray-200 overflow-hidden animate-fade-in">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Fecha
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Match Day
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Título / Objetivo
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tareas
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Duración
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Estado
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Acciones
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {sesiones.map((sesion) => (
-                  <tr
-                    key={sesion.id}
-                    onClick={() => router.push(continueHref(sesion.id, sesion.fase_notas, sesion.estado))}
-                    onPointerEnter={() => warmSesion(sesion)}
-                    className="row-hover cursor-pointer"
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <CalendarIcon className="h-4 w-4 text-gray-400" />
-                        <span className="text-sm text-gray-900">
-                          {formatDate(sesion.fecha)}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <MatchDayBadge matchDay={sesion.match_day} />
-                    </td>
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{sesion.titulo}</p>
-                        {readCreacionPaso(sesion.fase_notas) && sesion.estado === 'borrador' ? (
-                          <p className="text-xs text-amber-800 mt-0.5">
-                            Te quedaste en {PASO_LABEL[readCreacionPaso(sesion.fase_notas)!]}
-                          </p>
-                        ) : null}
-                        <div className="flex flex-wrap items-center gap-1 mt-0.5">
-                          {sesion.numero_sesion ? (
-                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
-                              Nº {sesion.numero_sesion}
+          <PorAspecto
+            cal={
+              <div className="hidden lg:block">
+                <SesionesTablaCal
+                  sesiones={sesiones}
+                  activeMenu={activeMenu}
+                  setActiveMenu={setActiveMenu}
+                  onWarm={warmSesion}
+                  onPdf={handleGeneratePdf}
+                  onRpe={setRpeSesionId}
+                  onDelete={handleDelete}
+                />
+              </div>
+            }
+            resto={
+              <div className="hidden lg:block bg-white rounded-xl border border-gray-200 overflow-hidden animate-fade-in">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Fecha
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Match Day
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Título / Objetivo
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Tareas
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Duración
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Estado
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Acciones
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {sesiones.map((sesion) => (
+                      <tr
+                        key={sesion.id}
+                        onClick={() => router.push(continueHref(sesion.id, sesion.fase_notas, sesion.estado))}
+                        onPointerEnter={() => warmSesion(sesion)}
+                        className="row-hover cursor-pointer"
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <CalendarIcon className="h-4 w-4 text-gray-400" />
+                            <span className="text-sm text-gray-900">
+                              {formatDate(sesion.fecha)}
                             </span>
-                          ) : null}
-                          {sesion.es_pretemporada || sesion.contexto_periodo === 'pretemporada' ? (
-                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-50 text-amber-800">
-                              Pretemporada
-                            </span>
-                          ) : sesion.contexto_periodo === 'transicion' ? (
-                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
-                              Transición
-                            </span>
-                          ) : null}
-                        </div>
-                        {sesion.objetivo_principal && (
-                          <p className="text-sm text-gray-500 truncate max-w-xs">
-                            {sesion.objetivo_principal}
-                          </p>
-                        )}
-                        {sesion.rival && (
-                          <p className="text-xs text-gray-400 mt-0.5">
-                            vs {sesion.rival}
-                          </p>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-1 text-sm text-gray-500">
-                        <ListChecks className="h-4 w-4" />
-                        {sesion.tareas?.length || 0}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-1 text-sm text-gray-500">
-                        <Clock className="h-4 w-4" />
-                        {sesion.duracion_total ? `${sesion.duracion_total} min` : '-'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <EstadoBadge estado={sesion.estado} creacionPaso={readCreacionPaso(sesion.fase_notas)} />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <div className="relative inline-block" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setActiveMenu(activeMenu === sesion.id ? null : sesion.id)
-                          }}
-                          className="p-1 text-gray-400 hover:text-gray-600 rounded"
-                        >
-                          <MoreHorizontal className="h-5 w-5" />
-                        </button>
-
-                        {activeMenu === sesion.id && (
-                          <div className="absolute right-0 top-8 w-52 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
-                            <Link
-                              href={continueHref(sesion.id, sesion.fase_notas, sesion.estado)}
-                              className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Eye className="h-4 w-4" />
-                              {readCreacionPaso(sesion.fase_notas) && sesion.estado === 'borrador' ? 'Continuar' : 'Ver detalle'}
-                            </Link>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <MatchDayBadge matchDay={sesion.match_day} />
+                        </td>
+                        <td className="px-6 py-4">
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{sesion.titulo}</p>
+                            {readCreacionPaso(sesion.fase_notas) && sesion.estado === 'borrador' ? (
+                              <p className="text-xs text-amber-800 mt-0.5">
+                                Te quedaste en {PASO_LABEL[readCreacionPaso(sesion.fase_notas)!]}
+                              </p>
+                            ) : null}
+                            <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                              {sesion.numero_sesion ? (
+                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
+                                  Nº {sesion.numero_sesion}
+                                </span>
+                              ) : null}
+                              {sesion.es_pretemporada || sesion.contexto_periodo === 'pretemporada' ? (
+                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-50 text-amber-800">
+                                  Pretemporada
+                                </span>
+                              ) : sesion.contexto_periodo === 'transicion' ? (
+                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                                  Transición
+                                </span>
+                              ) : null}
+                            </div>
+                            {sesion.objetivo_principal && (
+                              <p className="text-sm text-gray-500 truncate max-w-xs">
+                                {sesion.objetivo_principal}
+                              </p>
+                            )}
+                            {sesion.rival && (
+                              <p className="text-xs text-gray-400 mt-0.5">
+                                vs {sesion.rival}
+                              </p>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-1 text-sm text-gray-500">
+                            <ListChecks className="h-4 w-4" />
+                            {sesion.tareas?.length || 0}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-1 text-sm text-gray-500">
+                            <Clock className="h-4 w-4" />
+                            {sesion.duracion_total ? `${sesion.duracion_total} min` : '-'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <EstadoBadge estado={sesion.estado} creacionPaso={readCreacionPaso(sesion.fase_notas)} />
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <div className="relative inline-block" onClick={(e) => e.stopPropagation()}>
                             <button
-                              onClick={(e) => handleGeneratePdf(sesion.id, e, sesion.fecha, 'reducido')}
-                              className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
-                            >
-                              <FileText className="h-4 w-4" />
-                              PDF reducido
-                            </button>
-                            <button
-                              onClick={(e) => handleGeneratePdf(sesion.id, e, sesion.fecha, 'extendido')}
-                              className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
-                            >
-                              <FileText className="h-4 w-4" />
-                              PDF extendido
-                            </button>
-                            <button
-                              type="button"
                               onClick={(e) => {
                                 e.stopPropagation()
-                                setActiveMenu(null)
-                                setRpeSesionId(sesion.id)
+                                setActiveMenu(activeMenu === sesion.id ? null : sesion.id)
                               }}
-                              className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
+                              className="p-1 text-gray-400 hover:text-gray-600 rounded"
                             >
-                              <Activity className="h-4 w-4" />
-                              Asignar RPE
+                              <MoreHorizontal className="h-5 w-5" />
                             </button>
-                            <button
-                              onClick={(e) => handleDelete(sesion.id, e)}
-                              className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              Eliminar
-                            </button>
+
+                            {activeMenu === sesion.id && (
+                              <div className="absolute right-0 top-8 w-52 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
+                                <Link
+                                  href={continueHref(sesion.id, sesion.fase_notas, sesion.estado)}
+                                  className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                  {readCreacionPaso(sesion.fase_notas) && sesion.estado === 'borrador' ? 'Continuar' : 'Ver detalle'}
+                                </Link>
+                                <button
+                                  onClick={(e) => handleGeneratePdf(sesion.id, e, sesion.fecha, 'reducido')}
+                                  className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
+                                >
+                                  <FileText className="h-4 w-4" />
+                                  PDF reducido
+                                </button>
+                                <button
+                                  onClick={(e) => handleGeneratePdf(sesion.id, e, sesion.fecha, 'extendido')}
+                                  className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
+                                >
+                                  <FileText className="h-4 w-4" />
+                                  PDF extendido
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setActiveMenu(null)
+                                    setRpeSesionId(sesion.id)
+                                  }}
+                                  className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
+                                >
+                                  <Activity className="h-4 w-4" />
+                                  Asignar RPE
+                                </button>
+                                <button
+                                  onClick={(e) => handleDelete(sesion.id, e)}
+                                  className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  Eliminar
+                                </button>
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            }
+          />
 
           {/* Paginación */}
           {totalPages > 1 && (

@@ -74,6 +74,8 @@ import type { Convocatoria, Partido, EstadisticaPartido, GolDetalle, FaltaPosici
 import { GoalDetailEditor } from './GoalDetailEditor'
 import { FoulMapEditor } from './FoulMapEditor'
 import { AnotacionesImportDialog } from './AnotacionesImportDialog'
+import { PartidoCabeceraCal } from './PartidoCabeceraCal'
+import { PorAspecto } from '@/components/appearance/PorAspecto'
 import { ConvocatoriaCartelDialog } from './ConvocatoriaCartelDialog'
 import type { AnotacionesPlan, PlayerStatRow } from '@/lib/partidoAnotacionesJson'
 import { periodReportFromNotasPre, parseNotasPre, informeFromSnapshot, hasAnotadorLiveData, resolveGolDetalleNames, remapFormationSlots } from '@/lib/anotador'
@@ -852,21 +854,40 @@ export function MatchDetailPanel({
 
   if (!selectedPartido) {
     return (
-      <Card>
-        <CardContent className="py-16 text-center">
-          <Swords className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-          <h3 className="text-lg font-medium mb-1">Selecciona un partido</h3>
-          <p className="text-sm text-muted-foreground">
-            Elige un partido de la lista para gestionar
+      <PorAspecto
+        cal={
+          <p className="cal-linea bg-card p-4 text-sm text-muted-foreground">
+            Selecciona un partido de la lista para gestionarlo.
           </p>
-        </CardContent>
-      </Card>
+        }
+        resto={
+          <Card>
+            <CardContent className="py-16 text-center">
+              <Swords className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+              <h3 className="text-lg font-medium mb-1">Selecciona un partido</h3>
+              <p className="text-sm text-muted-foreground">
+                Elige un partido de la lista para gestionar
+              </p>
+            </CardContent>
+          </Card>
+        }
+      />
     )
   }
 
   return (
     <div className="animate-fade-in">
-      {/* Match header */}
+      <PorAspecto
+        cal={
+          <PartidoCabeceraCal
+            partido={selectedPartido}
+            esAmistoso={esAmistoso}
+            onEdit={handleOpenEdit}
+            onDelete={() => setShowDelete(true)}
+          />
+        }
+        resto={
+          <>
       <div className="mb-4 flex items-start justify-between gap-2 flex-wrap min-w-0">
         <div className="min-w-0">
           <h2 className="text-lg font-bold flex items-center gap-2">
@@ -904,7 +925,21 @@ export function MatchDetailPanel({
         </div>
       </div>
 
+          </>
+        }
+      />
+
       <Tabs value={tabParam} onValueChange={onSetTab}>
+        <PorAspecto
+          cal={
+            <TabsList className="mb-4 w-full justify-start">
+              <TabsTrigger value="informe-rival" className="min-h-10">Informe rival</TabsTrigger>
+              <TabsTrigger value="plan-partido" className="min-h-10">Plan de partido</TabsTrigger>
+              <TabsTrigger value="convocatoria" className="min-h-10">Convocatoria</TabsTrigger>
+              <TabsTrigger value="informe-partido" className="min-h-10">Informe del partido</TabsTrigger>
+            </TabsList>
+          }
+          resto={
         <TabsList className="mb-4 w-full max-lg:justify-start">
           <TabsTrigger value="informe-rival" className="gap-1.5">
             <FileText className="h-4 w-4" />
@@ -923,6 +958,8 @@ export function MatchDetailPanel({
             Informe del partido
           </TabsTrigger>
         </TabsList>
+          }
+        />
 
         {/* ==================== TAB: INFORME RIVAL ==================== */}
         <TabsContent value="informe-rival" className="space-y-6">
@@ -973,17 +1010,33 @@ export function MatchDetailPanel({
               {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 rounded-lg" />)}
             </div>
           ) : convocados.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <UserPlus className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-                <h3 className="font-medium mb-1">Sin convocados</h3>
-                <p className="text-sm text-muted-foreground mb-4">Anade jugadores a la convocatoria</p>
-                <Button onClick={openAddDialog} size="sm">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Convocar jugadores
-                </Button>
-              </CardContent>
-            </Card>
+            <PorAspecto
+              cal={
+                <div className="cal-linea bg-card flex flex-wrap items-center justify-between gap-3 p-4">
+                  <p className="text-sm">
+                    <span className="font-semibold text-foreground">Sin convocados.</span>{' '}
+                    <span className="text-muted-foreground">Añade jugadores a la convocatoria.</span>
+                  </p>
+                  <Button onClick={openAddDialog} size="sm" className="min-h-10">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Convocar jugadores
+                  </Button>
+                </div>
+              }
+              resto={
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <UserPlus className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                    <h3 className="font-medium mb-1">Sin convocados</h3>
+                    <p className="text-sm text-muted-foreground mb-4">Anade jugadores a la convocatoria</p>
+                    <Button onClick={openAddDialog} size="sm">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Convocar jugadores
+                    </Button>
+                  </CardContent>
+                </Card>
+              }
+            />
           ) : (
             <div className="space-y-4">
               {/* Formation selector */}

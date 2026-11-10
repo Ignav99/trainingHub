@@ -44,6 +44,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { useIsMobile } from '@/hooks/useMediaQuery'
+import { useAppearance } from '@/lib/useAppearance'
 import type { Sesion, Microciclo, Partido } from '@/types'
 import { estadoDeMicrociclo } from '@/lib/microcicloEstado'
 
@@ -186,6 +187,7 @@ export function CalendarSection({
   onCreateMicrocicloForWeek,
 }: CalendarSectionProps) {
   const isMobile = useIsMobile()
+  const cal = useAppearance() === 'cal'
   const now = new Date()
   const [selectedMicro, setSelectedMicro] = useState<Microciclo | null>(null)
   const [mobileWeekOffset, setMobileWeekOffset] = useState(0)
@@ -469,21 +471,27 @@ export function CalendarSection({
                       className={`min-h-[60px] border-b border-r last:border-r-0 p-1.5 transition-colors relative flex flex-col items-center ${
                         mdColors ? `border-t-[3px] ${mdColors.border}` : ''
                       } ${
-                        isToday
-                          ? 'bg-primary/5 ring-2 ring-inset ring-primary/20'
-                          : isDescanso
-                            ? 'bg-slate-50'
-                            : mdColors
-                              ? mdColors.bg + '/40'
-                              : !inMonth
-                                ? 'bg-muted/20'
-                                : ''
+                        cal
+                          ? isDescanso || !inMonth
+                            ? 'bg-sunken'
+                            : 'bg-card'
+                          : isToday
+                            ? 'bg-primary/5 ring-2 ring-inset ring-primary/20'
+                            : isDescanso
+                              ? 'bg-slate-50'
+                              : mdColors
+                                ? mdColors.bg + '/40'
+                                : !inMonth
+                                  ? 'bg-muted/20'
+                                  : ''
                       } ${isExpanded ? 'bg-muted/40' : ''} ${hasContent ? 'cursor-pointer' : ''}`}
                     >
                       <span
                         className={`text-sm font-semibold leading-none mb-1 ${
                           isToday
-                            ? 'bg-primary text-white w-7 h-7 rounded-full flex items-center justify-center'
+                            ? cal
+                              ? 'bg-primary text-primary-foreground w-7 h-7 rounded-[var(--radius)] flex items-center justify-center'
+                              : 'bg-primary text-white w-7 h-7 rounded-full flex items-center justify-center'
                             : !inMonth
                               ? 'text-muted-foreground/45'
                               : isPast
@@ -501,7 +509,7 @@ export function CalendarSection({
                       {/* Color dots */}
                       <div className="flex gap-0.5 mt-auto">
                         {dots.slice(0, 3).map((color, di) => (
-                          <span key={di} className={`w-2 h-2 rounded-full ${color}`} />
+                          <span key={di} className={`w-2 h-2 ${cal ? 'rounded-[1px]' : 'rounded-full'} ${color}`} />
                         ))}
                       </div>
                       {/* Add button */}
@@ -573,19 +581,19 @@ export function CalendarSection({
                       <Link
                         key={p.id}
                         href={`/partidos?match=${p.id}`}
-                        className={`flex items-center gap-2 p-2.5 rounded-lg border ${
-                          isLocal
-                            ? 'bg-amber-50 border-amber-200'
-                            : 'bg-violet-50 border-violet-200'
+                        className={`flex items-center gap-2 p-2.5 ${
+                          cal
+                            ? `rounded-[var(--radius)] border border-border border-l-[3px] bg-card ${isLocal ? 'border-l-warning' : 'border-l-foreground'}`
+                            : `rounded-lg border ${isLocal ? 'bg-amber-50 border-amber-200' : 'bg-violet-50 border-violet-200'}`
                         }`}
                       >
                         <TeamCrest src={p.rival?.escudo_url} name={p.rival?.nombre || 'Rival'} size="sm" />
                         <div className="flex-1 min-w-0">
-                          <span className={`text-sm font-bold truncate block ${isLocal ? 'text-amber-800' : 'text-violet-800'}`}>
+                          <span className={`text-sm font-bold truncate block ${cal ? 'text-foreground' : isLocal ? 'text-amber-800' : 'text-violet-800'}`}>
                             {isLocal ? 'vs' : '@'} {p.rival?.nombre_corto || p.rival?.nombre || 'Rival'}
                           </span>
                           {p.hora && (
-                            <span className={`text-xs ${isLocal ? 'text-amber-600' : 'text-violet-600'}`}>{p.hora}</span>
+                            <span className={`text-xs ${cal ? 'text-muted-foreground' : isLocal ? 'text-amber-600' : 'text-violet-600'}`}>{p.hora}</span>
                           )}
                         </div>
                         {p.goles_favor !== undefined && p.goles_favor !== null && (
@@ -596,13 +604,16 @@ export function CalendarSection({
                     })}
                     {daySesiones.map((s) => {
                       const dotColors: Record<string, string> = { completada: 'bg-green-500', planificada: 'bg-blue-500', borrador: 'bg-gray-400', en_curso: 'bg-purple-500' }
+                      const barColors: Record<string, string> = { completada: 'border-l-success', planificada: 'border-l-info', borrador: 'border-l-muted-foreground', en_curso: 'border-l-primary' }
                       return (
                         <Link
                           key={s.id}
                           href={`/sesiones/${s.id}`}
-                          className="flex items-center gap-2 p-2.5 rounded-lg bg-card border"
+                          className={`flex items-center gap-2 p-2.5 bg-card border ${
+                            cal ? `rounded-[var(--radius)] border-border border-l-[3px] text-foreground ${barColors[s.estado] || 'border-l-muted-foreground'}` : 'rounded-lg'
+                          }`}
                         >
-                          <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${dotColors[s.estado] || 'bg-gray-400'}`} />
+                          {!cal && <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${dotColors[s.estado] || 'bg-gray-400'}`} />}
                           <div className="flex-1 min-w-0">
                             <span className="text-sm font-medium truncate block">{s.titulo}</span>
                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -706,7 +717,11 @@ export function CalendarSection({
                   const firstMatchLocal = dayPartidos[0]?.localia === 'local'
 
                   // Activity fill (microciclo se marca con barra lateral / badge lunes, no contorno)
-                  const activityBg = isDescanso
+                  const activityBg = cal
+                    ? isDescanso || !inMonth
+                      ? 'bg-sunken'
+                      : 'bg-card'
+                    : isDescanso
                     ? 'bg-slate-200/70'
                     : hasMatch
                       ? firstMatchLocal
@@ -729,9 +744,9 @@ export function CalendarSection({
                         }
                       }}
                       className={`min-h-[70px] md:min-h-[100px] border-b border-r last:border-r-0 p-1.5 transition-colors relative group ${
-                        mdColors ? `border-t-4 ${mdColors.border}` : ''
+                        mdColors ? `${cal ? 'border-t-[3px]' : 'border-t-4'} ${mdColors.border}` : ''
                       } ${
-                        isToday
+                        isToday && !cal
                           ? 'ring-2 ring-inset ring-primary/30'
                           : ''
                       } ${activityBg} ${
@@ -743,7 +758,9 @@ export function CalendarSection({
                         <span
                           className={`text-xs font-medium leading-none inline-flex items-center gap-0.5 ${
                             isToday
-                              ? 'bg-primary text-white w-6 h-6 rounded-full justify-center'
+                              ? cal
+                                ? 'bg-primary text-primary-foreground w-6 h-6 rounded-[var(--radius)] justify-center'
+                                : 'bg-primary text-white w-6 h-6 rounded-full justify-center'
                               : !inMonth
                                 ? 'text-muted-foreground/45'
                                 : isPast
@@ -883,26 +900,28 @@ export function CalendarSection({
                             key={p.id}
                             href={`/partidos?match=${p.id}`}
                             onClick={(e) => e.stopPropagation()}
-                            className={`block rounded-md px-1.5 py-1 border transition-colors cursor-pointer ${
-                              isLocal
-                                ? 'bg-amber-50 border-amber-200 hover:bg-amber-100'
-                                : 'bg-violet-50 border-violet-200 hover:bg-violet-100'
+                            className={`block px-1.5 py-1 border transition-colors cursor-pointer ${
+                              cal
+                                ? `rounded-[var(--radius)] border-border border-l-[3px] bg-card text-foreground hover:bg-sunken ${isLocal ? 'border-l-warning' : 'border-l-foreground'}`
+                                : `rounded-md ${isLocal
+                                  ? 'bg-amber-50 border-amber-200 hover:bg-amber-100'
+                                  : 'bg-violet-50 border-violet-200 hover:bg-violet-100'}`
                             }`}
                           >
                             <div className="flex items-center gap-1">
                               <TeamCrest src={p.rival?.escudo_url} name={p.rival?.nombre || 'Rival'} size="sm" />
-                              <span className={`text-[10px] font-bold truncate ${isLocal ? 'text-amber-800' : 'text-violet-800'}`}>
+                              <span className={`text-[10px] font-bold truncate ${cal ? 'text-foreground' : isLocal ? 'text-amber-800' : 'text-violet-800'}`}>
                                 {isLocal ? 'vs' : '@'}{' '}
                                 {p.rival?.nombre_corto || p.rival?.nombre || 'Rival'}
                               </span>
                               {p.jornada && (
                                 <span className={`text-[8px] font-medium px-1 rounded ${
-                                  isLocal ? 'bg-amber-100 text-amber-700' : 'bg-violet-100 text-violet-700'
+                                  cal ? 'bg-sunken text-muted-foreground' : isLocal ? 'bg-amber-100 text-amber-700' : 'bg-violet-100 text-violet-700'
                                 }`}>J{p.jornada}</span>
                               )}
                             </div>
                             {p.hora && (
-                              <span className={`text-[9px] ml-4 ${isLocal ? 'text-amber-600' : 'text-violet-600'}`}>{p.hora}</span>
+                              <span className={`text-[9px] ml-4 ${cal ? 'text-muted-foreground' : isLocal ? 'text-amber-600' : 'text-violet-600'}`}>{p.hora}</span>
                             )}
                             {p.goles_favor !== undefined && p.goles_favor !== null && (
                               <div className="ml-4 flex items-center gap-1">
@@ -938,17 +957,25 @@ export function CalendarSection({
                             borrador: 'bg-gray-400',
                             en_curso: 'bg-purple-500',
                           }
+                          const barColors: Record<string, string> = {
+                            completada: 'border-l-success',
+                            planificada: 'border-l-info',
+                            borrador: 'border-l-muted-foreground',
+                            en_curso: 'border-l-primary',
+                          }
                           return (
                             <Link
                               key={s.id}
                               href={`/sesiones/${s.id}`}
                               onClick={(e) => e.stopPropagation()}
-                              className={`block rounded-md px-1.5 py-1 border transition-colors cursor-pointer ${
-                                estadoColors[s.estado] || 'bg-muted border-border'
+                              className={`block px-1.5 py-1 border transition-colors cursor-pointer ${
+                                cal
+                                  ? `rounded-[var(--radius)] border-border border-l-[3px] bg-card text-foreground hover:bg-sunken ${barColors[s.estado] || 'border-l-muted-foreground'}`
+                                  : `rounded-md ${estadoColors[s.estado] || 'bg-muted border-border'}`
                               }`}
                             >
                               <div className="flex items-center gap-1">
-                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColors[s.estado] || 'bg-gray-400'}`} />
+                                {!cal && <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColors[s.estado] || 'bg-gray-400'}`} />}
                                 {s.match_day && (
                                   <span className="text-[9px] font-bold text-muted-foreground bg-muted/80 px-1 rounded">
                                     {s.match_day}
