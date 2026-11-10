@@ -2,8 +2,8 @@
 
 import Link from 'next/link'
 import useSWR from 'swr'
-import { useEffect, useMemo, useState } from 'react'
-import { readAppearance } from '@/lib/appearance'
+import { useMemo } from 'react'
+import { useAppearance } from '@/lib/useAppearance'
 import { apiKey } from '@/lib/swr'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { semanaMD, type PartidoSemana } from '@/lib/semanaMD'
@@ -23,14 +23,7 @@ function desplazar(fecha: string, dias: number) {
 export function SemanaTira() {
   const equipoId = useEquipoStore((s) => s.equipoActivo?.id)
   // La tira solo se ve en Cal: con otro aspecto no se piden los partidos.
-  const [enCal, setEnCal] = useState(false)
-  useEffect(() => {
-    const leer = () => setEnCal(readAppearance() === 'cal')
-    leer()
-    const observador = new MutationObserver(leer)
-    observador.observe(document.documentElement, { attributes: true, attributeFilter: ['data-appearance'] })
-    return () => observador.disconnect()
-  }, [])
+  const enCal = useAppearance() === 'cal'
   const hoy = fechaLocal(new Date())
   const base = useMemo(() => semanaMD(hoy, []), [hoy])
   const desde = desplazar(base[0].fecha, -7)
