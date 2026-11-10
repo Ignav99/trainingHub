@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { ArranqueCal } from './arranque-cal'
 
 const FOOTBALL_FACTS = [
   // ── Records & Stats ──
@@ -404,6 +405,8 @@ export function SplashScreen() {
   const fact = FOOTBALL_FACTS[factIndex]
 
   return (
+    <>
+    <div className="no-cal">
     <div
       className="fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden"
       style={{
@@ -531,5 +534,8 @@ export function SplashScreen() {
         }
       `}</style>
     </div>
+    </div>
+    <div className="solo-cal"><ArranqueCal /></div>
+    </>
   )
 }
