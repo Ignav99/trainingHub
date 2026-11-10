@@ -7,6 +7,7 @@ from datetime import date
 from typing import Any, Optional
 
 from app.services.microciclo_estado import as_date
+from app.services.microciclo_plan import count_sessions, week_text_score
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +118,14 @@ def _elegir_micro(candidatos: list[dict], fecha: date) -> Optional[dict]:
             covering.append(m)
     if not covering:
         return None
-    covering.sort(key=lambda m: (as_date(m.get("fecha_inicio")) or date.min), reverse=True)
+    covering.sort(
+        key=lambda m: (
+            as_date(m.get("fecha_inicio")) or date.min,
+            sum(week_text_score(m.get("plan_ct"))),
+            int(m.get("_sesiones") or 0),
+        ),
+        reverse=True,
+    )
     return covering[0]
 
 
@@ -196,7 +204,12 @@ def vincular_sesion_a_microciclo(
                 .gte("fecha_fin", iso)
                 .execute()
             )
-            micro = _elegir_micro(resp.data or [], fecha)
+            rows = list(resp.data or [])
+            if len(rows) > 1:
+                counts = count_sessions(supabase, [str(row.get("id")) for row in rows])
+                for row in rows:
+                    row["_sesiones"] = counts.get(str(row.get("id")), 0)
+            micro = _elegir_micro(rows, fecha)
         except Exception:
             logger.exception("find microciclo by date failed")
             micro = None

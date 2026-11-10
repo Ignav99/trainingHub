@@ -35,7 +35,14 @@ from app.services.microciclo_estado import (
     persist_estado,
 )
 from app.services.microciclo_partido import apply_auto_link_partido
-from app.services.microciclo_plan import merge_plan_ct
+from app.services.microciclo_plan import (
+    count_sessions,
+    dedupe_same_week,
+    ensure_week_text,
+    merge_plan_ct,
+    mirror_week_text,
+    reuse_same_week,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -154,18 +161,19 @@ async def list_microciclos(
     if fecha_hasta:
         query = query.lte("fecha_inicio", fecha_hasta.isoformat())
 
-    query = query.order("fecha_inicio", desc=True)
-
-    offset = (page - 1) * limit
-    query = query.range(offset, offset + limit - 1)
+    query = query.order("fecha_inicio", desc=True).limit(500)
 
     response = query.execute()
+    rows = response.data or []
+    counts = count_sessions(supabase, [str(m.get("id")) for m in rows if m.get("id")])
+    rows = dedupe_same_week(rows, counts)
 
-    total = response.count or 0
+    total = len(rows)
     pages = ceil(total / limit) if total > 0 else 1
+    offset = (page - 1) * limit
 
     return MicrocicloListResponse(
-        data=[MicrocicloResponse(**aplicar_estado(m)) for m in (response.data or [])],
+        data=[MicrocicloResponse(**aplicar_estado(m)) for m in rows[offset:offset + limit]],
         total=total,
         page=page,
         limit=limit,
@@ -199,7 +207,7 @@ async def get_microciclo_completo(
                 detail="Microciclo no encontrado"
             )
 
-        micro = micro_resp.data
+        micro = ensure_week_text(supabase, micro_resp.data)
         equipo_id = micro["equipo_id"]
         rival_id = micro.get("rival_id")
         fecha_inicio = micro["fecha_inicio"]
@@ -411,7 +419,7 @@ async def get_microciclo(
             detail="Microciclo no encontrado"
         )
 
-    return MicrocicloResponse(**persist_estado(supabase, response.data))
+    return MicrocicloResponse(**persist_estado(supabase, ensure_week_text(supabase, response.data)))
 
 
 @router.get("/{microciclo_id}/sesiones")
@@ -466,6 +474,10 @@ async def create_microciclo(
         data["game_model_id"] = str(data["game_model_id"])
 
     logger.info(f"Creating microciclo: {data} for org={auth.organizacion_id} user={auth.user_id}")
+
+    existing = reuse_same_week(supabase, data)
+    if existing:
+        return MicrocicloResponse(**aplicar_estado(existing))
 
     try:
         response = supabase.table("microciclos").insert(data).execute()
@@ -534,7 +546,11 @@ async def update_microciclo(
         "id", str(microciclo_id)
     ).execute()
 
-    return MicrocicloResponse(**aplicar_estado(response.data[0]))
+    saved = response.data[0]
+    if "plan_ct" in update_data:
+        mirror_week_text(supabase, saved, saved.get("plan_ct"))
+
+    return MicrocicloResponse(**aplicar_estado(saved))
 
 
 @router.delete("/{microciclo_id}", status_code=status.HTTP_204_NO_CONTENT)
