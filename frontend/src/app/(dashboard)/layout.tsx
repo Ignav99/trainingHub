@@ -50,6 +50,7 @@ import { InstallPrompt } from '@/components/ui/install-prompt'
 import { registerServiceWorker } from '@/lib/register-sw'
 import { isSaludPath } from '@/components/salud/SaludTabs'
 import { cn } from '@/lib/utils'
+import { useAppearance } from '@/lib/useAppearance'
 import { isClubAdminRole, isSuperadminRole } from '@/lib/roles'
 import type { Equipo, Usuario } from '@/types'
 
@@ -390,11 +391,12 @@ function NavLink({
   onClose?: () => void
 }) {
   const active = isNavActive(item, pathname)
+  const nombre = useAppearance() === 'cal' && item.href === '/' ? 'Hoy' : item.name
   return (
     <Link
       href={item.href}
       onClick={onClose}
-      title={collapsed ? item.name : undefined}
+      title={collapsed ? nombre : undefined}
       data-active={active ? 'true' : 'false'}
       className={cn(
         'kabine-nav group flex items-center gap-x-3 text-sm font-medium',
@@ -402,7 +404,7 @@ function NavLink({
       )}
     >
       <item.icon className="h-5 w-5 shrink-0" />
-      {!collapsed && <span className="truncate">{item.name}</span>}
+      {!collapsed && <span className="truncate">{nombre}</span>}
     </Link>
   )
 }
@@ -456,7 +458,7 @@ const SidebarContent = memo(function SidebarContent({
               <p className="text-sm font-bold text-white truncate group-hover:opacity-80 transition-opacity">
                 {user?.organizacion?.nombre || 'Kabin-e'}
               </p>
-              <p className="text-[10px] text-white/60 uppercase tracking-wider flex items-center gap-1">
+              <p className="no-cal text-[10px] text-white/60 uppercase tracking-wider flex items-center gap-1">
                 <Image src="/logo-icon.png" alt="Kabin-e" width={14} height={14} className="h-3.5 w-3.5" />
                 Kabin-e
               </p>

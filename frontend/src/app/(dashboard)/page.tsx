@@ -30,6 +30,8 @@ import { apiKey } from '@/lib/swr'
 import type { Sesion, Microciclo, Partido, Descanso, PaginatedResponse } from '@/types'
 
 import { NextMatchBanner } from '@/components/dashboard/NextMatchBanner'
+import { HoyCabeceraCal } from '@/components/dashboard/HoyCabeceraCal'
+import { PorAspecto } from '@/components/appearance/PorAspecto'
 import { CalendarSection } from '@/components/dashboard/CalendarSection'
 import { DayDetailPanel } from '@/components/dashboard/DayDetailPanel'
 import { PlayerAvatar } from '@/components/player/PlayerAvatar'
@@ -461,16 +463,29 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 min-w-0 max-w-full" style={{ backgroundImage: FIELD_PATTERN }}>
       {/* ============ SECTION 1: Top banner — Rival + Availability ============ */}
-      <NextMatchBanner
-        greeting={greeting}
-        userName={user?.nombre}
-        theme={theme}
-        clubName={user?.organizacion?.nombre}
-        proximoPartido={proximoPartido}
-        ligaPosition={ligaPosition}
-        plantilla={plantilla}
-        loading={loading}
-        onShowDisponibilidad={() => setShowDisponibilidad(true)}
+      <PorAspecto
+        cal={
+          <HoyCabeceraCal
+            proximoPartido={proximoPartido}
+            ligaPosition={ligaPosition}
+            plantilla={plantilla}
+            loading={loading}
+            onShowDisponibilidad={() => setShowDisponibilidad(true)}
+          />
+        }
+        resto={
+        <NextMatchBanner
+          greeting={greeting}
+          userName={user?.nombre}
+          theme={theme}
+          clubName={user?.organizacion?.nombre}
+          proximoPartido={proximoPartido}
+          ligaPosition={ligaPosition}
+          plantilla={plantilla}
+          loading={loading}
+          onShowDisponibilidad={() => setShowDisponibilidad(true)}
+        />
+        }
       />
 
       {/* Controles de microciclo — encima del calendario */}

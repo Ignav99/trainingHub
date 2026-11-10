@@ -41,6 +41,8 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { PlayerStatusBadges } from '@/components/player/PlayerStatusBadges'
 import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import { FormGuide } from '@/components/player/FormGuide'
+import { PorAspecto } from '@/components/appearance/PorAspecto'
+import { PlantillaTablaCal } from '@/components/plantilla/PlantillaTablaCal'
 import { ExportarInformeButton } from '@/components/informes/ExportarInformeButton'
 import { convocatoriasApi, type JugadorResumenConvocatorias } from '@/lib/api/convocatorias'
 import {
@@ -806,6 +808,7 @@ export default function PlantillaPage() {
 
       {/* Stats cards (plantilla oficial) */}
       {stats && tipoTab === 'plantilla' && (
+        <PorAspecto cal={null} resto={
         <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
@@ -832,6 +835,7 @@ export default function PlantillaPage() {
             <div className="text-sm text-gray-500">Delanteros</div>
           </div>
         </div>
+        } />
       )}
 
       {/* Búsqueda instantánea + toggle de categorías */}
@@ -898,6 +902,21 @@ export default function PlantillaPage() {
           }
         />
       ) : (
+        <PorAspecto
+          cal={
+            <PlantillaTablaCal
+              jugadores={jugadoresTab}
+              stats={tipoTab === 'plantilla' ? stats : null}
+              isCrossTeam={(j) => showAllTeams && j.equipo_id !== equipoActivo?.id}
+              resumenMap={resumenMap}
+              cargaMap={cargaMap}
+              onEdit={(j) => router.push(`/plantilla/${j.id}?edit=true`)}
+              onDelete={(j) => handleDelete(j.id)}
+              onChangeEstado={(j) => setEstadoModal(j)}
+              onPromover={(j) => handlePromover(j)}
+            />
+          }
+          resto={
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 animate-fade-in">
           {jugadoresTab.map((jugador) => (
             <JugadorCard
@@ -913,6 +932,8 @@ export default function PlantillaPage() {
             />
           ))}
         </div>
+          }
+        />
       )}
 
       {/* Modal de estado */}
