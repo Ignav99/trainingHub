@@ -98,7 +98,9 @@ export function MobileBottomNav() {
               }`}
             >
               <tab.icon className={`h-5 w-5 shrink-0 ${isActive(tab.href) ? 'stroke-[2.5]' : ''}`} />
-              <span className="text-[11px] font-medium truncate max-w-full">{tab.name}</span>
+              <span className="text-[11px] font-medium truncate max-w-full">
+                {tab.href === '/' ? (<><span className="no-cal">{tab.name}</span><span className="solo-cal">Hoy</span></>) : tab.name}
+              </span>
             </Link>
           ))}
           <button

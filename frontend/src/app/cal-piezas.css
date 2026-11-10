@@ -296,3 +296,15 @@ html[data-appearance="cal"] main .group.border-t-4:is(.bg-amber-50, .bg-violet-5
   background-color: hsl(var(--card));
   border-top-width: 3px;
 }
+
+/* Barra superior en móvil: el fondo es claro en Cal, así que el texto y los iconos no pueden ir en blanco */
+html[data-appearance="cal"] .mobile-bar span,
+html[data-appearance="cal"] .mobile-bar a,
+html[data-appearance="cal"] .mobile-bar button,
+html[data-appearance="cal"] .mobile-bar svg {
+  color: hsl(var(--shell-foreground));
+}
+html[data-appearance="cal"] .mobile-bar {
+  box-shadow: none;
+  border-bottom: 1.5px solid hsl(var(--line));
+}
