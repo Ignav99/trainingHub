@@ -185,3 +185,97 @@ html[data-appearance="cal"] main table:not(#informe-print-root *) thead th {
 html[data-appearance="cal"] main table:not(#informe-print-root *) td {
   font-variant-numeric: tabular-nums;
 }
+
+/* Puerta de entrada: formularios existentes dentro de .puerta-cal */
+html[data-appearance="cal"] .puerta-cal input:not([type="checkbox"]):not([type="radio"]),
+html[data-appearance="cal"] .puerta-cal select,
+html[data-appearance="cal"] .puerta-cal textarea {
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  outline: none;
+  box-shadow: none;
+  transition: border-color 120ms cubic-bezier(.2, 0, 0, 1);
+}
+html[data-appearance="cal"] .puerta-cal input:not([type="checkbox"]):not([type="radio"]):focus,
+html[data-appearance="cal"] .puerta-cal select:focus,
+html[data-appearance="cal"] .puerta-cal textarea:focus {
+  border-color: hsl(var(--line));
+  box-shadow: inset 0 -2px 0 hsl(var(--primary));
+}
+html[data-appearance="cal"] .puerta-cal label {
+  font-size: .8125rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+html[data-appearance="cal"] .puerta-cal button[type="submit"] {
+  height: 48px;
+  width: 100%;
+  border-radius: var(--radius);
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  font-weight: 600;
+  box-shadow: none;
+  transition: transform 120ms cubic-bezier(.2, 0, 0, 1);
+}
+html[data-appearance="cal"] .puerta-cal button[type="submit"]:active:not(:disabled) {
+  transform: scale(.97);
+}
+html[data-appearance="cal"] .puerta-cal button[type="submit"]:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+html[data-appearance="cal"] .puerta-cal a {
+  color: hsl(var(--foreground));
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+html[data-appearance="cal"] .puerta-cal [data-aviso] {
+  border: 0;
+  border-left: 3px solid hsl(var(--destructive));
+  border-radius: 0;
+  background: hsl(var(--destructive) / .08);
+  color: hsl(var(--foreground));
+  padding: .75rem 1rem;
+}
+html[data-appearance="cal"] .puerta-cal [data-aviso="ok"] {
+  border-left-color: hsl(var(--success));
+  background: hsl(var(--success) / .08);
+}
+
+/* Aviso de cookies */
+html[data-appearance="cal"] .k-cookie.k-cookie {
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  border-top: 1.5px solid hsl(var(--line));
+  box-shadow: none;
+}
+html[data-appearance="cal"] .k-cookie.k-cookie p,
+html[data-appearance="cal"] .k-cookie.k-cookie a {
+  color: hsl(var(--foreground));
+}
+html[data-appearance="cal"] .k-cookie.k-cookie a {
+  text-decoration: underline;
+}
+html[data-appearance="cal"] .k-cookie .k-cookie-aceptar.k-cookie-aceptar {
+  background: hsl(var(--foreground));
+  color: hsl(var(--background));
+  border-radius: var(--radius);
+  font-weight: 600;
+}
+html[data-appearance="cal"] .k-cookie .k-cookie-secundario.k-cookie-secundario {
+  background: transparent;
+  color: hsl(var(--foreground));
+  border: 1.5px solid hsl(var(--line));
+  border-radius: var(--radius);
+}
+
+html[data-appearance="cal"] .puerta-cal input[type="checkbox"] + label,
+html[data-appearance="cal"] .puerta-cal label:has(input[type="checkbox"]) {
+  font-weight: 400;
+  color: hsl(var(--muted-foreground));
+}

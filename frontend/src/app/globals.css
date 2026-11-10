@@ -471,6 +471,7 @@ html:not([data-appearance="clasico"]) .animate-fade-in {
 .solo-cal { display: none !important; }
 html[data-appearance="cal"] .solo-cal { display: revert !important; }
 html[data-appearance="cal"] .no-cal { display: none !important; }
+html[data-appearance="cal"] [data-espera-cal] { visibility: hidden; }
 html[data-appearance="cal"] .backdrop-blur-sm { backdrop-filter: none; }
 html[data-appearance="cal"] .shell.border-r { border-right-width: 1.5px; border-right-color: hsl(var(--line)); }
 

@@ -19,203 +19,203 @@
 
 /* Neutros (gray, slate, zinc, neutral, stone) y blanco */
 
-html[data-appearance="cal"] :is(main, .shell) .bg-white:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .hover\:bg-white:hover:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-white:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .hover\:bg-white:hover:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
   background-color: hsl(var(--card));
 }
 
-html[data-appearance="cal"] :is(main, .shell) .text-gray-500:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-gray-400:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-gray-600:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-slate-500:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-slate-400:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-slate-600:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-zinc-500:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-zinc-400:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .hover\:text-gray-600:hover:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-gray-500:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-gray-400:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-gray-600:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-slate-500:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-slate-400:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-slate-600:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-zinc-500:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-zinc-400:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .hover\:text-gray-600:hover:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
   color: hsl(var(--muted-foreground));
 }
 
-html[data-appearance="cal"] :is(main, .shell) .text-gray-700:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-gray-900:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .hover\:text-gray-700:hover:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-slate-700:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-gray-800:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-slate-900:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .hover\:text-gray-900:hover:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-gray-700:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-gray-900:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .hover\:text-gray-700:hover:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-slate-700:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-gray-800:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-slate-900:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .hover\:text-gray-900:hover:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
   color: hsl(var(--foreground));
 }
 
-html[data-appearance="cal"] :is(main, .shell) .border-gray-200:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .border-gray-300:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .border-slate-200:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .border-gray-100:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .border-gray-200:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .border-gray-300:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .border-slate-200:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .border-gray-100:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
   border-color: hsl(var(--border));
 }
 
-html[data-appearance="cal"] :is(main, .shell) .hover\:bg-gray-50:hover:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .bg-gray-100:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .bg-gray-50:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .hover\:bg-gray-100:hover:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .bg-slate-100:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .hover\:bg-slate-50:hover:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .bg-slate-50:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .hover\:bg-gray-50:hover:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-gray-100:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-gray-50:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .hover\:bg-gray-100:hover:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-slate-100:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .hover\:bg-slate-50:hover:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-slate-50:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
   background-color: hsl(var(--sunken));
 }
 
-html[data-appearance="cal"] :is(main, .shell) .text-gray-300:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-zinc-300:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-slate-300:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-gray-300:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-zinc-300:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-slate-300:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
   color: hsl(var(--muted-foreground) / .6);
 }
 
-html[data-appearance="cal"] :is(main, .shell) .hover\:bg-gray-200:hover:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .bg-gray-200:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .hover\:bg-gray-200:hover:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-gray-200:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
   background-color: hsl(var(--accent));
 }
 
-html[data-appearance="cal"] :is(main, .shell) .bg-slate-900:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .bg-slate-800:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .bg-gray-900:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .bg-zinc-950:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-slate-900:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-slate-800:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-gray-900:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-zinc-950:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
   background-color: hsl(var(--foreground));
 }
 
 /* Marca (blue, indigo, violet, purple, fuchsia, sky) */
 
-html[data-appearance="cal"] :is(main, .shell) .text-blue-600:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-blue-700:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-blue-800:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-sky-800:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-purple-600:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-sky-700:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-purple-700:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-violet-800:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-violet-700:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-purple-800:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-blue-500:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-violet-600:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-blue-600:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-blue-700:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-blue-800:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-sky-800:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-purple-600:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-sky-700:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-purple-700:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-violet-800:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-violet-700:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-purple-800:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-blue-500:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-violet-600:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
   color: hsl(var(--primary));
 }
 
-html[data-appearance="cal"] :is(main, .shell) .bg-blue-50:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .bg-blue-100:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .bg-violet-50:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .bg-sky-50:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .bg-purple-100:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .bg-sky-100:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .bg-purple-50:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-blue-50:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-blue-100:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-violet-50:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-sky-50:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-purple-100:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-sky-100:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-purple-50:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
   background-color: hsl(var(--accent));
 }
 
-html[data-appearance="cal"] :is(main, .shell) .bg-blue-600:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .bg-blue-500:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .hover\:bg-blue-700:hover:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-blue-600:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-blue-500:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .hover\:bg-blue-700:hover:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
   background-color: hsl(var(--primary));
   color: hsl(var(--primary-foreground));
 }
 
-html[data-appearance="cal"] :is(main, .shell) .focus\:ring-blue-500:focus:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .focus\:ring-blue-500:focus:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
   --tw-ring-color: hsl(var(--ring));
 }
 
-html[data-appearance="cal"] :is(main, .shell) .border-blue-200:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .border-sky-200:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .focus\:border-blue-400:focus:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .border-violet-200:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .border-blue-300:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .border-blue-200:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .border-sky-200:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .focus\:border-blue-400:focus:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .border-violet-200:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .border-blue-300:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
   border-color: hsl(var(--border));
 }
 
 /* Rojo (red, rose): baja, error, destructivo */
 
-html[data-appearance="cal"] :is(main, .shell) .text-red-600:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-red-700:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-red-500:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-red-800:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .hover\:text-red-600:hover:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .hover\:text-red-500:hover:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-red-600:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-red-700:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-red-500:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-red-800:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .hover\:text-red-600:hover:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .hover\:text-red-500:hover:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
   color: hsl(var(--destructive));
 }
 
-html[data-appearance="cal"] :is(main, .shell) .bg-red-50:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .bg-red-100:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .hover\:bg-red-50:hover:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .hover\:bg-red-100:hover:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-red-50:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-red-100:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .hover\:bg-red-50:hover:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .hover\:bg-red-100:hover:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
   background-color: hsl(var(--destructive) / .1);
 }
 
-html[data-appearance="cal"] :is(main, .shell) .bg-red-500:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .bg-red-600:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-red-500:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-red-600:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
   background-color: hsl(var(--destructive));
 }
 
-html[data-appearance="cal"] :is(main, .shell) .border-red-200:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .border-red-200:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
   border-color: hsl(var(--destructive) / .4);
 }
 
 /* Verde (green, emerald): disponible, correcto */
 
-html[data-appearance="cal"] :is(main, .shell) .text-green-600:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-green-700:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-emerald-600:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-emerald-800:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-emerald-700:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-green-800:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-green-500:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-emerald-900:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-green-600:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-green-700:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-emerald-600:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-emerald-800:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-emerald-700:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-green-800:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-green-500:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-emerald-900:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
   color: hsl(var(--success));
 }
 
-html[data-appearance="cal"] :is(main, .shell) .bg-emerald-50:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .bg-green-100:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .bg-emerald-100:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .bg-green-50:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-emerald-50:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-green-100:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-emerald-100:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-green-50:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
   background-color: hsl(var(--success) / .12);
 }
 
-html[data-appearance="cal"] :is(main, .shell) .bg-emerald-500:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .bg-green-500:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .bg-emerald-600:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-emerald-500:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-green-500:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-emerald-600:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
   background-color: hsl(var(--success));
 }
 
-html[data-appearance="cal"] :is(main, .shell) .border-emerald-200:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .border-green-200:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .border-emerald-200:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .border-green-200:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
   border-color: hsl(var(--success) / .4);
 }
 
 /* Ambar (amber, yellow, orange): duda, aviso */
 
-html[data-appearance="cal"] :is(main, .shell) .bg-amber-50:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .bg-amber-100:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .bg-orange-100:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .bg-orange-50:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .hover\:bg-amber-100:hover:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-amber-50:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-amber-100:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-orange-100:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-orange-50:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .hover\:bg-amber-100:hover:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
   background-color: hsl(var(--warning) / .22);
 }
 
-html[data-appearance="cal"] :is(main, .shell) .text-amber-700:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-amber-800:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-amber-600:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-amber-900:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-orange-600:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-amber-500:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-orange-800:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-orange-700:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .text-yellow-600:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-amber-700:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-amber-800:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-amber-600:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-amber-900:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-orange-600:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-amber-500:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-orange-800:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-orange-700:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .text-yellow-600:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
   color: hsl(var(--warning-foreground));
 }
 
-html[data-appearance="cal"] :is(main, .shell) .border-amber-200:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .border-amber-300:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .border-amber-500:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .border-orange-200:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .border-amber-200:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .border-amber-300:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .border-amber-500:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .border-orange-200:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
   border-color: hsl(var(--warning) / .6);
 }
 
-html[data-appearance="cal"] :is(main, .shell) .bg-amber-400:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .bg-amber-500:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
-html[data-appearance="cal"] :is(main, .shell) .bg-orange-500:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-amber-400:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-amber-500:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *),
+html[data-appearance="cal"] :is(main, .shell, [data-cal-zona]) .bg-orange-500:not(svg, canvas, [data-paleta-propia], [data-paleta-propia] *, [data-superficie] *, .vd-root *, .video-desk *, #informe-print-root *) {
   background-color: hsl(var(--warning));
 }
