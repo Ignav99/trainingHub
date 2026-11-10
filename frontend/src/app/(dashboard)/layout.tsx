@@ -42,6 +42,7 @@ import { useClubStore } from '@/stores/clubStore'
 import { useSidebarStore } from '@/stores/sidebarStore'
 import { ClubAvatar, Avatar } from '@/components/ui/avatar'
 import { SplashScreen } from '@/components/ui/splash-screen'
+import { SemanaTira } from '@/components/semana/SemanaTira'
 import { Toaster } from '@/components/ui/toast'
 import { MobileBottomNav } from '@/components/ui/mobile-nav'
 import { AppearanceToggle } from '@/components/appearance/AppearanceToggle'
@@ -358,7 +359,14 @@ export default function DashboardLayout({
           </Link>
         </div>
 
-        <main className="min-w-0 max-w-full py-6 pb-24 lg:pb-6 px-4 sm:px-6 lg:px-8">{children}</main>
+        <main className="min-w-0 max-w-full py-6 pb-24 lg:pb-6 px-4 sm:px-6 lg:px-8">
+          {!isClubOnlyRole && (
+            <div className="solo-cal mb-4">
+              <SemanaTira />
+            </div>
+          )}
+          {children}
+        </main>
       </div>
       <MobileBottomNav />
       <InstallPrompt />

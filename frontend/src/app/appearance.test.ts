@@ -32,4 +32,10 @@ describe('aspecto', () => {
     assert.match(block, /--font-ui: var\(--font-cal\)/)
     assert.match(css, /\[data-superficie="visitante"\]/)
   })
+
+  it('ayudantes de visibilidad: solo-cal y no-cal', () => {
+    assert.match(css, /\.solo-cal \{ display: none !important; \}/)
+    assert.match(css, /html\[data-appearance="cal"\] \.solo-cal \{ display: revert !important; \}/)
+    assert.match(css, /html\[data-appearance="cal"\] \.no-cal \{ display: none !important; \}/)
+  })
 })
