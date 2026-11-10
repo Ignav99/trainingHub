@@ -468,6 +468,12 @@ html:not([data-appearance="clasico"]) .animate-fade-in {
 }
 
 /* Cal: capa de componentes. Solo activa con data-appearance="cal". */
+.solo-cal { display: none !important; }
+html[data-appearance="cal"] .solo-cal { display: revert !important; }
+html[data-appearance="cal"] .no-cal { display: none !important; }
+html[data-appearance="cal"] .backdrop-blur-sm { backdrop-filter: none; }
+html[data-appearance="cal"] .shell.border-r { border-right-width: 1.5px; border-right-color: hsl(var(--line)); }
+
 html[data-appearance="cal"] body {
   font-variant-numeric: tabular-nums;
 }
