@@ -21,4 +21,15 @@ describe('aspecto', () => {
     assert.doesNotMatch(root, /--background: 0 0% 100%/)
     assert.match(root, /--radius: 0\.35rem/)
   })
+
+  it('Cal existe como tercer aspecto y no pisa a los otros dos', () => {
+    const start = css.indexOf('html[data-appearance="cal"] {')
+    assert.ok(start > 0)
+    const block = css.slice(start, css.indexOf('}', start))
+    assert.match(block, /--radius: 0\.125rem/)
+    assert.match(block, /--background: var\(--club-h\)/)
+    assert.match(block, /--primary: var\(--club-safe\) !important/)
+    assert.match(block, /--font-ui: var\(--font-cal\)/)
+    assert.match(css, /\[data-superficie="visitante"\]/)
+  })
 })

@@ -46,6 +46,14 @@
     --shell-muted: 150 8% 68%;
     --shell-hover: 160 14% 14%;
     --shell-line: 160 10% 18%;
+    --line: 150 10% 86%;
+    --sunken: 150 12% 92%;
+    --success-foreground: 0 0% 100%;
+    --warning-foreground: 0 0% 100%;
+    --info-foreground: 0 0% 100%;
+    --club-h: 158;
+    --club-safe: 158 42% 26%;
+    --club-safe-dark: 158 42% 70%;
   }
 
   /* Copia exacta del aspecto anterior. Se activa con data-appearance="clasico". */
@@ -86,6 +94,86 @@
     --shell-muted: 215.4 16.3% 46.9%;
     --shell-hover: 210 40% 96.1%;
     --shell-line: 214.3 31.8% 91.4%;
+    --line: 214.3 31.8% 91.4%;
+    --sunken: 210 40% 96.1%;
+  }
+
+  /* Cal: la línea del campo. El club pone el tono; el sistema fija el contraste.
+     Referencia: docs/diseno/cal.md */
+  html[data-appearance="cal"] {
+    --background: var(--club-h) 14% 96.5%;
+    --foreground: var(--club-h) 18% 11%;
+    --card: var(--club-h) 20% 99%;
+    --card-foreground: var(--club-h) 18% 11%;
+    --popover: var(--club-h) 20% 99%;
+    --popover-foreground: var(--club-h) 18% 11%;
+    --primary: var(--club-safe) !important;
+    --primary-foreground: 0 0% 100% !important;
+    --secondary: var(--club-h) 12% 92.5%;
+    --secondary-foreground: var(--club-h) 18% 11%;
+    --muted: var(--club-h) 12% 92.5%;
+    --muted-foreground: var(--club-h) 7% 38%;
+    --accent: var(--club-h) 12% 90%;
+    --accent-foreground: var(--club-h) 18% 11%;
+    --destructive: 6 78% 44%;
+    --destructive-foreground: 0 0% 100%;
+    --border: var(--club-h) 9% 82%;
+    --input: var(--club-h) 9% 82%;
+    --ring: var(--club-safe) !important;
+    --radius: 0.125rem;
+    --badge-radius: 0.125rem;
+
+    --success: 152 60% 30%;
+    --success-foreground: 0 0% 100%;
+    --warning: 45 96% 52%;
+    --warning-foreground: 45 60% 14%;
+    --info: 215 55% 42%;
+    --info-foreground: 0 0% 100%;
+
+    --line: var(--club-h) 18% 11%;
+    --sunken: var(--club-h) 12% 92.5%;
+
+    --shell: var(--club-h) 12% 92.5%;
+    --shell-foreground: var(--club-h) 18% 11%;
+    --shell-muted: var(--club-h) 7% 38%;
+    --shell-hover: var(--club-h) 12% 88%;
+    --shell-line: var(--club-h) 9% 82%;
+
+    --font-ui: var(--font-cal);
+    --font-mono: var(--font-cal-mono);
+  }
+
+  /* Visitante: superficie oscura de Cal para vídeo, anotador y salas. Se pone en el contenedor. */
+  html[data-appearance="cal"] [data-superficie="visitante"] {
+    --background: var(--club-h) 10% 9%;
+    --foreground: var(--club-h) 12% 94%;
+    --card: var(--club-h) 10% 12%;
+    --card-foreground: var(--club-h) 12% 94%;
+    --popover: var(--club-h) 10% 12%;
+    --popover-foreground: var(--club-h) 12% 94%;
+    --primary: var(--club-safe-dark) !important;
+    --primary-foreground: var(--club-h) 10% 9% !important;
+    --secondary: var(--club-h) 9% 16%;
+    --secondary-foreground: var(--club-h) 12% 94%;
+    --muted: var(--club-h) 9% 16%;
+    --muted-foreground: var(--club-h) 8% 68%;
+    --accent: var(--club-h) 9% 19%;
+    --accent-foreground: var(--club-h) 12% 94%;
+    --destructive: 6 80% 62%;
+    --destructive-foreground: var(--club-h) 10% 9%;
+    --border: var(--club-h) 8% 24%;
+    --input: var(--club-h) 8% 24%;
+    --ring: var(--club-safe-dark) !important;
+    --success: 152 50% 58%;
+    --success-foreground: var(--club-h) 10% 9%;
+    --warning: 45 96% 58%;
+    --info: 215 70% 68%;
+    --info-foreground: var(--club-h) 10% 9%;
+    --line: var(--club-h) 12% 94%;
+    --sunken: var(--club-h) 9% 16%;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    color-scheme: dark;
   }
 
   .dark {
@@ -377,6 +465,48 @@ html:not([data-appearance="clasico"]) .animate-fade-in {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Cal: capa de componentes. Solo activa con data-appearance="cal". */
+html[data-appearance="cal"] body {
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-appearance="cal"] :is(.rounded-xl, .rounded-2xl, .rounded-3xl) {
+  border-radius: var(--radius);
+}
+
+html[data-appearance="cal"] .kabine-nav {
+  border-left: 0;
+  border-bottom: 1.5px solid transparent;
+}
+
+html[data-appearance="cal"] .kabine-nav[data-active="true"] {
+  background: transparent;
+  border-bottom-color: hsl(var(--primary));
+  font-weight: 650;
+}
+
+html[data-appearance="cal"] .kabine-section,
+.cal-rotulo {
+  font-family: var(--font-cal), var(--font-ui), sans-serif;
+  font-stretch: 75%;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cal-titulo {
+  font-stretch: 112%;
+  font-weight: 800;
+  line-height: 1.1;
+  text-wrap: balance;
+}
+
+.cal-linea {
+  border: 1.5px solid hsl(var(--line));
+  border-radius: var(--radius);
 }
 
 /* Phone / tablet: keep the page itself from panning sideways.
