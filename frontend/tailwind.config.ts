@@ -43,6 +43,20 @@ const config: Config = {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        line: 'hsl(var(--line))',
+        sunken: 'hsl(var(--sunken))',
+        success: {
+          DEFAULT: 'hsl(var(--success))',
+          foreground: 'hsl(var(--success-foreground))',
+        },
+        warning: {
+          DEFAULT: 'hsl(var(--warning))',
+          foreground: 'hsl(var(--warning-foreground))',
+        },
+        info: {
+          DEFAULT: 'hsl(var(--info))',
+          foreground: 'hsl(var(--info-foreground))',
+        },
         // Colores personalizados para categorías
         category: {
           rnd: '#3B82F6',
@@ -72,6 +86,17 @@ const config: Config = {
       fontFamily: {
         sans: ['var(--font-ui)', 'system-ui', 'sans-serif'],
         mono: ['var(--font-mono)', 'ui-monospace', 'monospace'],
+      },
+      gridTemplateColumns: {
+        carriles: '13.84fr 11fr 18.32fr 11fr 13.84fr',
+      },
+      transitionDuration: {
+        rapido: '120ms',
+        base: '180ms',
+        panel: '260ms',
+      },
+      transitionTimingFunction: {
+        sale: 'cubic-bezier(0.2, 0, 0, 1)',
       },
       keyframes: {
         'accordion-down': {
