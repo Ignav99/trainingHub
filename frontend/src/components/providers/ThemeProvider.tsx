@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { useClubStore, hexToHsl, isLightColor } from '@/stores/clubStore'
+import { clubTone } from '@/lib/clubTone'
 
 /**
  * ThemeProvider injects club colors as CSS custom properties.
@@ -28,6 +29,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       root.style.setProperty('--primary', primaryHsl)
       root.style.setProperty('--primary-foreground', primaryFg)
       root.style.setProperty('--ring', primaryHsl)
+      // Cal: tono para teñir neutros y color de club con contraste garantizado
+      const tone = clubTone(theme.colorPrimario)
+      root.style.setProperty('--club-h', String(tone.h))
+      root.style.setProperty('--club-safe', tone.safe)
+      root.style.setProperty('--club-safe-dark', tone.safeDark)
     }
 
     if (theme.colorSecundario) {
