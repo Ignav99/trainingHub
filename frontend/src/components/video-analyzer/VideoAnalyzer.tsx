@@ -473,6 +473,7 @@ export function VideoAnalyzer({
 
   return (
     <div
+      data-paleta-propia
       className="vd-root"
       style={{
         ['--vd-rail' as string]: `${railWidth}px`,

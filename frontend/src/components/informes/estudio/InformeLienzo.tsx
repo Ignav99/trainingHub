@@ -32,7 +32,7 @@ export function InformeLienzo(props: DocProps) {
   }, [])
 
   return (
-    <div ref={ref} className="w-full py-4">
+    <div ref={ref} data-paleta-propia className="w-full py-4">
       <div style={{ zoom: scale }}>
         <InformeDocumento {...props} />
       </div>
@@ -64,6 +64,7 @@ export function InformeImpresion({ fileName, onDone, ...props }: DocProps & { fi
   useEffect(() => {
     const el = document.createElement('div')
     el.id = 'informe-print-root'
+    el.setAttribute('data-paleta-propia', '')
     document.body.appendChild(el)
     setHost(el)
     return () => {

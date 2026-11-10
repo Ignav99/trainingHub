@@ -626,7 +626,7 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
         : snap.half === 2 ? 'Pausa 2ª' : 'Descanso'
 
   return (
-    <div className="h-[100dvh] flex flex-col bg-[#07110c] pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+    <div data-paleta-propia className="h-[100dvh] flex flex-col bg-[#07110c] pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
       <header className="shrink-0 px-2 py-1.5 bg-[#050d09] border-b border-amber-500/25 grid grid-cols-[auto_1fr_auto] items-center gap-2">
         <Link href="/anotador" className="h-12 w-12 rounded-2xl bg-white/10 flex items-center justify-center" aria-label="Partidos">
           <ArrowLeft className="h-5 w-5" />
