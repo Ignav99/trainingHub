@@ -1,15 +1,18 @@
 'use client'
 
-import { StatCard } from '../StatCard'
+import { KpiFranja } from '../KpiFranja'
+import { BarrasHorizontalCal } from '../BarrasHorizontalCal'
 import { ChartCard } from '../ChartCard'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   PieChart, Pie, Cell,
 } from 'recharts'
 import { HeartPulse, Activity, Calendar, Users } from 'lucide-react'
 import type { MedicoData } from '@/lib/api/estadisticasDashboard'
+import { useAppearance } from '@/lib/useAppearance'
+import { C, barraCal, ejeXCal, ejeCategoriaCal, rejillaCal, tooltipCal, TOOLTIP_CAL_CLASE } from '@/lib/graficoCal'
 
 interface Props {
   medico: MedicoData
@@ -37,6 +40,7 @@ const ESTADO_BADGE: Record<string, string> = {
 }
 
 export function EnfermeriaTab({ medico, totalJugadores }: Props) {
+  const cal = useAppearance() === 'cal'
   const tasaLesional = totalJugadores > 0
     ? ((medico.total_registros / totalJugadores) * 100).toFixed(1)
     : '0'
@@ -64,16 +68,22 @@ export function EnfermeriaTab({ medico, totalJugadores }: Props) {
   return (
     <div className="space-y-6">
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard icon={HeartPulse} value={medico.activos} label="Lesiones activas" color="red" />
-        <StatCard icon={Activity} value={medico.en_recuperacion} label="En recuperacion" color="amber" />
-        <StatCard icon={Calendar} value={medico.dias_baja_totales} label="Dias baja totales" color="purple" />
-        <StatCard icon={Users} value={`${tasaLesional}%`} label="Tasa lesional" sublabel={`${medico.total_registros} registros / ${totalJugadores} jug.`} color="orange" />
-      </div>
+      <KpiFranja
+        gridClass="grid grid-cols-2 md:grid-cols-4 gap-4"
+        items={[
+          { icon: HeartPulse, value: medico.activos, label: 'Lesiones activas', color: 'red' },
+          { icon: Activity, value: medico.en_recuperacion, label: 'En recuperacion', color: 'amber' },
+          { icon: Calendar, value: medico.dias_baja_totales, label: 'Dias baja totales', color: 'purple' },
+          { icon: Users, value: `${tasaLesional}%`, calValue: tasaLesional, unit: '%', label: 'Tasa lesional', sublabel: `${medico.total_registros} registros / ${totalJugadores} jug.`, color: 'orange' },
+        ]}
+      />
 
       <div className="grid md:grid-cols-2 gap-6">
         {/* Pie: by type */}
         <ChartCard title="Registros por tipo" isEmpty={pieData.length === 0}>
+{cal ? (
+<BarrasHorizontalCal data={pieData.map((d) => ({ name: d.name, value: d.value }))} />
+) : (
           <ResponsiveContainer width="100%" height={280}>
             <PieChart>
               <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} innerRadius={45} label={({ name, value }) => `${name}: ${value}`}>
@@ -84,10 +94,34 @@ export function EnfermeriaTab({ medico, totalJugadores }: Props) {
               <Tooltip />
             </PieChart>
           </ResponsiveContainer>
+)}
         </ChartCard>
 
         {/* Bar: days off by player */}
         <ChartCard title="Dias de baja por jugador" isEmpty={diasBajaData.length === 0}>
+{cal ? (
+<ResponsiveContainer width="100%" height={280}>
+  <BarChart data={diasBajaData} layout="vertical">
+    <CartesianGrid {...rejillaCal} vertical horizontal={false} />
+    <XAxis type="number" {...ejeXCal} />
+    <YAxis dataKey="name" type="category" width={60} {...ejeCategoriaCal} />
+    <Tooltip
+      {...tooltipCal}
+      content={({ active, payload }) => {
+        if (!active || !payload?.[0]) return null
+        const d = payload[0].payload
+        return (
+          <div className={TOOLTIP_CAL_CLASE}>
+            <p className="font-medium">{d.fullName}</p>
+            <p>{d.dias} dias | {d.registros} registros</p>
+          </div>
+        )
+      }}
+    />
+    <Bar dataKey="dias" fill={C.primary} name="Dias baja" {...barraCal} />
+  </BarChart>
+</ResponsiveContainer>
+) : (
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={diasBajaData} layout="vertical">
               <XAxis type="number" tick={{ fontSize: 10 }} />
@@ -107,6 +141,7 @@ export function EnfermeriaTab({ medico, totalJugadores }: Props) {
               <Bar dataKey="dias" fill="#EF4444" name="Dias baja" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
+)}
         </ChartCard>
       </div>
 
@@ -115,7 +150,7 @@ export function EnfermeriaTab({ medico, totalJugadores }: Props) {
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <HeartPulse className="h-5 w-5" />
+              {!cal && <HeartPulse className="h-5 w-5" />}
               Registros recientes
             </CardTitle>
           </CardHeader>
@@ -134,17 +169,28 @@ export function EnfermeriaTab({ medico, totalJugadores }: Props) {
                 </thead>
                 <tbody>
                   {medico.registros_recientes.map((r) => (
-                    <tr key={r.id} className="border-b last:border-0 row-hover">
+                    <tr key={r.id} className={cal ? 'border-b last:border-0 row-hover h-9 [@media(pointer:coarse)]:h-11' : 'border-b last:border-0 row-hover'}>
                       <td className="py-2.5 font-medium">{r.jugador_nombre}</td>
                       <td className="py-2.5 text-muted-foreground">{r.titulo}</td>
-                      <td className="py-2.5 text-center">
-                        <Badge variant="outline" className="text-[10px]">{TIPO_LABELS[r.tipo] || r.tipo}</Badge>
-                      </td>
-                      <td className="py-2.5 text-center">
-                        <Badge className={`text-[10px] ${ESTADO_BADGE[r.estado] || 'bg-gray-100 text-gray-700'}`}>
-                          {r.estado === 'en_recuperacion' ? 'Recuperacion' : r.estado}
-                        </Badge>
-                      </td>
+                      {cal ? (
+                        <>
+                          <td className="py-2.5 text-center">{TIPO_LABELS[r.tipo] || r.tipo}</td>
+                          <td className="py-2.5 text-center">
+                            {r.estado === 'en_recuperacion' ? 'En recuperación' : r.estado === 'activa' ? 'Activa' : r.estado === 'alta' ? 'Alta' : r.estado}
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="py-2.5 text-center">
+                            <Badge variant="outline" className="text-[10px]">{TIPO_LABELS[r.tipo] || r.tipo}</Badge>
+                          </td>
+                          <td className="py-2.5 text-center">
+                            <Badge className={`text-[10px] ${ESTADO_BADGE[r.estado] || 'bg-gray-100 text-gray-700'}`}>
+                              {r.estado === 'en_recuperacion' ? 'Recuperacion' : r.estado}
+                            </Badge>
+                          </td>
+                        </>
+                      )}
                       <td className="py-2.5 text-muted-foreground text-xs">
                         {r.fecha_inicio ? new Date(r.fecha_inicio).toLocaleDateString('es-ES') : '-'}
                       </td>

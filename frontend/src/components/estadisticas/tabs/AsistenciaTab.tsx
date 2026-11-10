@@ -8,11 +8,13 @@ import { PlayerStatsTable } from '../PlayerStatsTable'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, ReferenceLine,
 } from 'recharts'
 import { Users, ClipboardCheck } from 'lucide-react'
 import { sesionesApi } from '@/lib/api/sesiones'
 import type { AsistenciaConvocatoria, EstadisticasDashboardResponse } from '@/lib/api/estadisticasDashboard'
+import { useAppearance } from '@/lib/useAppearance'
+import { C, barraCal, ejeXCal, ejeYCal, rejillaCal, tooltipCal, TOOLTIP_CAL_CLASE } from '@/lib/graficoCal'
 
 interface AsistenciaHistorico {
   jugador_id: string
@@ -35,6 +37,7 @@ interface Props {
 
 export function AsistenciaTab({ data, equipoId }: Props) {
   const { asistencia_convocatorias } = data
+  const cal = useAppearance() === 'cal'
 
   // Sesiones asistencia (on-demand)
   const [asistenciaData, setAsistenciaData] = useState<AsistenciaHistorico[]>([])
@@ -85,6 +88,31 @@ export function AsistenciaTab({ data, equipoId }: Props) {
         <TabsContent value="convocatorias" className="space-y-6">
           {/* Bar chart */}
           <ChartCard title="% Convocatoria por jugador" isEmpty={convocatoriasBarData.length === 0}>
+            {cal ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={convocatoriasBarData}>
+                  <CartesianGrid {...rejillaCal} />
+                  <XAxis dataKey="name" {...ejeXCal} />
+                  <YAxis domain={[0, 100]} {...ejeYCal} />
+                  <Tooltip
+                    {...tooltipCal}
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.[0]) return null
+                      const d = payload[0].payload
+                      return (
+                        <div className={TOOLTIP_CAL_CLASE}>
+                          <p className="font-medium">{d.fullName}</p>
+                          <p>{d.porcentaje}%</p>
+                        </div>
+                      )
+                    }}
+                  />
+                  <ReferenceLine y={90} stroke={C.neutro} strokeWidth={1} strokeDasharray="4 3" label={{ value: 'Alta (90%)', position: 'insideTopRight', fontSize: 11, fill: C.neutro }} />
+                  <ReferenceLine y={70} stroke={C.neutro} strokeWidth={1} strokeDasharray="4 3" label={{ value: 'Mínima (70%)', position: 'insideTopRight', fontSize: 11, fill: C.neutro }} />
+                  <Bar dataKey="porcentaje" fill={C.primary} {...barraCal} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={convocatoriasBarData}>
                 <XAxis dataKey="name" tick={{ fontSize: 10 }} />
@@ -108,13 +136,14 @@ export function AsistenciaTab({ data, equipoId }: Props) {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+            )}
           </ChartCard>
 
           {/* Convocatorias table */}
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <ClipboardCheck className="h-5 w-5" />
+                {!cal && <ClipboardCheck className="h-5 w-5" />}
                 Convocatorias ({asistencia_convocatorias.length} jugadores)
               </CardTitle>
             </CardHeader>
@@ -135,11 +164,14 @@ export function AsistenciaTab({ data, equipoId }: Props) {
                       const barColor = j.porcentaje >= 90 ? 'bg-emerald-500' : j.porcentaje >= 70 ? 'bg-amber-400' : 'bg-red-500'
                       const textColor = j.porcentaje >= 90 ? 'text-emerald-700' : j.porcentaje >= 70 ? 'text-amber-700' : 'text-red-700'
                       return (
-                        <tr key={j.jugador_id} className="border-b last:border-0 row-hover">
+                        <tr key={j.jugador_id} className={cal ? 'border-b last:border-0 row-hover h-9 [@media(pointer:coarse)]:h-11' : 'border-b last:border-0 row-hover'}>
                           <td className="py-2.5 font-medium">{j.nombre}</td>
                           <td className="py-2.5 text-center text-muted-foreground">{j.dorsal || '-'}</td>
                           <td className="py-2.5 text-center">{j.total_partidos_jugados}</td>
                           <td className="py-2.5 text-center font-medium">{j.convocatorias}</td>
+                          {cal ? (
+                            <td className="py-2.5 text-right font-medium tabular-nums">{j.porcentaje}%</td>
+                          ) : (
                           <td className="py-2.5">
                             <div className="flex items-center gap-2">
                               <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
@@ -148,6 +180,7 @@ export function AsistenciaTab({ data, equipoId }: Props) {
                               <span className={`text-xs font-bold w-12 text-right ${textColor}`}>{j.porcentaje}%</span>
                             </div>
                           </td>
+                          )}
                         </tr>
                       )
                     })}

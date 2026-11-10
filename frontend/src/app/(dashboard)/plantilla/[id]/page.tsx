@@ -33,6 +33,9 @@ import { PlayerRpeCharts } from '@/components/rpe/PlayerRpeCharts'
 import { ExportarInformeButton } from '@/components/informes/ExportarInformeButton'
 import { AmbitoToggle } from '@/components/estadisticas/AmbitoToggle'
 import { Button } from '@/components/ui/button'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useAppearance } from '@/lib/useAppearance'
+import { JugadorCabeceraCal } from '@/components/plantilla/JugadorCabeceraCal'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TeamCrest } from '@/components/ui/team-crest'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -73,6 +76,7 @@ export default function JugadorDetailPage() {
   const params = useParams()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const cal = useAppearance() === 'cal'
   const [saving, setSaving] = useState(false)
   const [isEditing, setIsEditing] = useState(searchParams.get('edit') === 'true')
   const [activeTab, setActiveTab] = useState<'datos' | 'estadisticas' | 'carga' | 'trabajo' | 'videos'>(
@@ -246,10 +250,30 @@ export default function JugadorDetailPage() {
 
   const pos = POSICIONES[jugador.posicion_principal as keyof typeof POSICIONES]
   const estadoConfig = ESTADOS_JUGADOR[jugador.estado as keyof typeof ESTADOS_JUGADOR]
+  const caja = cal ? 'cal-linea bg-card p-6' : 'bg-white rounded-xl border border-gray-200 p-6 card-hover'
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 animate-fade-in">
       {/* Header */}
+      {cal ? (
+        <>
+          <nav className="mb-2 text-sm text-muted-foreground" aria-label="Ruta">
+            <Link href="/plantilla" className="hover:text-foreground">Plantilla</Link>
+          </nav>
+          <JugadorCabeceraCal
+            jugador={jugador}
+            isEditing={isEditing}
+            saving={saving}
+            uploadingPhoto={uploadingPhoto}
+            onEdit={() => setIsEditing(true)}
+            onCancel={() => setIsEditing(false)}
+            onSave={handleSave}
+            onDelete={handleDelete}
+            onPhotoUpload={handlePhotoUpload}
+            onPhotoDelete={handlePhotoDelete}
+          />
+        </>
+      ) : (
       <PageHeader
         title={jugador.apodo || `${jugador.nombre} ${jugador.apellidos}`}
         description={jugador.apodo ? `${jugador.nombre} ${jugador.apellidos}` : 'Ficha del jugador'}
@@ -296,8 +320,27 @@ export default function JugadorDetailPage() {
           )
         }
       />
+      )}
 
       {/* Tabs */}
+      {cal ? (
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
+          <TabsList className="w-full justify-start overflow-x-auto">
+            <TabsTrigger value="datos">Datos generales</TabsTrigger>
+            <TabsTrigger value="estadisticas">Estadísticas</TabsTrigger>
+            <TabsTrigger value="carga">Carga y RPE</TabsTrigger>
+            <TabsTrigger value="trabajo" className="gap-2">
+              Trabajo individual
+              {activeIncident ? (
+                <span className="text-destructive text-xs font-semibold">lesión activa</span>
+              ) : openMolestias.length ? (
+                <span className="text-warning text-xs font-semibold">molestias</span>
+              ) : null}
+            </TabsTrigger>
+            <TabsTrigger value="videos">Vídeos</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      ) : (
       <div className="flex gap-1 overflow-x-auto bg-gray-100 rounded-lg p-1">
         <button
           onClick={() => setActiveTab('datos')}
@@ -359,6 +402,7 @@ export default function JugadorDetailPage() {
           Vídeos
         </button>
       </div>
+      )}
 
       {activeTab === 'videos' && jugador?.equipo_id && (
         <BibliotecaCortesPanel equipoId={jugador.equipo_id} jugadorId={String(jugador.id)} compact />
@@ -370,7 +414,8 @@ export default function JugadorDetailPage() {
         {/* Left column - Photo and basic info */}
         <div className="space-y-6">
           {/* Photo card */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6 card-hover">
+          {!cal && (
+          <div className={caja}>
             <div className="relative mx-auto w-40 h-40 mb-4">
               <PlayerAvatar player={jugador} size="3xl" className="w-full h-full" />
               {jugador.dorsal && (
@@ -457,9 +502,10 @@ export default function JugadorDetailPage() {
               )}
             </div>
           </div>
+          )}
 
           {/* Personal info */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6 card-hover">
+          <div className={caja}>
             <h3 className="font-semibold text-gray-900 mb-4">Datos personales</h3>
             <div className="space-y-3">
               {jugador.fecha_nacimiento && (
@@ -491,7 +537,7 @@ export default function JugadorDetailPage() {
         {/* Right column - Stats and details */}
         <div className="lg:col-span-2 space-y-6">
           {/* Niveles */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6 card-hover">
+          <div className={caja}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-gray-900">Niveles</h3>
               {jugador.nivel_global && (
@@ -530,6 +576,29 @@ export default function JugadorDetailPage() {
                         value={(formData[commentKey] as string) || ''}
                         onChange={(e) => setFormData({ ...formData, [commentKey]: e.target.value })}
                       />
+                    </div>
+                  )
+                })}
+              </div>
+            ) : cal ? (
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                {[
+                  { key: 'nivel_tecnico', comment: 'nivel_tecnico_comentario', label: 'Técnico' },
+                  { key: 'nivel_tactico', comment: 'nivel_tactico_comentario', label: 'Táctico' },
+                  { key: 'nivel_fisico', comment: 'nivel_fisico_comentario', label: 'Físico' },
+                  { key: 'nivel_mental', comment: 'nivel_mental_comentario', label: 'Mental' },
+                ].map(({ key, comment, label }) => {
+                  const v = jugador[key as keyof Jugador] as number | undefined
+                  return (
+                    <div key={key} className="min-w-0">
+                      <p className="cal-rotulo text-muted-foreground">{label}</p>
+                      <p className="cal-titulo mt-1 text-3xl tabular-nums text-foreground">{v ?? '–'}</p>
+                      <div className="mt-2 h-[3px] bg-sunken" aria-hidden="true">
+                        <div className="h-full bg-primary" style={{ width: `${Math.min(100, Math.max(0, (v ?? 0) * 10))}%` }} />
+                      </div>
+                      <p className="mt-2 text-xs leading-snug text-muted-foreground">
+                        {(jugador[comment as keyof Jugador] as string) || 'Sin comentario. Edita para anotar.'}
+                      </p>
                     </div>
                   )
                 })}
@@ -577,13 +646,32 @@ export default function JugadorDetailPage() {
           </div>
 
           {/* Posiciones — Campograma */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6 card-hover">
+          <div className={caja}>
             <h3 className="font-semibold text-gray-900 mb-4">Posiciones</h3>
             <div className="flex flex-col sm:flex-row gap-4 items-start">
               <PositionPitchMap
                 principal={jugador.posicion_principal}
                 secundarias={jugador.posiciones_secundarias || []}
               />
+              {cal ? (
+                <div className="text-sm sm:pt-2">
+                  <p>
+                    <span className="font-mono text-xs">{jugador.posicion_principal}</span> {pos?.nombre}
+                    <span className="text-muted-foreground"> · principal</span>
+                  </p>
+                  {!!jugador.posiciones_secundarias?.length && (
+                    <p className="mt-1 text-muted-foreground">
+                      Secundarias:{' '}
+                      {jugador.posiciones_secundarias.map((p, i) => (
+                        <span key={p}>
+                          {i > 0 && ', '}
+                          <span className="font-mono text-xs">{p}</span>
+                        </span>
+                      ))}
+                    </p>
+                  )}
+                </div>
+              ) : (
               <div className="flex flex-wrap gap-2 sm:pt-2">
                 <span
                   className="px-3 py-1.5 rounded-lg text-white font-medium text-sm"
@@ -604,12 +692,13 @@ export default function JugadorDetailPage() {
                   )
                 })}
               </div>
+              )}
             </div>
           </div>
 
           {/* Datos adicionales */}
           {isEditing ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4 card-hover">
+            <div className={`${caja} space-y-4`}>
               <h3 className="font-semibold text-gray-900">Datos adicionales</h3>
 
               <div className="grid grid-cols-2 gap-4">
@@ -722,7 +811,7 @@ export default function JugadorDetailPage() {
               </div>
             </div>
           ) : jugador.notas ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-6 card-hover">
+            <div className={caja}>
               <h3 className="font-semibold text-gray-900 mb-2">Notas</h3>
               <p className="text-gray-600">{jugador.notas}</p>
             </div>

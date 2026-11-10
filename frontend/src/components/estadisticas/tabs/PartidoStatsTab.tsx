@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { StatCard } from '../StatCard'
+import { KpiFranja } from '../KpiFranja'
+import { BarrasHorizontalCal } from '../BarrasHorizontalCal'
 import { ChartCard } from '../ChartCard'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
@@ -10,6 +11,10 @@ import {
 } from 'recharts'
 import { Crosshair, Target, CornerDownRight, ArrowLeftRight } from 'lucide-react'
 import type { EstadisticasDashboardResponse } from '@/lib/api/estadisticasDashboard'
+import { useAppearance } from '@/lib/useAppearance'
+import {
+  C, barraCal, lineaCal, ejeXCal, ejeYCal, ejeCategoriaCal, rejillaCal, tooltipCal, leyendaCal,
+} from '@/lib/graficoCal'
 
 interface Props {
   data: EstadisticasDashboardResponse
@@ -27,6 +32,7 @@ const STAT_OPTIONS = [
 type LocaliaFilter = 'todos' | 'local' | 'visitante'
 
 export function PartidoStatsTab({ data }: Props) {
+  const cal = useAppearance() === 'cal'
   const { estadisticas_acumuladas: stats, evolucion_partidos } = data
   const [selectedStat, setSelectedStat] = useState<string>('tiros_a_puerta')
   const [localia, setLocalia] = useState<LocaliaFilter>('todos')
@@ -80,20 +86,46 @@ export function PartidoStatsTab({ data }: Props) {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard icon={Crosshair} value={stats.promedios?.tiros_a_puerta?.toFixed(1) || '0'} label="Tiros/partido" color="blue" />
-        <StatCard icon={CornerDownRight} value={stats.promedios?.saques_esquina?.toFixed(1) || '0'} label="Corners/partido" color="amber" />
-        <StatCard
-          icon={Target}
-          value={stats.tiros_a_puerta > 0 ? `${Math.round((data.equipo.goles_favor / stats.tiros_a_puerta) * 100)}%` : '-'}
-          label="Eficacia (GF/Tiros)"
-          color="emerald"
-        />
-        <StatCard icon={ArrowLeftRight} value={`${stats.balones_recuperados}/${stats.balones_perdidos}`} label="Recup. / Perdidas" color="purple" />
-      </div>
+      <KpiFranja
+        gridClass="grid grid-cols-2 md:grid-cols-4 gap-4"
+        items={[
+          { icon: Crosshair, value: stats.promedios?.tiros_a_puerta?.toFixed(1) || '0', label: 'Tiros/partido', color: 'blue' },
+          { icon: CornerDownRight, value: stats.promedios?.saques_esquina?.toFixed(1) || '0', label: 'Corners/partido', color: 'amber' },
+          {
+            icon: Target,
+            value: stats.tiros_a_puerta > 0 ? `${Math.round((data.equipo.goles_favor / stats.tiros_a_puerta) * 100)}%` : '-',
+            calValue: stats.tiros_a_puerta > 0 ? Math.round((data.equipo.goles_favor / stats.tiros_a_puerta) * 100) : '-',
+            unit: stats.tiros_a_puerta > 0 ? '%' : undefined,
+            label: 'Eficacia (GF/Tiros)',
+            color: 'emerald',
+          },
+          { icon: ArrowLeftRight, value: `${stats.balones_recuperados}/${stats.balones_perdidos}`, label: 'Recup. / Perdidas', color: 'purple' },
+        ]}
+      />
 
       {stats.por_parte && stats.por_parte.partidos > 0 && (
         <ChartCard title="1ª parte vs 2ª parte (acumulado)">
+          {cal ? (
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart
+                data={stats.por_parte ? [
+                  { stat: 'Tiros', p1: stats.por_parte['1'].tiros_a_puerta, p2: stats.por_parte['2'].tiros_a_puerta },
+                  { stat: 'Ocasiones', p1: stats.por_parte['1'].ocasiones_gol, p2: stats.por_parte['2'].ocasiones_gol },
+                  { stat: 'Corners', p1: stats.por_parte['1'].saques_esquina, p2: stats.por_parte['2'].saques_esquina },
+                  { stat: 'Faltas', p1: stats.por_parte['1'].faltas_cometidas, p2: stats.por_parte['2'].faltas_cometidas },
+                  { stat: 'Amarillas', p1: stats.por_parte['1'].tarjetas_amarillas, p2: stats.por_parte['2'].tarjetas_amarillas },
+                ] : []}
+              >
+                <CartesianGrid {...rejillaCal} />
+                <XAxis dataKey="stat" {...ejeXCal} />
+                <YAxis {...ejeYCal} allowDecimals={false} />
+                <Tooltip {...tooltipCal} />
+                <Legend {...leyendaCal} />
+                <Bar dataKey="p1" fill={C.primary} name="1ª parte" {...barraCal} />
+                <Bar dataKey="p2" fill={C.neutro} name="2ª parte" {...barraCal} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
           <ResponsiveContainer width="100%" height={280}>
             <BarChart
               data={[
@@ -112,12 +144,26 @@ export function PartidoStatsTab({ data }: Props) {
               <Bar dataKey="p2" fill="#10B981" name="2ª parte" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
+          )}
         </ChartCard>
       )}
 
       <div className="grid md:grid-cols-2 gap-6">
         {/* Horizontal comparison */}
         <ChartCard title="Equipo vs Rivales (acumulado)" isEmpty={stats.partidos_con_estadisticas === 0}>
+          {cal ? (
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={comparacion} layout="vertical">
+                <CartesianGrid {...rejillaCal} vertical horizontal={false} />
+                <XAxis type="number" {...ejeXCal} />
+                <YAxis dataKey="stat" type="category" width={90} {...ejeCategoriaCal} />
+                <Tooltip {...tooltipCal} />
+                <Legend {...leyendaCal} />
+                <Bar dataKey="equipo" fill={C.primary} name="Equipo" {...barraCal} />
+                <Bar dataKey="rival" fill={C.neutro} name="Rivales" {...barraCal} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={comparacion} layout="vertical">
               <XAxis type="number" tick={{ fontSize: 10 }} />
@@ -127,10 +173,16 @@ export function PartidoStatsTab({ data }: Props) {
               <Bar dataKey="rival" fill="#9CA3AF" name="Rivales" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
+          )}
         </ChartCard>
 
         {/* Pie: Recuperaciones vs Perdidas */}
         <ChartCard title="Balones recuperados vs perdidos" isEmpty={recPerd.length === 0}>
+          {cal ? (
+            <BarrasHorizontalCal
+              data={recPerd.map((d) => ({ name: d.name, value: d.value, color: d.name === 'Recuperados' ? C.victoria : C.derrota }))}
+            />
+          ) : (
           <ResponsiveContainer width="100%" height={280}>
             <PieChart>
               <Pie data={recPerd} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} innerRadius={50} label={({ name, value }) => `${name}: ${value}`}>
@@ -141,6 +193,7 @@ export function PartidoStatsTab({ data }: Props) {
               <Tooltip />
             </PieChart>
           </ResponsiveContainer>
+          )}
         </ChartCard>
       </div>
 
@@ -160,6 +213,19 @@ export function PartidoStatsTab({ data }: Props) {
           </select>
         }
       >
+          {cal ? (
+          <ResponsiveContainer width="100%" height={280}>
+            <LineChart data={lineData}>
+              <CartesianGrid {...rejillaCal} />
+              <XAxis dataKey="name" {...ejeXCal} />
+              <YAxis {...ejeYCal} />
+              <Tooltip {...tooltipCal} />
+              <Legend {...leyendaCal} />
+              <Line dataKey="equipo" stroke={C.primary} name="Equipo" {...lineaCal} connectNulls />
+              <Line dataKey="rival" stroke={C.neutro} name="Rival" {...lineaCal} connectNulls />
+            </LineChart>
+          </ResponsiveContainer>
+          ) : (
         <ResponsiveContainer width="100%" height={280}>
           <LineChart data={lineData}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
@@ -171,6 +237,7 @@ export function PartidoStatsTab({ data }: Props) {
             <Line type="monotone" dataKey="rival" stroke="#9CA3AF" name="Rival" strokeWidth={2} dot={{ r: 3 }} connectNulls />
           </LineChart>
         </ResponsiveContainer>
+          )}
       </ChartCard>
     </div>
   )

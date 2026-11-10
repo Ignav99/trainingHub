@@ -23,10 +23,12 @@ import { EnfermeriaTab } from '@/components/estadisticas/tabs/EnfermeriaTab'
 import { SesionesTab } from '@/components/estadisticas/tabs/SesionesTab'
 import type { EstadisticasDashboardResponse } from '@/lib/api/estadisticasDashboard'
 import type { CargaSemanalData } from '@/lib/api/dashboard'
+import { useAppearance } from '@/lib/useAppearance'
 import { AMBITO_COMPETICION, type PartidoAmbito } from '@/lib/partidoAmbito'
 
 export default function EstadisticasPage() {
   const { equipoActivo } = useEquipoStore()
+  const cal = useAppearance() === 'cal'
   const [ambito, setAmbito] = useState<PartidoAmbito>(AMBITO_COMPETICION)
 
   const { data: dashboard, error, mutate, isLoading } = useSWR<EstadisticasDashboardResponse>(
@@ -64,7 +66,7 @@ export default function EstadisticasPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <BarChart3 className="h-6 w-6 text-primary" />
+            {!cal && <BarChart3 className="h-6 w-6 text-primary" />}
             Estadísticas
           </h1>
           <p className="text-muted-foreground text-sm">
@@ -85,7 +87,7 @@ export default function EstadisticasPage() {
             href="/informes"
             className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
           >
-            <FileStack className="h-3.5 w-3.5" />
+            {!cal && <FileStack className="h-3.5 w-3.5" />}
             Gabinete
           </Link>
         </div>
@@ -94,36 +96,36 @@ export default function EstadisticasPage() {
       <Tabs defaultValue="resumen">
         <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="resumen" className="gap-1.5">
-            <LayoutDashboard className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Resumen</span>
+            {!cal && <LayoutDashboard className="h-3.5 w-3.5" />}
+            <span className={cal ? undefined : 'hidden sm:inline'}>Resumen</span>
           </TabsTrigger>
           <TabsTrigger value="partidos" className="gap-1.5">
-            <BarChart3 className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Partidos</span>
+            {!cal && <BarChart3 className="h-3.5 w-3.5" />}
+            <span className={cal ? undefined : 'hidden sm:inline'}>Partidos</span>
           </TabsTrigger>
           <TabsTrigger value="jugadores" className="gap-1.5">
-            <Users className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Jugadores</span>
+            {!cal && <Users className="h-3.5 w-3.5" />}
+            <span className={cal ? undefined : 'hidden sm:inline'}>Jugadores</span>
           </TabsTrigger>
           <TabsTrigger value="goles" className="gap-1.5">
-            <Crosshair className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Goles</span>
+            {!cal && <Crosshair className="h-3.5 w-3.5" />}
+            <span className={cal ? undefined : 'hidden sm:inline'}>Goles</span>
           </TabsTrigger>
           <TabsTrigger value="disciplina" className="gap-1.5">
-            <AlertTriangle className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Disciplina</span>
+            {!cal && <AlertTriangle className="h-3.5 w-3.5" />}
+            <span className={cal ? undefined : 'hidden sm:inline'}>Disciplina</span>
           </TabsTrigger>
           <TabsTrigger value="asistencia" className="gap-1.5">
-            <ClipboardCheck className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Asistencia</span>
+            {!cal && <ClipboardCheck className="h-3.5 w-3.5" />}
+            <span className={cal ? undefined : 'hidden sm:inline'}>Asistencia</span>
           </TabsTrigger>
           <TabsTrigger value="enfermeria" className="gap-1.5">
-            <HeartPulse className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Enfermería</span>
+            {!cal && <HeartPulse className="h-3.5 w-3.5" />}
+            <span className={cal ? undefined : 'hidden sm:inline'}>Enfermería</span>
           </TabsTrigger>
           <TabsTrigger value="sesiones" className="gap-1.5">
-            <Dumbbell className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Sesiones</span>
+            {!cal && <Dumbbell className="h-3.5 w-3.5" />}
+            <span className={cal ? undefined : 'hidden sm:inline'}>Sesiones</span>
           </TabsTrigger>
         </TabsList>
 

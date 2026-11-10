@@ -33,6 +33,8 @@ import { TeamCrest } from '@/components/ui/team-crest'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { EscudoUploadField } from '@/components/ui/escudo-upload-field'
+import { PorAspecto } from '@/components/appearance/PorAspecto'
+import { RivalesTablaCal, RivalesTablaSkeletonCal } from '@/components/rivales/RivalesTablaCal'
 import { rivalesApi, RivalCreateData } from '@/lib/api/partidos'
 import { useEquipoStore } from '@/stores/equipoStore'
 import type { Rival, PaginatedResponse } from '@/types'
@@ -200,7 +202,7 @@ export default function RivalesPage() {
 
       {/* List */}
       {loading ? (
-        <CardGridSkeleton />
+        <PorAspecto cal={<RivalesTablaSkeletonCal />} resto={<CardGridSkeleton />} />
       ) : rivales.length === 0 ? (
         <EmptyState
           icon={<Shield className="h-12 w-12" />}
@@ -213,6 +215,9 @@ export default function RivalesPage() {
           }
         />
       ) : (
+        <PorAspecto
+          cal={<RivalesTablaCal rivales={rivales} onEdit={openEdit} onDelete={setDeleteId} />}
+          resto={
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {rivales.map((rival) => (
             <Card key={rival.id} className="card-interactive">
@@ -252,6 +257,8 @@ export default function RivalesPage() {
             </Card>
           ))}
         </div>
+          }
+        />
       )}
 
       {/* Form dialog */}

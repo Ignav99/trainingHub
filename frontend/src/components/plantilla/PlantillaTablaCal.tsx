@@ -58,7 +58,7 @@ function plural(n: number, uno: string, varios: string) {
 }
 
 /** Estado escrito + forma, a partir de los mismos datos que usaban las tarjetas. */
-function estadoDe(j: Jugador): { tipo: EstadoTipo; ficha: FichaEstado; texto: string } {
+export function estadoDe(j: Jugador): { tipo: EstadoTipo; ficha: FichaEstado; texto: string } {
   const prog = etiquetaPrograma(j)
   if (prog === 'admin') {
     if (j.estado === 'sancionado') return { tipo: 'baja', ficha: 'sancionado', texto: 'sancionado' }
@@ -78,7 +78,7 @@ function estadoDe(j: Jugador): { tipo: EstadoTipo; ficha: FichaEstado; texto: st
 const num = (v?: number | null) => (v === undefined || v === null ? '–' : v)
 
 /** Motivo de baja y fecha de vuelta, para el title de la celda de estado. */
-function detalleEstado(j: Jugador): string | undefined {
+export function detalleEstado(j: Jugador): string | undefined {
   const partes: string[] = []
   if (j.motivo_baja) partes.push(j.motivo_baja)
   if (j.fecha_vuelta_estimada) {

@@ -46,10 +46,16 @@ import {
 import type { RFEFActa } from '@/types'
 import { MiEquipoTarjetasWidget } from '@/components/pre-match/MiEquipoTarjetasWidget'
 import { CompeticionOnboardingWizard } from '@/components/competicion/CompeticionOnboardingWizard'
+import { PorAspecto } from '@/components/appearance/PorAspecto'
+import { useAppearance } from '@/lib/useAppearance'
+import { CompeticionResumenCal } from '@/components/competicion/CompeticionResumenCal'
+import { SyncEstadoCal } from '@/components/competicion/SyncEstadoCal'
+import { ClasificacionTablaCal } from '@/components/competicion/ClasificacionTablaCal'
 import { formatJornadaDateSpan, formatJornadaKickoff } from '@/lib/jornadaKickoff'
 
 export default function CompeticionPage() {
   const { equipoActivo } = useEquipoStore()
+  const cal = useAppearance() === 'cal'
   const [competicion, setCompeticion] = useState<RFEFCompeticion | null>(null)
   const [jornadas, setJornadas] = useState<RFEFJornada[]>([])
   const [syncing, setSyncing] = useState(false)
@@ -690,6 +696,24 @@ export default function CompeticionPage() {
 
       {/* Sync status banner */}
       {dataSyncStatus && dataSyncStatus.status !== 'no_data' && (
+        <PorAspecto
+          cal={
+            <SyncEstadoCal
+              estado={dataSyncStatus}
+              reintentando={retryingActas}
+              onReintentar={async () => {
+                if (!competicion) return
+                setRetryingActas(true)
+                try {
+                  await rfefApi.syncActas(competicion.id)
+                  const updated = await rfefApi.getSyncStatus(competicion.id)
+                  setDataSyncStatus(updated)
+                } catch { /* ok */ }
+                setRetryingActas(false)
+              }}
+            />
+          }
+          resto={
         <div className={`flex items-center justify-between gap-3 p-3 rounded-lg text-sm ${
           dataSyncStatus.status === 'complete'
             ? 'bg-green-500/10 text-green-700 dark:text-green-400'
@@ -741,6 +765,8 @@ export default function CompeticionPage() {
             </button>
           )}
         </div>
+          }
+        />
       )}
 
       {/* Mi equipo selector */}
@@ -783,6 +809,19 @@ export default function CompeticionPage() {
 
       {/* Summary cards */}
       {miEquipoStats && !selectingEquipo && (
+        <PorAspecto
+          cal={
+            <CompeticionResumenCal
+              posicion={miEquipoStats.posicion}
+              total={clasificacion.length}
+              puntos={miEquipoStats.puntos}
+              pj={miEquipoStats.pj}
+              gf={miEquipoStats.gf}
+              gc={miEquipoStats.gc}
+              racha={racha}
+            />
+          }
+          resto={
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <SummaryCard
             label="Posicion"
@@ -819,6 +858,8 @@ export default function CompeticionPage() {
             </div>
           </div>
         </div>
+          }
+        />
       )}
 
       {/* Tabs */}
@@ -841,6 +882,9 @@ export default function CompeticionPage() {
 
         {/* Clasificacion tab */}
         <TabsContent value="clasificacion">
+          <PorAspecto
+            cal={<ClasificacionTablaCal clasificacion={clasificacion} miEquipo={miEquipo} />}
+            resto={
           <div className="bg-card rounded-xl border overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -911,6 +955,8 @@ export default function CompeticionPage() {
               </div>
             )}
           </div>
+            }
+          />
         </TabsContent>
 
         {/* Jornada tab */}
@@ -983,8 +1029,10 @@ export default function CompeticionPage() {
                       <tr
                         key={idx}
                         className={`border-b last:border-0 row-hover ${
+                          cal ? 'h-9 [@media(pointer:coarse)]:h-11 tabular-nums ' : ''
+                        }${
                           isMyTeam
-                            ? 'bg-yellow-50 dark:bg-yellow-950/20'
+                            ? cal ? 'bg-sunken font-bold' : 'bg-yellow-50 dark:bg-yellow-950/20'
                             : ''
                         }`}
                       >
@@ -1295,12 +1343,13 @@ function PartidoRow({
   const isMyMatch = isMyTeam(partido.local) || isMyTeam(partido.visitante)
   const hasActa = !!partido.cod_acta
   const kickoff = formatJornadaKickoff(partido.fecha, partido.hora)
+  const cal = useAppearance() === 'cal'
 
   return (
     <div
       onClick={hasActa ? onActaClick : undefined}
       className={`flex items-center gap-3 px-4 py-3 ${
-        isMyMatch ? 'bg-yellow-50/50 dark:bg-yellow-950/10' : ''
+        isMyMatch ? (cal ? 'bg-sunken' : 'bg-yellow-50/50 dark:bg-yellow-950/10') : ''
       } ${hasActa ? 'cursor-pointer hover:bg-muted/50 transition-colors' : ''}`}
     >
       {/* Local */}

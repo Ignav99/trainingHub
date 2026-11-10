@@ -21,7 +21,7 @@ type PartidoConRival = Partido & { rival?: { nombre?: string; nombre_corto?: str
 
 function fechaCorta(fecha: string) {
   return new Date(fecha)
-    .toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })
+    .toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
     .replace(/[,.]/g, '')
 }
 
@@ -75,7 +75,7 @@ function Fila({ p, selected, onSelect }: { p: PartidoConRival; selected: boolean
     >
       {selected && <span aria-hidden="true" className="absolute inset-y-0 left-0 w-[3px] bg-primary" />}
       <span className="w-8 flex-none font-mono text-xs text-muted-foreground">{p.jornada ? `J${p.jornada}` : ''}</span>
-      <span className="w-[5.5rem] flex-none whitespace-nowrap text-xs tabular-nums text-muted-foreground">
+      <span className="w-[3.25rem] flex-none whitespace-nowrap text-xs tabular-nums text-muted-foreground">
         {fechaCorta(p.fecha)}
       </span>
       <span className="flex h-6 w-6 flex-none items-center justify-center">
