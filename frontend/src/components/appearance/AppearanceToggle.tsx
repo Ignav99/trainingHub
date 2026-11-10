@@ -2,41 +2,30 @@
 
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
-
-const KEY = 'kabine-appearance:v1'
-
-function readClassic() {
-  if (typeof document === 'undefined') return false
-  return document.documentElement.getAttribute('data-appearance') === 'clasico'
-}
+import { type Appearance, appearanceLabel, applyAppearance, nextAppearance, readAppearance } from '@/lib/appearance'
 
 export function AppearanceToggle({ collapsed = false }: { collapsed?: boolean }) {
-  const [classic, setClassic] = useState(false)
+  const [appearance, setAppearance] = useState<Appearance>('acta')
 
   useEffect(() => {
-    setClassic(readClassic())
+    setAppearance(readAppearance())
   }, [])
 
-  function toggle() {
-    const next = !readClassic()
-    if (next) document.documentElement.setAttribute('data-appearance', 'clasico')
-    else document.documentElement.removeAttribute('data-appearance')
-    try {
-      localStorage.setItem(KEY, next ? 'clasico' : 'acta')
-    } catch {
-      // Private mode can refuse storage. The choice still applies this visit.
-    }
-    setClassic(next)
+  function cycle() {
+    const next = nextAppearance(readAppearance())
+    applyAppearance(next)
+    setAppearance(next)
   }
 
-  const label = classic ? 'Aspecto nuevo' : 'Aspecto anterior'
+  const label = `Aspecto: ${appearanceLabel(appearance)}`
+  const hint = `Cambiar a ${appearanceLabel(nextAppearance(appearance))}`
 
   return (
     <button
       type="button"
-      onClick={toggle}
-      aria-pressed={classic}
-      title={label}
+      onClick={cycle}
+      title={hint}
+      aria-label={`${label}. ${hint}`}
       className={cn(
         'kabine-nav w-full text-left text-sm',
         collapsed ? 'flex justify-center px-2 py-2.5' : 'px-3 py-2'
