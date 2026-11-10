@@ -56,7 +56,7 @@ export function SemanaTira() {
         {dias.map((d, i) => {
           const contenido = (
             <>
-              <span className="block truncate font-mono text-xs text-muted-foreground">
+              <span className={cn('block truncate font-mono text-xs', d.esHoy ? 'text-primary-foreground/80' : 'text-muted-foreground')}>
                 {d.etiqueta || ' '}
               </span>
               <span className="block truncate text-sm">

@@ -279,3 +279,20 @@ html[data-appearance="cal"] .puerta-cal label:has(input[type="checkbox"]) {
   font-weight: 400;
   color: hsl(var(--muted-foreground));
 }
+
+/* Banda lateral: nombre del club legible sobre fondo claro */
+html[data-appearance="cal"] .club-banner p {
+  color: hsl(var(--shell-foreground));
+}
+html[data-appearance="cal"] .club-banner svg {
+  color: hsl(var(--shell-foreground));
+}
+html[data-appearance="cal"] .club-banner button:hover {
+  background: hsl(var(--shell-hover));
+}
+
+/* Calendario de Hoy: celdas con fondo de tarjeta y barra superior de 3 px con el color de la categoria */
+html[data-appearance="cal"] main .group.border-t-4:is(.bg-amber-50, .bg-violet-50, .bg-emerald-50\/70, .bg-muted\/15) {
+  background-color: hsl(var(--card));
+  border-top-width: 3px;
+}
