@@ -42,12 +42,25 @@ import { PasarMolestiaALesion } from '@/components/enfermeria/PasarMolestiaALesi
 import { TratamientoCuaderno } from '@/components/ficha-clinica/TratamientoCuaderno'
 import { BodyInjuryMap } from '@/components/ficha-clinica/BodyInjuryMap'
 import { FASE_TRATAMIENTO_LABELS } from '@/lib/jugadorTipo'
+import { cn } from '@/lib/utils'
+import { useAppearance } from '@/lib/useAppearance'
+import { Ficha, type FichaEstado } from '@/components/ui/ficha'
+import { Estado, type EstadoTipo } from '@/components/ui/estado'
+import { BarraFina, VacioCal } from '@/components/salud/SaludCal'
 
 const ESTADO_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   activo: { label: 'Activo', color: 'text-red-700', bg: 'bg-red-100' },
   en_recuperacion: { label: 'En recuperación', color: 'text-amber-700', bg: 'bg-amber-100' },
   alta: { label: 'Alta', color: 'text-green-700', bg: 'bg-green-100' },
   cronico: { label: 'Crónico', color: 'text-purple-700', bg: 'bg-purple-100' },
+}
+
+/** Estado del caso en Cal: texto + forma. Activo = baja, en recuperación y crónico = duda, alta = disponible. */
+const ESTADO_CAL: Record<string, { tipo: EstadoTipo; ficha: FichaEstado; texto: string }> = {
+  activo: { tipo: 'baja', ficha: 'baja', texto: 'activo' },
+  en_recuperacion: { tipo: 'duda', ficha: 'duda', texto: 'en recuperación' },
+  alta: { tipo: 'disponible', ficha: 'disponible', texto: 'alta' },
+  cronico: { tipo: 'duda', ficha: 'duda', texto: 'crónico' },
 }
 
 const TIPO_LABELS: Record<string, string> = {
@@ -79,6 +92,7 @@ function getFileName(url: string): string {
 export default function EnfermeriaDetailPage() {
   const params = useParams()
   const router = useRouter()
+  const cal = useAppearance() === 'cal'
   const user = useAuthStore((s) => s.user)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -268,6 +282,15 @@ export default function EnfermeriaDetailPage() {
   }
 
   if (error || !registro) {
+    if (cal) {
+      return (
+        <VacioCal texto={error || 'Registro no encontrado'}>
+          <Link href="/enfermeria" className="text-primary hover:underline">
+            Volver a enfermería
+          </Link>
+        </VacioCal>
+      )
+    }
     return (
       <div className="text-center py-20">
         <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
@@ -280,6 +303,7 @@ export default function EnfermeriaDetailPage() {
   }
 
   const estadoConf = ESTADO_CONFIG[registro.estado] || ESTADO_CONFIG.activo
+  const estadoCal = ESTADO_CAL[registro.estado] || ESTADO_CAL.activo
   const dias = daysSince(registro.fecha_inicio)
   const fechaVuelta = registro.dias_baja_estimados
     ? new Date(new Date(registro.fecha_inicio).getTime() + registro.dias_baja_estimados * 86400000)
@@ -304,6 +328,20 @@ export default function EnfermeriaDetailPage() {
           { label: 'Detalle' },
         ]}
         actions={
+          cal ? (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+              <Estado tipo={estadoCal.tipo}>{estadoCal.texto}</Estado>
+              <span className="text-muted-foreground">
+                {[
+                  (TIPO_LABELS[registro.tipo] || registro.tipo).toLowerCase(),
+                  registro.disponibilidad ? registro.disponibilidad.replace('_', ' ') : null,
+                  registro.severidad,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </span>
+            </div>
+          ) : (
           <div className="flex items-center gap-2">
             <Badge className={`${estadoConf.bg} ${estadoConf.color} border-0`}>
               {estadoConf.label}
@@ -320,12 +358,13 @@ export default function EnfermeriaDetailPage() {
               <Badge variant="secondary" className="capitalize">{registro.severidad}</Badge>
             )}
           </div>
+          )
         }
       />
 
       {/* Fase de tratamiento */}
       {registro.tipo !== 'molestias' && (registro.estado !== 'alta' || isEditing) && (
-        <Card className="border-amber-200 bg-amber-50/40">
+        <Card className={cal ? undefined : 'border-amber-200 bg-amber-50/40'}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">
               {registro.tipo === 'lesion' ? 'Fase de la lesión' : 'Fase de tratamiento'}
@@ -355,12 +394,12 @@ export default function EnfermeriaDetailPage() {
         </Card>
       )}
       {registro.tipo === 'molestias' && registro.estado !== 'alta' ? (
-        <Card className="border-amber-200 bg-amber-50/40">
+        <Card className={cal ? undefined : 'border-amber-200 bg-amber-50/40'}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Molestia</CardTitle>
           </CardHeader>
           <CardContent>
-          <p className="text-sm text-amber-900">
+          <p className={cal ? 'text-sm' : 'text-sm text-amber-900'}>
             El jugador sigue disponible en plantilla y microciclo. Si la molestia pasa a lesión,
             elige el tipo y si entra en reposo, margen o inicio grupo.
           </p>
@@ -392,7 +431,7 @@ export default function EnfermeriaDetailPage() {
       ) : null}
 
       {registro.tipo !== 'molestias' && (registro.estado !== 'alta' || isEditing) && (
-        <Card className="border-amber-200 bg-amber-50/40">
+        <Card className={cal ? undefined : 'border-amber-200 bg-amber-50/40'}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Disponibilidad operativa y RTP</CardTitle>
           </CardHeader>
@@ -469,11 +508,11 @@ export default function EnfermeriaDetailPage() {
 
       {/* Parent record link */}
       {registroPadre && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200">
-          <Activity className="h-4 w-4 text-amber-600" />
-          <span className="text-sm text-amber-800">
+        <div className={cn('flex items-center gap-2 p-3', cal ? 'cal-linea bg-card' : 'rounded-lg bg-amber-50 border border-amber-200')}>
+          {cal ? <Estado tipo="aviso" className="text-sm"><span className="sr-only">Aviso</span></Estado> : <Activity className="h-4 w-4 text-amber-600" />}
+          <span className={cn('text-sm', !cal && 'text-amber-800')}>
             Recaída de:{' '}
-            <Link href={`/enfermeria/${registroPadre.id}`} className="font-medium underline hover:text-amber-900">
+            <Link href={`/enfermeria/${registroPadre.id}`} className={cn('font-medium underline', !cal && 'hover:text-amber-900')}>
               {registroPadre.titulo}
             </Link>
             {' '}({new Date(registroPadre.fecha_inicio).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: '2-digit' })})
@@ -482,18 +521,18 @@ export default function EnfermeriaDetailPage() {
       )}
 
       <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => setShowDelete(true)} className="text-red-600 border-red-200 hover:bg-red-50">
+          <Button variant="outline" onClick={() => setShowDelete(true)} className={cal ? 'text-destructive' : 'text-red-600 border-red-200 hover:bg-red-50'}>
             <Trash2 className="h-4 w-4 mr-2" />
             Eliminar
           </Button>
           {registro.tipo !== 'lesion' && registro.tipo !== 'molestias' && registro.estado === 'activo' && (
-            <Button variant="outline" onClick={() => setShowRehab(true)} className="text-blue-700 border-blue-300 hover:bg-blue-50">
+            <Button variant="outline" onClick={() => setShowRehab(true)} className={cal ? undefined : 'text-blue-700 border-blue-300 hover:bg-blue-50'}>
               <Activity className="h-4 w-4 mr-2" />
               Pasar a Rehabilitación
             </Button>
           )}
           {registro.estado !== 'alta' && (
-            <Button variant="outline" onClick={() => setShowAlta(true)} className="text-green-700 border-green-300 hover:bg-green-50">
+            <Button variant="outline" onClick={() => setShowAlta(true)} className={cal ? undefined : 'text-green-700 border-green-300 hover:bg-green-50'}>
               <CheckCircle className="h-4 w-4 mr-2" />
               {registro.tipo === 'molestias' ? 'Finalizar molestia' : 'Dar Alta'}
             </Button>
@@ -522,9 +561,20 @@ export default function EnfermeriaDetailPage() {
               {jugador ? (
                 <div className="text-center">
                   {/* Photo */}
+                  {cal ? (
+                    <div className="mx-auto mb-4 flex justify-center">
+                      <Ficha
+                        dorsal={jugador.dorsal}
+                        estado={estadoCal.ficha}
+                        size="lg"
+                        label={jugador.apodo || `${jugador.nombre} ${jugador.apellidos}`}
+                      />
+                    </div>
+                  ) : (
                   <div className="mx-auto w-24 h-24 mb-4">
                     <PlayerAvatar player={jugador} size="2xl" className="w-full h-full" />
                   </div>
+                  )}
 
                   <h3 className="text-lg font-bold">
                     {jugador.apodo || `${jugador.nombre} ${jugador.apellidos}`}
@@ -534,7 +584,7 @@ export default function EnfermeriaDetailPage() {
                   )}
 
                   <div className="flex items-center justify-center gap-2 mt-2">
-                    {jugador.dorsal && (
+                    {!cal && jugador.dorsal && (
                       <span className="bg-gray-900 text-white text-sm font-bold px-2 py-0.5 rounded">
                         #{jugador.dorsal}
                       </span>
@@ -543,10 +593,17 @@ export default function EnfermeriaDetailPage() {
                   </div>
 
                   {/* Days counter */}
+                  {cal ? (
+                    <div className="mt-4 border-t border-border pt-4">
+                      <p className="text-3xl font-bold tabular-nums">{dias}</p>
+                      <p className="cal-rotulo text-muted-foreground mt-1">{registro.tipo === 'molestias' ? 'días con molestia' : 'días de baja'}</p>
+                    </div>
+                  ) : (
                   <div className="mt-4 p-4 rounded-lg bg-red-50 border border-red-100">
                     <p className="text-3xl font-bold text-red-700">{dias}</p>
                     <p className="text-sm text-red-600">{registro.tipo === 'molestias' ? 'días con molestia' : 'días de baja'}</p>
                   </div>
+                  )}
 
                   {/* Estimated return */}
                   {fechaVuelta && registro.estado !== 'alta' && (
@@ -598,7 +655,7 @@ export default function EnfermeriaDetailPage() {
               </div>
               {(registro.fecha_alta || isEditing) && (
                 <div className="flex items-center gap-3">
-                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <CheckCircle className={cn('h-4 w-4', cal ? 'text-success' : 'text-green-500')} />
                   <div className="flex-1">
                     <p className="text-xs text-muted-foreground">Fecha alta</p>
                     {isEditing ? (
@@ -686,6 +743,12 @@ export default function EnfermeriaDetailPage() {
               <CardContent>
                 <div className="flex items-center gap-3">
                   <div className="flex-1">
+                    {cal ? (
+                      <BarraFina
+                        pct={timelineProgress}
+                        tono={timelineProgress >= 100 ? 'success' : timelineProgress >= 75 ? 'warning' : 'info'}
+                      />
+                    ) : (
                     <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all ${
@@ -694,6 +757,7 @@ export default function EnfermeriaDetailPage() {
                         style={{ width: `${Math.min(100, timelineProgress)}%` }}
                       />
                     </div>
+                    )}
                     <div className="flex justify-between text-xs text-muted-foreground mt-1">
                       <span>{new Date(registro.fecha_inicio).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</span>
                       <span>{dias} / {registro.dias_baja_estimados} días</span>

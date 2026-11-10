@@ -35,6 +35,9 @@ import { microciclosApi } from '@/lib/api/microciclos'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { cn } from '@/lib/utils'
 import type { Microciclo, PaginatedResponse } from '@/types'
+import { PorAspecto } from '@/components/appearance/PorAspecto'
+import { Estado, type EstadoTipo } from '@/components/ui/estado'
+import { useAppearance } from '@/lib/useAppearance'
 import { estadoDeMicrociclo } from '@/lib/microcicloEstado'
 
 type FilterKey = 'todos' | 'en_curso' | 'planificado' | 'completado' | 'borrador' | 'competicion' | 'pretemporada'
@@ -209,7 +212,50 @@ function MicrocicloCard({ m, featured = false }: { m: Microciclo; featured?: boo
   )
 }
 
+const ESTADO_FORMA: Record<string, EstadoTipo> = {
+  borrador: 'neutro',
+  planificado: 'neutro',
+  en_curso: 'aviso',
+  completado: 'disponible',
+}
+
+/** Fila de microciclo en Cal: lista continua con las mismas columnas de datos que la tarjeta. */
+function MicrocicloFilaCal({ m }: { m: Microciclo }) {
+  const estadoKey = estadoDeMicrociclo(m)
+  const estado = ESTADO_STYLE[estadoKey] || ESTADO_STYLE.borrador
+  const pre = isPretemporada(m)
+  const rival = m.partidos?.rival?.nombre || m.partidos?.rival?.nombre_corto
+  return (
+    <li className="relative border-b border-border last:border-b-0">
+      {estadoKey === 'en_curso' && <span aria-hidden="true" className="absolute inset-y-0 left-0 w-[3px] bg-primary" />}
+      <Link
+        href={`/microciclos/${m.id}`}
+        className="flex min-h-14 items-center gap-3 px-3 py-2 hover:bg-sunken focus-visible:bg-sunken focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
+      >
+        <div className="w-28 flex-none sm:w-36">
+          <p className="text-sm font-semibold tabular-nums">{formatRange(m.fecha_inicio, m.fecha_fin)}</p>
+          <p className="font-mono text-xs tabular-nums text-muted-foreground">
+            {weekLabel(m.fecha_inicio)} · {daysSpan(m.fecha_inicio, m.fecha_fin)} d
+          </p>
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm">{m.objetivo_principal || <span className="text-muted-foreground">Sin objetivo</span>}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {pre ? 'Pretemporada' : 'Competición'}
+            {m.partidos ? ` · ${m.partidos.localia === 'local' ? 'vs' : '@'} ${rival || 'Rival'}` : ''}
+          </p>
+        </div>
+        <Estado tipo={ESTADO_FORMA[estadoKey] || 'neutro'} className="flex-none text-xs">
+          {estado.label}
+        </Estado>
+        <ChevronRight className="h-4 w-4 flex-none text-muted-foreground" aria-hidden="true" />
+      </Link>
+    </li>
+  )
+}
+
 export default function MicrociclosListPage() {
+  const cal = useAppearance() === 'cal'
   const { equipoActivo } = useEquipoStore()
   const [page, setPage] = useState(1)
   const [filter, setFilter] = useState<FilterKey>('en_curso')
@@ -434,8 +480,15 @@ export default function MicrociclosListPage() {
                 type="button"
                 onClick={() => handleFilterChange(f.key)}
                 className={cn(
-                  'shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors',
-                  filter === f.key ? f.active : f.idle
+                  cal
+                    ? cn(
+                        'shrink-0 min-h-11 px-3 text-sm font-semibold border-b-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
+                        filter === f.key ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
+                      )
+                    : cn(
+                        'shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors',
+                        filter === f.key ? f.active : f.idle
+                      )
                 )}
               >
                 {f.label}
@@ -535,6 +588,15 @@ export default function MicrociclosListPage() {
                 </h2>
                 <span className="text-[11px] text-muted-foreground tabular-nums">{library.length}</span>
               </div>
+              <PorAspecto
+                cal={
+                  <ul className="cal-linea bg-card">
+                    {library.map((m) => (
+                      <MicrocicloFilaCal key={m.id} m={m} />
+                    ))}
+                  </ul>
+                }
+                resto={
               <div
                 className={cn(
                   'grid gap-3',
@@ -547,6 +609,8 @@ export default function MicrociclosListPage() {
                   <MicrocicloCard key={m.id} m={m} featured={estadoDeMicrociclo(m) === 'en_curso'} />
                 ))}
               </div>
+                }
+              />
             </section>
           )}
         </div>

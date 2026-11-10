@@ -32,6 +32,11 @@ import { WellnessDialog } from '@/components/rpe/WellnessDialog'
 import { ExcelImportDialog } from '@/components/rpe/ExcelImportDialog'
 import { PlayerRpeCharts } from '@/components/rpe/PlayerRpeCharts'
 import dynamic from 'next/dynamic'
+import { useAppearance } from '@/lib/useAppearance'
+import { cn } from '@/lib/utils'
+import { KpiFranja } from '@/components/estadisticas/KpiFranja'
+import { RpeTablaCal } from '@/components/rpe/RpeTablaCal'
+import { VacioCal, fechaCorta } from '@/components/salud/SaludCal'
 
 const WellnessChartDialog = dynamic(() => import('@/components/rpe/WellnessChartDialog').then(m => ({ default: m.WellnessChartDialog })), { ssr: false })
 const LoadChartDialog = dynamic(() => import('@/components/rpe/LoadChartDialog').then(m => ({ default: m.LoadChartDialog })), { ssr: false })
@@ -98,6 +103,7 @@ function getWellnessBg(value: number | null): string {
 }
 
 export default function RPEPage() {
+  const cal = useAppearance() === 'cal'
   const { equipoActivo } = useEquipoStore()
   const mostrarFilial = useFilialVisibilityStore((s) => s.mostrarFilial)
 
@@ -224,6 +230,15 @@ export default function RPEPage() {
       </div>
 
       {/* Actions */}
+      {cal ? (
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={() => setShowManualRPE(true)}>Registrar RPE</Button>
+          <Button variant="outline" size="sm" onClick={() => setShowWellness(true)}>Registrar wellness</Button>
+          <Button variant="outline" size="sm" onClick={() => { setLoadChartPlayer(undefined); setShowLoadChart(true) }}>Gráfica de carga</Button>
+          <Button variant="outline" size="sm" onClick={() => setShowChart(true)}>Gráfica de wellness</Button>
+          <Button variant="outline" size="sm" onClick={() => setShowImport(true)}>Importar Excel</Button>
+        </div>
+      ) : (
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <Button
           variant="outline"
@@ -266,6 +281,7 @@ export default function RPEPage() {
           <span className="text-xs font-medium">Importar Excel</span>
         </Button>
       </div>
+      )}
 
       {/* KPI strip */}
       <div className="animate-fade-in">
@@ -273,6 +289,27 @@ export default function RPEPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}
           </div>
+        ) : cal ? (
+          <KpiFranja
+            gridClass=""
+            items={[
+              {
+                label: 'Wellness equipo',
+                value: teamWellnessAvg != null ? `${teamWellnessAvg}/25` : '—',
+                calValue: teamWellnessAvg != null ? teamWellnessAvg : '—',
+                unit: teamWellnessAvg != null ? '/25' : undefined,
+                icon: Heart,
+              },
+              { label: 'Alertas', value: totalAlertas, icon: AlertTriangle },
+              { label: 'En riesgo', value: resumenVisible.jugadores_riesgo, icon: TrendingUp },
+              {
+                label: 'Carga media (EWMA)',
+                value: data.length ? Math.round(resumenVisible.carga_media) : '—',
+                sublabel: latestWellnessDate ? `Última wellness ${fechaCorta(latestWellnessDate)}` : undefined,
+                icon: Activity,
+              },
+            ]}
+          />
         ) : (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="rounded-2xl border bg-rose-50/80 ring-1 ring-rose-100 p-4">
@@ -320,6 +357,41 @@ export default function RPEPage() {
       </div>
 
       {/* Player table */}
+      {cal ? (
+        <section className="space-y-3">
+          <div>
+            <h2 className="cal-titulo text-lg">Jugadores</h2>
+            <p className="text-xs text-muted-foreground">
+              Carga (UA) = RPE × minutos efectivos · Al pulsar un jugador ves su RPE reciente, la carga y los registros
+            </p>
+          </div>
+          {loading ? (
+            <div className="space-y-2">
+              {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-9 w-full" />)}
+            </div>
+          ) : data.length === 0 || data.every((d) => !d.carga_aguda && !d.ratio_acwr) ? (
+            <VacioCal texto="Sin datos de carga. Pulsa Recalcular para generarla desde sesiones, partidos y RPE manual.">
+              <Button size="sm" onClick={handleRecalculate} disabled={recalculating}>
+                {recalculating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Recalcular
+              </Button>
+            </VacioCal>
+          ) : (
+            <RpeTablaCal
+              data={data}
+              wellnessMap={wellnessMap}
+              expandedRow={expandedRow}
+              setExpandedRow={setExpandedRow}
+              wellnessCols={wellnessCols}
+              setWellnessCols={setWellnessCols}
+              rpeCols={rpeCols}
+              setRpeCols={setRpeCols}
+              onVerGrafica={(id) => { setLoadChartPlayer(id); setShowLoadChart(true) }}
+              renderRegistros={(id) => <ExpandedRPERow jugadorId={id} />}
+            />
+          )}
+        </section>
+      ) : (
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-lg">Jugadores</CardTitle>
@@ -523,6 +595,7 @@ export default function RPEPage() {
           )}
         </CardContent>
       </Card>
+      )}
 
       {/* Dialogs */}
       <ManualRPEDialog
@@ -571,6 +644,7 @@ function rpeRecordTitle(entry: { titulo?: string | null; tipo?: string | null; p
 
 /** RPE y minutos de sesión, partido y carga manual. */
 function ExpandedRPERow({ jugadorId }: { jugadorId: string }) {
+  const cal = useAppearance() === 'cal'
   const [records, setRecords] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -644,15 +718,15 @@ function ExpandedRPERow({ jugadorId }: { jugadorId: string }) {
   if (loading) {
     return (
       <div className="p-3 text-center text-xs text-muted-foreground border-t">
-        <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+        {cal ? 'Cargando registros…' : <Loader2 className="h-4 w-4 animate-spin mx-auto" />}
       </div>
     )
   }
 
   return (
-    <div className="p-4 bg-blue-50/30 border-t space-y-2">
+    <div className={cn('p-4 border-t space-y-2', cal ? 'border-border bg-sunken' : 'bg-blue-50/30')}>
       <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-        <Activity className="h-3.5 w-3.5 text-blue-600" />
+        {!cal && <Activity className="h-3.5 w-3.5 text-blue-600" />}
         Registros de RPE
       </p>
       {records.length === 0 ? (
@@ -660,7 +734,7 @@ function ExpandedRPERow({ jugadorId }: { jugadorId: string }) {
       ) : (
       <div className="overflow-x-auto max-h-40 overflow-y-auto">
         <table className="w-full text-xs">
-          <thead className="sticky top-0 bg-blue-50/80">
+          <thead className={cn('sticky top-0', cal ? 'bg-sunken' : 'bg-blue-50/80')}>
             <tr className="border-b">
               <th className="pb-1 text-left font-medium">Fecha</th>
               <th className="pb-1 text-left font-medium">Titulo</th>
@@ -678,7 +752,7 @@ function ExpandedRPERow({ jugadorId }: { jugadorId: string }) {
                 : entry.carga_sesion
 
               return (
-                <tr key={entry.id} className={`border-b last:border-0 ${isEditing ? 'bg-blue-50/50' : ''}`}>
+                <tr key={entry.id} className={`border-b last:border-0 ${isEditing ? (cal ? 'bg-card' : 'bg-blue-50/50') : ''}`}>
                   <td className="py-1.5">
                     {isEditing ? (
                       <input
@@ -715,7 +789,7 @@ function ExpandedRPERow({ jugadorId }: { jugadorId: string }) {
                         className="w-12 text-center border rounded px-1 py-0.5 text-xs"
                       />
                     ) : (
-                      <span className={`font-bold ${entry.rpe >= 8 ? 'text-red-600' : entry.rpe >= 6 ? 'text-amber-600' : 'text-green-600'}`}>
+                      <span className={cal ? 'font-bold tabular-nums' : `font-bold ${entry.rpe >= 8 ? 'text-red-600' : entry.rpe >= 6 ? 'text-amber-600' : 'text-green-600'}`}>
                         {entry.rpe}
                       </span>
                     )}
@@ -744,14 +818,14 @@ function ExpandedRPERow({ jugadorId }: { jugadorId: string }) {
                           <button
                             onClick={() => handleSaveEdit(entry)}
                             disabled={saving}
-                            className="p-1 text-green-600 hover:bg-green-50 rounded disabled:opacity-50"
+                            className={cn('p-1 rounded disabled:opacity-50', cal ? 'text-success hover:bg-sunken' : 'text-green-600 hover:bg-green-50')}
                             title="Guardar"
                           >
                             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
                           </button>
                           <button
                             onClick={() => setEditingId(null)}
-                            className="p-1 text-gray-500 hover:bg-gray-100 rounded"
+                            className={cn('p-1 rounded', cal ? 'text-muted-foreground hover:bg-sunken' : 'text-gray-500 hover:bg-gray-100')}
                             title="Cancelar"
                           >
                             <X className="h-3.5 w-3.5" />
@@ -761,7 +835,7 @@ function ExpandedRPERow({ jugadorId }: { jugadorId: string }) {
                         <>
                           <button
                             onClick={() => handleStartEdit(entry)}
-                            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                            className={cn('p-1 rounded', cal ? 'text-primary hover:bg-sunken' : 'text-blue-600 hover:bg-blue-50')}
                             title="Editar"
                           >
                             <Pencil className="h-3.5 w-3.5" />
@@ -769,7 +843,7 @@ function ExpandedRPERow({ jugadorId }: { jugadorId: string }) {
                           <button
                             onClick={() => handleDelete(entry.id)}
                             disabled={deleting === entry.id}
-                            className="p-1 text-red-500 hover:bg-red-50 rounded disabled:opacity-50"
+                            className={cn('p-1 rounded disabled:opacity-50', cal ? 'text-destructive hover:bg-sunken' : 'text-red-500 hover:bg-red-50')}
                             title="Eliminar"
                           >
                             {deleting === entry.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}

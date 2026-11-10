@@ -42,6 +42,9 @@ import { BodyInjuryMap } from '@/components/ficha-clinica/BodyInjuryMap'
 import { FaseTratamientoStepper, faseEntrada } from '@/components/ficha-clinica/FaseTratamientoStepper'
 import { labelsFromZonas } from '@/lib/bodyRegions'
 import { cn } from '@/lib/utils'
+import { useAppearance } from '@/lib/useAppearance'
+import { KpiFranja } from '@/components/estadisticas/KpiFranja'
+import { VacioCal } from '@/components/salud/SaludCal'
 
 const TIPOS: { value: TipoRegistroMedico; label: string }[] = [
   { value: 'lesion', label: 'Lesión' },
@@ -82,6 +85,7 @@ function resolveCaseDisponibilidad(registro: RegistroMedico, jugador?: Jugador):
 
 export default function EnfermeriaPage() {
   const router = useRouter()
+  const cal = useAppearance() === 'cal'
   const { equipoActivo } = useEquipoStore()
   const mostrarFilial = useFilialVisibilityStore((s) => s.mostrarFilial)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -398,6 +402,17 @@ export default function EnfermeriaPage() {
       </div>
 
       {/* KPI strip */}
+      {cal ? (
+        <KpiFranja
+          gridClass=""
+          items={[
+            { label: 'Reposo', value: kpis.fuera, icon: Activity },
+            { label: 'Margen', value: kpis.individual, icon: Clock },
+            { label: 'Inicio grupo', value: kpis.grupo, icon: HeartPulse },
+            { label: 'Molestias', value: kpis.molestias, icon: AlertCircle },
+          ]}
+        />
+      ) : (
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
           { label: 'Reposo', value: kpis.fuera, icon: Activity, tone: 'text-red-700', bg: 'bg-red-50', ring: 'ring-red-100' },
@@ -414,20 +429,25 @@ export default function EnfermeriaPage() {
           </div>
         ))}
       </div>
+      )}
 
       <Tabs value={view} onValueChange={(v) => setView(v as 'ahora' | 'historico')} className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <TabsList>
             <TabsTrigger value="ahora" className="gap-1.5">
-              <LayoutGrid className="h-3.5 w-3.5" />
+              {!cal && <LayoutGrid className="h-3.5 w-3.5" />}
               Ahora
             </TabsTrigger>
             <TabsTrigger value="historico" className="gap-1.5">
-              <History className="h-3.5 w-3.5" />
+              {!cal && <History className="h-3.5 w-3.5" />}
               Histórico
-              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px] tabular-nums">
-                {kpis.historico}
-              </Badge>
+              {cal ? (
+                <span className="ml-1 text-xs tabular-nums text-muted-foreground">{kpis.historico}</span>
+              ) : (
+                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px] tabular-nums">
+                  {kpis.historico}
+                </Badge>
+              )}
             </TabsTrigger>
           </TabsList>
 
@@ -445,7 +465,21 @@ export default function EnfermeriaPage() {
         </div>
 
         <TabsContent value="ahora" className="mt-0 space-y-4">
-          {error ? (
+          {error && cal ? (
+            <VacioCal texto={error}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, {
+                    revalidate: true,
+                  })
+                }
+              >
+                Reintentar
+              </Button>
+            </VacioCal>
+          ) : error ? (
             <div className="text-center py-12">
               <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
               <p className="text-red-600 mb-4">{error}</p>
@@ -459,6 +493,12 @@ export default function EnfermeriaPage() {
                 Reintentar
               </Button>
             </div>
+          ) : activePlayerCases.length === 0 && molestiasCards.length === 0 && cal ? (
+            <VacioCal texto="Plantilla disponible: nadie en reposo, margen, inicio de grupo ni con molestias.">
+              <Button size="sm" onClick={() => setShowNuevo(true)}>
+                Registrar baja
+              </Button>
+            </VacioCal>
           ) : activePlayerCases.length === 0 && molestiasCards.length === 0 ? (
             <div className="rounded-2xl border bg-card">
               <EmptyState
@@ -476,7 +516,7 @@ export default function EnfermeriaPage() {
           ) : (
             <>
               <p className="text-xs text-muted-foreground">
-                Una tarjeta por jugador (caso activo). Los registros cerrados están en Histórico.
+                {cal ? 'Un caso por jugador (el activo). Los registros cerrados están en Histórico.' : 'Una tarjeta por jugador (caso activo). Los registros cerrados están en Histórico.'}
               </p>
               <EnfermeriaBoard columns={columns} />
             </>
@@ -484,7 +524,11 @@ export default function EnfermeriaPage() {
         </TabsContent>
 
         <TabsContent value="historico" className="mt-0">
-          {historicoGroups.length === 0 ? (
+          {historicoGroups.length === 0 && cal ? (
+            <VacioCal
+              texto={busqueda ? 'Sin resultados. Prueba otro término de búsqueda.' : 'Sin histórico. Cuando des de alta un caso, aparecerá aquí agrupado por jugador.'}
+            />
+          ) : historicoGroups.length === 0 ? (
             <div className="rounded-2xl border bg-card">
               <EmptyState
                 icon={<History className="h-12 w-12" />}

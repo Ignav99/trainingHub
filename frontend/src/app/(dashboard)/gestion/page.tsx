@@ -10,6 +10,7 @@ import {
   FileText,
   Loader2,
 } from 'lucide-react'
+import { useAppearance } from '@/lib/useAppearance'
 import { useAuthStore } from '@/stores/authStore'
 import { isClubAdminRole, isSuperadminRole } from '@/lib/roles'
 import ClubDashboardTab from './components/ClubDashboardTab'
@@ -29,6 +30,7 @@ const TABS = [
 type TabId = typeof TABS[number]['id']
 
 export default function GestionPage() {
+  const cal = useAppearance() === 'cal'
   const router = useRouter()
   const { user, isAuthenticated, isLoading } = useAuthStore()
   const [activeTab, setActiveTab] = useState<TabId>('dashboard')
@@ -55,24 +57,26 @@ export default function GestionPage() {
   if (!isClubAdminRole(user.rol) && !isSuperadminRole(user.rol)) return null
 
   return (
-    <div className="min-h-screen bg-gray-50/50">
+    <div className={cal ? 'min-h-screen' : 'min-h-screen bg-gray-50/50'}>
       {/* Header */}
-      <div className="bg-white border-b px-4 sm:px-6 py-4">
+      <div className={cal ? 'border-b border-border bg-card px-4 sm:px-6 py-4' : 'bg-white border-b px-4 sm:px-6 py-4'}>
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
-              <Crown className="h-5 w-5 text-white" />
-            </div>
+            {!cal && (
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
+                <Crown className="h-5 w-5 text-white" />
+              </div>
+            )}
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Gestion del Club</h1>
-              <p className="text-sm text-gray-500">Panel de administracion</p>
+              <h1 className={cal ? 'text-xl font-bold text-foreground' : 'text-xl font-bold text-gray-900'}>Gestion del Club</h1>
+              <p className={cal ? 'text-sm text-muted-foreground' : 'text-sm text-gray-500'}>Panel de administracion</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="bg-white border-b overflow-x-auto">
+      <div className={cal ? 'border-b border-border bg-card overflow-x-auto' : 'bg-white border-b overflow-x-auto'}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <nav className="flex gap-0.5 -mb-px">
             {TABS.map((tab) => {
@@ -81,7 +85,11 @@ export default function GestionPage() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`
+                  className={cal
+                    ? `flex min-h-11 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 text-sm ${
+                        isActive ? 'border-primary font-semibold text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
+                      }`
+                    : `
                     flex items-center gap-1.5 px-3 py-3 text-sm font-medium whitespace-nowrap
                     border-b-2 transition-colors
                     ${isActive

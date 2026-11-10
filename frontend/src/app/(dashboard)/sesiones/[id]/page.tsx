@@ -52,6 +52,8 @@ import { emptyDiagramData } from '@/components/tarea-editor/types'
 import { TacticalBoardMini } from '@/components/task-preview'
 import { FormacionEquiposDialog } from '@/components/sesion/FormacionEquiposDialog'
 import GKTrainingSection from '@/components/portero/GKTrainingSection'
+import { PorAspecto } from '@/components/appearance/PorAspecto'
+import { SesionCabeceraCal } from '@/components/sesiones/SesionCabeceraCal'
 import { SesionPhaseNav, normalizeSesionPhase, type SesionPhase } from '@/components/sesiones/SesionPhaseNav'
 import { SesionCierrePanel } from '@/components/sesiones/SesionCierrePanel'
 import { SesionDefinirForm } from '@/components/sesiones/SesionDefinirForm'
@@ -1274,6 +1276,26 @@ export default function SesionDetailPage() {
         <ChevronRight className="h-3 w-3 shrink-0" />
         <span className="text-foreground font-medium truncate">{sesion.titulo}</span>
       </nav>
+      <PorAspecto
+        cal={
+          <SesionCabeceraCal
+            sesion={sesion}
+            matchDays={MATCH_DAYS}
+            minutos={totalDuration || sesion.duracion_total || 0}
+            tareas={allTareas.length}
+            jugadores={enSesionCount}
+            autoSaving={autoSaving}
+            previewingPdf={previewingPdf}
+            generatingPdf={generatingPdf}
+            deleting={deleting}
+            onField={updateField}
+            onEstado={handleUpdateEstado}
+            onPreviewPdf={() => handlePreviewPdf('reducido')}
+            onPdf={() => handleGeneratePdf('reducido')}
+            onDelete={handleDelete}
+          />
+        }
+        resto={
       <div className="flex items-start justify-between mb-6 gap-3 max-lg:flex-col">
         <div className="flex items-start gap-4 min-w-0 flex-1">
           <div className="flex-1 min-w-0">
@@ -1384,6 +1406,8 @@ export default function SesionDetailPage() {
           </Button>
         </div>
       </div>
+        }
+      />
 
       {creacionPaso ? (
         <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">

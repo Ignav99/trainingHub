@@ -3,6 +3,9 @@
 import { useEffect, useState } from 'react'
 import { Users, UserCheck, Calendar, ClipboardList, Swords, HeartPulse, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { KpiFranja } from '@/components/estadisticas/KpiFranja'
+import { useAppearance } from '@/lib/useAppearance'
+import { cn } from '@/lib/utils'
 import { clubAdminApi } from '@/lib/api/clubAdmin'
 import type { ClubDashboard, ClubEquipo, TeamAnalytics, CoachActivity } from './types'
 import { formatRole } from './types'
@@ -15,6 +18,7 @@ import {
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316']
 
 export default function ClubDashboardTab() {
+  const cal = useAppearance() === 'cal'
   const [dashboard, setDashboard] = useState<ClubDashboard | null>(null)
   const [equipos, setEquipos] = useState<ClubEquipo[]>([])
   const [analytics, setAnalytics] = useState<{ per_team: TeamAnalytics[]; coach_activity: CoachActivity[] } | null>(null)
@@ -86,12 +90,15 @@ export default function ClubDashboardTab() {
     <div className="space-y-6">
       {/* Period selector */}
       <div className="flex items-center gap-2">
-        <span className="text-sm text-gray-600">Periodo analiticas:</span>
+        <span className={cal ? 'text-sm text-muted-foreground' : 'text-sm text-gray-600'}>Periodo analiticas:</span>
         {[1, 3, 6].map(m => (
           <button
             key={m}
             onClick={() => setMeses(m)}
-            className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+            aria-pressed={cal ? meses === m : undefined}
+            className={cal
+              ? cn('min-h-10 border-b-2 px-2 text-sm', meses === m ? 'border-primary font-semibold text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground')
+              : `px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
               meses === m ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
@@ -101,6 +108,12 @@ export default function ClubDashboardTab() {
       </div>
 
       {/* KPI Cards */}
+      {cal ? (
+        <KpiFranja
+          gridClass="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4"
+          items={kpiCards.map((c) => ({ icon: c.icon, value: c.value, label: c.label }))}
+        />
+      ) : (
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {kpiCards.map((card) => (
           <div key={card.label} className="bg-white rounded-xl border p-4 hover:shadow-sm transition-shadow">
@@ -112,12 +125,13 @@ export default function ClubDashboardTab() {
           </div>
         ))}
       </div>
+      )}
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Team comparison */}
-        <div className="bg-white rounded-xl border p-5">
-          <h3 className="text-sm font-semibold text-gray-900 mb-4">Comparacion por equipo</h3>
+        <div className={cal ? 'cal-linea bg-card p-5' : 'bg-white rounded-xl border p-5'}>
+          <h3 className={cal ? 'cal-rotulo mb-4' : 'text-sm font-semibold text-gray-900 mb-4'}>Comparacion por equipo</h3>
           {teamCompareData.length > 0 ? (
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={teamCompareData}>
@@ -132,13 +146,13 @@ export default function ClubDashboardTab() {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <p className="text-sm text-gray-400 text-center py-10">Sin datos</p>
+            <p className={cal ? 'py-6 text-sm text-muted-foreground' : 'text-sm text-gray-400 text-center py-10'}>Sin datos</p>
           )}
         </div>
 
         {/* Sessions by coach */}
-        <div className="bg-white rounded-xl border p-5">
-          <h3 className="text-sm font-semibold text-gray-900 mb-4">Sesiones por entrenador</h3>
+        <div className={cal ? 'cal-linea bg-card p-5' : 'bg-white rounded-xl border p-5'}>
+          <h3 className={cal ? 'cal-rotulo mb-4' : 'text-sm font-semibold text-gray-900 mb-4'}>Sesiones por entrenador</h3>
           {coachData.length > 0 ? (
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={coachData} layout="vertical">
@@ -150,13 +164,13 @@ export default function ClubDashboardTab() {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <p className="text-sm text-gray-400 text-center py-10">Sin datos</p>
+            <p className={cal ? 'py-6 text-sm text-muted-foreground' : 'text-sm text-gray-400 text-center py-10'}>Sin datos</p>
           )}
         </div>
 
         {/* Activity distribution */}
-        <div className="bg-white rounded-xl border p-5">
-          <h3 className="text-sm font-semibold text-gray-900 mb-4">Distribucion de actividad por equipo</h3>
+        <div className={cal ? 'cal-linea bg-card p-5' : 'bg-white rounded-xl border p-5'}>
+          <h3 className={cal ? 'cal-rotulo mb-4' : 'text-sm font-semibold text-gray-900 mb-4'}>Distribucion de actividad por equipo</h3>
           {teamPieData.length > 0 ? (
             <ResponsiveContainer width="100%" height={280}>
               <PieChart>
@@ -170,13 +184,13 @@ export default function ClubDashboardTab() {
               </PieChart>
             </ResponsiveContainer>
           ) : (
-            <p className="text-sm text-gray-400 text-center py-10">Sin datos</p>
+            <p className={cal ? 'py-6 text-sm text-muted-foreground' : 'text-sm text-gray-400 text-center py-10'}>Sin datos</p>
           )}
         </div>
 
         {/* Team stats table */}
-        <div className="bg-white rounded-xl border p-5">
-          <h3 className="text-sm font-semibold text-gray-900 mb-4">Resumen por equipo</h3>
+        <div className={cal ? 'cal-linea bg-card p-5' : 'bg-white rounded-xl border p-5'}>
+          <h3 className={cal ? 'cal-rotulo mb-4' : 'text-sm font-semibold text-gray-900 mb-4'}>Resumen por equipo</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -207,8 +221,8 @@ export default function ClubDashboardTab() {
       </div>
 
       {/* Coach activity table */}
-      <div className="bg-white rounded-xl border p-5">
-        <h3 className="text-sm font-semibold text-gray-900 mb-4">Actividad por entrenador (ultimos {meses} meses)</h3>
+      <div className={cal ? 'cal-linea bg-card p-5' : 'bg-white rounded-xl border p-5'}>
+        <h3 className={cal ? 'cal-rotulo mb-4' : 'text-sm font-semibold text-gray-900 mb-4'}>Actividad por entrenador (ultimos {meses} meses)</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

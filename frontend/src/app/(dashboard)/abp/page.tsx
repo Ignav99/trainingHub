@@ -9,6 +9,7 @@ import { apiKey, apiFetcher } from '@/lib/swr'
 import { abpApi } from '@/lib/api/abp'
 import { jugadoresApi } from '@/lib/api/jugadores'
 import { ABPJugada, Jugador } from '@/types'
+import { useAppearance } from '@/lib/useAppearance'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -17,6 +18,7 @@ import ABPEditor from '@/components/abp/ABPEditor'
 import ABPPreparePlan from '@/components/abp/ABPPreparePlan'
 
 export default function ABPPage() {
+  const cal = useAppearance() === 'cal'
   const { equipoActivo } = useEquipoStore()
   const equipoId = equipoActivo?.id
 
@@ -168,7 +170,7 @@ export default function ABPPage() {
                 Playbook PDF
               </Button>
             )}
-            <Button size="sm" onClick={handleNew} className="bg-orange-600 hover:bg-orange-700 text-white">
+            <Button size="sm" onClick={handleNew} className={cal ? 'bg-primary text-primary-foreground' : 'bg-orange-600 hover:bg-orange-700 text-white'}>
               <Plus className="h-4 w-4 mr-1.5" />
               Nueva jugada
             </Button>

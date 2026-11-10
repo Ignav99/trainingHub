@@ -31,6 +31,8 @@ import {
 import { ListPageSkeleton } from '@/components/ui/page-skeletons'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
+import { PorAspecto } from '@/components/appearance/PorAspecto'
+import { TareasListaCal } from '@/components/tareas/TareasListaCal'
 import { TaskLibraryCard } from '@/components/tareas/TaskLibraryCard'
 import { CrearVarianteDialog } from '@/components/tareas/CrearVarianteDialog'
 import {
@@ -536,6 +538,23 @@ export default function TareasPage() {
         />
       ) : (
         <>
+          <PorAspecto
+            cal={
+              <TareasListaCal
+                tareas={tareas}
+                tab={tab}
+                activeMenu={activeMenu}
+                setActiveMenu={setActiveMenu}
+                copying={copying}
+                onOpen={(tarea) => router.push(`/tareas/${tarea.id}`)}
+                onVariantes={(tarea) => router.push(`/tareas/${tarea.id}?tab=variantes`)}
+                onCreateVariante={setVarianteMadre}
+                onCopy={handleCopyToMyTeam}
+                onDuplicate={handleDuplicate}
+                onDelete={handleDelete}
+              />
+            }
+            resto={
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {tareas.map((tarea) => (
               <div key={tarea.id} className="relative group">
@@ -643,6 +662,8 @@ export default function TareasPage() {
               </div>
             ))}
           </div>
+            }
+          />
 
           <div ref={sentinelRef} className="h-1" aria-hidden />
 

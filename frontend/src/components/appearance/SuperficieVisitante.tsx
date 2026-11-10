@@ -15,7 +15,7 @@ export function SuperficieVisitante({ children }: { children: React.ReactNode })
   return (
     <div
       data-superficie="visitante"
-      className="-mx-4 -mb-24 -mt-4 min-h-[calc(100dvh-8rem)] border-t-[1.5px] border-line bg-background px-4 pb-24 pt-6 text-foreground sm:-mx-6 sm:px-6 lg:-mx-8 lg:-mb-6 lg:px-8 lg:pb-6"
+      className="-mx-4 -mb-24 -mt-4 min-h-[calc(100dvh-5.5rem)] border-t-[1.5px] border-line bg-background px-4 pb-24 pt-6 text-foreground sm:-mx-6 sm:px-6 lg:-mx-8 lg:-mb-6 lg:px-8 lg:pb-6"
     >
       {children}
     </div>

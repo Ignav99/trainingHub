@@ -7,6 +7,8 @@ import { DISPONIBILIDAD_COLORS, DISPONIBILIDAD_LABELS, FASE_TRATAMIENTO_LABELS }
 import { labelsFromZonas } from '@/lib/bodyRegions'
 import { cn } from '@/lib/utils'
 import { PlayerAvatar } from '@/components/player/PlayerAvatar'
+import { useAppearance } from '@/lib/useAppearance'
+import { EnfermeriaTablaCal, EnfermeriaHistoricoCal } from './EnfermeriaTablaCal'
 
 /** Campos mínimos del jugador para el tablero (compatible con API y types). */
 export type BoardPlayer = {
@@ -193,6 +195,8 @@ export function BoardColumn({
 }
 
 export function EnfermeriaBoard({ columns }: { columns: Record<BoardBucket, PlayerCaseCard[]> }) {
+  const cal = useAppearance() === 'cal'
+  if (cal) return <EnfermeriaTablaCal columns={columns} />
   return (
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 animate-fade-in">
       <BoardColumn bucket="fuera" items={columns.fuera} />
@@ -225,6 +229,17 @@ export function EnfermeriaHistorico({
   daysBetween: (a: string, b: string) => number
   daysSince: (a: string) => number
 }) {
+  const cal = useAppearance() === 'cal'
+  if (cal) {
+    return (
+      <div className="space-y-3">
+        <p className="text-xs text-muted-foreground">
+          Agrupado por jugador. Abre cada caso para ver el detalle completo.
+        </p>
+        <EnfermeriaHistoricoCal groups={groups} daysBetween={daysBetween} daysSince={daysSince} />
+      </div>
+    )
+  }
   return (
     <div className="space-y-3 animate-fade-in">
       <p className="text-xs text-muted-foreground">

@@ -46,6 +46,7 @@ import {
 } from '@/lib/api/informesEstudio'
 import { apiKey } from '@/lib/swr'
 import { cn } from '@/lib/utils'
+import { useAppearance } from '@/lib/useAppearance'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { useClubStore } from '@/stores/clubStore'
 import type { Jugador, Microciclo, PaginatedResponse, Partido } from '@/types'
@@ -75,6 +76,7 @@ function slug(t: string): string {
 }
 
 export default function InformesPage() {
+  const cal = useAppearance() === 'cal'
   const { equipoActivo } = useEquipoStore()
   const theme = useClubStore((s) => s.theme)
   const equipoId = equipoActivo?.id
@@ -297,10 +299,32 @@ export default function InformesPage() {
 
       <div className="grid gap-5 lg:grid-cols-[340px_minmax(0,1fr)]">
         <aside className="space-y-5 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto lg:pr-1 scrollbar-thin">
-          <section className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Tipo de informe">
+          <section
+            className={cal ? 'cal-linea divide-y divide-border bg-card' : 'grid grid-cols-2 gap-2'}
+            role="radiogroup"
+            aria-label="Tipo de informe"
+          >
             {KINDS.map((k) => {
               const Icon = KIND_ICON[k.id]
               const active = k.id === kind
+              if (cal) {
+                return (
+                  <button
+                    key={k.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => patch({ kind: k.id })}
+                    className={cn(
+                      'block min-h-11 w-full border-l-[3px] px-3 py-2 text-left',
+                      active ? 'border-primary bg-sunken' : 'border-transparent hover:bg-sunken'
+                    )}
+                  >
+                    <div className="text-sm font-semibold">{k.label}</div>
+                    <div className="text-xs leading-snug text-muted-foreground">{k.hint}</div>
+                  </button>
+                )
+              }
               return (
                 <button
                   key={k.id}
@@ -323,8 +347,8 @@ export default function InformesPage() {
             })}
           </section>
 
-          <section className="space-y-3 rounded-lg border bg-card p-4">
-            <h2 className="text-sm font-semibold">Qué analizar</h2>
+          <section className={cal ? 'space-y-3 cal-linea bg-card p-4' : 'space-y-3 rounded-lg border bg-card p-4'}>
+            <h2 className={cal ? 'cal-rotulo' : 'text-sm font-semibold'}>Qué analizar</h2>
 
             {kind === 'partido' ? (
               <div className="space-y-1.5">
@@ -431,8 +455,8 @@ export default function InformesPage() {
             ) : null}
           </section>
 
-          <section className="space-y-2 rounded-lg border bg-card p-4">
-            <h2 className="text-sm font-semibold">Contenido y orden</h2>
+          <section className={cal ? 'space-y-2 cal-linea bg-card p-4' : 'space-y-2 rounded-lg border bg-card p-4'}>
+            <h2 className={cal ? 'cal-rotulo' : 'text-sm font-semibold'}>Contenido y orden</h2>
             <ul className="divide-y">
               {kindCfg.bloques.map((b, i) => {
                 const info = bloquesInfo.get(b.id)
@@ -481,8 +505,8 @@ export default function InformesPage() {
             </div>
           </section>
 
-          <section className="space-y-3 rounded-lg border bg-card p-4">
-            <h2 className="text-sm font-semibold">Aspecto</h2>
+          <section className={cal ? 'space-y-3 cal-linea bg-card p-4' : 'space-y-3 rounded-lg border bg-card p-4'}>
+            <h2 className={cal ? 'cal-rotulo' : 'text-sm font-semibold'}>Aspecto</h2>
             <div className="space-y-1.5">
               <Label htmlFor="inf-titulo">Título del informe</Label>
               <Input
@@ -550,8 +574,8 @@ export default function InformesPage() {
             </div>
           </section>
 
-          <section className="space-y-2 rounded-lg border bg-card p-4">
-            <h2 className="text-sm font-semibold">Mis plantillas</h2>
+          <section className={cal ? 'space-y-2 cal-linea bg-card p-4' : 'space-y-2 rounded-lg border bg-card p-4'}>
+            <h2 className={cal ? 'cal-rotulo' : 'text-sm font-semibold'}>Mis plantillas</h2>
             <div className="flex gap-2">
               <Input
                 placeholder="Nombre (p. ej. Charla del lunes)"

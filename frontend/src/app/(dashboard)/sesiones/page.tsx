@@ -35,6 +35,7 @@ import { FASES_JUEGO, MATERIALES } from '@/lib/catalogos/canonico'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { AsignarRpeDialog } from '@/components/sesiones/AsignarRpeDialog'
+import { SesionesListaCal } from '@/components/sesiones/SesionesListaCal'
 import { SesionesTablaCal } from '@/components/sesiones/SesionesTablaCal'
 import { PorAspecto } from '@/components/appearance/PorAspecto'
 import { continueHref, PASO_LABEL, readCreacionPaso } from '@/lib/sesionBorrador'
@@ -512,6 +513,21 @@ export default function SesionesPage() {
       ) : (
         <>
           {/* Mobile: same data and actions, stacked so the page does not pan */}
+          <PorAspecto
+            cal={
+              <div className="lg:hidden">
+                <SesionesListaCal
+                  sesiones={sesiones}
+                  activeMenu={activeMenu}
+                  setActiveMenu={setActiveMenu}
+                  onWarm={warmSesion}
+                  onPdf={handleGeneratePdf}
+                  onRpe={setRpeSesionId}
+                  onDelete={handleDelete}
+                />
+              </div>
+            }
+            resto={
           <div className="lg:hidden space-y-3 animate-fade-in">
             {sesiones.map((sesion) => (
               <div
@@ -628,6 +644,8 @@ export default function SesionesPage() {
               </div>
             ))}
           </div>
+            }
+          />
 
           {/* Desktop table */}
           <PorAspecto

@@ -23,6 +23,12 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { PageHeader } from '@/components/ui/page-header'
 import { SaludTabs } from '@/components/salud/SaludTabs'
 import { toast } from 'sonner'
+import { useAppearance } from '@/lib/useAppearance'
+import { cn } from '@/lib/utils'
+import { Estado } from '@/components/ui/estado'
+import { KpiFranja } from '@/components/estadisticas/KpiFranja'
+import { PestanasCal, VacioCal } from '@/components/salud/SaludCal'
+import { PlanCardCal, PlantillasTablaCal, ResumenTablaCal, type ResumenFilaCal } from '@/components/salud/NutricionCal'
 import { nutricionApi } from '@/lib/api/nutricion'
 import { apiKey, apiFetcher } from '@/lib/swr'
 import type {
@@ -75,6 +81,7 @@ function getWeekStart(d: Date): Date {
 
 export default function NutricionPage() {
   const { equipoActivo } = useEquipoStore()
+  const cal = useAppearance() === 'cal'
   const [activeTab, setActiveTab] = useState<'hoy' | 'plantillas' | 'resumen'>('hoy')
 
   if (!equipoActivo) {
@@ -95,6 +102,18 @@ export default function NutricionPage() {
       </div>
 
       {/* Tabs */}
+      {cal ? (
+        <PestanasCal
+          etiqueta="Vista de nutrición"
+          valor={activeTab}
+          onChange={setActiveTab}
+          pestanas={[
+            { key: 'hoy', label: 'Hoy' },
+            { key: 'plantillas', label: 'Plantillas' },
+            { key: 'resumen', label: 'Resumen' },
+          ]}
+        />
+      ) : (
       <div className="flex bg-gray-100 rounded-lg p-1 gap-1">
         {[
           { key: 'hoy' as const, label: 'Hoy', icon: Calendar },
@@ -115,6 +134,7 @@ export default function NutricionPage() {
           </button>
         ))}
       </div>
+      )}
 
       {activeTab === 'hoy' && <TabHoy equipoId={equipoActivo.id} />}
       {activeTab === 'plantillas' && <TabPlantillas equipoId={equipoActivo.id} />}
@@ -129,6 +149,7 @@ export default function NutricionPage() {
 // ============================================================
 
 function TabHoy({ equipoId }: { equipoId: string }) {
+  const cal = useAppearance() === 'cal'
   const mostrarFilial = useFilialVisibilityStore((s) => s.mostrarFilial)
   const [selectedDate, setSelectedDate] = useState(formatDate(new Date()))
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -178,8 +199,8 @@ function TabHoy({ equipoId }: { equipoId: string }) {
     <div className="space-y-4">
       {/* Date picker + context */}
       <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-1 bg-white rounded-lg border px-1">
-          <button onClick={() => navigateDate(-1)} className="p-2 hover:bg-gray-100 rounded">
+        <div className={cn('flex items-center gap-1 px-1', cal ? 'cal-linea bg-card' : 'bg-white rounded-lg border')}>
+          <button onClick={() => navigateDate(-1)} aria-label="Día anterior" className={cn('p-2 rounded', cal ? 'hover:bg-sunken' : 'hover:bg-gray-100')}>
             <ChevronLeft className="h-4 w-4" />
           </button>
           <input
@@ -188,22 +209,26 @@ function TabHoy({ equipoId }: { equipoId: string }) {
             onChange={(e) => setSelectedDate(e.target.value)}
             className="px-2 py-2 text-sm border-0 focus:ring-0"
           />
-          <button onClick={() => navigateDate(1)} className="p-2 hover:bg-gray-100 rounded">
+          <button onClick={() => navigateDate(1)} aria-label="Día siguiente" className={cn('p-2 rounded', cal ? 'hover:bg-sunken' : 'hover:bg-gray-100')}>
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
 
         <button
           onClick={() => setSelectedDate(formatDate(new Date()))}
-          className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+          className={cn('text-sm font-medium', cal ? 'text-primary hover:underline' : 'text-blue-600 hover:text-blue-800')}
         >
           Hoy
         </button>
 
         {contexto && contexto.contexto_sugerido !== 'dia_normal' && (
+          cal ? (
+            <Estado tipo="aviso" className="text-sm">{contexto.label}</Estado>
+          ) : (
           <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
             {contexto.label}
           </Badge>
+          )
         )}
 
         <div className="ml-auto">
@@ -217,6 +242,12 @@ function TabHoy({ equipoId }: { equipoId: string }) {
         <div className="grid gap-4 md:grid-cols-2">
           {[1, 2].map((i) => <Skeleton key={i} className="h-48" />)}
         </div>
+      ) : !planes?.length && cal ? (
+        <VacioCal texto="Sin planes para esta fecha. Crea un plan nutricional o aplica una plantilla.">
+          <Button size="sm" onClick={() => setShowCreateDialog(true)}>
+            Crear plan
+          </Button>
+        </VacioCal>
       ) : !planes?.length ? (
         <Card>
           <CardContent className="py-12 text-center text-gray-500">
@@ -260,6 +291,7 @@ function TabHoy({ equipoId }: { equipoId: string }) {
 }
 
 function PlanCard({ plan, label, equipoId, fecha, jugadorMap }: { plan: PlanNutricionalDia; label?: string; equipoId: string; fecha: string; jugadorMap?: Record<string, string> }) {
+  const cal = useAppearance() === 'cal'
   const [deleting, setDeleting] = useState(false)
 
   const totalCals = plan.comidas.reduce((sum, c) => sum + (c.calorias || 0), 0)
@@ -278,6 +310,30 @@ function PlanCard({ plan, label, equipoId, fecha, jugadorMap }: { plan: PlanNutr
   }
 
   const ctx = CONTEXTOS.find((c) => c.value === plan.contexto)
+
+  if (cal) {
+    return (
+      <PlanCardCal
+        titulo={label || (plan.jugador_id ? (jugadorMap?.[plan.jugador_id] || 'Plan individual') : 'Plan')}
+        contexto={ctx?.label}
+        kcal={totalCals || plan.calorias_objetivo || 0}
+        proteinas={totalProt}
+        carbos={totalCarbs}
+        grasas={totalFat}
+        hidratacion={plan.hidratacion_litros}
+        comidas={plan.comidas.map((c) => ({
+          tipo: TIPOS_COMIDA.find((t) => t.value === c.tipo_comida)?.label || c.tipo_comida,
+          nombre: c.nombre,
+          hora: c.hora_sugerida,
+          alimentos: c.alimentos.map((a) => a.nombre),
+          kcal: c.calorias || 0,
+        }))}
+        notas={plan.notas}
+        eliminando={deleting}
+        onEliminar={handleDelete}
+      />
+    )
+  }
 
   return (
     <Card>
@@ -663,6 +719,7 @@ function CreatePlanDialog({
 // ============================================================
 
 function TabPlantillas({ equipoId }: { equipoId: string }) {
+  const cal = useAppearance() === 'cal'
   const [showCreate, setShowCreate] = useState(false)
   const [editingPlantilla, setEditingPlantilla] = useState<PlantillaNutricional | null>(null)
   const [filterTipo, setFilterTipo] = useState<string>('')
@@ -743,6 +800,8 @@ function TabPlantillas({ equipoId }: { equipoId: string }) {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map((i) => <Skeleton key={i} className="h-36" />)}
         </div>
+      ) : !plantillas?.length && cal ? (
+        <VacioCal texto="Sin plantillas. Crea plantillas reutilizables para las comidas del equipo." />
       ) : !plantillas?.length ? (
         <Card>
           <CardContent className="py-12 text-center text-gray-500">
@@ -751,6 +810,33 @@ function TabPlantillas({ equipoId }: { equipoId: string }) {
             <p className="text-sm mt-1">Crea plantillas reutilizables para las comidas del equipo</p>
           </CardContent>
         </Card>
+      ) : cal ? (
+        <PlantillasTablaCal
+          grupos={Object.entries(grouped).map(([tipo, items]) => ({
+            clave: tipo,
+            rotulo: TIPOS_COMIDA.find((t) => t.value === tipo)?.label || tipo,
+            filas: items.map((p) => ({
+              id: p.id,
+              nombre: p.nombre,
+              descripcion: p.descripcion,
+              alimentos: p.alimentos.map((a) => a.nombre).join(', '),
+              contexto: CONTEXTOS.find((c) => c.value === p.contexto)?.label,
+              kcal: p.calorias_total,
+              proteinas: p.proteinas_total_g,
+              carbos: p.carbohidratos_total_g,
+              grasas: p.grasas_total_g,
+            })),
+          }))}
+          onEditar={(id) => {
+            const p = plantillas?.find((x) => x.id === id)
+            if (p) { setEditingPlantilla(p); setShowCreate(true) }
+          }}
+          onDuplicar={(id) => {
+            const p = plantillas?.find((x) => x.id === id)
+            if (p) handleDuplicate(p)
+          }}
+          onEliminar={handleDelete}
+        />
       ) : (
         Object.entries(grouped).map(([tipo, items]) => {
           const tipoInfo = TIPOS_COMIDA.find((t) => t.value === tipo)
@@ -988,6 +1074,7 @@ function PlantillaDialog({
 // ============================================================
 
 function TabResumen({ equipoId }: { equipoId: string }) {
+  const cal = useAppearance() === 'cal'
   const mostrarFilial = useFilialVisibilityStore((s) => s.mostrarFilial)
   const [filterHasPlan, setFilterHasPlan] = useState<'all' | 'individual' | 'equipo' | 'without'>('all')
   const hoy = formatDate(new Date())
@@ -1073,6 +1160,22 @@ function TabResumen({ equipoId }: { equipoId: string }) {
   return (
     <div className="space-y-4">
       {/* KPI Cards */}
+      {cal ? (
+        <KpiFranja
+          gridClass=""
+          items={[
+            { label: 'Plan individual', value: stats.individual, icon: UserCheck },
+            { label: 'Plan de equipo', value: stats.equipo, icon: UsersRound },
+            { label: 'Sin plan', value: stats.sinPlan, icon: UtensilsCrossed },
+            {
+              label: 'Plantilla',
+              value: stats.total,
+              sublabel: `${stats.total ? Math.round(((stats.individual + stats.equipo) / stats.total) * 100) : 0} % con plan`,
+              icon: Users,
+            },
+          ]}
+        />
+      ) : (
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardContent className="pt-4 pb-3">
@@ -1102,8 +1205,22 @@ function TabResumen({ equipoId }: { equipoId: string }) {
           </CardContent>
         </Card>
       </div>
+      )}
 
       {/* Filter */}
+      {cal ? (
+        <PestanasCal
+          etiqueta="Filtrar por plan"
+          valor={filterHasPlan}
+          onChange={setFilterHasPlan}
+          pestanas={[
+            { key: 'all', label: 'Todos' },
+            { key: 'individual', label: 'Individual' },
+            { key: 'equipo', label: 'Equipo' },
+            { key: 'without', label: 'Sin plan' },
+          ]}
+        />
+      ) : (
       <div className="flex gap-2">
         {([
           { key: 'all' as const, label: 'Todos' },
@@ -1122,8 +1239,16 @@ function TabResumen({ equipoId }: { equipoId: string }) {
           </button>
         ))}
       </div>
+      )}
 
       {/* Table */}
+      {cal ? (
+        filteredRows.length === 0 ? (
+          <VacioCal texto="Ningún jugador con este filtro." />
+        ) : (
+          <ResumenTablaCal filas={filteredRows as ResumenFilaCal[]} />
+        )
+      ) : (
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -1175,6 +1300,7 @@ function TabResumen({ equipoId }: { equipoId: string }) {
           </tbody>
         </table>
       </div>
+      )}
     </div>
   )
 }
