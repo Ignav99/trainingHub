@@ -36,6 +36,7 @@ import { usePersistHydrated } from '@/hooks/usePersistHydrated'
 import { preload } from 'swr'
 import { apiFetcher } from '@/lib/swr'
 import { apiKey } from '@/lib/swr'
+import { precargarRuta } from '@/lib/precarga'
 import { useAuthStore } from '@/stores/authStore'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { useClubStore } from '@/stores/clubStore'
@@ -47,6 +48,7 @@ import { Toaster } from '@/components/ui/toast'
 import { MobileBottomNav } from '@/components/ui/mobile-nav'
 import { AppearanceToggle } from '@/components/appearance/AppearanceToggle'
 import { InstallPrompt } from '@/components/ui/install-prompt'
+import { PaletaComandos, PaletaBoton } from '@/components/comandos/PaletaComandos'
 import { registerServiceWorker } from '@/lib/register-sw'
 import { isSaludPath } from '@/components/salud/SaludTabs'
 import { cn } from '@/lib/utils'
@@ -371,6 +373,7 @@ export default function DashboardLayout({
       </div>
       <MobileBottomNav />
       <InstallPrompt />
+      <PaletaComandos />
       <StaffPanel />
       <Toaster />
     </div>
@@ -392,10 +395,15 @@ function NavLink({
 }) {
   const active = isNavActive(item, pathname)
   const nombre = useAppearance() === 'cal' && item.href === '/' ? 'Hoy' : item.name
+  const equipoId = useEquipoStore((s) => s.equipoActivo?.id)
+  const precargar = () => precargarRuta(item.href, equipoId, pathname)
   return (
     <Link
       href={item.href}
       onClick={onClose}
+      onMouseEnter={precargar}
+      onFocus={precargar}
+      onTouchStart={precargar}
       title={collapsed ? nombre : undefined}
       data-active={active ? 'true' : 'false'}
       className={cn(
@@ -691,6 +699,7 @@ const SidebarContent = memo(function SidebarContent({
           )}
 
           <li className={cn((isClubOnlyRole || equipos.length <= 1) && 'mt-auto')}>
+            {!collapsed && <PaletaBoton className="mb-1 w-full" />}
             <AppearanceToggle collapsed={collapsed} />
             <button
               onClick={onLogout}

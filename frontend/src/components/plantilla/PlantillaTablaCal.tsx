@@ -4,9 +4,12 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { format, parseISO } from 'date-fns'
+import { es } from 'date-fns/locale'
 import { ArrowUpCircle, Edit, Eye, MoreHorizontal, Trash2, UserCog } from 'lucide-react'
 import { Ficha, type FichaEstado } from '@/components/ui/ficha'
 import { Estado, type EstadoTipo } from '@/components/ui/estado'
+import { FormGuide } from '@/components/player/FormGuide'
 import { POSICIONES, posicionMeta, jugadorNombreVisible, type Jugador } from '@/lib/api/jugadores'
 import { prefetchRecord } from '@/lib/prefetchRecord'
 import {
@@ -74,6 +77,30 @@ function estadoDe(j: Jugador): { tipo: EstadoTipo; ficha: FichaEstado; texto: st
 
 const num = (v?: number | null) => (v === undefined || v === null ? '–' : v)
 
+/** Motivo de baja y fecha de vuelta, para el title de la celda de estado. */
+function detalleEstado(j: Jugador): string | undefined {
+  const partes: string[] = []
+  if (j.motivo_baja) partes.push(j.motivo_baja)
+  if (j.fecha_vuelta_estimada) {
+    try {
+      partes.push(`vuelta estimada: ${format(parseISO(j.fecha_vuelta_estimada), "d MMM yyyy", { locale: es })}`)
+    } catch {
+      partes.push(`vuelta estimada: ${j.fecha_vuelta_estimada}`)
+    }
+  }
+  return partes.length > 0 ? partes.join(' · ') : undefined
+}
+
+function Tarjeta({ color, cantidad, etiqueta }: { color: 'bg-warning' | 'bg-destructive'; cantidad: number; etiqueta: string }) {
+  return (
+    <span className="inline-flex items-center gap-1" title={`${cantidad} ${etiqueta}`}>
+      <span aria-hidden="true" className={`inline-block h-[0.85em] w-[0.6em] flex-none rotate-[10deg] rounded-[1px] ${color}`} />
+      <span className="sr-only">{etiqueta}: </span>
+      {cantidad}
+    </span>
+  )
+}
+
 function MenuAcciones({
   jugador,
   onEdit,
@@ -129,7 +156,7 @@ function MenuAcciones({
         aria-haspopup="menu"
         aria-expanded={abierto}
         onClick={() => setAbierto((v) => !v)}
-        className="inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius)] text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+        className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--radius)] text-muted-foreground [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
       >
         <MoreHorizontal className="h-5 w-5" aria-hidden="true" />
       </button>
@@ -210,6 +237,7 @@ export function PlantillaTablaCal({
   stats,
   isCrossTeam,
   resumenMap,
+  cargaMap,
   onEdit,
   onDelete,
   onChangeEstado,
@@ -237,7 +265,7 @@ export function PlantillaTablaCal({
         </p>
       )}
       <div className="cal-linea overflow-x-auto bg-card">
-        <table className="w-full min-w-[860px] border-collapse text-sm">
+        <table className="w-full min-w-[980px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-border">
               <th scope="col" className={`${cab} text-left`}>Jugador</th>
@@ -245,6 +273,8 @@ export function PlantillaTablaCal({
               <th scope="col" className={`${cab} text-left`}>Estado</th>
               <th scope="col" className={`${cab} text-right`}>Edad</th>
               <th scope="col" className={`${cab} text-right`}>Min.</th>
+              <th scope="col" className={`${cab} text-right`}>Tarj.</th>
+              <th scope="col" className={`${cab} text-left`}>Racha</th>
               <th scope="col" className={`${cab} text-right`}>TEC</th>
               <th scope="col" className={`${cab} text-right`}>TAC</th>
               <th scope="col" className={`${cab} text-right`}>FIS</th>
@@ -258,7 +288,7 @@ export function PlantillaTablaCal({
           {grupos.map((g) => (
             <tbody key={g.zona}>
               <tr className="border-b border-border bg-sunken">
-                <th scope="colgroup" colSpan={11} className="h-9 px-3 text-left font-normal">
+                <th scope="colgroup" colSpan={13} className="h-9 px-3 text-left font-normal">
                   <span className="cal-rotulo">{g.rotulo}</span>
                   <span className="ml-2 text-xs tabular-nums text-muted-foreground">{g.jugadores.length}</span>
                 </th>
@@ -271,6 +301,10 @@ export function PlantillaTablaCal({
                 const extra = !isPlantilla(j)
                 const cruz = isCrossTeam(j)
                 const resumen = resumenMap[j.id]
+                const carga = cargaMap?.[j.id]
+                const amarillas = resumen?.amarillas ?? carga?.tarjetas_amarillas ?? 0
+                const rojas = resumen?.rojas ?? carga?.tarjetas_rojas ?? 0
+                const racha = resumen?.racha ?? []
                 const destino = `/plantilla/${j.id}`
                 return (
                   <tr
@@ -280,7 +314,7 @@ export function PlantillaTablaCal({
                       router.prefetch(destino)
                       prefetchRecord(`/jugadores/${j.id}`)
                     }}
-                    className="h-11 cursor-pointer border-b border-border last:border-b-0 hover:bg-sunken focus-within:bg-sunken"
+                    className="h-9 cursor-pointer [@media(pointer:coarse)]:h-11 border-b border-border last:border-b-0 hover:bg-sunken focus-within:bg-sunken"
                   >
                     <td className="px-3">
                       <div className="flex items-center gap-3">
@@ -317,11 +351,24 @@ export function PlantillaTablaCal({
                         {j.posicion_principal}
                       </span>
                     </td>
-                    <td className="px-3">
+                    <td className="px-3" title={detalleEstado(j)}>
                       <Estado tipo={est.tipo}>{est.texto}</Estado>
                     </td>
                     <td className={cifra}>{num(j.edad)}</td>
                     <td className={cifra}>{resumen?.minutos_totales ?? 0}</td>
+                    <td className={cifra}>
+                      {amarillas === 0 && rojas === 0 ? (
+                        <span className="text-muted-foreground">–</span>
+                      ) : (
+                        <span className="inline-flex items-center justify-end gap-3">
+                          {amarillas > 0 && <Tarjeta color="bg-warning" cantidad={amarillas} etiqueta={amarillas === 1 ? 'amarilla' : 'amarillas'} />}
+                          {rojas > 0 && <Tarjeta color="bg-destructive" cantidad={rojas} etiqueta={rojas === 1 ? 'roja' : 'rojas'} />}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3">
+                      {racha.length > 0 ? <FormGuide racha={racha} /> : <span className="text-muted-foreground">–</span>}
+                    </td>
                     <td className={cifra}>{num(j.nivel_tecnico)}</td>
                     <td className={cifra}>{num(j.nivel_tactico)}</td>
                     <td className={cifra}>{num(j.nivel_fisico)}</td>

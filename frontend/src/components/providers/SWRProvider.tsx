@@ -3,6 +3,7 @@
 import { SWRConfig } from 'swr'
 import { apiFetcher } from '@/lib/swr'
 import { installInstantCache } from '@/lib/instantCache'
+import { persistentCacheProvider } from '@/lib/swrPersist'
 
 installInstantCache()
 
@@ -39,6 +40,9 @@ export function SWRProvider({ children }: { children: React.ReactNode }) {
   return (
     <SWRConfig
       value={{
+        // Same default cache, hydrated from localStorage (per account, wiped on
+        // logout). To disable: remove this line.
+        provider: persistentCacheProvider,
         fetcher: apiFetcher,
         revalidateOnFocus: false,
         // 30s deduping made every list look stale for up to 30s after a

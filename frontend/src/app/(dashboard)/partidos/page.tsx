@@ -10,6 +10,8 @@ import { apiKey } from '@/lib/swr'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { PartidosList } from '@/components/partidos/PartidosList'
+import { PartidosListaCal } from '@/components/partidos/PartidosListaCal'
+import { PorAspecto } from '@/components/appearance/PorAspecto'
 import { MatchDetailPanel } from '@/components/partidos/MatchDetailPanel'
 import { RevisarTitularesDialog } from '@/components/partidos/RevisarTitularesDialog'
 import {
@@ -168,14 +170,29 @@ export default function PartidosPage() {
               <div className="flex justify-end">
                 <PartidosListCollapseToggle collapsed={false} onToggle={() => toggleList(true)} />
               </div>
-              <PartidosList
-                loading={loading}
-                error={partidosError}
-                allPartidos={allPartidos}
-                proximos={proximos}
-                jugados={jugados}
-                selectedId={selectedId}
-                onSelectMatch={selectMatch}
+              <PorAspecto
+                cal={
+                  <PartidosListaCal
+                    loading={loading}
+                    error={partidosError}
+                    allPartidos={allPartidos}
+                    proximos={proximos}
+                    jugados={jugados}
+                    selectedId={selectedId}
+                    onSelectMatch={selectMatch}
+                  />
+                }
+                resto={
+                  <PartidosList
+                    loading={loading}
+                    error={partidosError}
+                    allPartidos={allPartidos}
+                    proximos={proximos}
+                    jugados={jugados}
+                    selectedId={selectedId}
+                    onSelectMatch={selectMatch}
+                  />
+                }
               />
             </>
           )}
