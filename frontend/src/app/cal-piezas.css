@@ -1,0 +1,187 @@
+/*
+ * Cal, fase 3: piezas base.
+ * Todo selector empieza por html[data-appearance="cal"]; con Acta y Clasico
+ * este archivo no tiene efecto. Lo verifica cal-css.test.ts.
+ * Los ganchos (k-btn, k-card...) los pone cada primitiva en src/components/ui.
+ */
+
+/* Botones */
+html[data-appearance="cal"] .k-btn {
+  font-weight: 600;
+  border-radius: var(--radius);
+  transition: transform 120ms cubic-bezier(.2, 0, 0, 1), background-color 120ms cubic-bezier(.2, 0, 0, 1);
+}
+html[data-appearance="cal"] .k-btn:active:not(:disabled) {
+  transform: scale(.97);
+}
+html[data-appearance="cal"] .k-btn:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+  box-shadow: none;
+}
+html[data-appearance="cal"] .k-btn[data-variant="outline"] {
+  border: 1.5px solid hsl(var(--line));
+  background: transparent;
+}
+@media (hover: hover) {
+  html[data-appearance="cal"] .k-btn[data-variant="outline"]:hover {
+    background: hsl(var(--sunken));
+  }
+}
+html[data-appearance="cal"] .k-btn[data-variant="club"] {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+/* Objetivos tactiles de 48 px en tableta; los iconos de barras densas no crecen */
+@media (pointer: coarse) {
+  html[data-appearance="cal"] .k-btn:not(.h-6):not(.h-7):not(.h-8),
+  html[data-appearance="cal"] .k-input {
+    min-height: 48px;
+  }
+}
+
+/* Tarjetas */
+html[data-appearance="cal"] .k-card {
+  border: 1px solid hsl(var(--border));
+  box-shadow: none;
+  border-radius: var(--radius);
+}
+html[data-appearance="cal"] .k-card-title {
+  font-size: 1rem;
+  line-height: 1.3;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+/* Campos */
+html[data-appearance="cal"] .k-input {
+  border-radius: var(--radius);
+  border-color: hsl(var(--border));
+  background: hsl(var(--card));
+}
+/* El unico sitio donde se permite sombra interior: dibuja el subrayado de foco */
+html[data-appearance="cal"] .k-input:focus-visible,
+html[data-appearance="cal"] .k-input:focus {
+  outline: none;
+  border-color: hsl(var(--line));
+  box-shadow: inset 0 -2px 0 hsl(var(--primary));
+}
+
+/*
+ * Insignias: sin pastillas, el estado se escribe.
+ * Si quien llama pasa su propio fondo (clase bg-*, que Badge marca con data-bg-propio; las variantes ya traen bg- y no cuentan), la insignia sigue siendo
+ * una etiqueta con esquina casi viva y no se toca.
+ */
+html[data-appearance="cal"] .k-badge:not([data-bg-propio]) {
+  background: transparent;
+  border-color: transparent;
+  padding: 0;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  gap: .4em;
+}
+html[data-appearance="cal"] .k-badge[data-bg-propio] {
+  border-radius: var(--radius);
+}
+html[data-appearance="cal"] .k-badge:not([data-bg-propio])::before {
+  content: "";
+  display: inline-block;
+  flex: none;
+}
+html[data-appearance="cal"] .k-badge:not([data-bg-propio])[data-variant="destructive"]::before {
+  width: .6em;
+  height: .85em;
+  border-radius: 1px;
+  background: hsl(var(--destructive));
+  transform: rotate(10deg);
+}
+html[data-appearance="cal"] .k-badge:not([data-bg-propio])[data-variant="warning"]::before {
+  width: .6em;
+  height: .85em;
+  border-radius: 1px;
+  background: hsl(var(--warning));
+  transform: rotate(10deg);
+}
+html[data-appearance="cal"] .k-badge:not([data-bg-propio])[data-variant="success"]::before {
+  width: .38em;
+  height: .7em;
+  border: solid hsl(var(--success));
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) translate(-.05em, -.1em);
+}
+html[data-appearance="cal"] .k-badge:not([data-bg-propio])[data-variant="info"]::before {
+  width: .7em;
+  height: .7em;
+  border-radius: 50%;
+  border: 2px solid hsl(var(--info));
+}
+html[data-appearance="cal"] .k-badge:not([data-bg-propio])[data-variant="default"]::before,
+html[data-appearance="cal"] .k-badge:not([data-bg-propio])[data-variant="club"]::before {
+  width: .6em;
+  height: .6em;
+  background: hsl(var(--primary));
+}
+html[data-appearance="cal"] .k-badge:not([data-bg-propio])[data-variant="secondary"],
+html[data-appearance="cal"] .k-badge:not([data-bg-propio])[data-variant="outline"] {
+  color: hsl(var(--muted-foreground));
+}
+html[data-appearance="cal"] .k-badge:not([data-bg-propio])[data-variant="secondary"]::before,
+html[data-appearance="cal"] .k-badge:not([data-bg-propio])[data-variant="outline"]::before {
+  content: none;
+}
+
+/* Pestanas */
+html[data-appearance="cal"] .k-tabs {
+  background: transparent;
+  border-bottom: 1.5px solid hsl(var(--line));
+  border-radius: 0;
+  padding: 0;
+  height: auto;
+}
+html[data-appearance="cal"] .k-tab {
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  padding-block: .5rem;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1.5px;
+  font-weight: 600;
+}
+html[data-appearance="cal"] .k-tab[data-state="active"] {
+  border-bottom-color: hsl(var(--primary));
+  color: hsl(var(--foreground));
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Dialogos */
+html[data-appearance="cal"] .k-dialog {
+  border: 1.5px solid hsl(var(--line));
+  border-radius: var(--radius);
+  box-shadow: none;
+}
+html[data-appearance="cal"] .k-overlay {
+  backdrop-filter: none;
+  background: hsl(var(--foreground) / .45);
+}
+
+/* Esqueletos */
+html[data-appearance="cal"] .k-skeleton {
+  background: hsl(var(--sunken));
+  border-radius: var(--radius);
+  animation: none;
+}
+
+/* Tablas sueltas: solo dentro de main; el informe impreso queda fuera */
+html[data-appearance="cal"] main table:not(#informe-print-root *) thead th {
+  font-stretch: 75%;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+}
+html[data-appearance="cal"] main table:not(#informe-print-root *) td {
+  font-variant-numeric: tabular-nums;
+}

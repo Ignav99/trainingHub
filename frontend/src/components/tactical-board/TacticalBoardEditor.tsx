@@ -986,6 +986,7 @@ export default function TacticalBoardEditor({
 
   const boardCanvas = (
     <div
+      data-paleta-propia
       className={
         abpRolesOpen
           ? 'abp-pitch-fit relative min-h-0 overflow-hidden bg-green-900'
