@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { InlineAIChat } from './InlineAIChat'
 import { partidosApi } from '@/lib/api/partidos'
 import { toast } from 'sonner'
+import { Localia } from '@/components/ui/localia'
 import type { AIPlanPartido, Partido } from '@/types'
 
 interface PlanPartidoSectionProps {
@@ -95,11 +96,14 @@ export function PlanPartidoSection({ onSend, plan, onResult, partido }: PlanPart
                 </div>
                 <div>
                   <div className="text-[10px] text-slate-400 uppercase tracking-widest">Plan de Partido</div>
-                  <div className="text-lg font-bold text-white">vs {rival?.nombre || 'Rival'}</div>
+                  <div className="flex items-center gap-2 text-lg font-bold text-white">
+                    {partido?.localia && <Localia valor={partido.localia} className="text-slate-300" />}
+                    {rival?.nombre || 'Rival'}
+                  </div>
                   {partido && (
                     <div className="flex items-center gap-3 text-xs text-slate-400 mt-0.5">
                       {partido.fecha && <span>{new Date(partido.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}</span>}
-                      {partido.localia && <span className="capitalize">{partido.localia}</span>}
+                      {partido.localia && <span>{partido.localia === 'local' ? 'En casa' : partido.localia === 'visitante' ? 'Fuera' : 'Campo neutral'}</span>}
                       {partido.competicion && <span className="capitalize">{partido.competicion.replace(/_/g, ' ')}</span>}
                       {partido.jornada && <span>J{partido.jornada}</span>}
                     </div>

@@ -10,7 +10,6 @@ import { useTacticalBoardStore } from '@/stores/useTacticalBoardStore'
 import TacticalBoardEditor from '@/components/tactical-board/TacticalBoardEditor'
 import TacticalBoardMini from '@/components/task-preview/TacticalBoardMini'
 import { useAppearance } from '@/lib/useAppearance'
-import { SuperficieVisitante } from '@/components/appearance/SuperficieVisitante'
 
 export default function PizarraTacticaPage() {
   const cal = useAppearance() === 'cal'
@@ -130,11 +129,9 @@ export default function PizarraTacticaPage() {
 
   if (!equipoId) {
     return (
-      <SuperficieVisitante>
         <div className={`flex items-center justify-center h-96 ${cal ? 'text-muted-foreground' : 'text-gray-400'}`}>
           Selecciona un equipo para ver las pizarras tacticas
         </div>
-      </SuperficieVisitante>
     )
   }
 
@@ -151,7 +148,6 @@ export default function PizarraTacticaPage() {
   }
 
   return (
-    <SuperficieVisitante>
     <div className={cal ? 'space-y-6' : 'p-6 space-y-6'}>
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -283,6 +279,5 @@ export default function PizarraTacticaPage() {
         </div>
       )}
     </div>
-    </SuperficieVisitante>
   )
 }

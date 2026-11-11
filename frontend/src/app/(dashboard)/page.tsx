@@ -31,6 +31,7 @@ import type { Sesion, Microciclo, Partido, Descanso, PaginatedResponse } from '@
 
 import { NextMatchBanner } from '@/components/dashboard/NextMatchBanner'
 import { HoyCabeceraCal } from '@/components/dashboard/HoyCabeceraCal'
+import { useAppearance } from '@/lib/useAppearance'
 import { PorAspecto } from '@/components/appearance/PorAspecto'
 import { CalendarSection } from '@/components/dashboard/CalendarSection'
 import { DayDetailPanel } from '@/components/dashboard/DayDetailPanel'
@@ -64,6 +65,7 @@ export default function DashboardPage() {
   const { theme } = useClubStore()
 
   const equipoId = equipoActivo?.id
+  const cal = useAppearance() === 'cal'
 
   // Calendar state — always boots on "today" (current week/month)
   const now = new Date()
@@ -460,8 +462,44 @@ export default function DashboardPage() {
 
   const proximoPartido = resumen?.proximo_partido
 
+  const accionesCal = (
+    <>
+      {!loading && sesionesBorrador > 0 && (
+        <Button variant="ghost" size="sm" asChild className="h-8 px-2 text-xs">
+          <Link href="/sesiones?estado=borrador" aria-label={`${sesionesBorrador} sesiones en borrador`}>
+            <AlertTriangle aria-hidden className="mr-1 h-3.5 w-3.5 text-warning" />
+            {sesionesBorrador} en borrador
+          </Link>
+        </Button>
+      )}
+      <Button variant="ghost" size="sm" asChild className="h-8 px-2 text-xs font-normal text-muted-foreground hover:text-foreground">
+        <Link href="/microciclos">Microciclos</Link>
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-8 text-xs"
+        onClick={() => {
+          setMicroDateForm(getDefaultMicroRange())
+          setShowCreateMicro(true)
+        }}
+      >
+        <CalendarDays className="mr-1.5 h-3.5 w-3.5" />
+        Nuevo microciclo
+      </Button>
+    </>
+  )
+
+
   return (
-    <div className="space-y-6 min-w-0 max-w-full" style={{ backgroundImage: FIELD_PATTERN }}>
+    <div
+      className={
+        cal
+          ? 'flex min-w-0 max-w-full flex-col gap-3 lg:h-[calc(100dvh-5rem)] lg:min-h-[30rem]'
+          : 'space-y-6 min-w-0 max-w-full'
+      }
+      style={cal ? undefined : { backgroundImage: FIELD_PATTERN }}
+    >
       {/* ============ SECTION 1: Top banner — Rival + Availability ============ */}
       <PorAspecto
         cal={
@@ -488,6 +526,8 @@ export default function DashboardPage() {
         }
       />
 
+      {!cal && (
+      <>
       {/* Controles de microciclo — encima del calendario */}
       <div className="flex justify-end items-center gap-2 flex-wrap">
         <Button
@@ -510,6 +550,8 @@ export default function DashboardPage() {
           Nuevo Microciclo
         </Button>
       </div>
+      </>
+      )}
 
       {calParError && (
         <Card className="border-destructive/40 bg-destructive/5">
@@ -527,7 +569,9 @@ export default function DashboardPage() {
       )}
 
       {/* ============ SECTION 2: Interactive monthly calendar ============ */}
+      <div className={cal ? 'min-w-0 lg:min-h-0 lg:flex-1' : undefined}>
       <CalendarSection
+        acciones={accionesCal}
         calYear={calYear}
         calMonth={calMonth}
         onPrevMonth={handlePrevMonth}
@@ -563,9 +607,10 @@ export default function DashboardPage() {
         onNavigate={(path) => router.push(path)}
         onCreateMicrocicloForWeek={handleCreateMicroForWeek}
       />
+      </div>
 
       {/* ============ Avisos (solo borradores) ============ */}
-      {!loading && sesionesBorrador > 0 && (
+      {!cal && !loading && sesionesBorrador > 0 && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">

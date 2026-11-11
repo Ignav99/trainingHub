@@ -550,7 +550,7 @@ export default function SesionesPage() {
                       ) : null}
                       <p className="text-xs text-gray-500 mt-0.5">
                         {formatDate(sesion.fecha)}
-                        {sesion.rival ? ` · vs ${sesion.rival}` : ''}
+                        {sesion.rival ? ` · ` : ''}
                       </p>
                     </div>
                     <EstadoBadge estado={sesion.estado} creacionPaso={readCreacionPaso(sesion.fase_notas)} />
@@ -740,7 +740,7 @@ export default function SesionesPage() {
                             )}
                             {sesion.rival && (
                               <p className="text-xs text-gray-400 mt-0.5">
-                                vs {sesion.rival}
+                                {sesion.rival}
                               </p>
                             )}
                           </div>

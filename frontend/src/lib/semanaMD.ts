@@ -35,8 +35,8 @@ export function semanaMD(hoy: string, partidos: PartidoSemana[]): DiaSemana[] {
     let etiqueta = ''
     if (partido) etiqueta = 'MD'
     else if (hubo(1)) etiqueta = 'MD+1'
+    else if (hubo(2) && proximo > 2) etiqueta = 'MD+2'
     else if (proximo >= 1 && proximo <= 5) etiqueta = `MD-${proximo}`
-    else if (hubo(2)) etiqueta = 'MD+2'
 
     return {
       fecha,

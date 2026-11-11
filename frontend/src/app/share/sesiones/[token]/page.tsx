@@ -139,7 +139,7 @@ export default function ShareSesionPage() {
             {sesion.hora ? ` · ${sesion.hora}` : ''}
             {sesion.lugar ? ` · ${sesion.lugar}` : ''}
             {sesion.match_day ? ` · ${sesion.match_day}` : ''}
-            {sesion.rival ? ` · vs ${sesion.rival}` : ''}
+            {sesion.rival ? ` · ` : ''}
           </p>
         </header>
 

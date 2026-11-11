@@ -31,6 +31,7 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { TeamCrest } from '@/components/ui/team-crest'
+import { Localia } from '@/components/ui/localia'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
@@ -894,7 +895,7 @@ export function MatchDetailPanel({
             {selectedPartido.rival?.escudo_url && (
               <TeamCrest src={selectedPartido.rival.escudo_url} name={(selectedPartido as any).rival?.nombre || 'Rival'} size="sm" />
             )}
-            {selectedPartido.localia === 'local' ? 'vs' : '@'}{' '}
+            <Localia valor={selectedPartido.localia} />
             {(selectedPartido as any).rival?.nombre || 'Rival'}
           </h2>
           <p className="text-sm text-muted-foreground">
@@ -1845,7 +1846,12 @@ export function MatchDetailPanel({
           <DialogHeader>
             <DialogTitle>Registrar resultado</DialogTitle>
             <DialogDescription>
-              {selectedPartido ? `${selectedPartido.localia === 'local' ? 'vs' : '@'} ${selectedPartido.rival?.nombre}` : ''}
+              {selectedPartido ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <Localia valor={selectedPartido.localia} />
+                  {selectedPartido.rival?.nombre}
+                </span>
+              ) : ''}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">

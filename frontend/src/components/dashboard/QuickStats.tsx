@@ -1,5 +1,6 @@
 'use client'
 
+import { Localia } from '@/components/ui/localia'
 import Link from 'next/link'
 import { FileText, Target, ArrowRight } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
@@ -57,7 +58,8 @@ export function QuickStats({ loading, ultimoPartido, proximoPartido }: QuickStat
               href={`/partidos?match=${proximoPartido.id}&tab=plan-partido`}
               className="text-sm text-emerald-600 hover:underline truncate flex items-center gap-1"
             >
-              vs {proximoPartido.rival?.nombre || 'Proximo rival'}
+              <Localia valor={proximoPartido.localia} />
+              {proximoPartido.rival?.nombre || 'Proximo rival'}
               <ArrowRight className="h-3 w-3 shrink-0" />
             </Link>
           ) : (

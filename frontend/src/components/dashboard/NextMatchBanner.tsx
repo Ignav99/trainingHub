@@ -1,5 +1,6 @@
 'use client'
 
+import { Localia } from '@/components/ui/localia'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Swords, Trophy } from 'lucide-react'
@@ -67,7 +68,7 @@ export function NextMatchBanner({
                     <Swords className="h-4 w-4" />
                   )}
                   <span>
-                    {proximoPartido.localia === 'local' ? 'vs' : '@ '}{' '}
+                    <Localia valor={proximoPartido.localia} className="mr-1 align-[-0.125em] !text-white" />
                     <strong className="text-white">
                       {proximoPartido.rival?.nombre_corto || proximoPartido.rival?.nombre || 'Rival'}
                     </strong>

@@ -53,7 +53,8 @@ export function ConvocatoriaCartel({
 }: ConvocatoriaCartelProps) {
   const meta = jornadaLabel(jornada, competicion)
   const fechaTxt = formatFechaCartel(fecha)
-  const vs = localia === 'visitante' ? '@' : 'vs'
+  // Texto (no icono): el cartel se exporta a imagen
+  const vs = localia === 'visitante' ? 'FUERA' : 'EN CASA'
 
   return (
     <div

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Check, X } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TeamCrest } from '@/components/ui/team-crest'
+import { Localia } from '@/components/ui/localia'
 import { cn } from '@/lib/utils'
 import type { Partido } from '@/types'
 
@@ -82,7 +83,7 @@ function Fila({ p, selected, onSelect }: { p: PartidoConRival; selected: boolean
         {p.rival?.escudo_url && <TeamCrest src={p.rival.escudo_url} name={nombre} size="sm" />}
       </span>
       <span className="min-w-0 flex-1 truncate font-medium text-foreground">{nombre}</span>
-      <span className="flex-none text-xs text-muted-foreground">{localiaTexto(p.localia)}</span>
+      <Localia valor={p.localia} className="text-sm" />
       <Resultado partido={p} />
     </button>
   )

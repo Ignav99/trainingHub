@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useEffect, useState } from 'react'
+import { Localia } from '@/components/ui/localia'
+import { useMemo, useEffect, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import {
   Plus,
@@ -147,6 +148,8 @@ interface CalendarSectionProps {
   onToggleDescanso: (date: string) => void
   onDeleteDescanso: (id: string) => void
   onNavigate: (path: string) => void
+  /** Acciones extra (Cal): se pintan en la cabecera del calendario. */
+  acciones?: ReactNode
   onCreateMicrocicloForWeek: (fechaInicio: string, fechaFin: string) => void
 }
 
@@ -185,6 +188,7 @@ export function CalendarSection({
   onDeleteDescanso,
   onNavigate,
   onCreateMicrocicloForWeek,
+  acciones,
 }: CalendarSectionProps) {
   const isMobile = useIsMobile()
   const cal = useAppearance() === 'cal'
@@ -320,8 +324,8 @@ export function CalendarSection({
 
   return (
     <>
-      <Card className="overflow-hidden">
-        <CardHeader className="flex flex-col gap-3 pb-3 border-b sm:flex-row sm:items-center sm:justify-between">
+      <Card className={`overflow-hidden ${cal ? 'lg:flex lg:h-full lg:min-h-0 lg:flex-col' : ''}`}>
+        <CardHeader className={`flex flex-col gap-3 border-b sm:flex-row sm:items-center sm:justify-between ${cal ? 'lg:shrink-0 lg:py-2' : 'pb-3'}`}>
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <CardTitle className="text-base sm:text-lg flex items-center gap-2">
               <Calendar className="h-5 w-5" />
@@ -350,6 +354,7 @@ export function CalendarSection({
             )}
           </div>
           <div className="flex items-center gap-1 min-w-0 flex-wrap justify-end">
+            {cal && acciones}
             <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={onGoToToday}>
               Hoy
             </Button>
@@ -374,7 +379,7 @@ export function CalendarSection({
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="p-0 animate-fade-in">
+        <CardContent className={`p-0 animate-fade-in ${cal ? 'lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-y-auto' : ''}`}>
           {/* Year view stays mounted (hidden) so season data + crests stay warm */}
           <div className={viewMode === 'ano' ? 'p-3' : 'hidden'}>
             <CalendarYearView
@@ -413,7 +418,7 @@ export function CalendarSection({
           ) : viewMode === 'mes' ? (
             <>
           {/* Day headers */}
-          <div className="flex border-b bg-muted/30">
+          <div className="flex border-b bg-muted/30 shrink-0">
             <div className="hidden md:block w-6 shrink-0" />
             <div className="flex-1 grid grid-cols-7">
               {DAY_NAMES.map((d, i) => (
@@ -590,7 +595,7 @@ export function CalendarSection({
                         <TeamCrest src={p.rival?.escudo_url} name={p.rival?.nombre || 'Rival'} size="sm" />
                         <div className="flex-1 min-w-0">
                           <span className={`text-sm font-bold truncate block ${cal ? 'text-foreground' : isLocal ? 'text-amber-800' : 'text-violet-800'}`}>
-                            {isLocal ? 'vs' : '@'} {p.rival?.nombre_corto || p.rival?.nombre || 'Rival'}
+                            <Localia valor={p.localia} className="mr-1 align-[-0.125em]" />{p.rival?.nombre_corto || p.rival?.nombre || 'Rival'}
                           </span>
                           {p.hora && (
                             <span className={`text-xs ${cal ? 'text-muted-foreground' : isLocal ? 'text-amber-600' : 'text-violet-600'}`}>{p.hora}</span>
@@ -662,7 +667,7 @@ export function CalendarSection({
                 return (
                   <div
                     key={weekIdx}
-                    className="flex relative"
+                    className={`flex relative ${cal ? 'lg:min-h-0 lg:flex-1' : ''}`}
                     onMouseEnter={() => weekMicro && setHoveredWeekIdx(weekIdx)}
                     onMouseLeave={() => setHoveredWeekIdx(null)}
                   >
@@ -689,7 +694,7 @@ export function CalendarSection({
 
                     {/* WEEK GRID */}
                     <div
-                      className={`flex-1 grid grid-cols-7 relative ${weekMicro ? 'cursor-pointer' : ''}`}
+                      className={`flex-1 grid grid-cols-7 relative ${cal ? 'lg:min-h-0' : ''} ${weekMicro ? 'cursor-pointer' : ''}`}
                       onClick={() => { if (weekMicro) onNavigate(`/microciclos/${weekMicro.id}`) }}
                     >
                     {isWeekHovered && (
@@ -743,7 +748,7 @@ export function CalendarSection({
                           setAddMenuDay(null)
                         }
                       }}
-                      className={`min-h-[70px] md:min-h-[100px] border-b border-r last:border-r-0 p-1.5 transition-colors relative group ${
+                      className={`min-h-[70px] md:min-h-[100px] ${cal ? 'lg:flex lg:min-h-0 lg:flex-col' : ''} border-b border-r last:border-r-0 p-1.5 transition-colors relative group ${
                         mdColors ? `${cal ? 'border-t-[3px]' : 'border-t-4'} ${mdColors.border}` : ''
                       } ${
                         isToday && !cal
@@ -868,7 +873,7 @@ export function CalendarSection({
                       )}
 
                       {/* Day content */}
-                      <div className="space-y-1">
+                      <div className={`space-y-1 ${cal ? 'lg:min-h-0 lg:flex-1 lg:overflow-y-auto' : ''}`}>
                         {/* Descanso marker -- coach-set */}
                         {isDescanso && (
                           <div className="flex items-center gap-1.5 px-1.5 py-1.5 rounded-md bg-slate-100 border border-slate-200">
@@ -911,7 +916,7 @@ export function CalendarSection({
                             <div className="flex items-center gap-1">
                               <TeamCrest src={p.rival?.escudo_url} name={p.rival?.nombre || 'Rival'} size="sm" />
                               <span className={`text-[10px] font-bold truncate ${cal ? 'text-foreground' : isLocal ? 'text-amber-800' : 'text-violet-800'}`}>
-                                {isLocal ? 'vs' : '@'}{' '}
+                                <Localia valor={p.localia} className="mr-0.5 align-[-0.125em]" />
                                 {p.rival?.nombre_corto || p.rival?.nombre || 'Rival'}
                               </span>
                               {p.jornada && (
@@ -1018,7 +1023,7 @@ export function CalendarSection({
               })}
 
               {/* Legend bar — hidden on mobile */}
-              <div className="hidden md:flex flex-wrap items-center gap-x-5 gap-y-1 px-4 py-2.5 border-t bg-muted/20 text-[11px] text-muted-foreground">
+              <div className={`hidden md:flex flex-wrap items-center gap-x-5 gap-y-1 px-4 py-2.5 border-t bg-muted/20 text-[11px] text-muted-foreground ${cal ? 'lg:shrink-0 lg:py-1.5' : ''}`}>
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-3 rounded-sm bg-emerald-500" /> Microciclo
                 </span>
@@ -1026,10 +1031,10 @@ export function CalendarSection({
                   <span className="w-2 h-2 rounded-full bg-emerald-500" /> Sesión
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <Swords className="h-3 w-3 text-amber-600" /> Casa
+                  <Localia valor="local" conTexto /> 
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <Swords className="h-3 w-3 text-violet-600" /> Fuera
+                  <Localia valor="visitante" conTexto /> 
                 </span>
                 <span className="flex items-center gap-1.5">
                   <Moon className="h-3 w-3 text-slate-500" /> Descanso

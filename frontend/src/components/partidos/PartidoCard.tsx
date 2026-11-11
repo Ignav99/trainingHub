@@ -3,6 +3,7 @@
 import { Calendar, ChevronRight } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { TeamCrest } from '@/components/ui/team-crest'
+import { Localia } from '@/components/ui/localia'
 import { formatDate } from '@/lib/utils'
 import type { Partido } from '@/types'
 
@@ -37,7 +38,7 @@ export function PartidoCard({ partido, isSelected, isNext, onSelect }: PartidoCa
             {(partido as any).rival?.escudo_url && (
               <TeamCrest src={(partido as any).rival.escudo_url} name={(partido as any).rival?.nombre || 'Rival'} size="sm" />
             )}
-            {partido.localia === 'local' ? 'vs' : '@'}{' '}
+            <Localia valor={partido.localia} />
             {(partido as any).rival?.nombre || 'Rival'}
           </p>
           <div className="flex items-center gap-2 mt-0.5">

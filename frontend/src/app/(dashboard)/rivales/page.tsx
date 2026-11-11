@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import useSWR, { mutate } from 'swr'
 import {
@@ -37,7 +37,7 @@ import { PorAspecto } from '@/components/appearance/PorAspecto'
 import { RivalesTablaCal, RivalesTablaSkeletonCal } from '@/components/rivales/RivalesTablaCal'
 import { rivalesApi, RivalCreateData } from '@/lib/api/partidos'
 import { useEquipoStore } from '@/stores/equipoStore'
-import type { Rival, PaginatedResponse } from '@/types'
+import type { Rival, Partido, PaginatedResponse } from '@/types'
 
 export default function RivalesPage() {
   const [search, setSearch] = useState('')
@@ -55,7 +55,30 @@ export default function RivalesPage() {
         })
       : null
   )
-  const rivales = rivalesResponse?.data || []
+  const todosRivales = useMemo(() => rivalesResponse?.data ?? [], [rivalesResponse])
+
+  // Amistosos: rival cuyos partidos con nosotros son todos amistosos (sin liga/copa/torneo).
+  // Un rival sin partidos viene de la clasificación de la liga, así que cuenta como competición.
+  const [verAmistosos, setVerAmistosos] = useState(false)
+  const { data: partidosResponse, isLoading: loadingPartidos, error: errorPartidos } = useSWR<PaginatedResponse<Partido>>(
+    equipoActivo?.id ? apiKey('/partidos', { equipo_id: equipoActivo.id, limit: 1000 }) : null
+  )
+  const idsAmistosos = useMemo(() => {
+    const conCompeticion = new Set<string>()
+    const conAmistoso = new Set<string>()
+    for (const p of partidosResponse?.data ?? []) {
+      if (!p.rival_id) continue
+      if (p.competicion === 'amistoso') conAmistoso.add(p.rival_id)
+      else conCompeticion.add(p.rival_id)
+    }
+    const soloAmistosos = new Set<string>()
+    conAmistoso.forEach((id) => { if (!conCompeticion.has(id)) soloAmistosos.add(id) })
+    return soloAmistosos
+  }, [partidosResponse])
+  // Si los partidos fallan, se muestran todos los rivales
+  const filtroActivo = !errorPartidos && !!partidosResponse
+  const numAmistosos = filtroActivo ? todosRivales.filter((r) => idsAmistosos.has(r.id)).length : 0
+  const rivales = filtroActivo && !verAmistosos ? todosRivales.filter((r) => !idsAmistosos.has(r.id)) : todosRivales
 
   // Create/Edit dialog
   const [showForm, setShowForm] = useState(false)
@@ -201,7 +224,19 @@ export default function RivalesPage() {
       </div>
 
       {/* List */}
-      {loading ? (
+      {numAmistosos > 0 && (
+        <label className="flex w-fit cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={verAmistosos}
+            onChange={(e) => setVerAmistosos(e.target.checked)}
+            className="h-4 w-4 accent-[hsl(var(--primary))] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          />
+          Mostrar amistosos ({numAmistosos})
+        </label>
+      )}
+
+      {loading || (loadingPartidos && !partidosResponse && !errorPartidos) ? (
         <PorAspecto cal={<RivalesTablaSkeletonCal />} resto={<CardGridSkeleton />} />
       ) : rivales.length === 0 ? (
         <EmptyState

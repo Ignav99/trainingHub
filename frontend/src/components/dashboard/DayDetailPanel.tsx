@@ -1,5 +1,6 @@
 'use client'
 
+import { Localia } from '@/components/ui/localia'
 import {
   Calendar,
   Swords,
@@ -188,7 +189,7 @@ export function DayDetailPanel({
                                 )}
                               </div>
                               <p className="text-sm font-bold truncate">
-                                {isLocal ? 'vs' : '@'} {p.rival?.nombre || p.rival?.nombre_corto || 'Rival'}
+                                <Localia valor={p.localia} className="mr-1 align-[-0.125em]" />{p.rival?.nombre || p.rival?.nombre_corto || 'Rival'}
                               </p>
                               <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-[11px] text-muted-foreground">
                                 {p.hora && (

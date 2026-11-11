@@ -193,6 +193,51 @@ async def upload_rival_clip_for_rival(
     }
 
 
+def _tiene_contenido(valor) -> bool:
+    """True si hay algo escrito (texto, lista o dict con algún valor útil)."""
+    if valor is None or isinstance(valor, bool):
+        return False
+    if isinstance(valor, str):
+        return bool(valor.strip())
+    if isinstance(valor, (int, float)):
+        return valor != 0
+    if isinstance(valor, dict):
+        return any(_tiene_contenido(v) for v in valor.values())
+    if isinstance(valor, (list, tuple)):
+        return any(_tiene_contenido(v) for v in valor)
+    return False
+
+
+def _marcar_tiene_informe(supabase, rows: list[dict]) -> list[dict]:
+    """
+    Añade `tiene_informe` a cada fila: scout_manual o plan_partido_manual con
+    contenido, o al menos una fila en rival_informes (una sola consulta, sin N+1).
+    """
+    ids = [r["id"] for r in rows if r.get("id")]
+    con_informes: set[str] = set()
+    if ids:
+        try:
+            res = (
+                supabase.table("rival_informes")
+                .select("rival_id")
+                .in_("rival_id", ids)
+                .execute()
+            )
+            con_informes = {x["rival_id"] for x in (res.data or []) if x.get("rival_id")}
+        except Exception:  # pragma: no cover - degradación suave
+            logger.warning("No se pudo consultar rival_informes para el listado", exc_info=True)
+    out = []
+    for r in rows:
+        r = dict(r)
+        r["tiene_informe"] = bool(
+            _tiene_contenido(r.get("scout_manual"))
+            or _tiene_contenido(r.get("plan_partido_manual"))
+            or r.get("id") in con_informes
+        )
+        out.append(r)
+    return out
+
+
 @router.get("", response_model=RivalListResponse)
 async def list_rivales(
     page: int = Query(1, ge=1),
@@ -306,7 +351,7 @@ async def list_rivales(
         pages = ceil(total / limit) if total > 0 else 1
 
         return RivalListResponse(
-            data=[RivalResponse(**r) for r in page_data],
+            data=[RivalResponse(**r) for r in _marcar_tiene_informe(supabase, page_data)],
             total=total,
             page=page,
             limit=limit,
@@ -321,7 +366,7 @@ async def list_rivales(
     pages = ceil(total / limit) if total > 0 else 1
 
     return RivalListResponse(
-        data=[RivalResponse(**r) for r in response.data],
+        data=[RivalResponse(**r) for r in _marcar_tiene_informe(supabase, response.data)],
         total=total,
         page=page,
         limit=limit,

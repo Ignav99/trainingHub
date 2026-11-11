@@ -69,6 +69,13 @@ interface ClubAvatarProps extends React.HTMLAttributes<HTMLDivElement> {
   size?: 'sm' | 'md' | 'lg' | 'xl'
 }
 
+const crestClasses = {
+  sm: 'h-8 w-8',
+  md: 'h-9 w-9',
+  lg: 'h-11 w-11',
+  xl: 'h-12 w-12',
+}
+
 const ClubAvatar = React.forwardRef<HTMLDivElement, ClubAvatarProps>(
   ({ className, logoUrl, clubName, size = 'md', ...props }, ref) => {
     const [imgError, setImgError] = React.useState(false)
@@ -82,8 +89,8 @@ const ClubAvatar = React.forwardRef<HTMLDivElement, ClubAvatarProps>(
         <div
           ref={ref}
           className={cn(
-            'relative flex shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white p-1',
-            sizeClasses[size],
+            'relative flex shrink-0 items-center justify-center',
+            crestClasses[size],
             className
           )}
           {...props}

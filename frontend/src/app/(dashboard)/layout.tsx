@@ -362,12 +362,14 @@ export default function DashboardLayout({
           </Link>
         </div>
 
-        <main className="min-w-0 max-w-full py-6 pb-24 lg:pb-6 px-4 sm:px-6 lg:px-8">
-          {!isClubOnlyRole && (
-            <div className="solo-cal mb-4">
-              <SemanaTira />
-            </div>
-          )}
+        {/* Tira de la semana: siempre visible (sticky), solo en Cal */}
+        {!isClubOnlyRole && (
+          <div className="solo-cal">
+            <SemanaTira />
+          </div>
+        )}
+
+        <main className="min-w-0 max-w-full py-6 pb-24 lg:pb-6 px-4 sm:px-6 lg:px-8 [html[data-appearance=cal]_&]:py-4 [html[data-appearance=cal]_&]:lg:pb-4">
           {children}
         </main>
       </div>
@@ -460,7 +462,7 @@ const SidebarContent = memo(function SidebarContent({
         style={{ backgroundColor: theme.colorPrimario }}
       >
         <Link href="/" className={cn('flex items-center gap-3 group min-w-0', collapsed && 'justify-center w-full')}>
-          <ClubAvatar logoUrl={theme.logoUrl} clubName={user?.organizacion?.nombre} size={collapsed ? 'sm' : 'md'} />
+          <ClubAvatar logoUrl={theme.logoUrl} clubName={user?.organizacion?.nombre} size={collapsed ? 'md' : 'xl'} />
           {!collapsed && (
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-white truncate group-hover:opacity-80 transition-opacity">

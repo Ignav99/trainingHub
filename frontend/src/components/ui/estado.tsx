@@ -1,7 +1,21 @@
 import * as React from 'react'
 import { cn } from '@/lib/utils'
+import { Tirita } from './tirita'
 
-export type EstadoTipo = 'disponible' | 'duda' | 'baja' | 'aviso' | 'neutro'
+export type EstadoTipo =
+  | 'disponible'
+  | 'duda'
+  | 'baja'
+  | 'aviso'
+  | 'neutro'
+  /** Jugador en tratamiento que puede entrenar o está en duda: tirita ámbar. */
+  | 'tratamiento'
+  /** Jugador lesionado, fuera: tirita roja. */
+  | 'lesion'
+  /** Jugador sancionado: tarjeta roja. */
+  | 'sancionado'
+  /** Jugador apercibido (a una amarilla de la sanción): tarjeta naranja. */
+  | 'apercibido'
 
 export interface EstadoProps {
   tipo: EstadoTipo
@@ -20,7 +34,14 @@ function Marca({ tipo }: { tipo: EstadoTipo }) {
         />
       )
     case 'duda':
-      return <span aria-hidden="true" className="inline-block h-[0.85em] w-[0.6em] flex-none rotate-[10deg] rounded-[1px] bg-warning" />
+      return <span aria-hidden="true" className="inline-block h-[0.6em] w-[0.6em] flex-none rotate-45 bg-warning" />
+    case 'tratamiento':
+      return <Tirita className="text-warning" />
+    case 'lesion':
+      return <Tirita className="text-destructive" />
+    case 'apercibido':
+      return <span aria-hidden="true" className="inline-block h-[0.85em] w-[0.6em] flex-none rotate-[10deg] rounded-[1px] bg-orange-500" />
+    case 'sancionado':
     case 'baja':
       return <span aria-hidden="true" className="inline-block h-[0.85em] w-[0.6em] flex-none rotate-[10deg] rounded-[1px] bg-destructive" />
     case 'aviso':

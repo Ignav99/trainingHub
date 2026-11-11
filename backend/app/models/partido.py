@@ -84,6 +84,8 @@ class RivalResponse(RivalBase):
     organizacion_id: UUID
     created_at: datetime
     updated_at: datetime
+    # Solo lo rellena el listado (scout_manual / plan / rival_informes no vacíos)
+    tiene_informe: Optional[bool] = None
 
     class Config:
         from_attributes = True

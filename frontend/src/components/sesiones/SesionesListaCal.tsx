@@ -37,7 +37,7 @@ export function SesionesListaCal({ sesiones, activeMenu, setActiveMenu, onWarm, 
             <div className="flex h-9 items-center justify-between gap-3 border-b border-border bg-sunken px-3">
               <span className="cal-rotulo">{rotulo}</span>
               <span className="flex min-w-0 items-center gap-3 text-xs text-muted-foreground">
-                {rival && <span className="truncate">vs {rival}</span>}
+                {rival && <span className="truncate">{rival}</span>}
                 <span className="flex-none tabular-nums">{minutos} min</span>
               </span>
             </div>
@@ -57,7 +57,7 @@ export function SesionesListaCal({ sesiones, activeMenu, setActiveMenu, onWarm, 
                     }}
                     onPointerEnter={() => onWarm(s)}
                     title={est.title}
-                    className="relative flex min-h-14 cursor-pointer items-center gap-2 border-b border-border py-2 pl-3 pr-1 last:border-b-0 hover:bg-sunken focus-visible:bg-sunken focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
+                    className={`relative flex min-h-14 cursor-pointer items-center gap-2 border-b border-border py-2 pl-3 pr-1 last:border-b-0 ${s.estado === 'completada' ? 'bg-success/[0.08] hover:bg-success/[0.16] focus-visible:bg-success/[0.16]' : 'hover:bg-sunken focus-visible:bg-sunken'}${s.estado === 'cancelada' ? ' text-muted-foreground' : ''} focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary`}
                   >
                     {esHoy && <span aria-hidden="true" className="absolute inset-y-0 left-0 w-[3px] bg-primary" />}
                     <div className="min-w-0 flex-1">

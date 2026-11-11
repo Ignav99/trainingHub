@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import useSWR from 'swr'
 import { X, Save, Download, Plus, Trash2, Loader2, Flag, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
+import { Localia } from '@/components/ui/localia'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { apiKey, apiFetcher } from '@/lib/swr'
 import { abpApi } from '@/lib/api/abp'
@@ -280,7 +281,7 @@ export default function ABPPreparePlan({ onClose }: ABPPreparePlanProps) {
                 const score = played ? `(${p.goles_favor}-${p.goles_contra})` : ''
                 return (
                   <option key={p.id} value={p.id}>
-                    {played ? '✓ ' : '▸ '}{p.jornada ? `J${p.jornada} · ` : ''}{p.fecha} — vs {p.rival?.nombre || 'Rival'} {score} ({p.localia === 'local' ? 'Casa' : p.localia === 'visitante' ? 'Fuera' : p.localia})
+                    {played ? '✓ ' : '▸ '}{p.jornada ? `J${p.jornada} · ` : ''}{p.fecha} — {p.rival?.nombre || 'Rival'} {score} ({p.localia === 'local' ? 'En casa' : p.localia === 'visitante' ? 'Fuera' : 'Campo neutral'})
                     {p.competicion ? ` · ${p.competicion}` : ''}
                   </option>
                 )
@@ -288,7 +289,7 @@ export default function ABPPreparePlan({ onClose }: ABPPreparePlanProps) {
             </select>
             {selectedPartido && (
               <p className="mt-1.5 text-xs text-gray-500">
-                vs <strong>{selectedPartido.rival?.nombre}</strong> · {selectedPartido.fecha}
+                <Localia valor={selectedPartido.localia} className="mr-1 align-[-0.125em]" /> <strong>{selectedPartido.rival?.nombre}</strong> · {selectedPartido.fecha}
                 {selectedPartido.hora ? ` · ${selectedPartido.hora}` : ''}
               </p>
             )}
