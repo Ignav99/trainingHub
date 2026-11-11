@@ -26,6 +26,7 @@ import {
 import { isClipDeleteKey, isSkipRebindActive, isTypingTarget, loadSkipKeys, skipDeltaForKey } from './videoJog'
 import type { BotoneraEditGate } from './VideoDeskBotonera'
 import type { CodeButton, CodeEvent } from './types'
+import { generateId } from './utils'
 import './video-desk.css'
 
 interface VideoAnalyzerProps {
@@ -92,8 +93,13 @@ export function VideoAnalyzer({
     savedAnalysis ? JSON.stringify({ b: savedAnalysis.buttons, e: savedAnalysis.events }) : null
   )
 
+  // Lite: a new analysis records under its own draft key, never under the file
+  // name, so a later "Nuevo análisis" with a same-named file starts empty.
+  const draftKeyRef = useRef(`nuevo:${generateId()}`)
+
   const buttons = useCodeWindowStore((s) => s.buttons)
   const loadSnapshot = useCodeWindowStore((s) => s.loadSnapshot)
+  const discardEvents = useCodeWindowStore((s) => s.discardEvents)
   const activeButtonId = useCodeWindowStore((s) => s.activeButtonId)
   const setCodeVideoKey = useCodeWindowStore((s) => s.setCurrentVideoKey)
   const recordEvent = useCodeWindowStore((s) => s.recordEvent)
@@ -114,8 +120,8 @@ export function VideoAnalyzer({
   const lockedAmbito: RevisionAmbito | undefined = watchMode
     ? revisionLinkForMode(watchMode).lockAmbito || undefined
     : undefined
-  const videoKey = isLiteMode && analysisId
-    ? analysisKey(analysisId)
+  const videoKey = isLiteMode
+    ? (analysisId ? analysisKey(analysisId) : draftKeyRef.current)
     : informeRival
     ? `informe-rival:${rivalId || 'x'}:${watchedOpponent || localFile?.name || '_local'}`
     : (partidoId || (localFile?.name ?? '_local'))
@@ -182,8 +188,9 @@ export function VideoAnalyzer({
         saved = await videoAnalisisApi.update(analysisId, payload)
       } else {
         saved = await videoAnalisisApi.create({ equipo_id: equipoId, ...payload })
-        // From now on the clips live under the analysis key, not the file name.
+        // From now on the clips live under the analysis key; drop the draft.
         loadSnapshot(analysisKey(saved.id), buttons, events)
+        discardEvents(draftKeyRef.current)
         setAnalysisId(saved.id)
       }
       setSavedSnapshot(JSON.stringify({ b: buttons, e: events }))
@@ -194,7 +201,16 @@ export function VideoAnalyzer({
     } finally {
       setSaving(false)
     }
-  }, [analysisId, analysisName, buttons, equipoId, events, loadSnapshot, localFile?.name, onSaved, videoMeta])
+  }, [analysisId, analysisName, buttons, discardEvents, equipoId, events, loadSnapshot, localFile?.name, onSaved, videoMeta])
+
+  // Lite: unsaved work is no longer kept per file name, so warn before losing it.
+  const requestClose = useCallback(() => {
+    if (isLiteMode) {
+      if (isDirty && !confirm('Hay recortes sin guardar. ¿Salir sin guardar?')) return
+      discardEvents(draftKeyRef.current)
+    }
+    onClose()
+  }, [discardEvents, isDirty, onClose])
 
   useEffect(() => {
     if (isLiteMode) return
@@ -346,7 +362,7 @@ export function VideoAnalyzer({
           setArmedButtonId(null)
           return
         }
-        onClose()
+        requestClose()
         return
       }
       if (isClipDeleteKey(e)) {
@@ -377,7 +393,7 @@ export function VideoAnalyzer({
     }
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
-  }, [armedButtonId, buttons, deleteSelectedClips, onClose, pressButton, stage])
+  }, [armedButtonId, buttons, deleteSelectedClips, requestClose, pressButton, stage])
 
   const patchClip = useCallback((clip: CodeEvent, startTime: number, endTime: number) => {
     updateEvent(videoKey, clip.id, { startTime, endTime }, duration)
@@ -477,7 +493,7 @@ export function VideoAnalyzer({
       }}
     >
       <header className="vd-header">
-        <button type="button" className="vd-btn vd-btn-ghost" onClick={onClose}>
+        <button type="button" className="vd-btn vd-btn-ghost" onClick={requestClose}>
           <X size={14} />
           Cerrar
         </button>

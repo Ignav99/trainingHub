@@ -45,6 +45,8 @@ interface CodeWindowState {
    * (análisis guardado) and make it the current video.
    */
   loadSnapshot: (videoKey: string, buttons: CodeButton[], events: CodeEvent[]) => void
+  /** Forget the clips stored under `videoKey` (e.g. an unsaved draft). */
+  discardEvents: (videoKey: string) => void
 }
 
 export const useCodeWindowStore = create<CodeWindowState>()(
@@ -183,6 +185,15 @@ export const useCodeWindowStore = create<CodeWindowState>()(
           currentVideoKey: videoKey,
           activeButtonId: null,
         }))
+      },
+
+      discardEvents: (videoKey) => {
+        set((s) => {
+          if (!(videoKey in s.events)) return s
+          const next = { ...s.events }
+          delete next[videoKey]
+          return { events: next }
+        })
       },
     }),
     {
