@@ -16,10 +16,22 @@ from app.models.tactical_board import (
     TacticalBoardFrameUpdate,
     TacticalBoardFrameReorder,
 )
-from app.security.dependencies import AuthContext, require_permission
+from app.security.dependencies import AuthContext, require_permission, require_team_access
 from app.security.permissions import Permission
 
 router = APIRouter()
+
+NOT_FOUND = "Pizarra no encontrada."
+
+
+def _board_for_user(supabase, board_id: UUID, auth: AuthContext, permission: Permission, columns: str = "id,equipo_id") -> dict:
+    """Load a board and check the caller may act on it in its own team."""
+    result = supabase.table("tactical_boards").select(columns).eq("id", str(board_id)).limit(1).execute()
+    if not result.data:
+        raise HTTPException(404, NOT_FOUND)
+    board = result.data[0]
+    require_team_access(auth, board.get("equipo_id"), permission, NOT_FOUND)
+    return board
 
 
 # ============ Boards CRUD ============
@@ -72,10 +84,7 @@ async def get_board(
 ):
     """Obtener una pizarra tactica con sus frames."""
     supabase = get_supabase()
-    result = supabase.table("tactical_boards").select("*").eq("id", str(board_id)).limit(1).execute()
-    if not result.data:
-        raise HTTPException(404, "Pizarra no encontrada.")
-    board = result.data[0]
+    board = _board_for_user(supabase, board_id, auth, Permission.TACTICAL_BOARD_READ, "*")
 
     # Include frames for animated boards
     frames_result = (
@@ -97,9 +106,7 @@ async def update_board(
 ):
     """Actualizar una pizarra tactica."""
     supabase = get_supabase()
-    existing = supabase.table("tactical_boards").select("id").eq("id", str(board_id)).limit(1).execute()
-    if not existing.data:
-        raise HTTPException(404, "Pizarra no encontrada.")
+    _board_for_user(supabase, board_id, auth, Permission.TACTICAL_BOARD_UPDATE)
 
     updates = data.model_dump(exclude_none=True)
     if not updates:
@@ -117,9 +124,7 @@ async def delete_board(
 ):
     """Eliminar una pizarra tactica y sus frames."""
     supabase = get_supabase()
-    existing = supabase.table("tactical_boards").select("id").eq("id", str(board_id)).limit(1).execute()
-    if not existing.data:
-        raise HTTPException(404, "Pizarra no encontrada.")
+    _board_for_user(supabase, board_id, auth, Permission.TACTICAL_BOARD_DELETE)
     supabase.table("tactical_boards").delete().eq("id", str(board_id)).execute()
     return {"status": "deleted"}
 
@@ -131,11 +136,7 @@ async def duplicate_board(
 ):
     """Duplicar una pizarra tactica con sus frames."""
     supabase = get_supabase()
-    original = supabase.table("tactical_boards").select("*").eq("id", str(board_id)).limit(1).execute()
-    if not original.data:
-        raise HTTPException(404, "Pizarra no encontrada.")
-
-    board = original.data[0]
+    board = _board_for_user(supabase, board_id, auth, Permission.TACTICAL_BOARD_CREATE, "*")
     # Remove fields that should be regenerated
     for key in ["id", "created_at", "updated_at"]:
         board.pop(key, None)
@@ -176,9 +177,7 @@ async def create_frame(
 ):
     """Anadir un frame/keyframe a una pizarra animada."""
     supabase = get_supabase()
-    existing = supabase.table("tactical_boards").select("id").eq("id", str(board_id)).limit(1).execute()
-    if not existing.data:
-        raise HTTPException(404, "Pizarra no encontrada.")
+    _board_for_user(supabase, board_id, auth, Permission.TACTICAL_BOARD_UPDATE)
 
     payload = data.model_dump(exclude_none=True)
     payload["board_id"] = str(board_id)
@@ -203,6 +202,7 @@ async def update_frame(
 ):
     """Actualizar un frame."""
     supabase = get_supabase()
+    _board_for_user(supabase, board_id, auth, Permission.TACTICAL_BOARD_UPDATE)
     existing = (
         supabase.table("tactical_board_frames")
         .select("id")
@@ -241,6 +241,7 @@ async def delete_frame(
 ):
     """Eliminar un frame."""
     supabase = get_supabase()
+    _board_for_user(supabase, board_id, auth, Permission.TACTICAL_BOARD_UPDATE)
     existing = (
         supabase.table("tactical_board_frames")
         .select("id")
@@ -270,6 +271,7 @@ async def reorder_frames(
 ):
     """Reordenar frames de una pizarra."""
     supabase = get_supabase()
+    _board_for_user(supabase, board_id, auth, Permission.TACTICAL_BOARD_UPDATE)
     for idx, frame_id in enumerate(data.frame_ids):
         supabase.table("tactical_board_frames").update(
             {"orden": idx}

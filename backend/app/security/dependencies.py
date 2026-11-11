@@ -437,6 +437,80 @@ def require_permission(
     return _dependency
 
 
+def require_team_access(
+    auth: AuthContext,
+    equipo_id: Optional[str],
+    permission: Permission,
+    not_found: str = "No encontrado.",
+) -> None:
+    """Item-level check for endpoints addressed by id (no equipo_id in the request).
+
+    require_permission() falls back to "any team of the user" when the request
+    carries no equipo_id, so on its own it lets a coach of team A read or edit
+    an item of team B by id. Call this with the item's equipo_id: the user must
+    belong to that team and their role there must grant `permission`.
+    Not a member -> 404 (do not reveal that the item exists).
+    """
+    rol = auth.user.rol
+    if rol == "superadmin_plataforma":
+        return
+    if not equipo_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=not_found)
+
+    supabase = get_supabase()
+
+    # Legacy org-wide admin: any team of their own organization.
+    if rol == "admin":
+        eq = (
+            supabase.table("equipos")
+            .select("organizacion_id")
+            .eq("id", str(equipo_id))
+            .limit(1)
+            .execute()
+        )
+        if eq.data and str(eq.data[0].get("organizacion_id")) == str(auth.organizacion_id):
+            return
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=not_found)
+
+    rows = _team_role_rows(supabase, auth.user_id, str(equipo_id))
+    if rows is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="No se pudo comprobar el acceso. Inténtalo de nuevo.",
+        )
+    if not rows.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=not_found)
+
+    rol_en_equipo = rows.data[0]["rol_en_equipo"]
+    effective: set[Permission] = DEFAULT_PERMISSIONS.get(rol_en_equipo, set()).copy()
+    try:
+        user_custom = (
+            supabase.table("permisos_personalizados").select("*")
+            .eq("equipo_id", str(equipo_id))
+            .eq("usuario_id", auth.user_id)
+            .execute()
+        )
+        if user_custom.data:
+            _apply_custom_permissions(effective, user_custom.data[0])
+        else:
+            role_custom = (
+                supabase.table("permisos_personalizados").select("*")
+                .eq("equipo_id", str(equipo_id))
+                .eq("rol_en_equipo", rol_en_equipo)
+                .execute()
+            )
+            if role_custom.data:
+                _apply_custom_permissions(effective, role_custom.data[0])
+    except Exception:
+        pass
+
+    if permission not in effective:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Permisos insuficientes. Requiere: {permission.value}",
+        )
+
+
 def require_any_permission(
     *permissions: Permission,
     equipo_id_param: str = "equipo_id",

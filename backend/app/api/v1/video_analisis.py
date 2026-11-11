@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.database import get_supabase
 from app.models.video_analisis import VideoAnalisisCreate, VideoAnalisisUpdate
-from app.security.dependencies import AuthContext, require_permission
+from app.security.dependencies import AuthContext, require_permission, require_team_access
 from app.security.permissions import Permission
 
 router = APIRouter()
@@ -22,7 +22,15 @@ LIST_COLUMNS = (
 )
 
 
-def _get_or_404(supabase, analisis_id: UUID, columns: str = "*") -> dict:
+NOT_FOUND = "Análisis no encontrado."
+
+
+def _get_for_user(
+    supabase, analisis_id: UUID, auth: AuthContext, permission: Permission, columns: str = "*"
+) -> dict:
+    """Load an analysis and check the caller may act on it in its own team."""
+    if columns != "*" and "equipo_id" not in columns.split(","):
+        columns = f"{columns},equipo_id"
     result = (
         supabase.table("video_analisis")
         .select(columns)
@@ -31,8 +39,10 @@ def _get_or_404(supabase, analisis_id: UUID, columns: str = "*") -> dict:
         .execute()
     )
     if not result.data:
-        raise HTTPException(404, "Análisis no encontrado.")
-    return result.data[0]
+        raise HTTPException(404, NOT_FOUND)
+    row = result.data[0]
+    require_team_access(auth, row.get("equipo_id"), permission, NOT_FOUND)
+    return row
 
 
 @router.post("", status_code=201)
@@ -80,7 +90,7 @@ async def get_analisis(
 ):
     """Obtener un análisis completo (botonera + recortes)."""
     supabase = get_supabase()
-    return _get_or_404(supabase, analisis_id)
+    return _get_for_user(supabase, analisis_id, auth, Permission.VIDEO_ANALISIS_READ)
 
 
 @router.put("/{analisis_id}")
@@ -91,7 +101,7 @@ async def update_analisis(
 ):
     """Actualizar nombre y/o snapshot de un análisis."""
     supabase = get_supabase()
-    _get_or_404(supabase, analisis_id, "id")
+    _get_for_user(supabase, analisis_id, auth, Permission.VIDEO_ANALISIS_UPDATE, "id")
     updates = data.model_dump(exclude_none=True)
     if not updates:
         raise HTTPException(400, "No hay campos para actualizar.")
@@ -114,6 +124,6 @@ async def delete_analisis(
 ):
     """Eliminar un análisis guardado."""
     supabase = get_supabase()
-    _get_or_404(supabase, analisis_id, "id")
+    _get_for_user(supabase, analisis_id, auth, Permission.VIDEO_ANALISIS_DELETE, "id")
     supabase.table("video_analisis").delete().eq("id", str(analisis_id)).execute()
     return {"status": "deleted"}
