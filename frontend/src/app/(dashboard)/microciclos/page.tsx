@@ -38,6 +38,7 @@ import type { Microciclo, PaginatedResponse } from '@/types'
 import { PorAspecto } from '@/components/appearance/PorAspecto'
 import { Estado, type EstadoTipo } from '@/components/ui/estado'
 import { useAppearance } from '@/lib/useAppearance'
+import { Localia } from '@/components/ui/localia'
 import { estadoDeMicrociclo } from '@/lib/microcicloEstado'
 
 type FilterKey = 'todos' | 'en_curso' | 'planificado' | 'completado' | 'borrador' | 'competicion' | 'pretemporada'
@@ -199,7 +200,7 @@ function MicrocicloCard({ m, featured = false }: { m: Microciclo; featured?: boo
               <p className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium text-amber-900 bg-amber-50 border border-amber-200/80 rounded-md px-2 py-1">
                 <Swords className="h-3.5 w-3.5 text-amber-700" />
                 <span>
-                  {m.partidos.localia === 'local' ? 'vs' : '@'}{' '}
+                  <Localia valor={m.partidos.localia} className="mr-1 align-middle" />
                   <span className="font-semibold">{rival || 'Rival'}</span>
                 </span>
               </p>
@@ -242,7 +243,7 @@ function MicrocicloFilaCal({ m }: { m: Microciclo }) {
           <p className="truncate text-sm">{m.objetivo_principal || <span className="text-muted-foreground">Sin objetivo</span>}</p>
           <p className="truncate text-xs text-muted-foreground">
             {pre ? 'Pretemporada' : 'Competición'}
-            {m.partidos ? ` · ${m.partidos.localia === 'local' ? 'vs' : '@'} ${rival || 'Rival'}` : ''}
+            {m.partidos ? <> · <Localia valor={m.partidos.localia} className="align-middle" /> {rival || 'Rival'}</> : null}
           </p>
         </div>
         <Estado tipo={ESTADO_FORMA[estadoKey] || 'neutro'} className="flex-none text-xs">

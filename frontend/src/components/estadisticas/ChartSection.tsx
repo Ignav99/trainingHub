@@ -2,6 +2,7 @@ import { BarChart3 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { TeamCrest } from '@/components/ui/team-crest'
+import { Localia } from '@/components/ui/localia'
 import type { Partido } from '@/types'
 import type { CargaSemanalData } from '@/lib/api/dashboard'
 
@@ -135,9 +136,7 @@ export function ChartSection({ ultimosPartidos, partidos, cargaSemanal, maxRPE, 
                           {p.rival?.escudo_url && (
                             <TeamCrest src={p.rival.escudo_url} name={p.rival?.nombre || 'Rival'} size="sm" />
                           )}
-                          <span className="text-[10px] text-muted-foreground mr-1">
-                            {p.localia === 'local' ? 'vs' : '@'}
-                          </span>
+                          <Localia valor={p.localia} className="mr-1 text-[10px]" />
                           {p.rival?.nombre || 'Rival'}
                         </span>
                       </td>

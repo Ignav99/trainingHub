@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { TeamCrest } from '@/components/ui/team-crest'
+import { Localia } from '@/components/ui/localia'
 import { toast } from 'sonner'
 import {
   ScanSearch,
@@ -44,7 +45,6 @@ import {
 import { revisionApi } from '@/lib/api/revision'
 import { revisionDestinoLabel } from '@/lib/revisionDestino'
 import { useAppearance } from '@/lib/useAppearance'
-import { SuperficieVisitante } from '@/components/appearance/SuperficieVisitante'
 
 const VideoAnalyzer = lazy(() =>
   import('@/components/video-analyzer/VideoAnalyzer').then((m) => ({ default: m.VideoAnalyzer }))
@@ -274,7 +274,7 @@ export default function VideoAnalisisPage() {
   }
 
   return (
-    <SuperficieVisitante>
+    <>
       <PageHeader
         title="Video Análisis"
         description="Elige el partido que vais a jugar y si el vídeo es el vuestro o del rival contra otro equipo"
@@ -558,7 +558,7 @@ export default function VideoAnalisisPage() {
           />
         </Suspense>
       ) : null}
-    </SuperficieVisitante>
+    </>
   )
 }
 
@@ -603,9 +603,7 @@ function MatchPickCard({
       </div>
       <div className="flex min-w-0 flex-1 items-center justify-center gap-2">
         <TeamCrest src={leftCrest} name={leftName} size="md" />
-        <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-          {home ? 'vs' : '@'}
-        </span>
+        <Localia valor={home ? 'local' : 'visitante'} className="text-xs" />
         <TeamCrest src={rightCrest} name={rightName} size="md" />
       </div>
       <span className="flex shrink-0 flex-col items-end gap-1">

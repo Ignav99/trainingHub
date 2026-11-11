@@ -414,7 +414,7 @@ export function SesionBloquesPanel({
               className="w-full text-sm rounded-lg border border-border bg-background px-3 py-2 min-h-[72px] resize-y focus:outline-none focus:ring-2 focus:ring-primary/30"
               placeholder={
                 isVideo
-                  ? 'Ej: Análisis del partido vs rival, clips de presión alta…'
+                  ? 'Ej: Análisis del rival, clips de presión alta…'
                   : 'Notas del bloque (opcional)…'
               }
               value={bloque.notas || ''}

@@ -7,10 +7,12 @@ import { Estado } from '@/components/ui/estado'
 import { ExportarInformeButton } from '@/components/informes/ExportarInformeButton'
 import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import { POSICIONES, type Jugador } from '@/lib/api/jugadores'
-import { detalleEstado, estadoDe } from '@/components/plantilla/PlantillaTablaCal'
+import { detalleEstado, esApercibido, estadoDe, EstadoMarca } from '@/components/plantilla/PlantillaTablaCal'
 
 interface Props {
   jugador: Jugador
+  /** Amarillas del jugador; con 4 en el ciclo se marca como apercibido. */
+  amarillas?: number
   isEditing: boolean
   saving: boolean
   uploadingPhoto: boolean
@@ -33,6 +35,7 @@ const cifra = (v?: number | null) => (v === undefined || v === null ? '–' : v)
 /** Cabecera de la ficha de jugador en Cal: persona y estado a la izquierda, cifras a la derecha. */
 export function JugadorCabeceraCal({
   jugador,
+  amarillas = 0,
   isEditing,
   saving,
   uploadingPhoto,
@@ -47,6 +50,7 @@ export function JugadorCabeceraCal({
   const pos = POSICIONES[jugador.posicion_principal as keyof typeof POSICIONES]
   const est = estadoDe(jugador)
   const detalle = detalleEstado(jugador)
+  const apercibido = est.tipo !== 'sancionado' && esApercibido(amarillas)
   const pie = PIE[jugador.pierna_dominante]
 
   const datos: Array<string | null> = [
@@ -107,7 +111,12 @@ export function JugadorCabeceraCal({
                 ))}
               </p>
               <p className="mt-2 text-sm">
-                <Estado tipo={est.tipo}>{est.texto}</Estado>
+                <EstadoMarca est={est} />
+                {apercibido && (
+                  <Estado tipo="apercibido" className="ml-3 text-orange-600">
+                    apercibido · {amarillas} amarillas
+                  </Estado>
+                )}
                 {detalle && <span className="text-muted-foreground"> · {detalle}</span>}
               </p>
             </div>

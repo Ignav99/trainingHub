@@ -1282,7 +1282,7 @@ export default function SesionDetailPage() {
             sesion={sesion}
             matchDays={MATCH_DAYS}
             minutos={totalDuration || sesion.duracion_total || 0}
-            tareas={allTareas.length}
+            tareas={allTareas.length + bloquesResueltos.filter((b) => b.tipo === 'partido_condicionado').length}
             jugadores={enSesionCount}
             autoSaving={autoSaving}
             previewingPdf={previewingPdf}

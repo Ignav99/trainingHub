@@ -209,6 +209,7 @@ def _update_tarea_with_schema_fallback(supabase, tarea_id: str, cambios: dict):
     )
 
 
+from app.models.sesion import contar_partidos_condicionados
 from app.models import (
     SesionCreate,
     SesionUpdate,
@@ -599,11 +600,30 @@ async def list_sesiones(
     total = response.count or 0
     pages = ceil(total / limit) if total > 0 else 1
 
+    # Conteo de tareas: el listado no embebe `tareas`, así que se agrega aquí
+    # (una consulta por lote de 80 ids, sin N+1) + bloques de partido condicionado.
+    ids = [str(s["id"]) for s in response.data if s.get("id")]
+    tareas_por_sesion: dict[str, int] = {}
+    for i in range(0, len(ids), 80):
+        try:
+            rows = supabase.table("sesion_tareas").select("sesion_id").in_(
+                "sesion_id", ids[i:i + 80]
+            ).execute().data or []
+        except Exception:
+            logger.warning("No se pudo contar sesion_tareas para el listado", exc_info=True)
+            rows = []
+        for r in rows:
+            sid = str(r["sesion_id"])
+            tareas_por_sesion[sid] = tareas_por_sesion.get(sid, 0) + 1
+
     # Mapear respuesta
     sesiones = []
     for s in response.data:
         s["equipo"] = s.pop("equipos", None)
-        sesiones.append(SesionResponse(**normalize_sesion_row(s)))
+        row = normalize_sesion_row(s)
+        row["num_tareas_precalculado"] = tareas_por_sesion.get(str(s["id"]), 0) + \
+            contar_partidos_condicionados(row.get("estructura_fases"))
+        sesiones.append(SesionResponse(**row))
     sesiones = unique_by_id(sesiones)
 
     return SesionListResponse(

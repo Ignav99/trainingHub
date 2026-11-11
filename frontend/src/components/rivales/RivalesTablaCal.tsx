@@ -11,6 +11,8 @@ import type { Rival } from '@/types'
 const TH = 'cal-rotulo px-2 text-left font-semibold text-muted-foreground'
 
 function tieneInforme(r: Rival) {
+  // El listado trae `tiene_informe` (scout, plan o informes guardados con algo escrito)
+  if (typeof r.tiene_informe === 'boolean') return r.tiene_informe
   const s = r.scout_manual
   if (!s) return false
   return Boolean(
@@ -46,15 +48,17 @@ interface Props {
 
 export function RivalesTablaCal({ rivales, onEdit, onDelete }: Props) {
   const router = useRouter()
+  // Ciudad y estadio solo si algún rival tiene el dato (en producción suelen estar vacíos)
+  const hayCiudad = rivales.some((r) => r.ciudad?.trim())
+  const hayEstadio = rivales.some((r) => r.estadio?.trim())
   return (
     <div className="cal-linea bg-card overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="h-9 border-b border-border bg-sunken">
             <th scope="col" className={`${TH} pl-3`}>Rival</th>
-            <th scope="col" className={`${TH} hidden md:table-cell`}>Ciudad</th>
-            <th scope="col" className={`${TH} hidden lg:table-cell`}>Estadio</th>
-            <th scope="col" className={`${TH} hidden md:table-cell`}>Sistema</th>
+            {hayCiudad && <th scope="col" className={`${TH} hidden md:table-cell`}>Ciudad</th>}
+            {hayEstadio && <th scope="col" className={`${TH} hidden lg:table-cell`}>Estadio</th>}
             <th scope="col" className={TH}>Informe</th>
             <th scope="col" className="w-24 px-2"><span className="sr-only">Acciones</span></th>
           </tr>
@@ -62,7 +66,6 @@ export function RivalesTablaCal({ rivales, onEdit, onDelete }: Props) {
         <tbody>
           {rivales.map((r) => {
             const informe = tieneInforme(r)
-            const sistema = r.sistema_juego || r.scout_manual?.sistema || r.estilo
             return (
               <tr
                 key={r.id}
@@ -82,11 +85,17 @@ export function RivalesTablaCal({ rivales, onEdit, onDelete }: Props) {
                     {r.nombre_corto && <span className="hidden text-xs font-normal text-muted-foreground sm:inline">{r.nombre_corto}</span>}
                   </Link>
                 </td>
-                <td className="hidden px-2 text-muted-foreground md:table-cell">{r.ciudad || '-'}</td>
-                <td className="hidden px-2 text-muted-foreground lg:table-cell">{r.estadio || '-'}</td>
-                <td className="hidden px-2 tabular-nums text-muted-foreground md:table-cell">{sistema || '-'}</td>
+                {hayCiudad && <td className="hidden px-2 text-muted-foreground md:table-cell">{r.ciudad || '-'}</td>}
+                {hayEstadio && <td className="hidden px-2 text-muted-foreground lg:table-cell">{r.estadio || '-'}</td>}
                 <td className="whitespace-nowrap px-2">
-                  {informe ? <Estado tipo="disponible">Con informe</Estado> : <span className="text-muted-foreground">Sin informe</span>}
+                  <Link
+                    href={`/rivales/${r.id}?tab=informe`}
+                    onClick={(e) => e.stopPropagation()}
+                    aria-label={informe ? `Abrir el informe de ${r.nombre}` : `Crear el informe de ${r.nombre}`}
+                    className={`inline-flex min-h-9 items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${informe ? '' : 'text-muted-foreground hover:text-foreground hover:underline underline-offset-4'}`}
+                  >
+                    {informe ? <Estado tipo="disponible">Con informe</Estado> : 'Sin informe'}
+                  </Link>
                 </td>
                 <td className="px-2" onClick={(e) => e.stopPropagation()}>
                   <div className="flex justify-end">

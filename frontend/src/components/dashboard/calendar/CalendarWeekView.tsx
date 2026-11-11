@@ -1,5 +1,6 @@
 'use client'
 
+import { Localia } from '@/components/ui/localia'
 import { useMemo } from 'react'
 import {
   Plus,
@@ -221,7 +222,7 @@ export function CalendarWeekView({
                           <TeamCrest src={p.rival?.escudo_url} name={p.rival?.nombre || 'Rival'} size="sm" />
                           <div className="min-w-0 flex-1">
                             <p className="text-[11px] font-bold truncate">
-                              {isLocal ? 'vs' : '@'} {p.rival?.nombre_corto || p.rival?.nombre || 'Rival'}
+                              <Localia valor={p.localia} className="mr-1 align-[-0.125em]" />{p.rival?.nombre_corto || p.rival?.nombre || 'Rival'}
                             </p>
                             <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                               {isLocal ? (

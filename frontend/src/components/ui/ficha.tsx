@@ -1,3 +1,5 @@
+'use client'
+
 import * as React from 'react'
 import { cn } from '@/lib/utils'
 
@@ -5,7 +7,7 @@ import { fichaAria, type FichaEstado } from './ficha-aria'
 
 export { fichaAria }
 export type { FichaEstado }
-export type FichaSize = 'sm' | 'md' | 'lg'
+export type FichaSize = 'sm' | 'md' | 'lg' | 'xl'
 
 export interface FichaProps {
   dorsal?: number | string
@@ -13,6 +15,8 @@ export interface FichaProps {
   size?: FichaSize
   /** Nombre accesible, por ejemplo el del jugador. */
   label?: string
+  /** Foto de la persona. Con foto, el dorsal pasa a una insignia sobre el borde inferior derecho. */
+  fotoUrl?: string | null
   className?: string
 }
 
@@ -20,10 +24,17 @@ const SIZE: Record<FichaSize, string> = {
   sm: 'h-[30px] w-[30px] text-sm',
   md: 'h-10 w-10 text-lg',
   lg: 'h-14 w-14 text-2xl',
+  xl: 'h-9 w-9 text-base',
 }
 
 /** Ficha: el circulo con dorsal. Los circulos son personas. */
-export function Ficha({ dorsal, estado = 'disponible', size = 'md', label, className }: FichaProps) {
+export function Ficha({ dorsal, estado = 'disponible', size = 'md', label, fotoUrl, className }: FichaProps) {
+  const [fotoError, setFotoError] = React.useState(false)
+  React.useEffect(() => {
+    setFotoError(false)
+  }, [fotoUrl])
+  const conFoto = !!fotoUrl && !fotoError
+  const hayDorsal = dorsal !== undefined && dorsal !== null && String(dorsal).trim() !== ''
   return (
     <span
       role="img"
@@ -38,7 +49,34 @@ export function Ficha({ dorsal, estado = 'disponible', size = 'md', label, class
         className
       )}
     >
-      <span aria-hidden="true">{dorsal}</span>
+      {conFoto ? (
+        <>
+          <span aria-hidden="true" className="absolute inset-0 overflow-hidden rounded-full bg-sunken">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={fotoUrl as string}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              onError={() => setFotoError(true)}
+              className={cn('h-full w-full object-cover', estado === 'baja' && 'opacity-60 grayscale')}
+            />
+          </span>
+          {hayDorsal && (
+            <span
+              aria-hidden="true"
+              className={cn(
+                'absolute -bottom-1 -right-1.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full border-[1.5px] border-line bg-card px-1 text-[11px] text-foreground',
+                estado === 'titular' && 'border-primary bg-primary text-primary-foreground'
+              )}
+            >
+              {dorsal}
+            </span>
+          )}
+        </>
+      ) : (
+        <span aria-hidden="true">{dorsal}</span>
+      )}
       {estado === 'baja' && (
         <span
           aria-hidden="true"

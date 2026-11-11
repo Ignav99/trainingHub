@@ -238,7 +238,7 @@ export const PARTIDO: ReportDef<DatosPartidoUI> = {
             body: (
               <>
                 <Heading kicker="Estadísticas del anotador">
-                  {nos} <em>vs {d.partido.rival}</em>
+                  {nos} <em>{d.partido.localia === 'visitante' ? 'Fuera' : 'En casa'} · {d.partido.rival}</em>
                 </Heading>
                 <Versus left={nos} right={d.partido.rival} rows={d.stats.map((x) => ({ label: x.label, nos: x.nos, rival: x.rival }))} />
                 <div className={cn(s.row, s.col2)}>

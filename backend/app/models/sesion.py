@@ -4,7 +4,7 @@ Schemas Pydantic para sesiones de entrenamiento.
 """
 
 from pydantic import BaseModel, Field, computed_field, model_validator
-from typing import Optional, List
+from typing import Any, Optional, List
 from datetime import datetime, date
 from uuid import UUID
 from enum import Enum
@@ -446,6 +446,8 @@ class SesionResponse(SesionBase):
 
     # Tareas de la sesión (ordenadas)
     tareas: List[SesionTareaResponse] = []
+    # Conteo precalculado por el listado (no embebe `tareas`); no se serializa.
+    num_tareas_precalculado: Optional[int] = Field(None, exclude=True)
     
     @computed_field
     @property
@@ -456,11 +458,21 @@ class SesionResponse(SesionBase):
     @computed_field
     @property
     def num_tareas(self) -> int:
-        """Número de tareas en la sesión."""
-        return len(self.tareas)
+        """Tareas de la sesión + bloques de partido condicionado (1 c/u)."""
+        if self.num_tareas_precalculado is not None:
+            return self.num_tareas_precalculado
+        return len(self.tareas) + contar_partidos_condicionados(self.estructura_fases)
     
     class Config:
         from_attributes = True
+
+
+def contar_partidos_condicionados(estructura: Optional[List[Any]]) -> int:
+    """Bloques `partido_condicionado` de estructura_fases (viven fuera de sesion_tareas)."""
+    return sum(
+        1 for b in (estructura or [])
+        if (b.get("tipo") if isinstance(b, dict) else getattr(b, "tipo", None)) == "partido_condicionado"
+    )
 
 
 class SesionListResponse(BaseModel):

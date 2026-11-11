@@ -449,6 +449,8 @@ export interface Sesion {
 
   // Relaciones
   tareas?: SesionTarea[]
+  /** Tareas + partidos condicionados; lo devuelve el listado (que no embebe `tareas`). */
+  num_tareas?: number
   equipo?: Equipo
 }
 
@@ -1832,6 +1834,8 @@ export interface Rival {
   rfef_nombre?: string
   sistema_juego?: string
   estilo?: string
+  /** Solo en el listado: hay algo escrito (scout, plan o informes guardados) */
+  tiene_informe?: boolean
   scout_manual?: Partial<RivalScoutData>
   plan_partido_manual?: Partial<PlanPartidoData> | {
     tramos?: {
