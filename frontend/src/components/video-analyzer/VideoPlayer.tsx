@@ -507,6 +507,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         }
       } finally {
         v.pause()
+        v.playbackRate = speedRef.current
         frameBusyRef.current = false
         if (pendingShuttleRef.current != null) {
           const target = pendingShuttleRef.current
@@ -541,22 +542,12 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     }, [decodeOnce, rangeBounds, runFrameQueue])
     shuttleToRef.current = shuttleTo
 
-    // Un fotograma se decodifica a 1×. Al terminar, el vídeo se queda en esa
-    // velocidad: el botón no puede seguir marcando x2 o x3.
-    const releaseToNormalSpeed = useCallback(() => {
-      speedRef.current = 1
-      setSpeed(1)
-      const v = videoRef.current
-      if (v) v.playbackRate = 1
-    }, [])
-
     const frameStep = useCallback((direction: 1 | -1) => {
       const v = videoRef.current
       if (v && !v.paused) v.pause()
-      releaseToNormalSpeed()
       pendingFramesRef.current = Math.max(-2, Math.min(2, pendingFramesRef.current + direction))
       void runFrameQueue()
-    }, [releaseToNormalSpeed, runFrameQueue])
+    }, [runFrameQueue])
 
     const toggleFullscreen = useCallback(() => {
       const el = containerRef.current

@@ -337,9 +337,10 @@ export async function snapshotVideoFrame(
 export async function playOnePresentedFrame(video: HTMLVideoElement): Promise<number> {
   const before = video.currentTime
   const wasMuted = video.muted
+  const wasRate = video.playbackRate || 1
   try {
     video.muted = true
-    // One presented frame only lands at 1×. The player then marks 1× too.
+    // One presented frame only lands at 1×. The chosen speed comes back after.
     video.playbackRate = 1
     await video.play()
     const time = await waitNextVideoFrame(video, 48)
@@ -349,7 +350,7 @@ export async function playOnePresentedFrame(video: HTMLVideoElement): Promise<nu
   } finally {
     video.pause()
     video.muted = wasMuted
-    video.playbackRate = 1
+    video.playbackRate = wasRate
   }
 }
 
