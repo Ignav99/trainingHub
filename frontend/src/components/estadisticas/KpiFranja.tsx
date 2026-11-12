@@ -44,12 +44,13 @@ export function KpiFranja({ items, gridClass }: KpiFranjaProps) {
   }
 
   const seis = items.length >= 6
-  const movil = seis ? 3 : 2
+  const tres = items.length === 3
+  const movil = seis || tres ? 3 : 2
   return (
     <section
       className={cn(
         'cal-linea bg-card grid',
-        seis ? 'grid-cols-3 lg:grid-cols-6' : 'grid-cols-2 lg:grid-cols-4',
+        seis ? 'grid-cols-3 lg:grid-cols-6' : tres ? 'grid-cols-3' : 'grid-cols-2 lg:grid-cols-4',
       )}
     >
       {items.map((it, i) => (

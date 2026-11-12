@@ -323,7 +323,7 @@ function TacticalBoardMiniInner({
         </div>
       )}
       {canAnimate && frameData && (
-        <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1 bg-emerald-600/80 text-white text-[10px] font-medium px-1.5 py-0.5 rounded">
+        <div className="no-cal absolute bottom-1.5 right-1.5 flex items-center gap-1 bg-emerald-600/80 text-white text-[10px] font-medium px-1.5 py-0.5 rounded">
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
           En bucle
         </div>

@@ -768,7 +768,7 @@ export default function PlantillaPage() {
               </button>
               <Link
                 href="/plantilla/invitados"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-300 rounded-lg text-sm font-medium text-amber-700 hover:bg-amber-100 transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-300 rounded-lg text-sm font-medium text-amber-700 hover:bg-amber-100 transition-colors [html[data-appearance=cal]_&]:bg-white [html[data-appearance=cal]_&]:border-gray-300 [html[data-appearance=cal]_&]:text-gray-700 [html[data-appearance=cal]_&]:hover:bg-gray-50"
               >
                 <UserPlus className="h-4 w-4" />
                 Alta rápida

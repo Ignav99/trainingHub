@@ -43,18 +43,16 @@ export function PageHeader({ title, description, actions, breadcrumbs }: PageHea
       )}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 min-w-0">
         <div className="flex items-center gap-4 min-w-0">
-          <div
-            className="hidden sm:flex w-12 h-12 rounded-xl items-center justify-center shadow-sm shrink-0"
-            style={{ backgroundColor: theme.colorPrimario }}
-          >
-            {theme.logoUrl ? (
-              <Image src={theme.logoUrl} alt="" width={36} height={36} className="object-contain" unoptimized />
-            ) : (
-              <span className="text-white font-bold text-lg">
-                {(organizacion?.nombre || 'T')[0]}
-              </span>
-            )}
-          </div>
+          {theme.logoUrl ? (
+            <Image src={theme.logoUrl} alt="" width={44} height={44} className="hidden sm:block h-11 w-11 shrink-0 object-contain" unoptimized />
+          ) : (
+            <span
+              className="hidden sm:flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-lg font-bold text-white"
+              style={{ backgroundColor: theme.colorPrimario }}
+            >
+              {(organizacion?.nombre || 'T')[0]}
+            </span>
+          )}
           <div className="min-w-0">
             <h1 className="text-2xl font-bold tracking-tight break-words">{title}</h1>
             {description ? (

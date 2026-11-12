@@ -184,7 +184,7 @@ export function JugadoresTab({ jugadores }: Props) {
     <XAxis type="number" {...ejeXCal} />
     <YAxis dataKey="name" type="category" width={80} {...ejeCategoriaCal} />
     <Tooltip {...tooltipCal} />
-    <Bar dataKey="min" fill={C.primary} name="Minutos" {...barraCal} />
+    <Bar dataKey="min" fill={C.neutro} name="Minutos" {...barraCal} />
   </BarChart>
 </ResponsiveContainer>
 ) : (
@@ -222,7 +222,7 @@ export function JugadoresTab({ jugadores }: Props) {
         )
       }}
     />
-    <Scatter data={scatterData} fill={C.primary} isAnimationActive={false} />
+    <Scatter data={scatterData} fill={C.neutro} isAnimationActive={false} />
   </ScatterChart>
 </ResponsiveContainer>
 ) : (

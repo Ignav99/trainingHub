@@ -10,7 +10,7 @@ export default function BibliotecaCortesPage() {
   const equipoId = useEquipoStore((s) => s.equipoActivo?.id || '')
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
+    <div className="mx-auto max-w-6xl [[data-banda=plegada]_&]:max-w-none space-y-4">
       <PageHeader
         title="Biblioteca de cortes"
         description="Recortes con miniatura y etiquetas. Ábrelos para verlos y editarlos, o marca varios y reprodúcelos seguidos."

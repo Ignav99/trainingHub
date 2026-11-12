@@ -103,6 +103,24 @@ export default function JugadorDetailPage() {
     `/jugadores/${params.id}`
   )
 
+  // Tarjetas amarillas para la marca de apercibido de la cabecera Cal
+  const [amarillasCabecera, setAmarillasCabecera] = useState<number | undefined>(undefined)
+  useEffect(() => {
+    if (!cal || !jugador?.equipo_id) return
+    let vivo = true
+    cargaApi
+      .getEquipo(jugador.equipo_id)
+      .then((res) => {
+        if (!vivo) return
+        const fila = res.data.find((p) => p.jugador_id === String(params.id))
+        setAmarillasCabecera(fila?.tarjetas_amarillas)
+      })
+      .catch(() => {})
+    return () => {
+      vivo = false
+    }
+  }, [cal, jugador?.equipo_id, params.id])
+
   // SWR for medical records (dot on Ficha clínica)
   const { data: registrosMedicos } = useSWR<RegistroMedico[] | { data: RegistroMedico[] }>(
     jugador?.equipo_id
@@ -253,7 +271,7 @@ export default function JugadorDetailPage() {
   const caja = cal ? 'cal-linea bg-card p-6' : 'bg-white rounded-xl border border-gray-200 p-6 card-hover'
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-fade-in">
+    <div className="max-w-6xl mx-auto space-y-6 animate-fade-in [[data-banda=plegada]_&]:max-w-none">
       {/* Header */}
       {cal ? (
         <>
@@ -262,6 +280,7 @@ export default function JugadorDetailPage() {
           </nav>
           <JugadorCabeceraCal
             jugador={jugador}
+            amarillas={amarillasCabecera}
             isEditing={isEditing}
             saving={saving}
             uploadingPhoto={uploadingPhoto}

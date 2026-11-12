@@ -39,13 +39,11 @@ export function NextMatchBanner({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         {/* Izquierda: saludo + rival */}
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center shadow-inner shrink-0">
-            {theme.logoUrl ? (
-              <Image src={theme.logoUrl} alt="Club logo" width={32} height={32} className="object-contain" unoptimized />
-            ) : (
-              <ClubAvatar logoUrl={theme.logoUrl} clubName={clubName} size="lg" />
-            )}
-          </div>
+          {theme.logoUrl ? (
+            <Image src={theme.logoUrl} alt="Club logo" width={44} height={44} className="h-11 w-11 shrink-0 object-contain" unoptimized />
+          ) : (
+            <ClubAvatar logoUrl={theme.logoUrl} clubName={clubName} size="lg" />
+          )}
           <div>
             <h1 className="text-lg font-bold text-white">
               {greeting}, {userName}

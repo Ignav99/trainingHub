@@ -226,7 +226,11 @@ export function ResumenTab({ data, cargaSemanal }: ResumenTabProps) {
                   strokeDasharray="4 3"
                   label={{ value: 'Carga alta (7)', position: 'insideTopRight', fontSize: 11, fill: C.neutro }}
                 />
-                <Bar dataKey="rpe" fill={C.primary} {...barraCal} />
+                <Bar dataKey="rpe" fill={C.neutro} {...barraCal}>
+                  {rpeData.map((entry, i) => (
+                    <Cell key={i} fill={entry.rpe >= 7 ? C.derrota : C.neutro} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           ) : (

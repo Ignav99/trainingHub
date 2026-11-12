@@ -256,15 +256,15 @@ export function SesionBloquesPanel({
 
     return (
       <Card key={bloque.id} className={cn('card-hover', !hasTareas && !bloque.notas && !isPartido && !isCompensatorio && 'border-dashed')}>
-        <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-muted/30">
+        <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-muted/30 [html[data-appearance=cal]_&]:bg-sunken">
           <div className="flex items-center gap-2 min-w-0 flex-1">
             {dragHandle}
             {isVideo ? (
-              <Video className="h-4 w-4 text-violet-600 shrink-0" />
+              <Video className="h-4 w-4 text-violet-600 [html[data-appearance=cal]_&]:text-muted-foreground shrink-0" />
             ) : isPartido ? (
-              <Shirt className="h-4 w-4 text-amber-700 shrink-0" />
+              <Shirt className="h-4 w-4 text-amber-700 [html[data-appearance=cal]_&]:text-muted-foreground shrink-0" />
             ) : isCompensatorio ? (
-              <Layers className="h-4 w-4 text-teal-700 shrink-0" />
+              <Layers className="h-4 w-4 text-teal-700 [html[data-appearance=cal]_&]:text-muted-foreground shrink-0" />
             ) : (
               <CircleDot className={cn('h-4 w-4 shrink-0', hasTareas ? 'text-primary' : 'text-muted-foreground')} />
             )}
@@ -274,6 +274,12 @@ export function SesionBloquesPanel({
               onChange={(e) => updateBloque(bloque.id, { label: e.target.value })}
               aria-label="Nombre del bloque"
             />
+            {isPartido && (
+              <span className="hidden [html[data-appearance=cal]_&]:inline-flex items-center gap-1.5 cal-rotulo whitespace-nowrap shrink-0">
+                <span className="h-2 w-2 bg-foreground" aria-hidden />
+                Partido condicionado
+              </span>
+            )}
             {isPartido ? (
               <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
                 {displayDuration || 20} min
@@ -295,7 +301,7 @@ export function SesionBloquesPanel({
                   }}
                 />
                 {displayDuration != null && displayDuration > 0 && (
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">min</span>
+                  <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">min</span>
                 )}
               </div>
             )}

@@ -39,6 +39,7 @@ import { PorAspecto } from '@/components/appearance/PorAspecto'
 import { Estado, type EstadoTipo } from '@/components/ui/estado'
 import { useAppearance } from '@/lib/useAppearance'
 import { Localia } from '@/components/ui/localia'
+import { KpiFranja } from '@/components/estadisticas/KpiFranja'
 import { estadoDeMicrociclo } from '@/lib/microcicloEstado'
 
 type FilterKey = 'todos' | 'en_curso' | 'planificado' | 'completado' | 'borrador' | 'competicion' | 'pretemporada'
@@ -406,30 +407,49 @@ export default function MicrociclosListPage() {
       />
 
       {/* Atmosphere strip */}
-      <div className="relative overflow-hidden rounded-2xl border border-emerald-200/60 bg-gradient-to-r from-emerald-50 via-sky-50/70 to-indigo-50 px-5 py-4">
-        <div className="relative z-[1] flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-800/70">Semana actual</p>
-            <p className="text-sm mt-1 text-slate-600 max-w-xl">
+      <PorAspecto
+        cal={
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground max-w-xl">
               Por defecto solo ves el microciclo en curso. Usa filtros si necesitas buscar otra semana.
             </p>
+            <KpiFranja
+              gridClass=""
+              items={[
+                { icon: Target, label: 'En curso', value: counts.en_curso },
+                { icon: Clock, label: 'Planificados', value: counts.planificado },
+                { icon: CheckCircle2, label: 'Completados', value: counts.completado },
+              ]}
+            />
           </div>
-          <div className="flex gap-3 tabular-nums text-sm">
-            <div className="rounded-xl bg-emerald-100/80 border border-emerald-200 px-3 py-2 min-w-[4.5rem]">
-              <p className="text-2xl font-bold leading-none text-emerald-700">{counts.en_curso}</p>
-              <p className="text-[11px] text-emerald-800/70 mt-0.5">en curso</p>
+        }
+        resto={
+        <div className="relative overflow-hidden rounded-2xl border border-emerald-200/60 bg-gradient-to-r from-emerald-50 via-sky-50/70 to-indigo-50 px-5 py-4">
+          <div className="relative z-[1] flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-800/70">Semana actual</p>
+              <p className="text-sm mt-1 text-slate-600 max-w-xl">
+                Por defecto solo ves el microciclo en curso. Usa filtros si necesitas buscar otra semana.
+              </p>
             </div>
-            <div className="rounded-xl bg-sky-100/80 border border-sky-200 px-3 py-2 min-w-[4.5rem]">
-              <p className="text-2xl font-bold leading-none text-sky-700">{counts.planificado}</p>
-              <p className="text-[11px] text-sky-800/70 mt-0.5">planificados</p>
-            </div>
-            <div className="rounded-xl bg-indigo-100/80 border border-indigo-200 px-3 py-2 min-w-[4.5rem]">
-              <p className="text-2xl font-bold leading-none text-indigo-700">{counts.completado}</p>
-              <p className="text-[11px] text-indigo-800/70 mt-0.5">completados</p>
+            <div className="flex gap-3 tabular-nums text-sm">
+              <div className="rounded-xl bg-emerald-100/80 border border-emerald-200 px-3 py-2 min-w-[4.5rem]">
+                <p className="text-2xl font-bold leading-none text-emerald-700">{counts.en_curso}</p>
+                <p className="text-[11px] text-emerald-800/70 mt-0.5">en curso</p>
+              </div>
+              <div className="rounded-xl bg-sky-100/80 border border-sky-200 px-3 py-2 min-w-[4.5rem]">
+                <p className="text-2xl font-bold leading-none text-sky-700">{counts.planificado}</p>
+                <p className="text-[11px] text-sky-800/70 mt-0.5">planificados</p>
+              </div>
+              <div className="rounded-xl bg-indigo-100/80 border border-indigo-200 px-3 py-2 min-w-[4.5rem]">
+                <p className="text-2xl font-bold leading-none text-indigo-700">{counts.completado}</p>
+                <p className="text-[11px] text-indigo-800/70 mt-0.5">completados</p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+        }
+      />
 
       {/* Filters (collapsed by default — normal view is current week only) */}
       <div className="flex flex-col gap-3">

@@ -149,7 +149,7 @@ export default function TareaDetailPage() {
 
   if (error || !tarea) {
     return (
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl [[data-banda=plegada]_&]:max-w-none mx-auto">
         <div className="flex items-center gap-4 mb-6">
           <Link href="/tareas" className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
             <ArrowLeft className="h-5 w-5" />
@@ -164,7 +164,7 @@ export default function TareaDetailPage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="max-w-5xl [[data-banda=plegada]_&]:max-w-none mx-auto">
       <div className="flex items-start justify-between mb-6 gap-4">
         <div className="flex items-center gap-4 min-w-0">
           <Link href="/tareas" className="p-2 hover:bg-gray-100 rounded-lg transition-colors shrink-0">

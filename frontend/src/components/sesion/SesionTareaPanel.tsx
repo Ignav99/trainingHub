@@ -86,9 +86,9 @@ function MargenEnTarea({
               aria-pressed={on}
               onClick={() => onToggle?.(p.id)}
               className={cn(
-                'h-7 px-2 rounded-md border text-xs',
+                'h-7 px-2 rounded-md border text-xs [html[data-appearance=cal]_&]:rounded-none',
                 on
-                  ? 'border-amber-400 bg-amber-100 text-amber-950'
+                  ? 'border-amber-400 bg-amber-100 text-amber-950 [html[data-appearance=cal]_&]:rounded-none [html[data-appearance=cal]_&]:border-primary [html[data-appearance=cal]_&]:bg-primary [html[data-appearance=cal]_&]:text-primary-foreground'
                   : 'border-border bg-background text-muted-foreground hover:bg-muted'
               )}
             >
@@ -353,7 +353,7 @@ export default function SesionTareaPanel({
           >
             <ChevronUp className="h-3 w-3" />
           </button>
-          <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-[10px] tabular-nums">
+          <div className="w-5 h-5 rounded-full bg-primary/10 [html[data-appearance=cal]_&]:rounded-none [html[data-appearance=cal]_&]:bg-sunken [html[data-appearance=cal]_&]:text-foreground [html[data-appearance=cal]_&]:border [html[data-appearance=cal]_&]:border-border flex items-center justify-center text-primary font-semibold text-[10px] tabular-nums">
             {index + 1}
           </div>
           <button
@@ -385,7 +385,7 @@ export default function SesionTareaPanel({
             )}
             <span
               className={cn(
-                'inline-flex items-center gap-0.5 rounded px-1 py-0 text-[9px] font-semibold',
+                'inline-flex items-center gap-0.5 rounded px-1 py-0 text-[9px] font-semibold [html[data-appearance=cal]_&]:rounded-none [html[data-appearance=cal]_&]:bg-transparent [html[data-appearance=cal]_&]:text-foreground [html[data-appearance=cal]_&]:border [html[data-appearance=cal]_&]:border-border [html[data-appearance=cal]_&]:uppercase [html[data-appearance=cal]_&]:tracking-wide',
                 esMadre
                   ? 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300'
                   : 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-300'
@@ -497,7 +497,7 @@ export default function SesionTareaPanel({
 
       <div className="px-3 pb-3 space-y-3">
         {editing && esMadre && (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] text-amber-950">
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] text-amber-950 [html[data-appearance=cal]_&]:rounded-none [html[data-appearance=cal]_&]:border-border [html[data-appearance=cal]_&]:bg-sunken [html[data-appearance=cal]_&]:text-foreground">
             Al guardar se crea una variante en la biblioteca, linkeada a esta sesión. La madre no se toca.
           </p>
         )}

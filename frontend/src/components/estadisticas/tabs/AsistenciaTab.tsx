@@ -109,7 +109,11 @@ export function AsistenciaTab({ data, equipoId }: Props) {
                   />
                   <ReferenceLine y={90} stroke={C.neutro} strokeWidth={1} strokeDasharray="4 3" label={{ value: 'Alta (90%)', position: 'insideTopRight', fontSize: 11, fill: C.neutro }} />
                   <ReferenceLine y={70} stroke={C.neutro} strokeWidth={1} strokeDasharray="4 3" label={{ value: 'Mínima (70%)', position: 'insideTopRight', fontSize: 11, fill: C.neutro }} />
-                  <Bar dataKey="porcentaje" fill={C.primary} {...barraCal} />
+                  <Bar dataKey="porcentaje" fill={C.neutro} {...barraCal}>
+                    {convocatoriasBarData.map((d, i) => (
+                      <Cell key={i} fill={d.porcentaje < 70 ? C.derrota : C.neutro} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             ) : (
