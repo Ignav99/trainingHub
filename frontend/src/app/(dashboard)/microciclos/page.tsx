@@ -108,7 +108,7 @@ function weekLabel(start: string) {
   const d = new Date(start.slice(0, 10) + 'T12:00:00')
   const oneJan = new Date(d.getFullYear(), 0, 1)
   const week = Math.ceil((((d.getTime() - oneJan.getTime()) / 86400000) + oneJan.getDay() + 1) / 7)
-  return `S${week}`
+  return `Sem ${week}`
 }
 
 function daysSpan(start: string, end: string) {

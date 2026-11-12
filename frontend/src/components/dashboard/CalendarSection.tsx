@@ -18,6 +18,7 @@ import {
   ClipboardList,
   ArrowRight,
   Download,
+  Check,
 } from 'lucide-react'
 import { CalendarYearView } from '@/components/dashboard/calendar/CalendarYearView'
 import { CalendarWeekView } from '@/components/dashboard/calendar/CalendarWeekView'
@@ -48,6 +49,9 @@ import { useIsMobile } from '@/hooks/useMediaQuery'
 import { useAppearance } from '@/lib/useAppearance'
 import type { Sesion, Microciclo, Partido } from '@/types'
 import { estadoDeMicrociclo } from '@/lib/microcicloEstado'
+import { DiaCal, aspectoDia, FondoDia, semanaDeHoy } from '@/components/dashboard/calendar/DiaCal'
+import { LeyendaCal } from '@/components/dashboard/calendar/LeyendaCal'
+import { colorLocalia, colorMD, etiquetaMicrociclo, nombreSesion, solido } from '@/lib/calendarioColores'
 
 // ============ Match Day color palette ============
 const MATCH_DAY_COLORS: Record<string, { border: string; bg: string; text: string; label: string }> = {
@@ -262,6 +266,7 @@ export function CalendarSection({
   }
 
   const mobileWeeks = monthWeeks
+  const semanaHoy = semanaDeHoy()
   const desktopWeeks = monthWeeks
 
   const [hoveredWeekIdx, setHoveredWeekIdx] = useState<number | null>(null)
@@ -347,7 +352,12 @@ export function CalendarSection({
                 </button>
               ))}
             </div>
-            {microcicloActivo && viewMode !== 'ano' && (
+            {microcicloActivo && viewMode !== 'ano' && cal && (
+              <span className="hidden sm:inline-flex items-center rounded-[var(--radius)] border-[1.5px] border-line px-1.5 py-0.5 text-[10px] font-semibold text-foreground">
+                Microciclo activo · <span className="ml-1 font-mono tabular-nums">{etiquetaMicrociclo(microcicloActivo)}</span>
+              </span>
+            )}
+            {microcicloActivo && viewMode !== 'ano' && !cal && (
               <Badge variant="outline" className="text-[10px] border-blue-200 text-blue-700 bg-blue-50 hidden sm:inline-flex">
                 Microciclo activo
               </Badge>
@@ -461,7 +471,8 @@ export function CalendarSection({
                   if (isDescanso) dots.push('bg-slate-400')
 
                   const dominantMD = dayPartidos.length > 0 ? 'MD' : (daySesiones[0]?.match_day || null)
-                  const mdColors = dominantMD ? MATCH_DAY_COLORS[dominantMD] : null
+                  const mdColors = dominantMD && !cal ? MATCH_DAY_COLORS[dominantMD] : null
+                  const aspectoCal = cal ? aspectoDia({ sesiones: daySesiones, partidos: dayPartidos, fecha: date, semana: semanaHoy }) : null
 
                   return (
                     <div
@@ -477,7 +488,7 @@ export function CalendarSection({
                         mdColors ? `border-t-[3px] ${mdColors.border}` : ''
                       } ${
                         cal
-                          ? isDescanso || !inMonth
+                          ? !inMonth
                             ? 'bg-sunken'
                             : 'bg-card'
                           : isToday
@@ -491,11 +502,12 @@ export function CalendarSection({
                                   : ''
                       } ${isExpanded ? 'bg-muted/40' : ''} ${hasContent ? 'cursor-pointer' : ''}`}
                     >
+                      {aspectoCal && <FondoDia aspecto={aspectoCal} />}
                       <span
-                        className={`text-sm font-semibold leading-none mb-1 ${
+                        className={`relative text-sm font-semibold leading-none mb-1 ${
                           isToday
                             ? cal
-                              ? 'bg-primary text-primary-foreground w-7 h-7 rounded-[var(--radius)] flex items-center justify-center'
+                              ? 'bg-foreground text-background w-7 h-7 rounded-[var(--radius)] flex items-center justify-center'
                               : 'bg-primary text-white w-7 h-7 rounded-full flex items-center justify-center'
                             : !inMonth
                               ? 'text-muted-foreground/45'
@@ -511,12 +523,18 @@ export function CalendarSection({
                           {overflowMonth}
                         </span>
                       )}
-                      {/* Color dots */}
+                      {/* Color dots (en Cal la barra y el relleno ya lo dicen) */}
+                      {cal ? (
+                        <span className="relative mt-auto text-[9px] leading-none text-muted-foreground">
+                          {isDescanso ? <Moon aria-hidden className="h-3 w-3" /> : daySesiones.some((s) => s.estado === 'completada') || dayPartidos.some((p) => p.goles_favor != null) ? <Check aria-hidden className="h-3 w-3 text-foreground" /> : null}
+                        </span>
+                      ) : (
                       <div className="flex gap-0.5 mt-auto">
                         {dots.slice(0, 3).map((color, di) => (
                           <span key={di} className={`w-2 h-2 ${cal ? 'rounded-[1px]' : 'rounded-full'} ${color}`} />
                         ))}
                       </div>
+                      )}
                       {/* Add button */}
                       {!isPast && !hasContent && (
                         <button
@@ -575,9 +593,9 @@ export function CalendarSection({
                       </button>
                     </div>
                     {isDescanso && (
-                      <div className="flex items-center gap-2 p-2 rounded-md bg-slate-100 border border-slate-200">
-                        <Moon className="h-4 w-4 text-slate-500" />
-                        <span className="text-sm text-slate-600">Descanso</span>
+                      <div className={cal ? 'flex items-center gap-2 px-1 py-1 text-muted-foreground' : 'flex items-center gap-2 p-2 rounded-md bg-slate-100 border border-slate-200'}>
+                        <Moon className={cal ? 'h-4 w-4' : 'h-4 w-4 text-slate-500'} />
+                        <span className={cal ? 'text-sm' : 'text-sm text-slate-600'}>Descanso</span>
                       </div>
                     )}
                     {dayPartidos.map((p) => {
@@ -588,9 +606,10 @@ export function CalendarSection({
                         href={`/partidos?match=${p.id}`}
                         className={`flex items-center gap-2 p-2.5 ${
                           cal
-                            ? `rounded-[var(--radius)] border border-border border-l-[3px] bg-card ${isLocal ? 'border-l-warning' : 'border-l-foreground'}`
+                            ? 'rounded-[var(--radius)] border border-border border-l-[3px] bg-card'
                             : `rounded-lg border ${isLocal ? 'bg-amber-50 border-amber-200' : 'bg-violet-50 border-violet-200'}`
                         }`}
+                        style={cal ? { borderLeftColor: solido(colorLocalia(p.localia)) } : undefined}
                       >
                         <TeamCrest src={p.rival?.escudo_url} name={p.rival?.nombre || 'Rival'} size="sm" />
                         <div className="flex-1 min-w-0">
@@ -602,26 +621,31 @@ export function CalendarSection({
                           )}
                         </div>
                         {p.goles_favor !== undefined && p.goles_favor !== null && (
-                          <span className="text-sm font-bold">{p.goles_favor}-{p.goles_contra}</span>
+                          <span className="text-sm font-bold tabular-nums">
+                            {p.goles_favor}-{p.goles_contra}
+                            {cal && <span className="ml-1 font-mono">{p.goles_favor > (p.goles_contra ?? 0) ? 'V' : p.goles_favor < (p.goles_contra ?? 0) ? 'D' : 'E'}</span>}
+                          </span>
                         )}
                       </Link>
                       )
                     })}
                     {daySesiones.map((s) => {
                       const dotColors: Record<string, string> = { completada: 'bg-green-500', planificada: 'bg-blue-500', borrador: 'bg-gray-400', en_curso: 'bg-purple-500' }
-                      const barColors: Record<string, string> = { completada: 'border-l-success', planificada: 'border-l-info', borrador: 'border-l-muted-foreground', en_curso: 'border-l-primary' }
                       return (
                         <Link
                           key={s.id}
                           href={`/sesiones/${s.id}`}
                           className={`flex items-center gap-2 p-2.5 bg-card border ${
-                            cal ? `rounded-[var(--radius)] border-border border-l-[3px] text-foreground ${barColors[s.estado] || 'border-l-muted-foreground'}` : 'rounded-lg'
+                            cal ? 'rounded-[var(--radius)] border-border border-l-[3px] text-foreground' : 'rounded-lg'
                           }`}
+                          style={cal ? { borderLeftColor: colorMD(s.match_day) ? solido(colorMD(s.match_day) as string) : 'hsl(var(--muted-foreground))' } : undefined}
                         >
                           {!cal && <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${dotColors[s.estado] || 'bg-gray-400'}`} />}
                           <div className="flex-1 min-w-0">
-                            <span className="text-sm font-medium truncate block">{s.titulo}</span>
+                            <span className={`text-sm font-medium truncate block ${cal && s.estado === 'cancelada' ? 'line-through text-muted-foreground' : ''}`}>{cal ? nombreSesion(s) : s.titulo}</span>
                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              {cal && s.estado === 'completada' && <Check aria-hidden className="h-3 w-3 text-foreground" />}
+                              {cal && <span>{s.estado}</span>}
                               {s.match_day && <span className="font-bold">{s.match_day}</span>}
                               {s.duracion_total && <span>{s.duracion_total}min</span>}
                             </div>
@@ -672,6 +696,37 @@ export function CalendarSection({
                     onMouseLeave={() => setHoveredWeekIdx(null)}
                   >
                     {/* LEFT SIDEBAR — microciclo bar */}
+                    {cal ? (
+                      <div className="hidden md:flex w-6 shrink-0 items-stretch border-b border-r border-border">
+                        {weekMicro ? (
+                          <button
+                            type="button"
+                            className="group/mc flex w-full items-center justify-center border-r-2 border-foreground hover:bg-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
+                            onClick={(e) => { e.stopPropagation(); onNavigate(`/microciclos/${weekMicro.id}`) }}
+                            title={`Microciclo ${etiquetaMicrociclo(weekMicro)} (${estadoDeMicrociclo(weekMicro).replace('_', ' ')})`}
+                            aria-label={`Ver microciclo ${etiquetaMicrociclo(weekMicro)}, ${estadoDeMicrociclo(weekMicro).replace('_', ' ')}`}
+                          >
+                            <span
+                              className={`rotate-180 font-mono text-[10px] font-bold tabular-nums leading-none [writing-mode:vertical-rl] ${
+                                estadoDeMicrociclo(weekMicro) === 'en_curso' ? 'text-foreground' : 'text-muted-foreground group-hover/mc:text-foreground'
+                              }`}
+                            >
+                              {etiquetaMicrociclo(weekMicro)}
+                            </span>
+                          </button>
+                        ) : weekHasContent && weekBounds ? (
+                          <button
+                            type="button"
+                            className="group/sidebar flex w-full items-center justify-center hover:bg-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
+                            onClick={(e) => { e.stopPropagation(); onCreateMicrocicloForWeek(weekBounds.fechaInicio, weekBounds.fechaFin) }}
+                            title="Crear microciclo para esta semana"
+                            aria-label="Crear microciclo para esta semana"
+                          >
+                            <Plus aria-hidden className="h-3 w-3 text-muted-foreground/50 group-hover/sidebar:text-foreground" />
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : (
                     <div className="hidden md:flex w-6 shrink-0 items-stretch py-0.5 justify-center">
                       {weekMicro ? (
                         <button
@@ -691,6 +746,7 @@ export function CalendarSection({
                         <div className="w-2.5" />
                       )}
                     </div>
+                    )}
 
                     {/* WEEK GRID */}
                     <div
@@ -714,6 +770,31 @@ export function CalendarSection({
                   const overflowMonth = MONTH_NAMES_SHORT[Number(date.slice(5, 7)) - 1]
 
                   const menuOpensUp = weekIdx >= desktopWeeks.length - 2
+
+                  if (cal) {
+                    return (
+                      <DiaCal
+                        key={date}
+                        fecha={date}
+                        dia={day}
+                        esHoy={isToday}
+                        enMes={inMonth}
+                        esPasado={isPast}
+                        sesiones={daySesiones}
+                        partidos={dayPartidos}
+                        descanso={isDescanso}
+                        menuAbierto={showAddMenu}
+                        menuAbreArriba={menuOpensUp}
+                        semana={semanaHoy}
+                        onSelectDay={() => onSelectDay(date)}
+                        onToggleMenu={() => setAddMenuDay(showAddMenu ? null : date)}
+                        onCloseMenu={() => setAddMenuDay(null)}
+                        onNavigate={onNavigate}
+                        onToggleDescanso={() => { if (equipoId) onToggleDescanso(date) }}
+                        onQuitarDescanso={descansoIdByDate[date] ? () => onDeleteDescanso(descansoIdByDate[date]) : undefined}
+                      />
+                    )
+                  }
 
                   // Determine dominant Match Day for cell coloring
                   const hasMatch = dayPartidos.length > 0
@@ -1022,6 +1103,9 @@ export function CalendarSection({
               })}
 
               {/* Legend bar — hidden on mobile */}
+              {cal ? (
+                <LeyendaCal className="hidden md:flex lg:shrink-0" />
+              ) : (
               <div className={`hidden md:flex flex-wrap items-center gap-x-5 gap-y-1 px-4 py-2.5 border-t bg-muted/20 text-[11px] text-muted-foreground ${cal ? 'lg:shrink-0 lg:py-1.5' : ''}`}>
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-3 rounded-sm bg-emerald-500" /> Microciclo
@@ -1053,6 +1137,7 @@ export function CalendarSection({
                 ))}
                 <span className="text-muted-foreground/30">...</span>
               </div>
+              )}
             </>
           )}
             </>
