@@ -10,6 +10,7 @@ import { es } from 'date-fns/locale'
 import { Estado, type EstadoTipo } from '@/components/ui/estado'
 import { continueHref, PASO_LABEL, readCreacionPaso } from '@/lib/sesionBorrador'
 import type { Sesion } from '@/types'
+import { RivalSemana, usePartidosDeSesiones } from './RivalSemana'
 
 export interface Props {
   sesiones: Sesion[]
@@ -157,6 +158,7 @@ export interface Semana {
 
 export function SesionesTablaCal({ sesiones, activeMenu, setActiveMenu, onWarm, onPdf, onRpe, onDelete }: Props) {
   const router = useRouter()
+  const partidos = usePartidosDeSesiones(sesiones)
   const hoy = format(new Date(), 'yyyy-MM-dd')
 
   // Agrupa por semana (lunes a domingo) conservando el orden recibido.
@@ -205,7 +207,7 @@ export function SesionesTablaCal({ sesiones, activeMenu, setActiveMenu, onWarm, 
                   <div className="flex items-center justify-between gap-3">
                     <span className="cal-rotulo">{rotulo}</span>
                     <span className="flex items-center gap-3 text-xs text-muted-foreground">
-                      {rival && <span>{rival}</span>}
+                      <RivalSemana inicio={g.inicio} rival={rival} partidos={partidos} />
                       <span className="tabular-nums">{minutos} min</span>
                     </span>
                   </div>
@@ -231,7 +233,7 @@ export function SesionesTablaCal({ sesiones, activeMenu, setActiveMenu, onWarm, 
                       if (e.target === e.currentTarget && e.key === 'Enter') router.push(href)
                     }}
                     onPointerEnter={() => onWarm(s)}
-                    className={`h-9 cursor-pointer border-b border-border last:border-b-0 ${s.estado === 'completada' ? 'bg-success/[0.08] hover:bg-success/[0.16] focus-visible:bg-success/[0.16]' : 'hover:bg-sunken focus-visible:bg-sunken'}${s.estado === 'cancelada' ? ' text-muted-foreground' : ''} focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary [@media(pointer:coarse)]:h-11`}
+                    className={`h-9 cursor-pointer border-b border-border last:border-b-0 ${s.estado === 'completada' ? 'bg-success/[0.16] hover:bg-success/[0.26] focus-visible:bg-success/[0.26]' : 'hover:bg-sunken focus-visible:bg-sunken'}${s.estado === 'cancelada' ? ' text-muted-foreground' : ''} focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary [@media(pointer:coarse)]:h-11`}
                   >
                     <td className="relative whitespace-nowrap px-3 tabular-nums">
                       {esHoy && <span aria-hidden="true" className="absolute inset-y-0 left-0 w-[3px] bg-primary" />}

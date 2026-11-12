@@ -60,7 +60,7 @@ export default function GestionPage() {
     <div className={cal ? 'min-h-screen' : 'min-h-screen bg-gray-50/50'}>
       {/* Header */}
       <div className={cal ? 'border-b border-border bg-card px-4 sm:px-6 py-4' : 'bg-white border-b px-4 sm:px-6 py-4'}>
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-7xl [[data-banda=plegada]_&]:max-w-none mx-auto">
           <div className="flex items-center gap-3">
             {!cal && (
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
@@ -77,7 +77,7 @@ export default function GestionPage() {
 
       {/* Tabs */}
       <div className={cal ? 'border-b border-border bg-card overflow-x-auto' : 'bg-white border-b overflow-x-auto'}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+        <div className="max-w-7xl [[data-banda=plegada]_&]:max-w-none mx-auto px-4 sm:px-6">
           <nav className="flex gap-0.5 -mb-px">
             {TABS.map((tab) => {
               const isActive = activeTab === tab.id
@@ -108,7 +108,7 @@ export default function GestionPage() {
       </div>
 
       {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+      <div className="max-w-7xl [[data-banda=plegada]_&]:max-w-none mx-auto px-4 sm:px-6 py-6">
         {activeTab === 'dashboard' && <ClubDashboardTab />}
         {activeTab === 'equipos' && <TeamsTab />}
         {activeTab === 'jugadores' && <JugadoresClubTab />}

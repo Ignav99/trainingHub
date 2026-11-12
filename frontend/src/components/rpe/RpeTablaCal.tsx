@@ -57,6 +57,11 @@ function rpeNivel(v: number): { tono: TonoBarra; texto: string } {
   return { tono: 'success', texto: 'normal' }
 }
 
+/** Solo las alertas llevan color: lo normal (verde/azul) se pinta neutro. */
+function soloAlerta(tono: TonoBarra): TonoBarra {
+  return tono === 'warning' || tono === 'destructive' ? tono : 'neutro'
+}
+
 function CifraBarra({
   texto,
   pct,
@@ -74,7 +79,7 @@ function CifraBarra({
         {nota && <span className="text-[11px] text-muted-foreground">{nota}</span>}
         <span className="font-semibold tabular-nums">{texto}</span>
       </div>
-      <BarraFina pct={pct} tono={tono} className="mt-1" />
+      <BarraFina pct={pct} tono={soloAlerta(tono)} className="mt-1" />
     </div>
   )
 }

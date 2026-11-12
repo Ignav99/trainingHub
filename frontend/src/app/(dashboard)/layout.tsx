@@ -272,7 +272,7 @@ export default function DashboardLayout({
   const contentPad = collapsed ? 'lg:pl-[4.5rem]' : 'lg:pl-72'
 
   return (
-    <div className="app-canvas min-h-screen bg-muted/30 max-lg:max-w-full max-lg:overflow-x-clip">
+    <div data-banda={collapsed ? 'plegada' : 'abierta'} className="app-canvas min-h-screen bg-muted/30 max-lg:max-w-full max-lg:overflow-x-clip">
       {/* Mobile sidebar overlay */}
       <div className={cn('fixed inset-0 z-50 lg:hidden', sidebarOpen ? '' : 'hidden')}>
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={handleCloseSidebar} />

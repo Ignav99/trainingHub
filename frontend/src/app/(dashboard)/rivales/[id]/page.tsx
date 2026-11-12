@@ -153,7 +153,7 @@ export default function RivalDetailPage() {
   }
 
   return (
-    <div className={`space-y-6 animate-fade-in ${activeTab === 'informe' || activeTab === 'plan_partido' ? 'max-w-6xl' : 'max-w-3xl'}`}>
+    <div className={`space-y-6 animate-fade-in ${activeTab === 'informe' || activeTab === 'plan_partido' ? 'max-w-6xl [[data-banda=plegada]_&]:max-w-none' : 'max-w-3xl [[data-banda=plegada]_&]:max-w-none'}`}>
       <PageHeader
         title={rival.nombre}
         breadcrumbs={[

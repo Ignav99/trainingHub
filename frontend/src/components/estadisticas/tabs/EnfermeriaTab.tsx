@@ -118,7 +118,7 @@ export function EnfermeriaTab({ medico, totalJugadores }: Props) {
         )
       }}
     />
-    <Bar dataKey="dias" fill={C.primary} name="Dias baja" {...barraCal} />
+    <Bar dataKey="dias" fill={C.neutro} name="Dias baja" {...barraCal} />
   </BarChart>
 </ResponsiveContainer>
 ) : (

@@ -1,6 +1,6 @@
 'use client'
 
-import { Copy, Trash2, MoreVertical, Download } from 'lucide-react'
+import { Copy, Trash2, MoreVertical, Download, Repeat } from 'lucide-react'
 import { ABPJugada, ABP_TIPOS } from '@/types'
 import { useState } from 'react'
 import ABPBoardMini from './ABPBoardMini'
@@ -42,7 +42,6 @@ export default function ABPPlayCard({ jugada, onClick, onDuplicate, onDelete }: 
       (tipoInfo?.label || jugada.tipo || '').toString().toLowerCase(),
       jugada.subtipo || null,
       jugada.codigo || null,
-      canDownloadVideo ? 'en bucle' : null,
     ].filter(Boolean).join(' · ')
     const botonIcono = 'flex h-10 w-10 items-center justify-center text-muted-foreground hover:bg-sunken hover:text-foreground'
     return (
@@ -50,6 +49,7 @@ export default function ABPPlayCard({ jugada, onClick, onDuplicate, onDelete }: 
         className="group relative cursor-pointer border border-border bg-card transition-colors hover:border-foreground"
         onClick={onClick}
       >
+        {/* La insignia verde "En bucle" de la miniatura se oculta en Cal: va como texto bajo el título. */}
         <div className="relative h-40 overflow-hidden">
           <ABPBoardMini jugada={jugada} animate autoplay showPlayBadge={false} />
         </div>
@@ -58,6 +58,12 @@ export default function ABPPlayCard({ jugada, onClick, onDuplicate, onDelete }: 
             <div className="min-w-0 flex-1">
               <h3 className="truncate text-sm font-semibold text-foreground">{jugada.nombre}</h3>
               <p className="truncate font-mono text-[11px] text-muted-foreground">{meta}</p>
+              {canDownloadVideo && (
+                <p className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <Repeat aria-hidden="true" className="h-3 w-3" />
+                  en bucle
+                </p>
+              )}
             </div>
             <div className="-mr-2 -mt-2 flex shrink-0 items-center">
               {canDownloadVideo && (

@@ -121,7 +121,7 @@ export function SesionesTab({ sesiones, cargaSemanal }: Props) {
                 <XAxis dataKey="name" {...ejeXCal} />
                 <YAxis {...ejeYCal} allowDecimals={false} />
                 <Tooltip {...tooltipCal} />
-                <Bar dataKey="sesiones" fill={C.primary} {...barraCal} />
+                <Bar dataKey="sesiones" fill={C.neutro} {...barraCal} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -169,7 +169,7 @@ export function SesionesTab({ sesiones, cargaSemanal }: Props) {
                 <XAxis dataKey="name" {...ejeXCal} />
                 <YAxis {...ejeYCal} allowDecimals={false} />
                 <Tooltip {...tooltipCal} />
-                <Bar dataKey="sesiones" fill={C.primary} {...barraCal} />
+                <Bar dataKey="sesiones" fill={C.neutro} {...barraCal} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -204,7 +204,11 @@ export function SesionesTab({ sesiones, cargaSemanal }: Props) {
                   strokeDasharray="4 3"
                   label={{ value: 'Carga alta (7)', position: 'insideTopRight', fontSize: 11, fill: C.neutro }}
                 />
-                <Bar dataKey="rpe" name="RPE" fill={C.primary} {...barraCal} />
+                <Bar dataKey="rpe" name="RPE" fill={C.neutro} {...barraCal}>
+                  {rpeData.map((d, i) => (
+                    <Cell key={i} fill={d.rpe >= 7 ? C.derrota : C.neutro} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           ) : (

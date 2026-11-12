@@ -1269,7 +1269,7 @@ export default function SesionDetailPage() {
   )
 
   return (
-    <div className="max-w-5xl mx-auto animate-fade-in min-w-0">
+    <div className="max-w-5xl mx-auto animate-fade-in min-w-0 [html[data-appearance=cal]_&]:max-w-6xl [[data-banda=plegada]_&]:max-w-none">
       {/* Header */}
       <nav className="flex items-center gap-1 text-sm text-muted-foreground mb-3 min-w-0 overflow-x-auto">
         <Link href="/sesiones" className="hover:text-foreground transition-colors shrink-0">Sesiones</Link>

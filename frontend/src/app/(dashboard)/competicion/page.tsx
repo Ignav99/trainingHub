@@ -51,6 +51,8 @@ import { useAppearance } from '@/lib/useAppearance'
 import { CompeticionResumenCal } from '@/components/competicion/CompeticionResumenCal'
 import { SyncEstadoCal } from '@/components/competicion/SyncEstadoCal'
 import { ClasificacionTablaCal } from '@/components/competicion/ClasificacionTablaCal'
+import { SancionesTablaCal } from '@/components/competicion/SancionesTablaCal'
+import { TarjetasEquipoCal } from '@/components/competicion/TarjetasEquipoCal'
 import { formatJornadaDateSpan, formatJornadaKickoff } from '@/lib/jornadaKickoff'
 
 export default function CompeticionPage() {
@@ -1058,7 +1060,7 @@ export default function CompeticionPage() {
         {sancionesConfigured && (
           <TabsContent value="sanciones">
             <div className="space-y-4">
-              <div className="rounded-xl border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+              <div className={cal ? 'cal-linea bg-card px-4 py-3 text-sm text-muted-foreground' : 'rounded-xl border bg-muted/30 px-4 py-3 text-sm text-muted-foreground'}>
                 <p className="font-medium text-foreground mb-1">Comité de Competición (RFAF)</p>
                 <p>
                   Las sanciones oficiales se publican ~el viernes a mediodía para la jornada anterior.
@@ -1116,7 +1118,7 @@ export default function CompeticionPage() {
                   <p className="text-xs">Si la jornada acaba de terminar, espera al viernes (~mediodía) o pulsa &quot;Última jornada&quot;.</p>
                 </div>
               ) : (
-                <SancionesTable sanciones={sanciones} miEquipo={miEquipo} />
+                cal ? <SancionesTablaCal sanciones={sanciones} miEquipo={miEquipo} /> : <SancionesTable sanciones={sanciones} miEquipo={miEquipo} />
               )}
             </div>
           </TabsContent>
@@ -1125,11 +1127,11 @@ export default function CompeticionPage() {
         {miEquipo && (
           <TabsContent value="mi-equipo-tarjetas">
             <div className="space-y-3">
-              <div className="rounded-xl border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+              <div className={cal ? 'cal-linea bg-card px-4 py-3 text-sm text-muted-foreground' : 'rounded-xl border bg-muted/30 px-4 py-3 text-sm text-muted-foreground'}>
                 Acumulado de tarjetas desde las <span className="text-foreground font-medium">actas</span>.
                 Las sanciones oficiales del comité (suspensiones, multas, texto del artículo) están en la pestaña Sanciones.
               </div>
-              <MiEquipoTarjetasWidget competicionId={competicion.id} />
+              {cal ? <TarjetasEquipoCal competicionId={competicion.id} /> : <MiEquipoTarjetasWidget competicionId={competicion.id} />}
             </div>
           </TabsContent>
         )}

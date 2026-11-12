@@ -760,6 +760,7 @@ export function CalendarSection({
                     >
                       {/* Day number header */}
                       <div className="flex items-center justify-between mb-1">
+                        <div className="flex min-w-0 items-center gap-1.5">
                         <span
                           className={`text-xs font-medium leading-none inline-flex items-center gap-0.5 ${
                             isToday
@@ -780,6 +781,20 @@ export function CalendarSection({
                             </span>
                           )}
                         </span>
+                        {/* Monday microciclo indicator (en la fila del numero, nunca solapa el contenido) */}
+                        {mondayMicro && <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onNavigate(`/microciclos/${mondayMicro.microciclo.id}`)
+                              }}
+                              className={`shrink-0 px-1.5 py-0.5 rounded-sm text-[9px] font-bold text-white cursor-pointer hover:opacity-90 transition-opacity ${
+                                MICRO_ESTADO_COLORS[estadoDeMicrociclo(mondayMicro.microciclo)]?.tab || 'bg-gray-500'
+                              }`}
+                              title="Ver microciclo"
+                            >
+                              MC {mondayMicro.index}
+                            </button>}
+                        </div>
 
                         {/* "+" button on any editable day -- opens action menu */}
                         {!isPast && (
@@ -799,22 +814,6 @@ export function CalendarSection({
                           </button>
                         )}
                       </div>
-
-                      {/* Monday microciclo indicator */}
-                      {mondayMicro && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onNavigate(`/microciclos/${mondayMicro.microciclo.id}`)
-                          }}
-                          className={`absolute left-0 top-7 z-10 px-1.5 py-0.5 rounded-r-md text-[9px] font-bold text-white cursor-pointer hover:opacity-90 transition-opacity ${
-                            MICRO_ESTADO_COLORS[estadoDeMicrociclo(mondayMicro.microciclo)]?.tab || 'bg-gray-500'
-                          }`}
-                          title="Ver microciclo"
-                        >
-                          MC {mondayMicro.index}
-                        </button>
-                      )}
 
                       {/* Action menu dropdown */}
                       {showAddMenu && (
