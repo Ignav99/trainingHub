@@ -339,6 +339,7 @@ export async function playOnePresentedFrame(video: HTMLVideoElement): Promise<nu
   const wasMuted = video.muted
   try {
     video.muted = true
+    // One presented frame only lands at 1×. The player then marks 1× too.
     video.playbackRate = 1
     await video.play()
     const time = await waitNextVideoFrame(video, 48)
@@ -348,6 +349,7 @@ export async function playOnePresentedFrame(video: HTMLVideoElement): Promise<nu
   } finally {
     video.pause()
     video.muted = wasMuted
+    video.playbackRate = 1
   }
 }
 

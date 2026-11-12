@@ -1,5 +1,8 @@
 # TrainingHub — estado actual
 
+## Vídeo: velocidad tras fotograma (12 nov 2026)
+Las flechas decodifican a 1× (`playOnePresentedFrame` y el seek atrás). El botón seguía en x2/x3. `frameStep` llama a `releaseToNormalSpeed`: estado y `playbackRate` quedan en 1. Pausar sin flechas no cambia la velocidad.
+
 ## Microciclo texto de esta semana (10 nov 2026)
 Había dos microciclos 9–15 nov del Filial. El texto de ayer estaba en `e4a701a4` (sin sesiones). La sesión de hoy «Duelos + espacio libre + comunicación» está en `ab4ea0f1`, que se abría vacío. Copiado olfato y 6 objetivos a `ab4ea0f1` y a las otras copias vacías de semanas anteriores. Trigger `keep_microciclo_week_text` (migración 092, aplicada en Supabase) impide vaciar olfato/objetivos. El código reutiliza la semana al crear, deduplica la lista hacia la copia con sesiones y refleja el texto.
 

@@ -136,6 +136,8 @@ describe('video desk wiring', () => {
     assert.match(player, /holdPoster/)
     assert.match(player, /nextFrameTime/)
     assert.match(player, /playOnePresentedFrame/)
+    assert.match(player, /releaseToNormalSpeed/)
+    assert.match(player, /frameStep = useCallback\(\(direction: 1 \| -1\) => \{[\s\S]*releaseToNormalSpeed\(\)/)
     assert.match(player, /playForwardToTime/)
     assert.match(player, /seekSnappedAway/)
     assert.match(player, /holdFrameInterval/)
