@@ -4,15 +4,26 @@ import Link from 'next/link'
 import useSWR from 'swr'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, ChevronDown, Clock, FileEdit, X } from 'lucide-react'
+import { Check, ChevronDown, Clock, FileEdit, Moon, X } from 'lucide-react'
 import { useAppearance } from '@/lib/useAppearance'
 import { apiKey } from '@/lib/swr'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { semanaMD, type PartidoSemana } from '@/lib/semanaMD'
 import { cn } from '@/lib/utils'
 import { Localia } from '@/components/ui/localia'
-import { MD_COLOR } from '@/components/sesiones/SesionesTablaCal'
-import type { Microciclo, PaginatedResponse, Partido, Sesion } from '@/types'
+import {
+  colorDia,
+  esClaveMD,
+  etiquetaMicrociclo,
+  MD_NOMBRE,
+  numeroSesion,
+  partidoJugado,
+  resultadoPartido,
+  solido,
+  tinte,
+  todasCompletadas,
+} from '@/lib/calendarioColores'
+import type { Descanso, Microciclo, PaginatedResponse, Partido, Sesion } from '@/types'
 
 function fechaLocal(d: Date) {
   const p = (n: number) => String(n).padStart(2, '0')
@@ -24,18 +35,19 @@ function desplazar(fecha: string, dias: number) {
   return new Date(t).toISOString().slice(0, 10)
 }
 
-const ESTADO_SESION: Record<string, { texto: string; borde: string; Icono: typeof Check }> = {
-  completada: { texto: 'completada', borde: 'border-l-success', Icono: Check },
-  planificada: { texto: 'planificada', borde: 'border-l-info', Icono: Clock },
-  borrador: { texto: 'borrador', borde: 'border-l-muted-foreground', Icono: FileEdit },
-  cancelada: { texto: 'cancelada', borde: 'border-l-destructive', Icono: X },
+const ESTADO_SESION: Record<string, { texto: string; Icono: typeof Check }> = {
+  completada: { texto: 'completada', Icono: Check },
+  planificada: { texto: 'planificada', Icono: Clock },
+  borrador: { texto: 'borrador', Icono: FileEdit },
+  cancelada: { texto: 'cancelada', Icono: X },
 }
 
-const CHIP =
-  'inline-flex min-w-0 max-w-full items-center gap-1 rounded-[var(--radius)] border border-border border-l-2 bg-card px-1 text-[11px] leading-[18px] text-foreground hover:bg-sunken focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring'
+/** Elemento integrado en el día: sin caja propia, el día ya lleva barra y relleno. */
+const ITEM =
+  'inline-flex min-w-0 max-w-full items-center gap-1 rounded-[var(--radius)] text-[11px] leading-[18px] text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring'
 
 function estadoDe(s: Sesion) {
-  return ESTADO_SESION[s.estado] ?? { texto: String(s.estado), borde: 'border-l-muted-foreground', Icono: Clock }
+  return ESTADO_SESION[s.estado] ?? { texto: String(s.estado), Icono: Clock }
 }
 
 /** Menú pequeño anclado al botón; va en un portal para que el scroll horizontal de la tira no lo recorte. */
@@ -89,13 +101,13 @@ function ListaSesiones({
             href={`/sesiones/${s.id}`}
             role="menuitem"
             onClick={onClose}
-            className={cn(
-              'flex items-center gap-2 border-l-2 px-2 py-1.5 hover:bg-sunken focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring',
-              e.borde
-            )}
+            className="flex items-center gap-2 px-2 py-1.5 hover:bg-sunken focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
           >
             <e.Icono aria-hidden className="h-3.5 w-3.5 flex-none text-muted-foreground" />
-            <span className="min-w-0 flex-1 truncate">{s.titulo}</span>
+            <span className={cn('min-w-0 flex-1 truncate', s.estado === 'cancelada' && 'text-muted-foreground line-through')}>
+              {numeroSesion(s) && <span className="font-mono font-bold tabular-nums">{numeroSesion(s)} · </span>}
+              {s.titulo}
+            </span>
             <span className="flex-none text-xs text-muted-foreground">
               {s.hora ? `${s.hora.slice(0, 5)} · ` : ''}
               {e.texto}
@@ -139,6 +151,14 @@ export function SemanaTira() {
       : null
   )
 
+  const { data: descData } = useSWR<{ data: Descanso[] }>(
+    enCal ? apiKey('/descansos', { equipo_id: equipoId, fecha_desde: lunes, fecha_hasta: domingo }, ['equipo_id']) : null
+  )
+  const descansos = useMemo(
+    () => new Set((descData?.data ?? []).map((d) => String(d.fecha).slice(0, 10))),
+    [descData]
+  )
+
   const partidosRaw = data?.data
   const partidos: PartidoSemana[] = useMemo(
     () =>
@@ -149,9 +169,9 @@ export function SemanaTira() {
       })),
     [partidosRaw]
   )
-  const localiaPorId = useMemo(() => {
-    const m = new Map<string, Partido['localia']>()
-    for (const p of partidosRaw ?? []) m.set(p.id, p.localia)
+  const partidoPorId = useMemo(() => {
+    const m = new Map<string, Partido>()
+    for (const p of partidosRaw ?? []) m.set(p.id, p)
     return m
   }, [partidosRaw])
   const dias = useMemo(() => semanaMD(hoy, partidos), [hoy, partidos])
@@ -186,56 +206,87 @@ export function SemanaTira() {
           {dias.map((d, i) => {
             const ses = sesionesPorDia.get(d.fecha) ?? []
             const nombreDia = `${d.dia} ${d.diaMes}`
-            const colorMD = d.etiqueta ? MD_COLOR[d.etiqueta] : undefined
+            const p = d.partido ? partidoPorId.get(d.partido.id) : undefined
+            const descanso = descansos.has(d.fecha)
+            // MD del día: el de la sesión si la hay; si no, el calculado por la semana.
+            const md = ses.find((s) => esClaveMD(s.match_day))?.match_day || d.etiqueta
+            // Barra: partido → localía; entrenamiento (con sesión) → MD. Descanso o vacío → nada.
+            const barra = d.partido ? colorDia({ hayPartido: true, localiaPartido: p?.localia }) : ses.length ? colorDia({ md }) : null
+            const hecho = d.partido ? !!p && partidoJugado(p) : todasCompletadas(ses)
+            const r = p ? resultadoPartido(p.goles_favor, p.goles_contra) : null
             const abre = abierto?.fecha === d.fecha
+            const mdTexto = esClaveMD(md) ? `${md} ${MD_NOMBRE[md]}` : md
             return (
               <div
                 key={d.fecha}
                 aria-current={d.esHoy ? 'date' : undefined}
                 className={cn(
                   'relative flex h-11 min-w-0 flex-col justify-center gap-0.5 px-2',
-                  i > 0 && 'border-l border-border',
-                  d.esHoy && 'bg-primary text-primary-foreground'
+                  i > 0 && 'border-l border-border'
                 )}
               >
-                {colorMD && <span aria-hidden className={cn('absolute inset-x-0 top-0 h-[3px]', colorMD)} />}
-                <div className="flex min-w-0 items-baseline gap-1.5 text-[11px] leading-none">
-                  <span className="font-semibold tabular-nums">{nombreDia}</span>
-                  {d.etiqueta && (
-                    <span
-                      className={cn(
-                        'font-mono font-semibold',
-                        d.esHoy ? 'text-primary-foreground/90' : 'text-muted-foreground'
-                      )}
-                    >
-                      {d.etiqueta}
-                    </span>
-                  )}
+                {barra && hecho && (
+                  <span aria-hidden className="pointer-events-none absolute inset-0" style={{ backgroundColor: tinte(barra) }} />
+                )}
+                {barra && (
+                  <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[3px]" style={{ backgroundColor: solido(barra) }} />
+                )}
+                {d.esHoy && (
+                  <span aria-hidden className="pointer-events-none absolute inset-0 outline outline-2 outline-offset-[-2px] outline-foreground" />
+                )}
+                <div className="relative flex min-w-0 items-baseline gap-1.5 text-[11px] leading-none">
+                  <span
+                    className={cn(
+                      'font-semibold tabular-nums',
+                      d.esHoy && '-mx-0.5 rounded-[var(--radius)] bg-foreground px-0.5 text-background'
+                    )}
+                  >
+                    {nombreDia}
+                  </span>
+                  {md && <span className="font-mono font-semibold text-muted-foreground">{md}</span>}
                 </div>
-                <div className="flex min-w-0 items-center gap-1">
+                <div className="relative flex min-w-0 items-center gap-1">
                   {d.partido && (
                     <Link
                       href={`/partidos/${d.partido.id}`}
-                      aria-label={`Partido ${d.dia} ${d.diaMes}: ${d.partido.rival ?? 'rival'}`}
-                      className={cn(CHIP, 'border-l-foreground')}
+                      aria-label={`Partido ${nombreDia}: ${
+                        p?.localia === 'local' ? 'en casa' : p?.localia === 'visitante' ? 'fuera' : ''
+                      } contra ${d.partido.rival ?? 'rival'}${p?.jornada ? `, jornada ${p.jornada}` : ''}${
+                        r ? `, ${r.marcador} ${r.texto}` : ', por jugar'
+                      }`}
+                      className={cn(ITEM, 'font-semibold')}
                     >
-                      <Localia valor={localiaPorId.get(d.partido.id)} className="text-[11px]" />
-                      <span className="truncate font-semibold">{d.partido.rival ?? 'Partido'}</span>
+                      <Localia valor={p?.localia} className="text-[11px]" />
+                      <span className="truncate">{d.partido.rival ?? 'Partido'}</span>
+                      {p?.jornada ? (
+                        <span className="flex-none font-mono font-normal tabular-nums text-muted-foreground">J{p.jornada}</span>
+                      ) : null}
+                      {r && (
+                        <span className="flex-none font-mono tabular-nums">
+                          {r.marcador} {r.marca}
+                        </span>
+                      )}
                     </Link>
                   )}
                   {ses.length === 1 &&
                     (() => {
                       const s = ses[0]
                       const e = estadoDe(s)
+                      const n = numeroSesion(s)
                       return (
                         <Link
                           href={`/sesiones/${s.id}`}
-                          aria-label={`Sesión ${e.texto}: ${s.titulo}`}
-                          title={`${s.titulo} (${e.texto})`}
-                          className={cn(CHIP, e.borde, s.estado === 'completada' && 'bg-success/10')}
+                          aria-label={`Sesión ${n ? `${n} ` : ''}${s.titulo}${mdTexto ? `, ${mdTexto}` : ''}, ${e.texto}`}
+                          title={`${n ? `${n} · ` : ''}${s.titulo} (${e.texto})`}
+                          className={cn(ITEM, s.estado === 'cancelada' && 'text-muted-foreground line-through')}
                         >
-                          <e.Icono aria-hidden className="h-3 w-3 flex-none" />
-                          <span className="truncate">{s.match_day || 'Sesión'}</span>
+                          {s.estado === 'completada' && <Check aria-hidden className="h-3 w-3 flex-none" strokeWidth={2.5} />}
+                          {n ? (
+                            <span className="flex-none font-mono font-bold tabular-nums">{n}</span>
+                          ) : (
+                            <span className="truncate">{s.titulo}</span>
+                          )}
+                          {s.estado === 'borrador' && <span className="truncate text-muted-foreground">borrador</span>}
                         </Link>
                       )
                     })()}
@@ -244,21 +295,28 @@ export function SemanaTira() {
                       type="button"
                       aria-haspopup="menu"
                       aria-expanded={abre}
-                      aria-label={`${ses.length} sesiones el ${nombreDia}`}
+                      aria-label={`${ses.length} sesiones el ${nombreDia}${hecho ? ', completadas' : ''}`}
                       onClick={(ev) =>
                         abre ? cerrar() : setAbierto({ fecha: d.fecha, rect: ev.currentTarget.getBoundingClientRect() })
                       }
-                      className={cn(
-                        CHIP,
-                        'cursor-pointer border-l-info',
-                        ses.every((s) => s.estado === 'completada') && 'border-l-success bg-success/10'
-                      )}
+                      className={cn(ITEM, 'cursor-pointer')}
                     >
-                      <span className="tabular-nums">{ses.length} ses.</span>
+                      {hecho && <Check aria-hidden className="h-3 w-3 flex-none" strokeWidth={2.5} />}
+                      <span className="truncate font-mono tabular-nums">
+                        {ses.map((s) => numeroSesion(s)).filter(Boolean).join(' ') || `${ses.length} ses.`}
+                      </span>
                       <ChevronDown aria-hidden className="h-3 w-3 flex-none" />
                     </button>
                   )}
-                  {!d.partido && ses.length === 0 && <span className="text-[11px] opacity-40">·</span>}
+                  {!d.partido && ses.length === 0 && descanso && (
+                    <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                      <Moon aria-hidden className="h-3 w-3" />
+                      Descanso
+                    </span>
+                  )}
+                  {!d.partido && ses.length === 0 && !descanso && (
+                    <span aria-hidden className="text-[11px] text-muted-foreground">·</span>
+                  )}
                 </div>
                 {abre && abierto && (
                   <ListaSesiones ancla={abierto.rect} sesiones={ses} titulo={`Sesiones · ${nombreDia}`} onClose={cerrar} />
@@ -267,12 +325,17 @@ export function SemanaTira() {
             )
           })}
         </div>
-        <Link
-          href={micro ? `/microciclos/${micro.id}` : '/microciclos'}
-          className="flex h-11 flex-none items-center border-l border-border px-3 text-[11px] font-semibold hover:bg-sunken focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
-        >
-          {micro ? 'Microciclo' : 'Microciclos'}
-        </Link>
+        <div className="flex h-11 flex-none items-center border-l border-border px-2">
+          <Link
+            href={micro ? `/microciclos/${micro.id}` : '/microciclos'}
+            title={micro ? `Microciclo ${etiquetaMicrociclo(micro)}` : 'Microciclos'}
+            aria-label={micro ? `Ver microciclo ${etiquetaMicrociclo(micro)}` : 'Ver microciclos'}
+            className="inline-flex h-7 items-center gap-1 rounded-[var(--radius)] border-[1.5px] border-line bg-card px-2 text-[11px] font-semibold text-foreground hover:bg-sunken focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+          >
+            {micro ? 'Microciclo' : 'Microciclos'}
+            {micro && <span className="font-mono tabular-nums text-muted-foreground">{etiquetaMicrociclo(micro)}</span>}
+          </Link>
+        </div>
       </div>
     </nav>
   )

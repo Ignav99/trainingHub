@@ -10,6 +10,7 @@ import { es } from 'date-fns/locale'
 import { Estado, type EstadoTipo } from '@/components/ui/estado'
 import { continueHref, PASO_LABEL, readCreacionPaso } from '@/lib/sesionBorrador'
 import type { Sesion } from '@/types'
+import { MD_CLASE_BG } from '@/lib/calendarioColores'
 import { RivalSemana, usePartidosDeSesiones } from './RivalSemana'
 
 export interface Props {
@@ -22,16 +23,15 @@ export interface Props {
   onDelete: (id: string, e: React.MouseEvent) => void
 }
 
-/** Color de cada MD con tokens (equivalentes a los que usa la pastilla clásica). */
-export const MD_COLOR: Record<string, string> = {
-  'MD+1': 'bg-success',
-  'MD+2': 'bg-success',
-  'MD-4': 'bg-destructive',
-  'MD-3': 'bg-warning',
-  'MD-2': 'bg-info',
-  'MD-1': 'bg-primary',
-  MD: 'bg-foreground',
-}
+/**
+ * Color de cada MD: sale de `lib/calendarioColores.ts` (la misma fuente que el
+ * calendario, la tira de la semana y la leyenda).
+ *
+ * Literales para que Tailwind genere las clases (lo comprueba calendarioColores.test.ts):
+ * bg-[hsl(142_71%_45%)] bg-[hsl(84_81%_44%)] bg-[hsl(0_84%_60%)]
+ * bg-[hsl(25_95%_53%)] bg-[hsl(217_91%_60%)] bg-[hsl(271_91%_65%)]
+ */
+export const MD_COLOR: Record<string, string> = MD_CLASE_BG
 
 /** Estado escrito + forma. */
 export function estadoDe(s: Sesion): { tipo: EstadoTipo; texto: string; title?: string } {

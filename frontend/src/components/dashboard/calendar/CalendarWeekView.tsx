@@ -19,6 +19,8 @@ import {
   Activity,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { useAppearance } from '@/lib/useAppearance'
+import { CalendarWeekViewCal } from './CalendarWeekViewCal'
 import { TeamCrest } from '@/components/ui/team-crest'
 import type { Sesion, Partido, Microciclo } from '@/types'
 import { buildDayIndex, getBucket } from '@/lib/calendar/dayIndex'
@@ -46,7 +48,7 @@ const INTENSIDAD_LABEL: Record<string, string> = {
   maxima: 'Máxima',
 }
 
-interface CalendarWeekViewProps {
+export interface CalendarWeekViewProps {
   focusDate: string
   sesiones: Sesion[]
   partidos: Partido[]
@@ -67,7 +69,12 @@ function estimateLoadUA(s: Sesion): number | null {
   return Math.round(s.duracion_total * rpe)
 }
 
-export function CalendarWeekView({
+export function CalendarWeekView(props: CalendarWeekViewProps) {
+  const cal = useAppearance() === 'cal'
+  return cal ? <CalendarWeekViewCal {...props} /> : <CalendarWeekViewClasica {...props} />
+}
+
+function CalendarWeekViewClasica({
   focusDate,
   sesiones,
   partidos,

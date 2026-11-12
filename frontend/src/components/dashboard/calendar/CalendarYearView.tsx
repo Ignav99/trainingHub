@@ -18,6 +18,11 @@ import {
 } from '@/lib/calendar/season'
 import { Button } from '@/components/ui/button'
 import { TeamCrest } from '@/components/ui/team-crest'
+import { Localia } from '@/components/ui/localia'
+import { useAppearance } from '@/lib/useAppearance'
+import { Moon } from 'lucide-react'
+import { aspectoDia, FondoDia } from './DiaCal'
+import { LeyendaCal } from './LeyendaCal'
 
 interface CalendarYearViewProps {
   seasonStartYear: number
@@ -84,7 +89,9 @@ function MonthRow({
   todayStr,
   onSelectDay,
   onSelectMonth,
+  cal,
 }: {
+  cal: boolean
   sm: SeasonMonth
   index: ReturnType<typeof buildDayIndex>
   todayStr: string
@@ -120,7 +127,9 @@ function MonthRow({
               key={`${seg.microId}-${seg.startDay}`}
               aria-hidden
               title="Microciclo"
-              className="pointer-events-none absolute inset-y-0 z-[2] rounded-md border-2 border-orange-600 bg-orange-500/[0.08] shadow-[inset_0_0_0_1px_rgba(234,88,12,0.35)]"
+              className={cal
+                ? 'pointer-events-none absolute inset-y-0 z-[2] rounded-[var(--radius)] border-[1.5px] border-foreground/60'
+                : 'pointer-events-none absolute inset-y-0 z-[2] rounded-md border-2 border-orange-600 bg-orange-500/[0.08] shadow-[inset_0_0_0_1px_rgba(234,88,12,0.35)]'}
               style={{
                 left: `calc(${leftPct}% + 1px)`,
                 width: `calc(${widthPct}% - 2px)`,
@@ -159,6 +168,50 @@ function MonthRow({
               hasSesion ? `${bucket.sesiones.length} sesión(es)` : null,
               hasDescanso ? 'Descanso' : null,
             ].filter(Boolean)
+
+            if (cal) {
+              const aspecto = aspectoDia({ sesiones: bucket.sesiones, partidos: bucket.partidos, fecha: date })
+              const tip = [
+                `${day}/${sm.month + 1}/${sm.year}`,
+                inMicro ? 'Microciclo' : null,
+                hasMatch
+                  ? `Partido ${isLocal ? 'en casa' : 'fuera'}: ${partido?.rival?.nombre_corto || partido?.rival?.nombre || 'Rival'}${
+                      partido?.goles_favor != null ? ` ${partido.goles_favor}–${partido.goles_contra ?? 0}` : ''
+                    }`
+                  : null,
+                !hasMatch && aspecto.md ? aspecto.md : null,
+                hasSesion
+                  ? `${bucket.sesiones.length} sesión(es)${bucket.sesiones.every((x) => x.estado === 'completada') ? ', completada(s)' : ''}`
+                  : null,
+                hasDescanso ? 'Descanso' : null,
+              ].filter(Boolean).join(' · ')
+              return (
+                <button
+                  key={date}
+                  type="button"
+                  onClick={() => onSelectDay(date)}
+                  title={tip}
+                  aria-label={tip}
+                  className={`relative flex min-h-0 flex-col items-center justify-center border border-border/60 bg-card text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${
+                    isToday ? 'z-[3] outline outline-2 outline-offset-[-1px] outline-foreground' : ''
+                  }`}
+                >
+                  <FondoDia aspecto={{ ...aspecto, contorno: null }} grosor={2} />
+                  <span className={`absolute left-0.5 top-0.5 text-[7px] font-bold leading-none tabular-nums ${isToday ? 'text-foreground' : ''}`}>
+                    {day}
+                  </span>
+                  {hasMatch && partido?.rival?.escudo_url ? (
+                    <TeamCrest src={partido.rival.escudo_url} name={partido.rival?.nombre || 'Rival'} size="sm" className="relative h-auto max-h-3.5 w-auto max-w-3.5" />
+                  ) : hasMatch ? (
+                    <Localia valor={partido?.localia} className="relative mt-1 text-[9px]" />
+                  ) : hasSesion ? (
+                    <span className="relative mt-1 font-mono text-[8px] font-bold leading-none text-foreground">S</span>
+                  ) : hasDescanso ? (
+                    <Moon aria-hidden className="relative mt-1 h-2.5 w-2.5" />
+                  ) : null}
+                </button>
+              )
+            }
 
             return (
               <button
@@ -221,6 +274,7 @@ export function CalendarYearView({
   loading,
 }: CalendarYearViewProps) {
   const [showStartPicker, setShowStartPicker] = useState(false)
+  const cal = useAppearance() === 'cal'
 
   const months = useMemo(
     () => getSeasonMonths(seasonStartYear, seasonStartMonth),
@@ -316,10 +370,14 @@ export function CalendarYearView({
             todayStr={todayStr}
             onSelectDay={onSelectDay}
             onSelectMonth={onSelectMonth}
+            cal={cal}
           />
         ))}
       </div>
 
+      {cal ? (
+        <LeyendaCal className="mt-2 shrink-0 px-0" />
+      ) : (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 pt-2 border-t text-[10px] text-muted-foreground shrink-0">
         <span className="flex items-center gap-1">
           <span className="w-4 h-3 rounded border-2 border-orange-600 bg-orange-500/10" /> Contorno microciclo
@@ -337,6 +395,7 @@ export function CalendarYearView({
           <span className="w-3 h-3 rounded bg-slate-300 border border-slate-500" /> Descanso
         </span>
       </div>
+      )}
     </div>
   )
 }
