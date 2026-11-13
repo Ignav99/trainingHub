@@ -51,6 +51,10 @@ interface VideoAnalyzerProps {
 
 const analysisKey = (id: string) => `analisis:${id}`
 
+/** Rail width limits (manual drag and auto-fit). */
+const RAIL_MIN = 280
+const RAIL_FIT_MAX = 640
+
 export function VideoAnalyzer({
   localFile,
   videoUrl,
@@ -74,6 +78,8 @@ export function VideoAnalyzer({
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [railWidth, setRailWidth] = useState(360)
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const railTouchedRef = useRef(false)
   const [cintaHeight, setCintaHeight] = useState(168)
   const [botoneraPct, setBotoneraPct] = useState(46)
   const railRef = useRef<HTMLElement | null>(null)
@@ -438,11 +444,37 @@ export function VideoAnalyzer({
     }
   }, [activeButtonId, buttons, events, localFile, selectedClip, selectedLaneId, title])
 
+  // Size the right rail so the monitor has the video's shape: object-contain
+  // otherwise leaves black bands at the sides (a 16:9 match in a wider area).
+  // Stops once the coach drags the splitter themselves.
+  const fitRailToVideo = useCallback(() => {
+    if (railTouchedRef.current) return
+    const video = playerRef.current?.getVideoElement()
+    const root = rootRef.current
+    if (!video || !root || !video.videoWidth || !video.videoHeight) return
+    const picH = video.getBoundingClientRect().height
+    if (!picH) return
+    const split = root.querySelector('.vd-vsplit')?.getBoundingClientRect().width ?? 0
+    const ideal = root.clientWidth - split - picH * (video.videoWidth / video.videoHeight)
+    setRailWidth(Math.round(Math.max(RAIL_MIN, Math.min(RAIL_FIT_MAX, ideal))))
+  }, [])
+
+  useEffect(() => {
+    if (!duration) return
+    const raf = requestAnimationFrame(fitRailToVideo)
+    window.addEventListener('resize', fitRailToVideo)
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('resize', fitRailToVideo)
+    }
+  }, [duration, cintaHeight, fitRailToVideo])
+
   const onVSplit = (e: React.PointerEvent) => {
+    railTouchedRef.current = true
     const startX = e.clientX
     const startW = railWidth
     const move = (ev: PointerEvent) => {
-      setRailWidth(Math.max(280, Math.min(560, startW - (ev.clientX - startX))))
+      setRailWidth(Math.max(RAIL_MIN, Math.min(RAIL_FIT_MAX, startW - (ev.clientX - startX))))
     }
     const up = () => {
       window.removeEventListener('pointermove', move)
@@ -485,6 +517,7 @@ export function VideoAnalyzer({
 
   return (
     <div
+      ref={rootRef}
       className="vd-root"
       style={{
         ['--vd-rail' as string]: `${railWidth}px`,
