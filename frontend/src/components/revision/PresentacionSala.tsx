@@ -88,6 +88,7 @@ export function PresentacionSala({
   const [index, setIndex] = useState(0)
   const [peerReady, setPeerReady] = useState(!isHost)
   const [qrOpen, setQrOpen] = useState(directoHost && shareDevice)
+  const [hostQrOpen, setHostQrOpen] = useState(isHost && shareDevice && !directoLive)
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
   const [relayFrame, setRelayFrame] = useState<string | null>(null)
   const [videoFrame, setVideoFrame] = useState(false)
@@ -802,10 +803,10 @@ export function PresentacionSala({
         <span className={`text-[10px] ${wsOk ? 'text-emerald-400' : 'text-amber-400'}`}>
           {salaLinkLabel(status)}
         </span>
-        {directoHost && shareDevice && (
+        {((directoHost && shareDevice) || (isHost && shareDevice && !directoLive)) && (
           <button
             type="button"
-            onClick={() => setQrOpen(true)}
+            onClick={() => (directoHost ? setQrOpen(true) : setHostQrOpen(true))}
             className="rounded-md px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F0C35A]"
             style={{ color: '#F0C35A' }}
           >
@@ -1174,7 +1175,7 @@ export function PresentacionSala({
         </div>
       )}
 
-      {isHost && !peerReady && !directoLive && (
+      {isHost && !directoLive && shareDevice && hostQrOpen && (
         <div className="absolute inset-0 z-[90] flex items-center justify-center p-6" style={{ background: 'rgba(8,17,15,0.92)' }}>
           <div className="max-w-sm w-full text-center space-y-4">
             <p className="text-sm" style={{ color: '#C5CDC7' }}>
@@ -1186,8 +1187,15 @@ export function PresentacionSala({
               <img src={qrSrc} alt={`QR sala ${session?.code ?? ''}`} width={240} height={240} className="mx-auto rounded-md bg-white p-2" />
             ) : null}
             <p className={`text-xs ${wsOk ? 'text-emerald-400' : 'text-amber-400'}`}>
-              {wsOk ? 'Esperando a la tablet…' : 'Reconectando la sala…'}
+              {peerReady ? 'Tablet conectada' : wsOk ? 'Esperando a la tablet…' : 'Reconectando la sala…'}
             </p>
+            <button
+              type="button"
+              onClick={() => setHostQrOpen(false)}
+              className="inline-flex h-11 items-center justify-center rounded-md bg-[#F0C35A] px-4 text-sm font-semibold text-[#08110F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            >
+              {peerReady ? 'Cerrar' : 'Entrar sin tablet'}
+            </button>
           </div>
         </div>
       )}

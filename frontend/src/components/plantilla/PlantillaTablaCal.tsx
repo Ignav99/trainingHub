@@ -65,7 +65,6 @@ export function estadoDe(j: Jugador): { tipo: EstadoTipo; ficha: FichaEstado; te
   const prog = etiquetaPrograma(j)
   if (prog === 'admin') {
     if (j.estado === 'sancionado') return { tipo: 'sancionado', ficha: 'sancionado', texto: 'sancionado', tono: 'destructive' }
-    if (j.estado === 'baja') return { tipo: 'baja', ficha: 'baja', texto: 'baja', tono: 'destructive' }
     const texto = j.estado === 'seleccion' ? '1er equipo' : j.estado
     return { tipo: 'aviso', ficha: 'duda', texto, tono: 'neutro' }
   }

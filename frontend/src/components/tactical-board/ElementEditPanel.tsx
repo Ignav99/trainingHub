@@ -29,7 +29,7 @@ function jugadorLabel(j: Jugador) {
   return `${j.dorsal ? `${j.dorsal}. ` : ''}${j.nombre} ${j.apellidos || ''}`.trim()
 }
 
-export default function ElementEditPanel() {
+export default function ElementEditPanel({ docked = false }: { docked?: boolean }) {
   const selectedElementId = useTacticalBoardStore((s) => s.selectedElementId)
   const elements = useTacticalBoardStore((s) => s.elements)
   const arrows = useTacticalBoardStore((s) => s.arrows)
@@ -65,7 +65,11 @@ export default function ElementEditPanel() {
 
   return (
     <div
-      className="absolute top-2 right-2 w-60 bg-white rounded-xl [html[data-appearance=cal]_&]:rounded-none shadow-lg [html[data-appearance=cal]_&]:shadow-none border border-gray-200 z-50 overflow-hidden max-h-[calc(100%-1rem)] overflow-y-auto"
+      className={
+        docked
+          ? 'max-h-[40%] shrink-0 overflow-y-auto border-b border-gray-200 bg-white'
+          : 'absolute top-2 right-2 z-50 max-h-[calc(100%-1rem)] w-60 overflow-hidden overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg [html[data-appearance=cal]_&]:rounded-none [html[data-appearance=cal]_&]:shadow-none'
+      }
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >

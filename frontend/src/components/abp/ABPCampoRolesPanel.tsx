@@ -2,6 +2,7 @@
 
 import { Plus, X } from 'lucide-react'
 import { useTacticalBoardStore } from '@/stores/useTacticalBoardStore'
+import ElementEditPanel from '@/components/tactical-board/ElementEditPanel'
 import { dorsalesEnCampo, toggleDorsal, type ABPRolCampo } from '@/lib/abpCampoRoles'
 
 function newRole(): ABPRolCampo {
@@ -23,6 +24,7 @@ export default function ABPCampoRolesPanel() {
 
   return (
     <aside className="flex max-h-[42%] min-h-0 w-full shrink-0 flex-col border-t bg-white md:max-h-none md:min-w-[22rem] md:flex-1 md:border-l md:border-t-0">
+      <ElementEditPanel docked />
       <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
         <p className="text-xs font-semibold text-gray-700">Roles del campo</p>
         <button

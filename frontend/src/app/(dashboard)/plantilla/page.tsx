@@ -308,7 +308,7 @@ function EstadoModal({
   const [fechaVuelta, setFechaVuelta] = useState(jugador.fecha_vuelta_estimada || '')
 
   const estados = Object.entries(ESTADOS_JUGADOR)
-    .filter(([value]) => !['lesionado', 'en_recuperacion', 'enfermo'].includes(value))
+    .filter(([value]) => !['lesionado', 'en_recuperacion', 'enfermo', 'baja'].includes(value))
     .map(([value, config]) => ({
       value,
       ...config,
@@ -344,7 +344,7 @@ function EstadoModal({
               ))}
             </div>
             <p className="mt-2 text-xs text-gray-500">
-              Las lesiones se cambian en ficha clínica o enfermería (reposo → margen → inicio grupo → disponible).
+              Una baja solo existe con una lesión en enfermería: fuera, margen o con el grupo. Sin eso, el jugador está disponible.
             </p>
           </div>
 
