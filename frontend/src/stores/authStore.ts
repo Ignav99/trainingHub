@@ -9,6 +9,10 @@ import {
   shouldClearSharedAuthOnSignedOut,
 } from '@/lib/authSession'
 import { Usuario } from '@/types'
+import { isBackendUnavailable, retryWhileBackendWakes } from '@/lib/backendRetry'
+
+const SERVER_WAKING_ERROR =
+  'El servidor no responde todavía. Espera unos segundos y vuelve a intentarlo.'
 
 interface AuthState {
   user: Usuario | null
@@ -154,13 +158,22 @@ export const useAuthStore = create<AuthState>()(
           let email = identifier
           if (!identifier.includes('@')) {
             try {
-              const resolved = await api.post<{ email: string }>('/auth/resolve-username', {
-                username: identifier,
-              })
+              // The backend may be waking up (Render free plan): keep retrying
+              // while it doesn't answer, instead of calling it a bad password.
+              const resolved = await retryWhileBackendWakes(() =>
+                api.post<{ email: string }>(
+                  '/auth/resolve-username',
+                  { username: identifier },
+                  { timeout: 45_000 }
+                )
+              )
               email = resolved.email
-            } catch {
+            } catch (resolveError) {
               set({ isLoading: false })
-              return { success: false, error: 'Credenciales inválidas' }
+              return {
+                success: false,
+                error: isBackendUnavailable(resolveError) ? SERVER_WAKING_ERROR : 'Credenciales inválidas',
+              }
             }
           }
 
@@ -184,7 +197,9 @@ export const useAuthStore = create<AuthState>()(
           // instead of direct Supabase query (avoids RLS recursion)
           // Note: onAuthStateChange listener already set accessToken via SIGNED_IN event
           try {
-            const userData = await api.get<Usuario>('/auth/me')
+            const userData = await retryWhileBackendWakes(() =>
+              api.get<Usuario>('/auth/me', { timeout: 45_000 })
+            )
 
             set({
               user: userData,
@@ -196,6 +211,9 @@ export const useAuthStore = create<AuthState>()(
           } catch (meError: unknown) {
             await getSupabaseClient().auth.signOut()
             set({ isLoading: false })
+            if (isBackendUnavailable(meError)) {
+              return { success: false, error: SERVER_WAKING_ERROR }
+            }
             const detail =
               meError && typeof meError === 'object' && 'message' in meError
                 ? String((meError as { message?: string }).message)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -25,7 +25,9 @@ export default function LoginPage() {
     e.preventDefault()
     setError('')
 
+    setSubmitting(true)
     const result = await login(formData.email, formData.password)
+    setSubmitting(false)
 
     if (result.success) {
       const loggedInUser = useAuthStore.getState().user
@@ -41,6 +43,18 @@ export default function LoginPage() {
   }
 
   const loading = isLoading
+
+  // A sleeping backend (Render free plan) can take up to a minute to answer.
+  const [submitting, setSubmitting] = useState(false)
+  const [slowLogin, setSlowLogin] = useState(false)
+  useEffect(() => {
+    if (!submitting) {
+      setSlowLogin(false)
+      return
+    }
+    const t = setTimeout(() => setSlowLogin(true), 5000)
+    return () => clearTimeout(t)
+  }, [submitting])
 
   return (
     <div className="min-h-screen flex">
@@ -126,6 +140,11 @@ export default function LoginPage() {
               {loading && <Loader2 className="h-5 w-5 animate-spin" />}
               {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
             </button>
+            {slowLogin ? (
+              <p className="text-center text-sm text-gray-500" role="status">
+                Conectando con el servidor… la primera vez puede tardar hasta un minuto.
+              </p>
+            ) : null}
           </form>
 
           {!isLiteMode && (
