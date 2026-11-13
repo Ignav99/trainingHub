@@ -427,7 +427,7 @@ export function VideoAnalyzer({
     }
     const target = clip || selectedClip
     try {
-      setProgress('Recortando…')
+      setProgress(isLiteMode ? 'Descargando…' : 'Recortando…')
       const result = await extractAndDownloadDeskClips({
         video,
         kind,
