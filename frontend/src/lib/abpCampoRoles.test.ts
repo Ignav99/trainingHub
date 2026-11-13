@@ -44,6 +44,8 @@ describe('roles de balón parado', () => {
     assert.match(panel, /Crear rol/)
     assert.match(panel, /md:flex-1/)
     assert.equal(panel.includes('md:w-80'), false)
+    assert.match(panel, /ElementEditPanel docked/)
+    assert.match(board, /!abpRolesOpen && <ElementEditPanel/)
     assert.match(board, /ABPCampoRolesPanel/)
     assert.match(board, /100% - 22rem/)
     assert.match(board, /abp-pitch-fit/)

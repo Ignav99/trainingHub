@@ -1,5 +1,8 @@
 # TrainingHub — estado actual
 
+## Bajas, ABP y presentar (13 nov 2026)
+Melchor Jiménez (14) y Alberto Heredero (20) estaban `estado=baja` sin registro médico. Quedaron `activo` / `pleno`. Joaquín Vargas y Álex Romero siguen lesionados. Trigger `jugadores_baja_requiere_lesion` (migración 093): un `estado=baja` sin lesión en reposo, margen o inicio grupo vuelve a disponible; con lesión, el estado sigue a esa fase. El panel del jugador en el editor ABP va en la columna de roles (`ElementEditPanel docked`), no encima del campo. Presentar informe/plan pregunta «Solo en este ordenador» o «Con tablet»; el QR de la charla se cierra con «Entrar sin tablet».
+
 ## Vídeo: velocidad tras fotograma (12 nov 2026)
 El fotograma se decodifica un instante a 1× y luego vuelve `playbackRate` a `speedRef`. Las flechas no llaman a `setSpeed`. Solo el desplegable (y el clic derecho) cambian la velocidad marcada. El arreglo de dejarlo en 1× (PR #493) era al revés.
 

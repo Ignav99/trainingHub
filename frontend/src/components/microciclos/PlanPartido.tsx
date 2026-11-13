@@ -89,7 +89,7 @@ export function PlanPartido({
   const [activeTab, setActiveTab] = useState<PlanTab>('ataque_organizado')
   const [exportingDeck, setExportingDeck] = useState(false)
   const [liveShow, setLiveShow] = useState<DossierShow | null>(null)
-  const [sala, setSala] = useState<{ show: DossierShow; session: RevisionSession } | null>(null)
+  const [sala, setSala] = useState<{ show: DossierShow; session: RevisionSession; conTablet: boolean } | null>(null)
   const [presenting, setPresenting] = useState(false)
   const [presentingTodo, setPresentingTodo] = useState(false)
   const dataRef = useRef(data)
@@ -146,7 +146,7 @@ export function PlanPartido({
             exporting={exportingDeck}
             presenting={presenting}
             presentingTodo={presentingTodo}
-            onPresentar={async () => {
+            onPresentar={async (conTablet) => {
               setPresenting(true)
               try {
                 const abpJugadas = await loadAbpShowJugadas(equipoId)
@@ -170,13 +170,13 @@ export function PlanPartido({
                   microcicloId,
                   partidoId,
                 })
-                if (ready.session) setSala({ show: ready.show, session: ready.session })
+                if (ready.session) setSala({ show: ready.show, session: ready.session, conTablet })
                 else setLiveShow(ready.show)
               } finally {
                 setPresenting(false)
               }
             }}
-            onPresentarTodo={async () => {
+            onPresentarTodo={async (conTablet) => {
               setPresentingTodo(true)
               try {
                 const meta = {
@@ -208,7 +208,7 @@ export function PlanPartido({
                   microcicloId,
                   partidoId,
                 })
-                if (ready.session) setSala({ show: ready.show, session: ready.session })
+                if (ready.session) setSala({ show: ready.show, session: ready.session, conTablet })
                 else setLiveShow(ready.show)
               } finally {
                 setPresentingTodo(false)
@@ -253,6 +253,7 @@ export function PlanPartido({
           role="host"
           initialSession={sala.session}
           initialShow={sala.show}
+          shareDevice={sala.conTablet}
           onClose={() => setSala(null)}
         />
       )}
