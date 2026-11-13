@@ -365,6 +365,54 @@ export async function extractClipRange(
   }
 }
 
+/**
+ * Burn a logo into an already-cut clip (bottom-right, 60% opacity). Needs a
+ * re-encode, so it runs on the short clip only, after the fast copy; audio is
+ * copied through untouched. Returns null if ffmpeg can't do it, so the caller
+ * can still deliver the clip without the logo.
+ */
+export async function burnWatermark(
+  clip: Blob,
+  logoUrl: string,
+  width: number,
+  height: number,
+  onProgress?: (msg: string) => void
+): Promise<Blob | null> {
+  try {
+    const ff = await loadFfmpeg(onProgress)
+    const { fetchFile } = await import('@ffmpeg/util')
+    const inName = (clip.type || '').includes('webm') ? 'wm_in.webm' : 'wm_in.mp4'
+    await ff.writeFile(inName, await fetchFile(clip))
+    await ff.writeFile('wm_logo.png', await fetchFile(logoUrl))
+    const logoW = Math.max(48, Math.round(width * 0.08))
+    const margin = Math.max(8, Math.round(Math.min(width, height) * 0.025))
+    const filter =
+      `[1:v]scale=${logoW}:-1,format=rgba,colorchannelmixer=aa=0.6[wm];` +
+      `[0:v][wm]overlay=W-w-${margin}:H-h-${margin}`
+    const { maxrate, bufsize } = h264Maxrate(width, height)
+    const args = [
+      '-i', inName, '-i', 'wm_logo.png',
+      '-filter_complex', filter,
+      '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', CLIP_CRF,
+      '-maxrate', maxrate, '-bufsize', bufsize, '-pix_fmt', 'yuv420p',
+      '-c:a', 'copy', '-movflags', '+faststart', 'wm_out.mp4',
+    ]
+    onProgress?.('Añadiendo el logo…')
+    try {
+      const code = await ff.exec(args)
+      if (code !== 0) return null
+      const data = asBytes(await ff.readFile('wm_out.mp4'))
+      return data.byteLength > 64 ? blobToMp4(data) : null
+    } finally {
+      for (const name of [inName, 'wm_logo.png', 'wm_out.mp4']) {
+        try { await ff.deleteFile(name) } catch { /* ignore */ }
+      }
+    }
+  } catch {
+    return null
+  }
+}
+
 export async function readLocalVideoFingerprint(file: File): Promise<{
   fingerprint: string
   durationMs: number

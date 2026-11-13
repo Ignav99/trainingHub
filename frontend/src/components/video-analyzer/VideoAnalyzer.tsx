@@ -9,6 +9,7 @@ import { SendToRevisionDialog } from '@/components/revision/SendToRevisionDialog
 import { prefetchRevisionFolders, type RevisionAmbito } from '@/lib/api/revision'
 import { isLiteMode } from '@/lib/appMode'
 import { videoAnalisisApi, type VideoAnalisis } from '@/lib/api/videoAnalisis'
+import { BRAND_WATERMARK_SRC } from '@/lib/brandWatermark'
 import { revisionLinkForMode, type VideoWatchMode } from './videoAnalisisPicker'
 import { VideoDeskBotonera } from './VideoDeskBotonera'
 import { VideoDeskFolders } from './VideoDeskFolders'
@@ -53,7 +54,9 @@ const analysisKey = (id: string) => `analisis:${id}`
 
 /** Rail width limits (manual drag and auto-fit). */
 const RAIL_MIN = 280
-const RAIL_FIT_MAX = 640
+/** Up to 45% of the screen: browser tabs/toolbars eat height, so a 16:9 match
+ *  on a 1920-wide window needs a ~770 px rail to fill the monitor. */
+const railMax = (rootWidth: number) => Math.max(640, Math.round(rootWidth * 0.45))
 
 export function VideoAnalyzer({
   localFile,
@@ -425,7 +428,7 @@ export function VideoAnalyzer({
     const target = clip || selectedClip
     try {
       setProgress('Recortando…')
-      await extractAndDownloadDeskClips({
+      const result = await extractAndDownloadDeskClips({
         video,
         kind,
         clips: events,
@@ -435,8 +438,13 @@ export function VideoAnalyzer({
         matchLabel: title.replace(/\.[^.]+$/, ''),
         sourceFile: localFile,
         onProgress: setProgress,
+        watermarkUrl: isLiteMode ? BRAND_WATERMARK_SRC : undefined,
       })
-      toast.success('Descarga lista. El partido no ha salido de este ordenador.')
+      if (result.watermarkFailed) {
+        toast.warning('Descarga lista, pero no se pudo añadir el logo a algún recorte.')
+      } else {
+        toast.success(isLiteMode ? 'Descarga lista.' : 'Descarga lista. El partido no ha salido de este ordenador.')
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'No se pudo descargar')
     } finally {
@@ -456,15 +464,21 @@ export function VideoAnalyzer({
     if (!picH) return
     const split = root.querySelector('.vd-vsplit')?.getBoundingClientRect().width ?? 0
     const ideal = root.clientWidth - split - picH * (video.videoWidth / video.videoHeight)
-    setRailWidth(Math.round(Math.max(RAIL_MIN, Math.min(RAIL_FIT_MAX, ideal))))
+    setRailWidth(Math.round(Math.max(RAIL_MIN, Math.min(railMax(root.clientWidth), ideal))))
   }, [])
 
   useEffect(() => {
     if (!duration) return
-    const raf = requestAnimationFrame(fitRailToVideo)
+    fitRailToVideo()
+    // Re-fit whenever the picture area or the window changes size. Fitting
+    // converges in one step (same input -> same width), so no resize loop.
+    const video = playerRef.current?.getVideoElement()
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => fitRailToVideo()) : null
+    if (video) ro?.observe(video)
+    if (rootRef.current) ro?.observe(rootRef.current)
     window.addEventListener('resize', fitRailToVideo)
     return () => {
-      cancelAnimationFrame(raf)
+      ro?.disconnect()
       window.removeEventListener('resize', fitRailToVideo)
     }
   }, [duration, cintaHeight, fitRailToVideo])
@@ -474,7 +488,7 @@ export function VideoAnalyzer({
     const startX = e.clientX
     const startW = railWidth
     const move = (ev: PointerEvent) => {
-      setRailWidth(Math.max(RAIL_MIN, Math.min(RAIL_FIT_MAX, startW - (ev.clientX - startX))))
+      setRailWidth(Math.max(RAIL_MIN, Math.min(railMax(rootRef.current?.clientWidth ?? 0), startW - (ev.clientX - startX))))
     }
     const up = () => {
       window.removeEventListener('pointermove', move)

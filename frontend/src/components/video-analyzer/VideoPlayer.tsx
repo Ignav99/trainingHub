@@ -176,6 +176,37 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
   }, ref) {
     const videoRef = useRef<HTMLVideoElement>(null as unknown as HTMLVideoElement)
     const containerRef = useRef<HTMLDivElement>(null)
+
+    // Lite watermark: place it inside the visible picture (object-contain).
+    const [wmBox, setWmBox] = useState<{ right: number; bottom: number; size: number } | null>(null)
+    useEffect(() => {
+      if (!isLiteMode) return
+      const v = videoRef.current
+      if (!v) return
+      const place = () => {
+        const boxW = v.clientWidth
+        const boxH = v.clientHeight
+        if (!boxW || !boxH) return
+        const ar = v.videoWidth && v.videoHeight ? v.videoWidth / v.videoHeight : boxW / boxH
+        const picW = boxW / boxH > ar ? boxH * ar : boxW
+        const picH = boxW / boxH > ar ? boxH : boxW / ar
+        const margin = 12
+        setWmBox({
+          right: Math.round((boxW - picW) / 2 + margin),
+          bottom: Math.round((boxH - picH) / 2 + margin),
+          size: Math.round(Math.max(48, Math.min(120, picW * 0.09))),
+        })
+      }
+      place()
+      v.addEventListener('loadedmetadata', place)
+      const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(place) : null
+      ro?.observe(v)
+      return () => {
+        v.removeEventListener('loadedmetadata', place)
+        ro?.disconnect()
+      }
+    }, [src])
+
     const [playing, setPlaying] = useState(false)
     const [currentTime, setCurrentTime] = useState(0)
     const [duration, setDuration] = useState(0)
@@ -956,15 +987,16 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             className="pointer-events-none absolute inset-0 h-full w-full object-contain opacity-0"
             aria-hidden
           />
-          {isLiteMode ? (
-            // Lite: Kabin-e logo over the picture (on screen only; downloaded
-            // clips are copied without re-encoding and don't carry it).
+          {isLiteMode && wmBox ? (
+            // Lite: Kabin-e logo in the corner of the picture itself (not of the
+            // player box, which may have black bands around the picture).
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={BRAND_WATERMARK_SRC}
               alt=""
               aria-hidden
-              className="pointer-events-none absolute bottom-3 right-3 w-[9%] min-w-[48px] max-w-[120px] opacity-60 select-none"
+              className="pointer-events-none absolute opacity-60 select-none"
+              style={{ right: wmBox.right, bottom: wmBox.bottom, width: wmBox.size }}
               draggable={false}
             />
           ) : null}
