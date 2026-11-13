@@ -12,6 +12,8 @@ const nextConfig = {
     ignoreBuildErrors: false,
   },
   experimental: {
+    // src/instrumentation.ts: wakes the backend when the frontend server starts.
+    instrumentationHook: true,
     optimizePackageImports: ['lucide-react', 'recharts', '@dnd-kit/core', '@dnd-kit/sortable', 'framer-motion'],
   },
 
