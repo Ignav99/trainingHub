@@ -115,9 +115,9 @@ export default function AnimationPlayer({ onFrame }: AnimationPlayerProps) {
       </button>
 
       {/* Progress bar */}
-      <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+      <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden [html[data-appearance=cal]_&]:rounded-none">
         <div
-          className="h-full bg-blue-500 rounded-full transition-[width] duration-75"
+          className="h-full bg-blue-500 rounded-full [html[data-appearance=cal]_&]:rounded-none transition-[width] duration-75"
           style={{ width: `${progress * 100}%` }}
         />
       </div>

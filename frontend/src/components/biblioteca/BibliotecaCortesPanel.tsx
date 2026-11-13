@@ -289,7 +289,7 @@ export function BibliotecaCortesPanel({
                   Revisar en directo
                 </Button>
                 {directoMenu && (
-                  <div className="absolute right-0 top-full z-30 mt-1 w-64 space-y-1 rounded-lg border bg-popover p-1.5 shadow-lg">
+                  <div className="absolute right-0 top-full z-30 mt-1 w-64 space-y-1 rounded-lg border bg-popover p-1.5 shadow-lg [html[data-appearance=cal]_&]:shadow-none">
                     <button
                       type="button"
                       onClick={() => { void startDirecto(selected, false) }}

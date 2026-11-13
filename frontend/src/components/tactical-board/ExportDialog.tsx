@@ -85,7 +85,7 @@ export default function ExportDialog({ svgRef, isAnimated, boardName, onClose }:
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-xl [html[data-appearance=cal]_&]:rounded-none shadow-xl [html[data-appearance=cal]_&]:shadow-none w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-gray-900">Exportar pizarra</h3>
           <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 rounded-lg" disabled={exporting}>
@@ -99,7 +99,7 @@ export default function ExportDialog({ svgRef, isAnimated, boardName, onClose }:
             disabled={exporting}
             className="w-full flex items-center gap-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
           >
-            <div className="p-2 bg-green-100 rounded-lg">
+            <div className="p-2 bg-green-100 rounded-lg [html[data-appearance=cal]_&]:bg-sunken [html[data-appearance=cal]_&]:rounded-none [html[data-appearance=cal]_&]:border [html[data-appearance=cal]_&]:border-border">
               <Image className="h-5 w-5 text-green-600" />
             </div>
             <div className="text-left">
@@ -114,7 +114,7 @@ export default function ExportDialog({ svgRef, isAnimated, boardName, onClose }:
               disabled={exporting || !canVideo}
               className="w-full flex items-center gap-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
             >
-              <div className="p-2 bg-purple-100 rounded-lg">
+              <div className="p-2 bg-purple-100 rounded-lg [html[data-appearance=cal]_&]:bg-sunken [html[data-appearance=cal]_&]:rounded-none [html[data-appearance=cal]_&]:border [html[data-appearance=cal]_&]:border-border">
                 <Film className="h-5 w-5 text-purple-600" />
               </div>
               <div className="text-left">

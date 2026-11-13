@@ -1047,7 +1047,7 @@ export function MatchDetailPanel({
                     <Shirt className="h-4 w-4 text-primary" />
                     Alineacion
                     {selectedFormation && (
-                      <Badge className="bg-primary/10 text-primary text-[10px]">{selectedFormation}</Badge>
+                      <Badge className="bg-primary/10 text-primary text-[10px] [html[data-appearance=cal]_&]:rounded-none [html[data-appearance=cal]_&]:bg-transparent [html[data-appearance=cal]_&]:text-foreground [html[data-appearance=cal]_&]:border [html[data-appearance=cal]_&]:border-line">{selectedFormation}</Badge>
                     )}
                   </CardTitle>
                 </CardHeader>
@@ -1066,10 +1066,10 @@ export function MatchDetailPanel({
                             : {})
                           setOpenLineupSlot(null)
                         }}
-                        className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                        className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors [html[data-appearance=cal]_&]:rounded-none [html[data-appearance=cal]_&]:border-[1.5px] [html[data-appearance=cal]_&]:active:scale-[.97] ${
                           selectedFormation === f.name
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-muted hover:bg-muted/80 text-muted-foreground'
+                            ? 'bg-primary text-primary-foreground [html[data-appearance=cal]_&]:border-primary'
+                            : 'bg-muted hover:bg-muted/80 text-muted-foreground [html[data-appearance=cal]_&]:bg-card [html[data-appearance=cal]_&]:border-line [html[data-appearance=cal]_&]:hover:bg-sunken [html[data-appearance=cal]_&]:hover:text-foreground'
                         }`}
                       >
                         {f.name}
@@ -1082,13 +1082,13 @@ export function MatchDetailPanel({
                     <div className="flex flex-col items-start gap-4 sm:flex-row">
                       <div className="w-full max-w-[520px] shrink-0">
                         <div className="relative overflow-visible" style={{ aspectRatio: '68/105' }}>
-                          <div className="absolute inset-0 bg-emerald-600/90 rounded-xl overflow-hidden">
+                          <div className="absolute inset-0 bg-emerald-600/90 rounded-xl overflow-hidden [html[data-appearance=cal]_&]:rounded-none [html[data-appearance=cal]_&]:bg-sunken [html[data-appearance=cal]_&]:border-[1.5px] [html[data-appearance=cal]_&]:border-line">
                             <div className="absolute inset-[6%]">
                               <div className="absolute inset-0 border-2 border-white/30 rounded" />
-                              <div className="absolute top-1/2 left-0 right-0 border-t-2 border-white/30" />
+                              <div className="absolute top-1/2 left-0 right-0 border-t-2 border-white/30 [html[data-appearance=cal]_&]:border-line" />
                               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[28%] aspect-square border-2 border-white/30 rounded-full" />
-                              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-[18%] border-2 border-t-0 border-white/30" />
-                              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2/3 h-[18%] border-2 border-b-0 border-white/30" />
+                              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-[18%] border-2 border-t-0 border-white/30 [html[data-appearance=cal]_&]:border-line" />
+                              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2/3 h-[18%] border-2 border-b-0 border-white/30 [html[data-appearance=cal]_&]:border-line" />
                             </div>
                           </div>
                           {activeFormation.slots.map((slot) => {
@@ -1126,15 +1126,15 @@ export function MatchDetailPanel({
                                             }}
                                             size="lg"
                                             preferDorsalFallback
-                                            className={`shadow-md ring-2 ${isOpen ? 'ring-yellow-300' : 'ring-white/40'}`}
+                                            className={`shadow-md ring-2 [html[data-appearance=cal]_&]:shadow-none ${isOpen ? 'ring-yellow-300' : 'ring-white/40 [html[data-appearance=cal]_&]:ring-line'}`}
                                           />
                                           {(conv.dorsal || getPlayerData(conv)?.dorsal) != null && (
-                                            <span className="absolute -bottom-1 left-1/2 z-10 -translate-x-1/2 rounded bg-black/80 px-1.5 py-0.5 text-xs font-bold leading-none text-white">
+                                            <span className="absolute -bottom-1 left-1/2 z-10 -translate-x-1/2 rounded bg-black/80 px-1.5 py-0.5 text-xs font-bold leading-none text-white [html[data-appearance=cal]_&]:rounded-full [html[data-appearance=cal]_&]:border-[1.5px] [html[data-appearance=cal]_&]:border-line [html[data-appearance=cal]_&]:bg-card [html[data-appearance=cal]_&]:text-foreground">
                                               {conv.dorsal || getPlayerData(conv)?.dorsal}
                                             </span>
                                           )}
                                         </span>
-                                        <span className="mt-2 block max-w-[120px] truncate text-sm font-semibold text-white drop-shadow">
+                                        <span className="mt-2 block max-w-[120px] truncate text-sm font-semibold text-white drop-shadow [html[data-appearance=cal]_&]:text-foreground [html[data-appearance=cal]_&]:drop-shadow-none">
                                           {getPlayerDisplayName(conv)}
                                         </span>
                                       </span>
@@ -1142,12 +1142,12 @@ export function MatchDetailPanel({
                                       <span className="flex flex-col items-center">
                                         <span className={`flex h-12 w-12 items-center justify-center rounded-full border-2 border-dashed transition-colors ${
                                           isOpen
-                                            ? 'border-yellow-300 bg-white/25 ring-2 ring-yellow-300'
-                                            : 'border-white/50 hover:border-white hover:bg-white/10'
+                                            ? 'border-yellow-300 bg-white/25 ring-2 ring-yellow-300 [html[data-appearance=cal]_&]:bg-transparent'
+                                            : 'border-white/50 hover:border-white hover:bg-white/10 [html[data-appearance=cal]_&]:border-line [html[data-appearance=cal]_&]:hover:border-foreground [html[data-appearance=cal]_&]:hover:bg-card'
                                         }`}>
-                                          <Plus className={`h-5 w-5 ${isOpen ? 'text-yellow-200' : 'text-white/70'}`} />
+                                          <Plus className={`h-5 w-5 ${isOpen ? 'text-yellow-200 [html[data-appearance=cal]_&]:text-foreground' : 'text-white/70 [html[data-appearance=cal]_&]:text-muted-foreground'}`} />
                                         </span>
-                                        <span className="mt-2 block text-sm font-medium text-white/80">
+                                        <span className="mt-2 block text-sm font-medium text-white/80 [html[data-appearance=cal]_&]:text-muted-foreground">
                                           {slot.label}
                                         </span>
                                       </span>
@@ -1157,7 +1157,7 @@ export function MatchDetailPanel({
                                 {conv ? (
                                   <button
                                     type="button"
-                                    className="absolute -top-1 -right-1 z-40 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                    className="absolute -top-1 -right-1 z-40 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity [html[data-appearance=cal]_&]:bg-card [html[data-appearance=cal]_&]:text-foreground [html[data-appearance=cal]_&]:border [html[data-appearance=cal]_&]:border-line [html[data-appearance=cal]_&]:opacity-100"
                                     onClick={(e) => {
                                       e.stopPropagation()
                                       handleRemoveFromSlot(slot.id)
@@ -1175,7 +1175,7 @@ export function MatchDetailPanel({
                       </div>
 
                       <div className="min-w-0 flex-1">
-                        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1 flex items-center gap-1.5">
+                        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1 flex items-center gap-1.5 [html[data-appearance=cal]_&]:normal-case [html[data-appearance=cal]_&]:tracking-normal">
                           <Shirt className="h-3.5 w-3.5" />
                           Banquillo ({suplentes.length})
                         </h4>
@@ -1190,7 +1190,7 @@ export function MatchDetailPanel({
                             return (
                               <div
                                 key={conv.id}
-                                className="flex items-center gap-2 p-1.5 rounded-lg group hover:bg-muted/50"
+                                className="flex items-center gap-2 p-1.5 rounded-lg group hover:bg-muted/50 [html[data-appearance=cal]_&]:rounded-none [html[data-appearance=cal]_&]:hover:bg-sunken"
                               >
                                 <PlayerAvatar
                                   player={{
@@ -1207,10 +1207,10 @@ export function MatchDetailPanel({
                                     {(() => { const fullJ = jugadores.find((j) => j.id === conv.jugador_id); return fullJ ? <PlayerStatusBadges estado={fullJ.estado} disponibilidad={fullJ.disponibilidad} /> : null })()}
                                   </p>
                                 </div>
-                                <Badge className={`text-[8px] border-0 ${posColor}`}>{pos || '-'}</Badge>
+                                <Badge className={`text-[8px] border-0 ${posColor} [html[data-appearance=cal]_&]:rounded-none [html[data-appearance=cal]_&]:bg-transparent [html[data-appearance=cal]_&]:text-muted-foreground`}>{pos || '-'}</Badge>
                                 <button
                                   onClick={() => handleRemoveConvocado(conv.id)}
-                                  className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                                  className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity [html[data-appearance=cal]_&]:opacity-100 [html[data-appearance=cal]_&]:rounded-none"
                                 >
                                   <X className="h-3 w-3" />
                                 </button>

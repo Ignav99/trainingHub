@@ -1063,7 +1063,7 @@ export default function TacticalBoardEditor({
               onClick={() => setTipo(isAnimated ? 'static' : 'animated')}
               className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
                 isAnimated
-                  ? 'bg-purple-50 border-purple-300 text-purple-700'
+                  ? 'bg-purple-50 border-purple-300 text-purple-700 [html[data-appearance=cal]_&]:!border-primary [html[data-appearance=cal]_&]:!bg-primary [html[data-appearance=cal]_&]:!text-primary-foreground'
                   : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
               }`}
             >

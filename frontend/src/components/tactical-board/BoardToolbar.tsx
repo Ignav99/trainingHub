@@ -31,7 +31,7 @@ function ToolButton({
       onClick={onClick}
       title={title}
       className={`flex items-center gap-1 px-1.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-        active ? 'bg-blue-600 text-white ring-2 ring-blue-300' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+        active ? 'bg-blue-600 text-white ring-2 ring-blue-300 [html[data-appearance=cal]_&]:ring-0 [html[data-appearance=cal]_&]:border [html[data-appearance=cal]_&]:border-primary' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 [html[data-appearance=cal]_&]:border [html[data-appearance=cal]_&]:border-border [html[data-appearance=cal]_&]:hover:border-foreground'
       } ${className}`}
     >
       {children}
@@ -193,8 +193,8 @@ export default function BoardToolbar({
                   key={swatch.hex}
                   type="button"
                   onClick={() => setPieceColor(activeTool, swatch.hex)}
-                  className={`w-5 h-5 rounded-full border-2 transition-transform ${
-                    active ? 'border-yellow-400 scale-110' : 'border-gray-300'
+                  className={`w-5 h-5 rounded-full border-2 [html[data-appearance=cal]_&]:rounded-none transition-transform ${
+                    active ? 'border-yellow-400 scale-110 [html[data-appearance=cal]_&]:border-foreground [html[data-appearance=cal]_&]:scale-100' : 'border-gray-300'
                   }`}
                   style={{ backgroundColor: swatch.hex }}
                   title={swatch.label}
@@ -339,8 +339,8 @@ export default function BoardToolbar({
               <button
                 key={c}
                 onClick={() => setZoneColor(c)}
-                className={`w-5 h-5 rounded-full border-2 transition-transform ${
-                  zoneColor === c ? 'border-yellow-400 scale-110' : 'border-gray-300'
+                className={`w-5 h-5 rounded-full border-2 [html[data-appearance=cal]_&]:rounded-none transition-transform ${
+                  zoneColor === c ? 'border-yellow-400 scale-110 [html[data-appearance=cal]_&]:border-foreground [html[data-appearance=cal]_&]:scale-100' : 'border-gray-300'
                 }`}
                 style={{ backgroundColor: c }}
                 title={c}

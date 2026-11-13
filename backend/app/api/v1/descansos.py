@@ -8,7 +8,7 @@ from typing import Optional
 from uuid import UUID
 from datetime import date
 
-from app.models.descanso import DescansoCreate, DescansoResponse
+from app.models.descanso import DescansoCreate, DescansoResponse, DescansoUpsert
 from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
 from app.security.permissions import Permission
@@ -79,6 +79,43 @@ async def toggle_descanso(
         )
 
     return response.data[0]
+
+
+def _fijar_descanso(supabase, data: DescansoUpsert, user_id: Optional[str]) -> dict:
+    """Upsert por (equipo_id, fecha): actualiza tipo y notas si ya hay fila; si no, la crea."""
+    existing = supabase.table("descansos").select("id").eq(
+        "equipo_id", str(data.equipo_id)
+    ).eq("fecha", data.fecha.isoformat()).execute()
+
+    cambios = {"tipo": data.tipo, "notas": data.notas}
+    if existing.data:
+        response = supabase.table("descansos").update(cambios).eq(
+            "id", existing.data[0]["id"]
+        ).execute()
+    else:
+        response = supabase.table("descansos").insert({
+            "equipo_id": str(data.equipo_id),
+            "fecha": data.fecha.isoformat(),
+            **cambios,
+            "created_by": user_id,
+        }).execute()
+
+    if not response.data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Error al guardar el día"
+        )
+    return response.data[0]
+
+
+@router.put("")
+async def fijar_descanso(
+    data: DescansoUpsert,
+    auth: AuthContext = Depends(require_permission(Permission.SESSION_CREATE)),
+):
+    """Fija el día (descanso o día personalizado) sin alternar: crea o reemplaza."""
+    supabase = get_supabase()
+    return _fijar_descanso(supabase, data, str(auth.user_id) if auth.user_id else None)
 
 
 @router.delete("/{descanso_id}", status_code=status.HTTP_204_NO_CONTENT)

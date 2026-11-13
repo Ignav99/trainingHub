@@ -22,7 +22,7 @@ import { Localia } from '@/components/ui/localia'
 import { useAppearance } from '@/lib/useAppearance'
 import { Moon } from 'lucide-react'
 import { aspectoDia, FondoDia } from './DiaCal'
-import { LeyendaCal } from './LeyendaCal'
+import type { DiaPersonal } from '@/lib/diaPersonal'
 
 interface CalendarYearViewProps {
   seasonStartYear: number
@@ -32,6 +32,8 @@ interface CalendarYearViewProps {
   partidos: Partido[]
   microciclos: Microciclo[]
   descansos: Set<string>
+  /** Cal: días personalizados (no se pintan como descanso). */
+  diasPersonales?: Record<string, DiaPersonal>
   onSelectDay: (day: string) => void
   onSelectMonth: (year: number, month: number) => void
   loading?: boolean
@@ -90,8 +92,10 @@ function MonthRow({
   onSelectDay,
   onSelectMonth,
   cal,
+  diasPersonales,
 }: {
   cal: boolean
+  diasPersonales?: Record<string, DiaPersonal>
   sm: SeasonMonth
   index: ReturnType<typeof buildDayIndex>
   todayStr: string
@@ -170,7 +174,9 @@ function MonthRow({
             ].filter(Boolean)
 
             if (cal) {
-              const aspecto = aspectoDia({ sesiones: bucket.sesiones, partidos: bucket.partidos, fecha: date })
+              const personal = diasPersonales?.[date] ?? null
+              const descansoCal = hasDescanso && !personal
+              const aspecto = aspectoDia({ sesiones: bucket.sesiones, partidos: bucket.partidos, fecha: date, personal })
               const tip = [
                 `${day}/${sm.month + 1}/${sm.year}`,
                 inMicro ? 'Microciclo' : null,
@@ -183,7 +189,8 @@ function MonthRow({
                 hasSesion
                   ? `${bucket.sesiones.length} sesión(es)${bucket.sesiones.every((x) => x.estado === 'completada') ? ', completada(s)' : ''}`
                   : null,
-                hasDescanso ? 'Descanso' : null,
+                personal ? personal.texto : null,
+                descansoCal ? 'Descanso' : null,
               ].filter(Boolean).join(' · ')
               return (
                 <button
@@ -193,10 +200,12 @@ function MonthRow({
                   title={tip}
                   aria-label={tip}
                   className={`relative flex min-h-0 flex-col items-center justify-center border border-border/60 bg-card text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${
-                    isToday ? 'z-[3] outline outline-2 outline-offset-[-1px] outline-foreground' : ''
+                    isToday
+                      ? 'z-[3] outline outline-2 outline-offset-[-1px] outline-foreground'
+                      : 'cursor-pointer hover:z-[3] hover:outline hover:outline-[1.5px] hover:outline-offset-[-1px] hover:outline-foreground/50'
                   }`}
                 >
-                  <FondoDia aspecto={{ ...aspecto, contorno: null }} grosor={2} />
+                  <FondoDia aspecto={{ ...aspecto, contorno: null }} grosor={2} descanso={descansoCal} />
                   <span className={`absolute left-0.5 top-0.5 text-[7px] font-bold leading-none tabular-nums ${isToday ? 'text-foreground' : ''}`}>
                     {day}
                   </span>
@@ -206,7 +215,7 @@ function MonthRow({
                     <Localia valor={partido?.localia} className="relative mt-1 text-[9px]" />
                   ) : hasSesion ? (
                     <span className="relative mt-1 font-mono text-[8px] font-bold leading-none text-foreground">S</span>
-                  ) : hasDescanso ? (
+                  ) : descansoCal ? (
                     <Moon aria-hidden className="relative mt-1 h-2.5 w-2.5" />
                   ) : null}
                 </button>
@@ -272,6 +281,7 @@ export function CalendarYearView({
   onSelectDay,
   onSelectMonth,
   loading,
+  diasPersonales,
 }: CalendarYearViewProps) {
   const [showStartPicker, setShowStartPicker] = useState(false)
   const cal = useAppearance() === 'cal'
@@ -371,13 +381,12 @@ export function CalendarYearView({
             onSelectDay={onSelectDay}
             onSelectMonth={onSelectMonth}
             cal={cal}
+            diasPersonales={diasPersonales}
           />
         ))}
       </div>
 
-      {cal ? (
-        <LeyendaCal className="mt-2 shrink-0 px-0" />
-      ) : (
+      {cal ? null : (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 pt-2 border-t text-[10px] text-muted-foreground shrink-0">
         <span className="flex items-center gap-1">
           <span className="w-4 h-3 rounded border-2 border-orange-600 bg-orange-500/10" /> Contorno microciclo

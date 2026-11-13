@@ -67,7 +67,7 @@ export function MultiFiltro({
         <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-30 mt-1 w-72 rounded-lg border bg-popover shadow-lg">
+        <div className="absolute left-0 top-full z-30 mt-1 w-72 rounded-lg border bg-popover shadow-lg [html[data-appearance=cal]_&]:shadow-none">
           <div className="flex items-center justify-between border-b px-3 py-2 text-xs text-muted-foreground">
             <span>Marca uno o varios</span>
             {value.length > 0 && (

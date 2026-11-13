@@ -152,7 +152,7 @@ export default function TareaPizarraEditor({
     // asi el lienzo recibe una altura acotada y el campo entra entero sin scroll
     <div
       ref={rootRef}
-      className="border border-gray-200 rounded-xl overflow-hidden bg-white flex flex-col min-h-0"
+      className="border border-gray-200 rounded-xl [html[data-appearance=cal]_&]:rounded-none overflow-hidden bg-white flex flex-col min-h-0"
       style={{ height }}
     >
       {/* Cabecera compacta */}
@@ -164,7 +164,7 @@ export default function TareaPizarraEditor({
           onClick={handleToggleTipo}
           className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
             isAnimated
-              ? 'bg-purple-50 border-purple-300 text-purple-700'
+              ? 'bg-purple-50 border-purple-300 text-purple-700 [html[data-appearance=cal]_&]:!border-primary [html[data-appearance=cal]_&]:!bg-primary [html[data-appearance=cal]_&]:!text-primary-foreground'
               : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100'
           }`}
           title={

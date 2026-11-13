@@ -225,7 +225,7 @@ export const StaffThreadCard = forwardRef<
       ref={ref}
       id={`post-${hilo.id}`}
       className={cn(
-        'scroll-mt-24 rounded-xl border bg-card shadow-sm transition-shadow',
+        'scroll-mt-24 rounded-xl [html[data-appearance=cal]_&]:rounded-none border bg-card shadow-sm [html[data-appearance=cal]_&]:shadow-none transition-shadow',
         destacado && 'ring-2 ring-[hsl(var(--club-primary))] ring-offset-2 ring-offset-background',
         hilo.tipo === 'aviso' && !resuelta && 'border-rose-200 dark:border-rose-900',
         (meMencionan || meTocaTarea) && !destacado && 'border-amber-300 dark:border-amber-800'

@@ -200,7 +200,7 @@ export default function PizarraTacticaPage() {
               onClick={() => handleSelect(board)}
             >
               {/* Miniatura real de la pizarra */}
-              <div className="h-36 bg-gradient-to-br from-green-700 to-green-900 flex items-center justify-center">
+              <div className="h-36 bg-gradient-to-br from-green-700 to-green-900 [html[data-appearance=cal]_&]:bg-none [html[data-appearance=cal]_&]:bg-green-800 flex items-center justify-center">
                 {(board.elements?.length || board.arrows?.length || board.zones?.length) ? (
                   <TacticalBoardMini
                     data={{

@@ -21,6 +21,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { useAppearance } from '@/lib/useAppearance'
 import { CalendarWeekViewCal } from './CalendarWeekViewCal'
+import type { DiaPersonal } from '@/lib/diaPersonal'
 import { TeamCrest } from '@/components/ui/team-crest'
 import type { Sesion, Partido, Microciclo } from '@/types'
 import { buildDayIndex, getBucket } from '@/lib/calendar/dayIndex'
@@ -60,6 +61,10 @@ export interface CalendarWeekViewProps {
   onSelectDay: (day: string) => void
   onToggleDescanso: (date: string) => void
   onNavigate: (path: string) => void
+  /** Cal: días personalizados ("Otro…"), por fecha. El aspecto clásico los ignora. */
+  diasPersonales?: Record<string, DiaPersonal>
+  onGuardarDiaPersonal?: (date: string, dia: DiaPersonal) => void
+  onQuitarDiaPersonal?: (date: string) => void
 }
 
 function estimateLoadUA(s: Sesion): number | null {

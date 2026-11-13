@@ -81,7 +81,7 @@ export function StaffThreadList({
     return (
       <div className="space-y-3">
         {[0, 1, 2].map((i) => (
-          <Skeleton key={i} className="h-28 w-full rounded-xl" />
+          <Skeleton key={i} className="h-28 w-full rounded-xl [html[data-appearance=cal]_&]:rounded-none" />
         ))}
       </div>
     )
@@ -89,7 +89,7 @@ export function StaffThreadList({
 
   if (error) {
     return (
-      <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+      <div className="rounded-xl [html[data-appearance=cal]_&]:rounded-none border border-dashed p-6 text-center text-sm text-muted-foreground">
         No se pudo cargar el tablero. {error instanceof Error ? error.message : ''}
       </div>
     )
@@ -98,7 +98,7 @@ export function StaffThreadList({
   if (hilos.length === 0) {
     const v = vacio ?? VACIOS[filtro]
     return (
-      <div className="rounded-xl border border-dashed px-6 py-10 text-center">
+      <div className="rounded-xl [html[data-appearance=cal]_&]:rounded-none border border-dashed px-6 py-10 text-center">
         <Inbox className="mx-auto mb-2 h-7 w-7 text-muted-foreground/70" />
         <p className="text-sm font-medium">{v.titulo}</p>
         <p className="mt-1 text-xs text-muted-foreground">{v.texto}</p>

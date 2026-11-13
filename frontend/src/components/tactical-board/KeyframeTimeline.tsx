@@ -25,7 +25,7 @@ export default function KeyframeTimeline() {
           onClick={() => !isPlaying && selectKeyframe(idx)}
           className={`flex-shrink-0 rounded-lg border-2 px-3 py-2 cursor-pointer transition-colors ${
             idx === activeKeyframeIndex
-              ? 'border-blue-500 bg-blue-50'
+              ? 'border-blue-500 bg-blue-50 [html[data-appearance=cal]_&]:!border-primary'
               : 'border-gray-200 bg-white hover:border-gray-300'
           } ${isPlaying ? 'pointer-events-none opacity-60' : ''}`}
         >
@@ -84,7 +84,7 @@ export default function KeyframeTimeline() {
       {!isPlaying && (
         <button
           onClick={addKeyframe}
-          className="flex-shrink-0 flex items-center gap-1 px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg text-xs text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors"
+          className="flex-shrink-0 flex items-center gap-1 px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg text-xs text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors [html[data-appearance=cal]_&]:hover:border-foreground"
           title="Añadir keyframe"
         >
           <Plus className="h-4 w-4" />

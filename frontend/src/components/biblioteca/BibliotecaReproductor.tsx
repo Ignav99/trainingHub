@@ -91,7 +91,7 @@ export function BibliotecaReproductor({
           />
           {showSlate && (
             <div className="pointer-events-none absolute inset-x-0 top-0 bg-black/80 px-4 py-3 text-white">
-              <p className="text-[11px] uppercase tracking-[0.14em] text-zinc-300">Inicio del corte</p>
+              <p className="text-[11px] uppercase [html[data-appearance=cal]_&]:normal-case tracking-[0.14em] text-zinc-300">Inicio del corte</p>
               <p className="text-base font-medium">{corte.titulo}</p>
               {fase && <p className="text-xs text-zinc-300">{fase}</p>}
             </div>
@@ -150,7 +150,7 @@ export function ListaInicios({
             >
               <span className={`w-1 shrink-0 ${active ? 'bg-foreground' : 'bg-border'}`} aria-hidden />
               <span className="flex min-w-0 flex-1 items-baseline gap-3 px-3 py-2">
-                <span className="w-12 shrink-0 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Inicio</span>
+                <span className="w-12 shrink-0 text-[11px] font-medium uppercase [html[data-appearance=cal]_&]:normal-case tracking-wide text-muted-foreground">Inicio</span>
                 <span className="w-8 shrink-0 text-xs tabular-nums text-muted-foreground">{itemIndex + 1}</span>
                 <span className="min-w-0 flex-1 truncate text-sm">{item.titulo}</span>
                 {itemFase && <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">{itemFase}</span>}

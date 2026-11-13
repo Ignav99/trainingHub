@@ -59,6 +59,7 @@ import { SesionCierrePanel } from '@/components/sesiones/SesionCierrePanel'
 import { SesionDefinirForm } from '@/components/sesiones/SesionDefinirForm'
 import { SesionMaterialPanel } from '@/components/sesiones/SesionMaterialPanel'
 import { SesionBloquesPanel } from '@/components/sesiones/SesionBloquesPanel'
+import { ConvocatoriaSesionCal } from '@/components/sesiones/ConvocatoriaSesionCal'
 import { sesionesApi, SesionUpdateData } from '@/lib/api/sesiones'
 import { isPartialParticipation } from '@/lib/participacionSesion'
 import { microciclosApi } from '@/lib/api/microciclos'
@@ -1650,22 +1651,22 @@ export default function SesionDetailPage() {
                 </CardTitle>
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-3 text-sm">
-                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-blue-50 border border-blue-200">
-                      <div className="w-2 h-2 rounded-full bg-blue-500" />
-                      <span className="font-semibold text-blue-700">{enSesionCount}</span>
-                      <span className="text-blue-600 text-xs">en sesión</span>
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-blue-50 border border-blue-200 [html[data-appearance=cal]_&]:rounded-none [html[data-appearance=cal]_&]:bg-transparent [html[data-appearance=cal]_&]:border-0 [html[data-appearance=cal]_&]:px-0">
+                      <div className="w-2 h-2 rounded-full bg-blue-500 [html[data-appearance=cal]_&]:hidden" />
+                      <span className="font-semibold text-blue-700 [html[data-appearance=cal]_&]:text-foreground [html[data-appearance=cal]_&]:tabular-nums">{enSesionCount}</span>
+                      <span className="text-blue-600 text-xs [html[data-appearance=cal]_&]:text-muted-foreground">en sesión</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <UserCheck className="h-4 w-4 text-green-600" />
+                      <UserCheck className="h-4 w-4 text-green-600 [html[data-appearance=cal]_&]:text-muted-foreground" />
                       <span className="font-medium">{presentesCount}</span>
                       <span className="text-muted-foreground">/</span>
                       <span className="font-medium">{jugadoresEnConvocatoria.length}</span>
                       <span className="text-muted-foreground">presentes</span>
                     </div>
                     {margenMap.size > 0 && (
-                      <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-50 border border-amber-200">
-                        <span className="font-semibold text-amber-800">{margenMap.size}</span>
-                        <span className="text-amber-700 text-xs">al margen</span>
+                      <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-50 border border-amber-200 [html[data-appearance=cal]_&]:rounded-none [html[data-appearance=cal]_&]:bg-transparent [html[data-appearance=cal]_&]:border-0 [html[data-appearance=cal]_&]:px-0">
+                        <span className="font-semibold text-amber-800 [html[data-appearance=cal]_&]:text-foreground [html[data-appearance=cal]_&]:tabular-nums">{margenMap.size}</span>
+                        <span className="text-amber-700 text-xs [html[data-appearance=cal]_&]:text-muted-foreground">al margen</span>
                       </div>
                     )}
                   </div>
@@ -1697,13 +1698,13 @@ export default function SesionDetailPage() {
                   onClick={() => setConvocatoriaTab('margen')}
                   className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
                     convocatoriaTab === 'margen'
-                      ? 'border-amber-500 text-amber-800'
+                      ? 'border-amber-500 text-amber-800 [html[data-appearance=cal]_&]:border-primary [html[data-appearance=cal]_&]:text-foreground'
                       : 'border-transparent text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   Trabajo al margen
                   {margenMap.size > 0 && (
-                    <span className="ml-1.5 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full bg-amber-100 text-amber-800 text-[10px] font-semibold">
+                    <span className="ml-1.5 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full bg-amber-100 text-amber-800 text-[10px] font-semibold [html[data-appearance=cal]_&]:rounded-none [html[data-appearance=cal]_&]:bg-sunken [html[data-appearance=cal]_&]:text-foreground [html[data-appearance=cal]_&]:tabular-nums">
                       {margenMap.size}
                     </span>
                   )}
@@ -1764,6 +1765,30 @@ export default function SesionDetailPage() {
                   <p className="text-muted-foreground">Cargando jugadores...</p>
                 </div>
               ) : (
+                <PorAspecto
+                  cal={
+                    <ConvocatoriaSesionCal
+                      grupos={sortedPositions.map((pos) => ({ pos, jugadores: jugadoresByPosition[pos] }))}
+                      asistencias={asistencias}
+                      cargaMap={cargaMap}
+                      margenMap={margenMap}
+                      motivos={MOTIVOS_AUSENCIA}
+                      equipoId={sesion?.equipo_id}
+                      filialDisponibles={filialDisponibles}
+                      onToggle={toggleAsistencia}
+                      onToggleTipo={toggleTipoParticipacion}
+                      onMotivo={setMotivoAusencia}
+                      onRemove={handleRemoveFromSession}
+                      onOpenMargen={() => setConvocatoriaTab('margen')}
+                      onAddFilial={handleAddFilialToSession}
+                      onOtroEquipo={() => {
+                        setCrossTeamDialogOpen(true)
+                        loadOrgJugadores()
+                      }}
+                      onManual={() => setQuickAddDialogOpen(true)}
+                    />
+                  }
+                  resto={
                 <div className="space-y-6">
                   {sortedPositions.map((pos) => (
                     <div key={pos}>
@@ -1991,6 +2016,8 @@ export default function SesionDetailPage() {
                     </div>
                   </div>
                 </div>
+                  }
+                />
               )}
             </CardContent>
           </Card>

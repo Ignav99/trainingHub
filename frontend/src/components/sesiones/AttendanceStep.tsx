@@ -17,6 +17,10 @@ import {
 } from '@/lib/jugadorTipo'
 import { useFilialVisibilityStore } from '@/stores/filialVisibilityStore'
 import { MostrarFilialToggle } from '@/components/jugadores/MostrarFilialToggle'
+import { useAppearance } from '@/lib/useAppearance'
+import { Ficha } from '@/components/ui/ficha'
+import { EstadoMarca, estadoDe } from '@/components/plantilla/PlantillaTablaCal'
+import { cn } from '@/lib/utils'
 
 export type MotivoAusencia = 'lesion' | 'enfermedad' | 'sancion' | 'permiso' | 'seleccion' | 'viaje' | 'otro'
 
@@ -69,6 +73,7 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip, submitting = false
   const [loading, setLoading] = useState(true)
   const [attendance, setAttendance] = useState<Record<string, PlayerAttendance>>({})
   const [showInvitados, setShowInvitados] = useState(false)
+  const appearance = useAppearance()
 
   useEffect(() => {
     jugadoresApi
@@ -173,6 +178,147 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip, submitting = false
     return (
       <div className="flex items-center justify-center h-64 text-muted-foreground">
         <span className="animate-pulse">Cargando plantilla...</span>
+      </div>
+    )
+  }
+
+  if (appearance === 'cal') {
+    const nombreDe = (j: Jugador) => j.apodo || `${j.nombre} ${j.apellidos}`
+    const filaAnadir = (j: Jugador) => (
+      <li key={j.id}>
+        <button
+          type="button"
+          onClick={() => addOptIn(j)}
+          className="flex min-h-[44px] w-full items-center gap-3 py-1.5 text-left transition-colors duration-rapido hover:bg-sunken focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring active:scale-[.995]"
+        >
+          <Ficha size="sm" dorsal={j.dorsal} fotoUrl={j.foto_url} label={nombreDe(j)} className="ml-1" />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold">{nombreDe(j)}</span>
+            <span className="block text-xs text-muted-foreground">
+              {j.posicion_principal} · {TIPO_JUGADOR_LABELS[resolveTipoJugador(j)]}
+            </span>
+          </span>
+          <UserPlus className="mr-2 h-4 w-4 flex-none text-muted-foreground" aria-hidden="true" />
+        </button>
+      </li>
+    )
+    return (
+      <div className="mx-auto max-w-2xl space-y-5">
+        <div className="space-y-1">
+          <h2 className="[font-stretch:112%] text-xl font-bold">¿Quién está disponible hoy?</h2>
+          <p className="text-sm text-muted-foreground">
+            La plantilla entra sola. El filial aparece abajo para añadirlo a mano, nunca automático.
+          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+            <p className="text-sm tabular-nums text-muted-foreground">
+              <span className="font-bold text-foreground">{presentCount}</span> presentes ·{' '}
+              <span className="font-bold text-foreground">{porteros}</span> {porteros === 1 ? 'portero' : 'porteros'} ·{' '}
+              <span className="font-bold text-foreground">{list.length - presentCount}</span> ausentes
+            </p>
+            <MostrarFilialToggle onHide={removeAllFilial} />
+          </div>
+        </div>
+
+        {ZONE_ORDER.filter((z) => byZone[z]?.length).map((zone) => (
+          <section key={zone} aria-label={ZONE_LABELS[zone]}>
+            <h3 className="cal-rotulo mb-1 border-b-[1.5px] border-line pb-1 text-muted-foreground">{ZONE_LABELS[zone]}</h3>
+            <ul className="divide-y divide-border">
+              {byZone[zone].map((j) => {
+                const a = attendance[j.id]
+                if (!a) return null
+                const optIn = extraIds.has(j.id)
+                const est = estadoDe(j as never)
+                return (
+                  <li key={j.id} className={cn('flex min-h-[44px] items-center gap-3 py-1.5', !a.presente && 'opacity-60')}>
+                    <button
+                      type="button"
+                      onClick={() => togglePlayer(j.id)}
+                      aria-pressed={a.presente}
+                      title={a.presente ? 'Marcar ausente' : 'Marcar presente'}
+                      className={cn(
+                        'inline-flex h-8 w-8 flex-none items-center justify-center rounded-[var(--radius)] border-[1.5px] transition-colors duration-rapido active:scale-[.97]',
+                        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+                        a.presente
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-line bg-card text-transparent hover:border-foreground'
+                      )}
+                    >
+                      <Check className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
+                      <span className="sr-only">{a.presente ? 'Presente' : 'Ausente'}</span>
+                    </button>
+                    <Ficha size="sm" dorsal={j.dorsal} estado={est.ficha} fotoUrl={j.foto_url} label={nombreDe(j)} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold leading-tight">{nombreDe(j)}</p>
+                      <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                        <span className="cal-rotulo">{j.posicion_principal}</span>
+                        {isFilial(j) && <span>filial</span>}
+                        {est.tipo !== 'disponible' && <EstadoMarca est={est} className="text-xs" />}
+                      </p>
+                    </div>
+                    {!a.presente && (
+                      <select
+                        className="h-8 flex-none rounded-[var(--radius)] border-[1.5px] border-line bg-card px-2 text-xs hover:border-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                        value={a.motivo_ausencia || 'otro'}
+                        aria-label="Motivo de la ausencia"
+                        onChange={(e) => setMotivo(j.id, e.target.value as MotivoAusencia)}
+                      >
+                        {MOTIVOS.map((m) => (
+                          <option key={m.value} value={m.value}>{m.label}</option>
+                        ))}
+                      </select>
+                    )}
+                    {optIn && (
+                      <button
+                        type="button"
+                        title="Quitar de la convocatoria"
+                        onClick={() => removeOptIn(j)}
+                        className="inline-flex h-8 w-8 flex-none items-center justify-center rounded-[var(--radius)] text-muted-foreground transition-colors duration-rapido hover:bg-sunken hover:text-destructive focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                      >
+                        <X className="h-4 w-4" aria-hidden="true" />
+                        <span className="sr-only">Quitar de la convocatoria</span>
+                      </button>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        ))}
+
+        {filialDisponibles.length > 0 && (
+          <section aria-label="Añadir del filial">
+            <h3 className="cal-rotulo mb-1 border-b-[1.5px] border-line pb-1 text-muted-foreground">
+              Añadir del filial ({filialDisponibles.length})
+            </h3>
+            <ul className="divide-y divide-border">{filialDisponibles.map(filaAnadir)}</ul>
+          </section>
+        )}
+
+        {invitadosDisponibles.length > 0 && (
+          <section aria-label="Añadir invitados">
+            <button
+              type="button"
+              aria-expanded={showInvitados}
+              onClick={() => setShowInvitados((v) => !v)}
+              className="cal-rotulo flex w-full items-center justify-between border-b-[1.5px] border-line pb-1 text-muted-foreground transition-colors duration-rapido hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+            >
+              <span>Añadir invitados ({invitadosDisponibles.length} disponibles)</span>
+              <ChevronDown className={`h-4 w-4 transition-transform ${showInvitados ? 'rotate-180' : ''}`} aria-hidden="true" />
+            </button>
+            {showInvitados && <ul className="divide-y divide-border">{invitadosDisponibles.map(filaAnadir)}</ul>}
+          </section>
+        )}
+
+        <div className="flex gap-3 border-t-[1.5px] border-line pt-3">
+          <Button variant="outline" className="flex-1" onClick={onSkip} disabled={submitting}>
+            <SkipForward className="mr-2 h-4 w-4" />
+            Saltar
+          </Button>
+          <Button className="flex-1" onClick={handleConfirm} disabled={submitting}>
+            Continuar con {presentCount} jugadores
+            <ChevronRight className="ml-2 h-4 w-4" />
+          </Button>
+        </div>
       </div>
     )
   }
