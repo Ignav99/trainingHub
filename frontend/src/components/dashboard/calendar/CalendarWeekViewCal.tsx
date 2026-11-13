@@ -3,7 +3,7 @@
 /** Vista semana en aspecto Cal: mismo lenguaje que el día de la vista mes. */
 
 import Link from 'next/link'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { ArrowRight, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { buildDayIndex, getBucket } from '@/lib/calendar/dayIndex'
@@ -14,7 +14,12 @@ import type { Sesion } from '@/types'
 import type { CalendarWeekViewProps } from './CalendarWeekView'
 import {
   DescansoCal,
+  EditorDiaPersonal,
+  FOCO,
   FondoDia,
+  MarcaEscudo,
+  MarcoHoy,
+  NotaDiaCal,
   LineaPartidoCal,
   LineaSesionCal,
   MenuAnadirDia,
@@ -24,7 +29,6 @@ import {
 } from './DiaCal'
 
 const INTENSIDAD: Record<string, string> = { baja: 'Baja', media: 'Media', alta: 'Alta', maxima: 'Máxima' }
-const FOCO = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring'
 
 function cargaUA(s: Sesion): number | null {
   if (!s.duracion_total) return null
@@ -44,7 +48,11 @@ export function CalendarWeekViewCal({
   onSelectDay,
   onToggleDescanso,
   onNavigate,
+  diasPersonales,
+  onGuardarDiaPersonal,
+  onQuitarDiaPersonal,
 }: CalendarWeekViewProps) {
+  const [editor, setEditor] = useState<string | null>(null)
   const lunes = startOfWeekMonday(focusDate)
   const dias = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(lunes, i)), [lunes])
   const index = useMemo(
@@ -90,37 +98,46 @@ export function CalendarWeekViewCal({
           const b = getBucket(index, fecha)
           const esHoy = fecha === hoy
           const esPasado = fecha < hoy
-          const aspecto = aspectoDia({ sesiones: b.sesiones, partidos: b.partidos, fecha, semana })
+          const personal = diasPersonales?.[fecha] ?? null
+          const descanso = b.descanso && !personal
+          const aspecto = aspectoDia({ sesiones: b.sesiones, partidos: b.partidos, fecha, semana, personal })
           const etiqueta = nombreAccesibleDia({
             fecha,
             sesiones: b.sesiones,
             partidos: b.partidos,
-            descanso: b.descanso,
+            descanso,
             md: aspecto.md,
+            personal,
+            esHoy,
           })
-          const hayContenido = b.partidos.length > 0 || b.sesiones.length > 0 || b.descanso
+          const hayContenido = b.partidos.length > 0 || b.sesiones.length > 0 || descanso || !!personal
           const menu = addMenuDay === fecha
           return (
             <div
               key={fecha}
               role="group"
               aria-label={etiqueta}
-              className="relative flex min-h-[200px] flex-col overflow-visible bg-card cal-linea md:min-h-[340px]"
+              className="group relative flex min-h-[200px] flex-col overflow-visible bg-card cal-linea md:min-h-[340px]"
             >
-              <FondoDia aspecto={aspecto} />
-              <div className="relative flex items-center justify-between border-b border-border px-2.5 py-2">
+              <FondoDia aspecto={aspecto} descanso={descanso} />
+              {b.partidos[0] && <MarcaEscudo partido={b.partidos[0]} tam={110} />}
+              {esHoy && <MarcoHoy />}
+              <div className="relative z-[2] flex items-center justify-between border-b border-border px-2.5 py-2">
                 <button
                   type="button"
                   onClick={() => onSelectDay(fecha)}
                   aria-current={esHoy ? 'date' : undefined}
                   aria-label={`Abrir ${etiqueta.split('.')[0]}`}
-                  className={cn('rounded-[var(--radius)] text-left', FOCO)}
+                  className={cn('rounded-[var(--radius)] text-left hover:underline', FOCO)}
                 >
-                  <span className="cal-rotulo block text-muted-foreground">{DAY_NAMES_FULL[i]}</span>
+                  <span className="cal-rotulo block text-muted-foreground">
+                    {DAY_NAMES_FULL[i]}
+                    {esHoy && <span className="text-foreground"> · Hoy</span>}
+                  </span>
                   <span
                     className={cn(
                       'mt-0.5 inline-flex min-w-7 items-center justify-center rounded-[var(--radius)] px-1 text-xl font-bold leading-tight tabular-nums',
-                      esHoy && 'bg-foreground text-background'
+                      esHoy && 'border-[1.5px] border-line'
                     )}
                   >
                     {new Date(fecha + 'T12:00:00').getDate()}
@@ -140,7 +157,8 @@ export function CalendarWeekViewCal({
                 )}
               </div>
 
-              <div className="relative flex-1 space-y-3 overflow-y-auto p-2">
+              <div className="relative z-[2] flex-1 space-y-3 overflow-y-auto p-2">
+                {personal && <NotaDiaCal dia={personal} discreto={b.partidos.length > 0 || b.sesiones.length > 0} />}
                 {b.partidos.map((p) => (
                   <div key={p.id} className="space-y-1">
                     <LineaPartidoCal partido={p} />
@@ -190,7 +208,7 @@ export function CalendarWeekViewCal({
                   )
                 })}
 
-                {b.descanso && <DescansoCal />}
+                {descanso && <DescansoCal />}
 
                 {!hayContenido && (
                   <button
@@ -206,12 +224,33 @@ export function CalendarWeekViewCal({
               {menu && (
                 <MenuAnadirDia
                   fecha={fecha}
-                  esDescanso={b.descanso}
+                  esDescanso={descanso}
+                  personal={personal}
                   onClose={() => setAddMenuDay(null)}
                   onNavigate={onNavigate}
                   onToggleDescanso={() => {
                     if (equipoId) onToggleDescanso(fecha)
                   }}
+                  onOtro={onGuardarDiaPersonal ? () => setEditor(fecha) : undefined}
+                />
+              )}
+              {editor === fecha && onGuardarDiaPersonal && (
+                <EditorDiaPersonal
+                  inicial={personal}
+                  alinear={i < 3 ? 'izquierda' : 'derecha'}
+                  onGuardar={(d) => {
+                    setEditor(null)
+                    onGuardarDiaPersonal(fecha, d)
+                  }}
+                  onQuitar={
+                    personal && onQuitarDiaPersonal
+                      ? () => {
+                          setEditor(null)
+                          onQuitarDiaPersonal(fecha)
+                        }
+                      : undefined
+                  }
+                  onClose={() => setEditor(null)}
                 />
               )}
             </div>

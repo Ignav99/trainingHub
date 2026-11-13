@@ -1340,7 +1340,8 @@ export interface Descanso {
   equipo_id: string
   fecha: string
   tipo: 'descanso' | 'festivo'
-  notas?: string
+  /** En días personalizados (tipo festivo): JSON {texto, color}; ver lib/diaPersonal.ts. */
+  notas?: string | null
   created_by?: string
   created_at: string
 }

@@ -174,7 +174,7 @@ export function MentionTextarea({
           ref={listaRef}
           id={listId}
           role="listbox"
-          className="absolute left-0 top-full z-50 mt-1 max-h-64 w-full max-w-xs overflow-y-auto overscroll-contain rounded-lg border bg-popover p-1 shadow-lg animate-in fade-in-0 slide-in-from-top-1"
+          className="absolute left-0 top-full z-50 mt-1 max-h-64 w-full max-w-xs overflow-y-auto overscroll-contain rounded-lg border bg-popover p-1 shadow-lg [html[data-appearance=cal]_&]:shadow-none animate-in fade-in-0 slide-in-from-top-1"
         >
           {candidatos.map((m, i) => (
             <li

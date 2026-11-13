@@ -75,7 +75,7 @@ export function PostComposer({
   const meta = TIPOS[tipo]
 
   return (
-    <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm">
+    <div className="rounded-xl [html[data-appearance=cal]_&]:rounded-none border bg-card p-3 sm:p-4 shadow-sm [html[data-appearance=cal]_&]:shadow-none">
       <div role="radiogroup" aria-label="Tipo de publicación" className="mb-3 flex flex-wrap gap-1.5">
         {ORDEN_TIPOS.map((t) => {
           const m = TIPOS[t]

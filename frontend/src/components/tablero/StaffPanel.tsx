@@ -125,7 +125,7 @@ function HiloEnfocado({
   if (error) {
     return <p className="rounded-lg border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">Esa publicación ya no existe o no es de este equipo.</p>
   }
-  if (!data) return <Skeleton className="h-40 w-full rounded-xl" />
+  if (!data) return <Skeleton className="h-40 w-full rounded-xl [html[data-appearance=cal]_&]:rounded-none" />
   return (
     <StaffThreadCard
       hilo={data}
@@ -143,7 +143,7 @@ function Seccion({ titulo, extra, children }: { titulo: string; extra?: React.Re
   return (
     <section>
       <div className="mb-1.5 flex items-baseline justify-between px-1">
-        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{titulo}</h3>
+        <h3 className="text-[11px] font-semibold uppercase [html[data-appearance=cal]_&]:normal-case tracking-wide text-muted-foreground">{titulo}</h3>
         {extra}
       </div>
       {children}
@@ -342,8 +342,8 @@ function VistaTablero({ equipoId, meId, puedeModerar }: { equipoId: string; meId
               onClick={() => setFiltro(f.valor)}
               aria-pressed={activo}
               className={cn(
-                'inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--club-primary))]',
-                activo ? 'bg-[hsl(var(--club-primary))] text-white' : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
+                'inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors [html[data-appearance=cal]_&]:rounded-none [html[data-appearance=cal]_&]:border [html[data-appearance=cal]_&]:border-border [html[data-appearance=cal]_&]:min-h-8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--club-primary))]',
+                activo ? 'bg-[hsl(var(--club-primary))] text-white [html[data-appearance=cal]_&]:bg-primary [html[data-appearance=cal]_&]:text-primary-foreground [html[data-appearance=cal]_&]:border-primary' : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground [html[data-appearance=cal]_&]:bg-card [html[data-appearance=cal]_&]:hover:border-foreground'
               )}
             >
               <Icon className="h-3 w-3" />
@@ -408,7 +408,7 @@ function Cajon({ equipoId, equipoNombre }: { equipoId: string; equipoNombre?: st
         role="dialog"
         aria-label="Panel del staff"
         className={cn(
-          'absolute inset-y-0 right-0 flex w-full flex-col border-l bg-background shadow-2xl transition-transform duration-200 ease-out motion-reduce:transition-none sm:w-[440px]',
+          'absolute inset-y-0 right-0 flex w-full flex-col border-l bg-background shadow-2xl [html[data-appearance=cal]_&]:shadow-none transition-transform duration-200 ease-out motion-reduce:transition-none sm:w-[440px]',
           abierto ? 'translate-x-0' : 'translate-x-full'
         )}
       >
@@ -440,9 +440,9 @@ function Cajon({ equipoId, equipoNombre }: { equipoId: string; equipoNombre?: st
                   aria-selected={activa}
                   onClick={() => setVista(p.valor)}
                   className={cn(
-                    '-mb-px inline-flex items-center gap-1.5 border-b-2 px-2.5 pb-2 text-xs font-medium transition-colors',
+                    '-mb-px inline-flex items-center gap-1.5 border-b-2 px-2.5 pb-2 text-xs font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
                     activa
-                      ? 'border-[hsl(var(--club-primary))] text-foreground'
+                      ? 'border-[hsl(var(--club-primary))] text-foreground [html[data-appearance=cal]_&]:border-primary [html[data-appearance=cal]_&]:font-semibold'
                       : 'border-transparent text-muted-foreground hover:text-foreground'
                   )}
                 >

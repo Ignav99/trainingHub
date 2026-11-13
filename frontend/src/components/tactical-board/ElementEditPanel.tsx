@@ -65,7 +65,7 @@ export default function ElementEditPanel() {
 
   return (
     <div
-      className="absolute top-2 right-2 w-60 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden max-h-[calc(100%-1rem)] overflow-y-auto"
+      className="absolute top-2 right-2 w-60 bg-white rounded-xl [html[data-appearance=cal]_&]:rounded-none shadow-lg [html[data-appearance=cal]_&]:shadow-none border border-gray-200 z-50 overflow-hidden max-h-[calc(100%-1rem)] overflow-y-auto"
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
@@ -246,13 +246,13 @@ export default function ElementEditPanel() {
           return (
             <>
               <div className="rounded-lg bg-blue-50 border border-blue-100 px-2 py-2">
-                <div className="flex items-center gap-1 text-[10px] font-semibold text-blue-700 uppercase mb-1.5">
+                <div className="flex items-center gap-1 text-[10px] font-semibold text-blue-700 uppercase [html[data-appearance=cal]_&]:normal-case mb-1.5">
                   <Ruler className="h-3 w-3" />
                   Medidas reales
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-[9px] font-medium text-gray-500 uppercase block">
+                    <label className="text-[9px] font-medium text-gray-500 uppercase [html[data-appearance=cal]_&]:normal-case block">
                       {esElipse ? 'Diámetro X (m)' : 'Largo (m)'}
                     </label>
                     <input
@@ -263,7 +263,7 @@ export default function ElementEditPanel() {
                     />
                   </div>
                   <div>
-                    <label className="text-[9px] font-medium text-gray-500 uppercase block">
+                    <label className="text-[9px] font-medium text-gray-500 uppercase [html[data-appearance=cal]_&]:normal-case block">
                       {esElipse ? 'Diámetro Y (m)' : 'Ancho (m)'}
                     </label>
                     <input
@@ -283,7 +283,7 @@ export default function ElementEditPanel() {
                 onClick={() => setZonePlayingArea(zone.id)}
                 className={`w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] font-medium rounded-lg transition-colors ${
                   zone.isPlayingArea
-                    ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                    ? 'bg-amber-100 text-amber-800 border border-amber-300 [html[data-appearance=cal]_&]:bg-sunken [html[data-appearance=cal]_&]:text-foreground [html[data-appearance=cal]_&]:border-foreground'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
                 title="La zona marcada es la que se usa para calcular m²/jugador y el espacio de la tarea"
@@ -344,7 +344,7 @@ export default function ElementEditPanel() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="text-[10px] font-medium text-gray-500 uppercase">{label}</label>
+      <label className="text-[10px] font-medium text-gray-500 uppercase [html[data-appearance=cal]_&]:normal-case">{label}</label>
       {children}
     </div>
   )
@@ -362,8 +362,8 @@ function ColorPicker({
           <button
             key={c}
             onClick={() => onChange(c)}
-            className={`w-5 h-5 rounded-full border-2 transition-transform ${
-              value === c ? 'border-yellow-400 scale-110' : 'border-gray-300'
+            className={`w-5 h-5 rounded-full border-2 [html[data-appearance=cal]_&]:rounded-none transition-transform ${
+              value === c ? 'border-yellow-400 scale-110 [html[data-appearance=cal]_&]:border-foreground [html[data-appearance=cal]_&]:scale-100' : 'border-gray-300'
             }`}
             style={{ backgroundColor: c }}
           />

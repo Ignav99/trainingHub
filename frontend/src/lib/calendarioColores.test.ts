@@ -13,6 +13,8 @@ import {
   semanaDelAno,
   tinte,
   todasCompletadas,
+  tonoCasa,
+  CASA_RESERVA_HSL,
 } from './calendarioColores.ts'
 
 describe('calendarioColores', () => {
@@ -22,12 +24,27 @@ describe('calendarioColores', () => {
   })
 
   it('el día de partido usa la localía, nunca el MD', () => {
-    assert.equal(colorDia({ hayPartido: true, localiaPartido: 'local', md: 'MD-2' }), 'var(--primary)')
+    assert.equal(colorDia({ hayPartido: true, localiaPartido: 'local', md: 'MD-2' }), 'var(--casa, var(--primary))')
     assert.equal(colorDia({ hayPartido: true, localiaPartido: 'visitante' }), 'var(--info)')
     assert.equal(colorDia({ md: 'MD-3' }), MD_HSL['MD-3'])
     assert.equal(colorDia({ md: '' }), null)
     assert.equal(colorMD('MD'), null)
     assert.equal(colorMD('MD-5'), null)
+  })
+
+  it('casa nunca es gris ni azul como fuera', () => {
+    // Club negro o gris: el tinte de --primary se leía como día de otro mes.
+    assert.equal(tonoCasa('#111111'), CASA_RESERVA_HSL)
+    assert.equal(tonoCasa('#808080'), CASA_RESERVA_HSL)
+    assert.equal(tonoCasa(null), CASA_RESERVA_HSL)
+    assert.equal(tonoCasa('nope'), CASA_RESERVA_HSL)
+    // Club azul marino: chocaría con fuera (info).
+    assert.equal(tonoCasa('#1a3a6b'), CASA_RESERVA_HSL)
+    // Club con color: su tono, saturación media, luminosidad fija.
+    const verde = tonoCasa('#0b6b3a').split(' ')
+    assert.ok(Math.abs(Number(verde[0]) - 150) <= 2)
+    assert.equal(verde[2], '38%')
+    assert.ok(parseFloat(verde[1]) >= 45)
   })
 
   it('el tinte es el mismo tono con alfa', () => {

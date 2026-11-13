@@ -49,9 +49,11 @@ import { useIsMobile } from '@/hooks/useMediaQuery'
 import { useAppearance } from '@/lib/useAppearance'
 import type { Sesion, Microciclo, Partido } from '@/types'
 import { estadoDeMicrociclo } from '@/lib/microcicloEstado'
-import { DiaCal, aspectoDia, FondoDia, semanaDeHoy } from '@/components/dashboard/calendar/DiaCal'
-import { LeyendaCal } from '@/components/dashboard/calendar/LeyendaCal'
-import { colorLocalia, colorMD, etiquetaMicrociclo, nombreSesion, solido } from '@/lib/calendarioColores'
+import { DiaCal, aspectoDia, FondoDia, NotaDiaCal, semanaDeHoy } from '@/components/dashboard/calendar/DiaCal'
+import { BotonLeyendaCal } from '@/components/dashboard/calendar/LeyendaCal'
+import { useEstiloCasa } from '@/components/dashboard/calendar/useEstiloCasa'
+import { colorLocalia, colorMD, etiquetaMicrociclo, nombreSesion, semanaDelAno, solido } from '@/lib/calendarioColores'
+import type { DiaPersonal } from '@/lib/diaPersonal'
 
 // ============ Match Day color palette ============
 const MATCH_DAY_COLORS: Record<string, { border: string; bg: string; text: string; label: string }> = {
@@ -154,6 +156,10 @@ interface CalendarSectionProps {
   onNavigate: (path: string) => void
   /** Acciones extra (Cal): se pintan en la cabecera del calendario. */
   acciones?: ReactNode
+  /** Cal: días personalizados ("Otro…") por fecha. */
+  diasPersonales?: Record<string, DiaPersonal>
+  onGuardarDiaPersonal?: (date: string, dia: DiaPersonal) => void
+  onQuitarDiaPersonal?: (date: string) => void
   onCreateMicrocicloForWeek: (fechaInicio: string, fechaFin: string) => void
 }
 
@@ -193,9 +199,14 @@ export function CalendarSection({
   onNavigate,
   onCreateMicrocicloForWeek,
   acciones,
+  diasPersonales,
+  onGuardarDiaPersonal,
+  onQuitarDiaPersonal,
 }: CalendarSectionProps) {
   const isMobile = useIsMobile()
   const cal = useAppearance() === 'cal'
+  const estiloCasa = useEstiloCasa()
+  const [editorDia, setEditorDia] = useState<string | null>(null)
   const now = new Date()
   const [selectedMicro, setSelectedMicro] = useState<Microciclo | null>(null)
   const [mobileWeekOffset, setMobileWeekOffset] = useState(0)
@@ -329,7 +340,10 @@ export function CalendarSection({
 
   return (
     <>
-      <Card className={`overflow-hidden ${cal ? 'lg:flex lg:h-full lg:min-h-0 lg:flex-col' : ''}`}>
+      <Card
+        className={`overflow-hidden ${cal ? 'lg:flex lg:h-full lg:min-h-0 lg:flex-col' : ''}`}
+        style={cal ? estiloCasa : undefined}
+      >
         <CardHeader className={`flex flex-col gap-3 border-b sm:flex-row sm:items-center sm:justify-between ${cal ? 'lg:shrink-0 lg:py-2' : 'pb-3'}`}>
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <CardTitle className="text-base sm:text-lg flex items-center gap-2">
@@ -365,6 +379,7 @@ export function CalendarSection({
           </div>
           <div className="flex items-center gap-1 min-w-0 flex-wrap justify-end">
             {cal && acciones}
+            {cal && viewMode !== 'semana' && <BotonLeyendaCal />}
             <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={onGoToToday}>
               Hoy
             </Button>
@@ -400,6 +415,7 @@ export function CalendarSection({
               partidos={partidosTemporada}
               microciclos={microciclosTemporada}
               descansos={descansosTemporada}
+              diasPersonales={cal ? diasPersonales : undefined}
               loading={seasonLoading}
               onSelectDay={onSelectDay}
               onSelectMonth={(year, month) => {
@@ -423,13 +439,16 @@ export function CalendarSection({
                 onSelectDay={onSelectDay}
                 onToggleDescanso={onToggleDescanso}
                 onNavigate={onNavigate}
+                diasPersonales={diasPersonales}
+                onGuardarDiaPersonal={onGuardarDiaPersonal}
+                onQuitarDiaPersonal={onQuitarDiaPersonal}
               />
             </div>
           ) : viewMode === 'mes' ? (
             <>
           {/* Day headers */}
           <div className="flex border-b bg-muted/30 shrink-0">
-            <div className="hidden md:block w-6 shrink-0" />
+            <div className={`hidden md:block shrink-0 ${cal ? 'w-7' : 'w-6'}`} />
             <div className="flex-1 grid grid-cols-7">
               {DAY_NAMES.map((d, i) => (
                 <div
@@ -452,8 +471,8 @@ export function CalendarSection({
                   const { day, date, isToday, inMonth } = cell
                   const daySesiones = sesionesMes.filter((s) => isSameDay(s.fecha, date))
                   const dayPartidos = partidosMes.filter((p) => isSameDay(p.fecha, date))
-                  const isDescanso = descansos.has(date)
-                  const hasContent = daySesiones.length > 0 || dayPartidos.length > 0 || isDescanso
+                  const isDescanso = descansos.has(date) && !(cal && diasPersonales?.[date])
+                  const hasContent = daySesiones.length > 0 || dayPartidos.length > 0 || isDescanso || !!(cal && diasPersonales?.[date])
                   const isPast = date < dateToStr(now.getFullYear(), now.getMonth(), now.getDate())
                   const isExpanded = expandedMobileDay === date
                   const overflowMonth = MONTH_NAMES_SHORT[Number(date.slice(5, 7)) - 1]
@@ -472,7 +491,7 @@ export function CalendarSection({
 
                   const dominantMD = dayPartidos.length > 0 ? 'MD' : (daySesiones[0]?.match_day || null)
                   const mdColors = dominantMD && !cal ? MATCH_DAY_COLORS[dominantMD] : null
-                  const aspectoCal = cal ? aspectoDia({ sesiones: daySesiones, partidos: dayPartidos, fecha: date, semana: semanaHoy }) : null
+                  const aspectoCal = cal ? aspectoDia({ sesiones: daySesiones, partidos: dayPartidos, fecha: date, semana: semanaHoy, personal: diasPersonales?.[date] }) : null
 
                   return (
                     <div
@@ -507,7 +526,7 @@ export function CalendarSection({
                         className={`relative text-sm font-semibold leading-none mb-1 ${
                           isToday
                             ? cal
-                              ? 'bg-foreground text-background w-7 h-7 rounded-[var(--radius)] flex items-center justify-center'
+                              ? 'border-[1.5px] border-line text-foreground font-bold w-7 h-7 rounded-[var(--radius)] flex items-center justify-center'
                               : 'bg-primary text-white w-7 h-7 rounded-full flex items-center justify-center'
                             : !inMonth
                               ? 'text-muted-foreground/45'
@@ -580,7 +599,8 @@ export function CalendarSection({
               {expandedMobileDay && (() => {
                 const daySesiones = sesionesMes.filter((s) => isSameDay(s.fecha, expandedMobileDay))
                 const dayPartidos = partidosMes.filter((p) => isSameDay(p.fecha, expandedMobileDay))
-                const isDescanso = descansos.has(expandedMobileDay)
+                const personalMovil = cal ? diasPersonales?.[expandedMobileDay] : undefined
+                const isDescanso = descansos.has(expandedMobileDay) && !personalMovil
                 const dayNum = parseInt(expandedMobileDay.split('-')[2], 10)
                 const dayOfWeek = DAY_NAMES[new Date(expandedMobileDay + 'T12:00:00').getDay() === 0 ? 6 : new Date(expandedMobileDay + 'T12:00:00').getDay() - 1]
 
@@ -592,6 +612,7 @@ export function CalendarSection({
                         <X className="h-4 w-4 text-muted-foreground" />
                       </button>
                     </div>
+                    {personalMovil && <NotaDiaCal dia={personalMovil} className="px-1 py-1" />}
                     {isDescanso && (
                       <div className={cal ? 'flex items-center gap-2 px-1 py-1 text-muted-foreground' : 'flex items-center gap-2 p-2 rounded-md bg-slate-100 border border-slate-200'}>
                         <Moon className={cal ? 'h-4 w-4' : 'h-4 w-4 text-slate-500'} />
@@ -654,7 +675,7 @@ export function CalendarSection({
                         </Link>
                       )
                     })}
-                    {!isDescanso && dayPartidos.length === 0 && daySesiones.length === 0 && (
+                    {!isDescanso && !personalMovil && dayPartidos.length === 0 && daySesiones.length === 0 && (
                       <p className="text-sm text-muted-foreground text-center py-2">Sin actividades</p>
                     )}
                   </div>
@@ -692,37 +713,51 @@ export function CalendarSection({
                   <div
                     key={weekIdx}
                     className={`flex relative ${cal ? 'lg:min-h-0 lg:flex-1' : ''}`}
-                    onMouseEnter={() => weekMicro && setHoveredWeekIdx(weekIdx)}
-                    onMouseLeave={() => setHoveredWeekIdx(null)}
+                    onMouseEnter={() => !cal && weekMicro && setHoveredWeekIdx(weekIdx)}
+                    onMouseLeave={() => !cal && setHoveredWeekIdx(null)}
                   >
                     {/* LEFT SIDEBAR — microciclo bar */}
                     {cal ? (
-                      <div className="hidden md:flex w-6 shrink-0 items-stretch border-b border-r border-border">
-                        {weekMicro ? (
+                      <div className="hidden md:flex w-7 shrink-0 items-stretch border-b border-r border-border bg-card p-[3px]">
+                        {weekMicro ? (() => {
+                          const estado = estadoDeMicrociclo(weekMicro)
+                          const enCurso = estado === 'en_curso'
+                          return (
                           <button
                             type="button"
-                            className="group/mc flex w-full items-center justify-center border-r-2 border-foreground hover:bg-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
+                            className={`group/mc relative flex w-full flex-col items-center justify-between gap-1 rounded-[var(--radius)] border-l-2 border-[hsl(var(--casa,var(--primary)))] py-1.5 text-foreground transition-colors duration-150 ease-sale motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring ${
+                              enCurso
+                                ? 'bg-[hsl(var(--casa,var(--primary))/0.16)] hover:bg-[hsl(var(--casa,var(--primary))/0.26)]'
+                                : 'bg-[hsl(var(--casa,var(--primary))/0.08)] hover:bg-[hsl(var(--casa,var(--primary))/0.18)]'
+                            }`}
                             onClick={(e) => { e.stopPropagation(); onNavigate(`/microciclos/${weekMicro.id}`) }}
-                            title={`Microciclo ${etiquetaMicrociclo(weekMicro)} (${estadoDeMicrociclo(weekMicro).replace('_', ' ')})`}
-                            aria-label={`Ver microciclo ${etiquetaMicrociclo(weekMicro)}, ${estadoDeMicrociclo(weekMicro).replace('_', ' ')}`}
+                            onMouseEnter={() => setHoveredWeekIdx(weekIdx)}
+                            onMouseLeave={() => setHoveredWeekIdx(null)}
+                            onFocus={() => setHoveredWeekIdx(weekIdx)}
+                            onBlur={() => setHoveredWeekIdx(null)}
+                            title={`Abrir microciclo ${etiquetaMicrociclo(weekMicro)} (${estado.replace('_', ' ')})`}
+                            aria-label={`Abrir microciclo ${etiquetaMicrociclo(weekMicro)}, ${estado.replace('_', ' ')}`}
                           >
-                            <span
-                              className={`rotate-180 font-mono text-[10px] font-bold tabular-nums leading-none [writing-mode:vertical-rl] ${
-                                estadoDeMicrociclo(weekMicro) === 'en_curso' ? 'text-foreground' : 'text-muted-foreground group-hover/mc:text-foreground'
-                              }`}
-                            >
-                              {etiquetaMicrociclo(weekMicro)}
+                            <span className="cal-rotulo text-[8.5px] leading-none text-muted-foreground">Sem</span>
+                            <span className="rotate-180 font-mono text-[12px] font-bold tabular-nums leading-none [writing-mode:vertical-rl]">
+                              {semanaDelAno(weekMicro.fecha_inicio)}
                             </span>
+                            <ChevronRight
+                              aria-hidden
+                              className="h-3 w-3 text-muted-foreground transition-transform duration-150 ease-sale group-hover/mc:translate-x-px group-hover/mc:text-foreground motion-reduce:transition-none"
+                              strokeWidth={2.25}
+                            />
                           </button>
-                        ) : weekHasContent && weekBounds ? (
+                          )
+                        })() : weekHasContent && weekBounds ? (
                           <button
                             type="button"
-                            className="group/sidebar flex w-full items-center justify-center hover:bg-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
+                            className="group/sidebar flex w-full items-center justify-center rounded-[var(--radius)] border-[1.5px] border-dashed border-transparent hover:border-border hover:bg-sunken focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
                             onClick={(e) => { e.stopPropagation(); onCreateMicrocicloForWeek(weekBounds.fechaInicio, weekBounds.fechaFin) }}
                             title="Crear microciclo para esta semana"
                             aria-label="Crear microciclo para esta semana"
                           >
-                            <Plus aria-hidden className="h-3 w-3 text-muted-foreground/50 group-hover/sidebar:text-foreground" />
+                            <Plus aria-hidden className="h-3 w-3 text-muted-foreground/60 group-hover/sidebar:text-foreground" />
                           </button>
                         ) : null}
                       </div>
@@ -754,7 +789,13 @@ export function CalendarSection({
                       onClick={() => { if (weekMicro) onNavigate(`/microciclos/${weekMicro.id}`) }}
                     >
                     {isWeekHovered && (
-                      <div className="absolute inset-0 border-2 border-primary/40 rounded pointer-events-none z-20 transition-opacity" />
+                      <div
+                        className={
+                          cal
+                            ? 'pointer-events-none absolute inset-0 z-[4] outline outline-2 outline-offset-[-2px] outline-[hsl(var(--casa,var(--primary)))]'
+                            : 'absolute inset-0 border-2 border-primary/40 rounded pointer-events-none z-20 transition-opacity'
+                        }
+                      />
                     )}
 
                 {week.map((cell) => {
@@ -783,15 +824,22 @@ export function CalendarSection({
                         sesiones={daySesiones}
                         partidos={dayPartidos}
                         descanso={isDescanso}
+                        personal={diasPersonales?.[date] ?? null}
                         menuAbierto={showAddMenu}
                         menuAbreArriba={menuOpensUp}
+                        editorAbierto={editorDia === date}
+                        alinearIzquierda={week.indexOf(cell) < 3}
                         semana={semanaHoy}
-                        onSelectDay={() => onSelectDay(date)}
+                        onSelectDay={() => { setEditorDia(null); onSelectDay(date) }}
                         onToggleMenu={() => setAddMenuDay(showAddMenu ? null : date)}
                         onCloseMenu={() => setAddMenuDay(null)}
                         onNavigate={onNavigate}
                         onToggleDescanso={() => { if (equipoId) onToggleDescanso(date) }}
                         onQuitarDescanso={descansoIdByDate[date] ? () => onDeleteDescanso(descansoIdByDate[date]) : undefined}
+                        onAbrirEditor={onGuardarDiaPersonal && equipoId ? () => setEditorDia(date) : undefined}
+                        onCerrarEditor={() => setEditorDia(null)}
+                        onGuardarPersonal={onGuardarDiaPersonal ? (d) => { setEditorDia(null); onGuardarDiaPersonal(date, d) } : undefined}
+                        onQuitarPersonal={onQuitarDiaPersonal ? () => { setEditorDia(null); onQuitarDiaPersonal(date) } : undefined}
                       />
                     )
                   }
@@ -1102,10 +1150,8 @@ export function CalendarSection({
                 )
               })}
 
-              {/* Legend bar — hidden on mobile */}
-              {cal ? (
-                <LeyendaCal className="hidden md:flex lg:shrink-0" />
-              ) : (
+              {/* Legend bar — hidden on mobile (Cal: botón "Leyenda" en la cabecera) */}
+              {cal ? null : (
               <div className={`hidden md:flex flex-wrap items-center gap-x-5 gap-y-1 px-4 py-2.5 border-t bg-muted/20 text-[11px] text-muted-foreground ${cal ? 'lg:shrink-0 lg:py-1.5' : ''}`}>
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-3 rounded-sm bg-emerald-500" /> Microciclo

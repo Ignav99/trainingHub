@@ -25,6 +25,9 @@ import { TeamCrest } from '@/components/ui/team-crest'
 import type { Sesion, Partido, Microciclo } from '@/types'
 import { isSameDay } from '@/lib/calendar/types'
 import { partidoLugarArbitro } from '@/lib/convocatoriaCartel'
+import { useAppearance } from '@/lib/useAppearance'
+import type { DiaPersonal } from '@/lib/diaPersonal'
+import { DayDetailPanelCal } from './DayDetailPanelCal'
 
 const INTENSIDAD_LABEL: Record<string, string> = {
   baja: 'Baja',
@@ -61,9 +64,18 @@ interface DayDetailPanelProps {
   equipoId: string | undefined
   onToggleDescanso: (date: string) => void
   onNavigate: (path: string) => void
+  /** Cal: días personalizados ("Otro…"). */
+  diasPersonales?: Record<string, DiaPersonal>
+  onGuardarDiaPersonal?: (date: string, dia: DiaPersonal) => void
+  onQuitarDiaPersonal?: (date: string) => void
 }
 
-export function DayDetailPanel({
+export function DayDetailPanel(props: DayDetailPanelProps) {
+  const cal = useAppearance() === 'cal'
+  return cal ? <DayDetailPanelCal {...props} /> : <DayDetailPanelClasico {...props} />
+}
+
+function DayDetailPanelClasico({
   selectedDay,
   onClose,
   sesionesMes,

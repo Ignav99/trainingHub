@@ -43,11 +43,66 @@ export const MD_NOMBRE: Record<ClaveMD, string> = {
   'MD-1': 'Activación',
 }
 
-/** Partido: casa = color del club, fuera = info (como `localiaColor`). */
+/**
+ * Partido: casa = tono del club, fuera = info (como `localiaColor`).
+ *
+ * Casa no usa `--primary` directamente: en clubes de color negro o gris
+ * `--primary` es casi negro y su tinte "jugado" se confundía con el gris de
+ * los días de otro mes. Se usa `--casa` (lo fija `estiloCasa()` en el
+ * contenedor del calendario, la tira y el panel del día) y `--primary` solo
+ * como respaldo.
+ */
 export const LOCALIA_HSL = {
-  local: 'var(--primary)',
+  local: 'var(--casa, var(--primary))',
   visitante: 'var(--info)',
 } as const
+
+/** Tono de `--info` en Cal (fuera). Casa nunca debe caer cerca. */
+const TONO_FUERA = 215
+
+/**
+ * Casa de reserva cuando el color del club no sirve (sin color, o azul como
+ * fuera): ocre, el mismo ámbar con el que el aspecto clásico marca la casa.
+ */
+export const CASA_RESERVA_HSL = '38 80% 38%'
+
+function hexAHsl(hex: string): { h: number; s: number; l: number } | null {
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex.trim())
+  if (!m) return null
+  let x = m[1]
+  if (x.length === 3) x = x.split('').map((c) => c + c).join('')
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(x.slice(i, i + 2), 16) / 255)
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const l = (max + min) / 2
+  const d = max - min
+  if (d === 0) return { h: 0, s: 0, l: Math.round(l * 100) }
+  const s = d / (1 - Math.abs(2 * l - 1))
+  let h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4
+  h *= 60
+  if (h < 0) h += 360
+  return { h: Math.round(h), s: Math.round(s * 100), l: Math.round(l * 100) }
+}
+
+/**
+ * Canales HSL del color "casa" a partir del color del club. Se normaliza a
+ * saturación media y luminosidad 38% para que el tinte "jugado" se lea como
+ * color (nunca como gris) y la barra tenga presencia. Si el club no tiene
+ * color, o su tono está a menos de 30° del azul de fuera, se usa la reserva.
+ */
+export function tonoCasa(hexClub: string | null | undefined): string {
+  const c = hexClub ? hexAHsl(hexClub) : null
+  if (!c || c.s < 20 || c.l < 6 || c.l > 94) return CASA_RESERVA_HSL
+  const dist = Math.min(Math.abs(c.h - TONO_FUERA), 360 - Math.abs(c.h - TONO_FUERA))
+  if (dist < 30) return CASA_RESERVA_HSL
+  const s = Math.max(45, Math.min(c.s, 70))
+  return `${c.h} ${s}% 38%`
+}
+
+/** Variable `--casa` para el `style` del contenedor. */
+export function estiloCasa(hexClub: string | null | undefined): Record<string, string> {
+  return { '--casa': tonoCasa(hexClub) }
+}
 
 /** Tono neutro para lo que no tiene color propio (MD desconocido, campo neutral). */
 export const NEUTRO_HSL = 'var(--muted-foreground)'

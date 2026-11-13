@@ -24,7 +24,15 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { DashboardResumen, DashboardPlantilla } from '@/lib/api/dashboard'
 import { microciclosApi } from '@/lib/api/microciclos'
-import { descansosApi } from '@/lib/api/descansos'
+import { descansosApi, sincronizarDescansos } from '@/lib/api/descansos'
+import {
+  diasPersonalesDe,
+  escribirDiaPersonal,
+  esDiaPersonal,
+  fijarEnLista,
+  quitarDeLista,
+  type DiaPersonal,
+} from '@/lib/diaPersonal'
 import { RFEFCompeticion } from '@/lib/api/rfef'
 import { apiKey } from '@/lib/swr'
 import type { Sesion, Microciclo, Partido, Descanso, PaginatedResponse } from '@/types'
@@ -162,7 +170,7 @@ export default function DashboardPage() {
     seasonMicroKey,
     { keepPreviousData: true, revalidateOnFocus: true, revalidateOnMount: true, dedupingInterval: 4_000 }
   )
-  const { data: descansosRes, mutate: mutateDescansos, isLoading: seasonDescLoading } = useSWR<{
+  const { data: descansosRes, isLoading: seasonDescLoading } = useSWR<{
     data: Descanso[]
   }>(seasonDescKey, { keepPreviousData: true, revalidateOnFocus: true, revalidateOnMount: true, dedupingInterval: 4_000 })
 
@@ -233,6 +241,8 @@ export default function DashboardPage() {
     for (const d of descansosRes?.data || []) map[d.fecha] = d.id
     return map
   }, [descansosRes])
+  // Cal: filas `festivo` = días personalizados ("Otro…"); no se pintan como descanso.
+  const diasPersonales = useMemo(() => diasPersonalesDe(descansosRes?.data), [descansosRes])
 
   // RFEF liga position (derived)
   const { ligaPosition } = useMemo(() => {
@@ -441,16 +451,78 @@ export default function DashboardPage() {
   }
 
   // ============ Descanso handlers ============
+  // Optimistas sobre TODAS las listas de descansos en caché (calendario y
+  // barra de la semana a la vez); al terminar se revalidan.
+  const filaDe = (date: string) => (descansosRes?.data || []).find((d) => d.fecha.slice(0, 10) === date)
+  const filaTemporal = (fecha: string, tipo: Descanso['tipo'], notas: string | null): Descanso => ({
+    id: `tmp-${fecha}`,
+    equipo_id: equipoId || '',
+    fecha,
+    tipo,
+    notas,
+    created_at: new Date().toISOString(),
+  })
+
   const handleToggleDescanso = async (date: string) => {
-    if (equipoId) {
-      await descansosApi.toggle(equipoId, date)
-      mutateDescansos()
+    if (!equipoId) return
+    const fila = filaDe(date)
+    try {
+      if (cal && fila && esDiaPersonal(fila)) {
+        // Día con nota → pasa a descanso (no alterna, que lo borraría).
+        await sincronizarDescansos(
+          (l) => fijarEnLista(l, { ...fila, tipo: 'descanso', notas: null }),
+          () => descansosApi.guardar(equipoId, date, 'descanso', null)
+        )
+      } else {
+        await sincronizarDescansos(
+          (l) => (fila ? quitarDeLista(l, date) : fijarEnLista(l, filaTemporal(date, 'descanso', null))),
+          () => descansosApi.toggle(equipoId, date)
+        )
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'No se pudo guardar el descanso')
     }
   }
 
   const handleDeleteDescanso = async (id: string) => {
-    await descansosApi.delete(id)
-    mutateDescansos()
+    const fila = (descansosRes?.data || []).find((d) => d.id === id)
+    try {
+      await sincronizarDescansos(
+        (l) => (fila ? quitarDeLista(l, fila.fecha) : l.filter((d) => d.id !== id)),
+        () => descansosApi.delete(id)
+      )
+    } catch (err: any) {
+      toast.error(err?.message || 'No se pudo quitar el descanso')
+    }
+  }
+
+  const handleGuardarDiaPersonal = async (date: string, dia: DiaPersonal) => {
+    if (!equipoId) return
+    let notas: string
+    try {
+      notas = escribirDiaPersonal(dia)
+    } catch {
+      return
+    }
+    const fila = filaDe(date)
+    try {
+      await sincronizarDescansos(
+        (l) => fijarEnLista(l, fila ? { ...fila, tipo: 'festivo', notas } : filaTemporal(date, 'festivo', notas)),
+        () => descansosApi.guardar(equipoId, date, 'festivo', notas)
+      )
+    } catch (err: any) {
+      toast.error(err?.message || 'No se pudo guardar la nota del día')
+    }
+  }
+
+  const handleQuitarDiaPersonal = async (date: string) => {
+    const fila = filaDe(date)
+    if (!fila || fila.id.startsWith('tmp-')) return
+    try {
+      await sincronizarDescansos((l) => quitarDeLista(l, date), () => descansosApi.delete(fila.id))
+    } catch (err: any) {
+      toast.error(err?.message || 'No se pudo quitar la nota del día')
+    }
   }
 
   const greeting = (() => {
@@ -495,7 +567,7 @@ export default function DashboardPage() {
     <div
       className={
         cal
-          ? 'flex min-w-0 max-w-full flex-col gap-3 lg:h-[calc(100dvh-5rem)] lg:min-h-[30rem]'
+          ? 'flex min-w-0 max-w-full flex-col gap-3 lg:h-[calc(100dvh-5.25rem)] lg:min-h-[30rem]'
           : 'space-y-6 min-w-0 max-w-full'
       }
       style={cal ? undefined : { backgroundImage: FIELD_PATTERN }}
@@ -606,6 +678,9 @@ export default function DashboardPage() {
         onDeleteDescanso={handleDeleteDescanso}
         onNavigate={(path) => router.push(path)}
         onCreateMicrocicloForWeek={handleCreateMicroForWeek}
+        diasPersonales={cal ? diasPersonales : undefined}
+        onGuardarDiaPersonal={cal ? handleGuardarDiaPersonal : undefined}
+        onQuitarDiaPersonal={cal ? handleQuitarDiaPersonal : undefined}
       />
       </div>
 
@@ -647,6 +722,9 @@ export default function DashboardPage() {
         equipoId={equipoId}
         onToggleDescanso={handleToggleDescanso}
         onNavigate={(path) => router.push(path)}
+        diasPersonales={cal ? diasPersonales : undefined}
+        onGuardarDiaPersonal={cal ? handleGuardarDiaPersonal : undefined}
+        onQuitarDiaPersonal={cal ? handleQuitarDiaPersonal : undefined}
       />
 
       {/* ============ DIALOG: Disponibilidad ============ */}

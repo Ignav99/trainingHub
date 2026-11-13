@@ -25,6 +25,8 @@ const LANE_ACCENT = [
   'border-lime-200 bg-lime-50/40 dark:border-lime-900/50 dark:bg-lime-950/20',
 ]
 
+const LANE_CAL = '[html[data-appearance=cal]_&]:rounded-none [html[data-appearance=cal]_&]:border-line [html[data-appearance=cal]_&]:bg-card'
+
 function playerLabel(j: LanePlayer) {
   const name = j.apodo || [j.nombre, j.apellidos].filter(Boolean).join(' ').trim()
   return j.dorsal != null ? `${j.dorsal} ${name}` : name
@@ -137,9 +139,9 @@ export function CompensatorioBloquePanel({
           return (
             <section
               key={lane.id}
-              className={cn('rounded-xl border overflow-hidden flex flex-col min-h-[12rem]', LANE_ACCENT[i % LANE_ACCENT.length])}
+              className={cn('rounded-xl border overflow-hidden flex flex-col min-h-[12rem]', LANE_ACCENT[i % LANE_ACCENT.length], LANE_CAL)}
             >
-              <header className="px-3 py-2 border-b bg-background/70 flex items-center gap-2">
+              <header className="px-3 py-2 border-b bg-background/70 flex items-center gap-2 [html[data-appearance=cal]_&]:bg-sunken [html[data-appearance=cal]_&]:border-line">
                 <input
                   className="font-semibold text-sm bg-transparent border-b border-transparent hover:border-muted-foreground/40 focus:border-primary focus:outline-none min-w-0 flex-1"
                   value={lane.label}
@@ -164,7 +166,7 @@ export function CompensatorioBloquePanel({
                       key={j.id}
                       type="button"
                       onClick={() => togglePlayer(i, j.id)}
-                      className="inline-flex items-center gap-1 rounded-full bg-background border px-2 py-0.5 text-xs hover:border-destructive/50"
+                      className="inline-flex items-center gap-1 rounded-full bg-background border px-2 py-0.5 text-xs hover:border-destructive/50 [html[data-appearance=cal]_&]:rounded-none [html[data-appearance=cal]_&]:border-line [html[data-appearance=cal]_&]:bg-card [html[data-appearance=cal]_&]:hover:bg-sunken [html[data-appearance=cal]_&]:hover:border-foreground"
                       title="Quitar del grupo"
                     >
                       {playerLabel(j)}
@@ -174,7 +176,7 @@ export function CompensatorioBloquePanel({
                 </div>
                 {jugadores.length > 0 && (
                   <select
-                    className="w-full h-9 rounded-md border bg-background px-2 text-xs"
+                    className="w-full h-9 rounded-md border bg-background px-2 text-xs [html[data-appearance=cal]_&]:rounded-none [html[data-appearance=cal]_&]:border-line [html[data-appearance=cal]_&]:hover:border-foreground"
                     value=""
                     onChange={(e) => {
                       if (e.target.value) togglePlayer(i, e.target.value)

@@ -474,7 +474,7 @@ export function VideoAnalyzer({
   return (
     <div
       data-paleta-propia
-      className="vd-root"
+      className="vd-root [html[data-appearance=cal]_&]:[--vd-bg:hsl(var(--background))] [html[data-appearance=cal]_&]:[--vd-panel:hsl(var(--card))] [html[data-appearance=cal]_&]:[--vd-panel-2:hsl(var(--sunken))] [html[data-appearance=cal]_&]:[--vd-line:hsl(var(--primary))] [html[data-appearance=cal]_&]:[--vd-playhead:hsl(var(--foreground))] [html[data-appearance=cal]_&]:[--vd-text:hsl(var(--foreground))] [html[data-appearance=cal]_&]:[--vd-muted:hsl(var(--muted-foreground))] [html[data-appearance=cal]_&]:[--vd-ink:hsl(var(--primary-foreground))] [html[data-appearance=cal]_&]:[--vd-danger:hsl(var(--destructive))] [html[data-appearance=cal]_&]:[--vd-display:var(--font-cal)] [html[data-appearance=cal]_&]:[--vd-sans:var(--font-cal)] [html[data-appearance=cal]_&]:[--vd-mono:var(--font-cal-mono)] [html[data-appearance=cal]_&]:[&_.vd-header-title]:normal-case [html[data-appearance=cal]_&]:[&_.vd-header-title]:tracking-normal [html[data-appearance=cal]_&]:[&_.vd-cinta]:!bg-[hsl(var(--sunken))]"
       style={{
         ['--vd-rail' as string]: `${railWidth}px`,
         ['--vd-cinta' as string]: `${cintaHeight}px`,
