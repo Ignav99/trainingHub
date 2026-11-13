@@ -1,4 +1,5 @@
 from app.services.medical_availability_service import (
+    ADMIN_ESTADOS,
     default_disponibilidad,
     disponibilidad_from_fase_tratamiento,
     estado_from_record,
@@ -7,6 +8,11 @@ from app.services.medical_availability_service import (
     records_que_afectan_disponibilidad,
     resolve_record_disponibilidad,
 )
+
+
+def test_baja_no_bloquea_la_disponibilidad():
+    assert "baja" not in ADMIN_ESTADOS
+    assert "sancionado" in ADMIN_ESTADOS
 
 
 def test_fase_tratamiento_mapea_disponibilidad():

@@ -475,6 +475,10 @@ async def update_estado_jugador(
     """Actualiza el estado de un jugador (lesión, sanción, etc)."""
     supabase = get_supabase()
 
+    # La baja no se elige aquí. Sin lesión en fuera, margen o grupo, el jugador sigue disponible.
+    if estado == "baja":
+        estado = "activo"
+
     data = {"estado": estado}
 
     # Mapear disponibilidad operativa coherente con el estado manual
@@ -496,7 +500,7 @@ async def update_estado_jugador(
         data["disponibilidad"] = "fuera"
         data["motivo_baja"] = motivo
         data["fecha_vuelta_estimada"] = fecha_vuelta.isoformat() if fecha_vuelta else None
-    elif estado in ("sancionado", "viaje", "permiso", "seleccion", "baja"):
+    elif estado in ("sancionado", "viaje", "permiso", "seleccion"):
         data["disponibilidad"] = "fuera"
         data["motivo_baja"] = motivo
         data["fecha_vuelta_estimada"] = fecha_vuelta.isoformat() if fecha_vuelta else None

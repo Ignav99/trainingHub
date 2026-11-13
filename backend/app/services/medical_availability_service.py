@@ -5,8 +5,8 @@ a partir de registros médicos abiertos.
 Disponibilidad (más restrictiva gana):
   fuera > individual > grupo_adaptado > pleno
 
-Estados administrativos (sancionado, viaje, permiso, seleccion, baja)
-no se sobrescriben desde el módulo médico.
+Estados administrativos (sancionado, viaje, permiso, seleccion)
+no se sobrescriben desde el módulo médico. «baja» no: sin lesión vuelve a disponible.
 """
 
 from __future__ import annotations
@@ -21,7 +21,8 @@ DISP_RANK = {
     "pleno": 3,
 }
 
-ADMIN_ESTADOS = {"sancionado", "viaje", "permiso", "seleccion", "baja"}
+# «baja» no es un estado administrativo: solo sale de una lesión en enfermería.
+ADMIN_ESTADOS = {"sancionado", "viaje", "permiso", "seleccion"}
 
 OPEN_ESTADOS = {"activo", "en_recuperacion", "cronico"}
 

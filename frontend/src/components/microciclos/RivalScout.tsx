@@ -86,7 +86,7 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
   const [activeTab, setActiveTab] = useState<TabValue>('contexto')
   const [exportingDeck, setExportingDeck] = useState(false)
   const [liveShow, setLiveShow] = useState<DossierShow | null>(null)
-  const [sala, setSala] = useState<{ show: DossierShow; session: RevisionSession } | null>(null)
+  const [sala, setSala] = useState<{ show: DossierShow; session: RevisionSession; conTablet: boolean } | null>(null)
   const [presenting, setPresenting] = useState(false)
   const [presentingTodo, setPresentingTodo] = useState(false)
   const dataRef = useRef(data)
@@ -214,7 +214,7 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
             exporting={exportingDeck}
             presenting={presenting}
             presentingTodo={presentingTodo}
-            onPresentar={async () => {
+            onPresentar={async (conTablet) => {
               setPresenting(true)
               try {
                 const intelVisual = await loadShowIntel(equipoId, rivalId)
@@ -236,13 +236,13 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
                   rivalId,
                   microcicloId,
                 })
-                if (ready.session) setSala({ show: ready.show, session: ready.session })
+                if (ready.session) setSala({ show: ready.show, session: ready.session, conTablet })
                 else setLiveShow(ready.show)
               } finally {
                 setPresenting(false)
               }
             }}
-            onPresentarTodo={async () => {
+            onPresentarTodo={async (conTablet) => {
               setPresentingTodo(true)
               try {
                 const meta = {
@@ -272,7 +272,7 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
                   rivalId,
                   microcicloId,
                 })
-                if (ready.session) setSala({ show: ready.show, session: ready.session })
+                if (ready.session) setSala({ show: ready.show, session: ready.session, conTablet })
                 else setLiveShow(ready.show)
               } finally {
                 setPresentingTodo(false)
@@ -316,6 +316,7 @@ export function RivalScout({ data, rivalNombre, rivalEscudoUrl, rivalId, microci
           role="host"
           initialSession={sala.session}
           initialShow={sala.show}
+          shareDevice={sala.conTablet}
           onClose={() => setSala(null)}
         />
       )}

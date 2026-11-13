@@ -1033,8 +1033,8 @@ export default function TacticalBoardEditor({
         </g>
       </ABPPitch>
 
-      {/* Panel de propiedades del elemento seleccionado */}
-      {!isPlaying && <ElementEditPanel />}
+      {/* En ABP el panel va al lateral: encima del campo no deja mover fichas. */}
+      {!isPlaying && !abpRolesOpen && <ElementEditPanel />}
 
       {!isPlaying && spaceMetrics && (
         <GeometryPanel numJugadores={numJugadores} onApplyEspacio={onApplyEspacio} />

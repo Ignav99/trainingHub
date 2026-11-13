@@ -41,7 +41,8 @@ const FICHA_DEFAULT: Record<TipoJugador, FichaEstado> = {
   invitado: 'minima',
 }
 
-const ADMIN_ESTADOS: EstadoJugador[] = ['sancionado', 'viaje', 'permiso', 'seleccion', 'baja']
+/** Sanción, viaje, permiso y primer equipo. La baja solo la pone una lesión. */
+const ADMIN_ESTADOS: EstadoJugador[] = ['sancionado', 'viaje', 'permiso', 'seleccion']
 
 export function resolveTipoJugador(j: Pick<Jugador, 'tipo_jugador' | 'es_invitado'>): TipoJugador {
   if (j.tipo_jugador) return j.tipo_jugador
