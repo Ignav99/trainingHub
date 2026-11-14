@@ -5,7 +5,9 @@ import {
   hydrateLineup,
   kickoffTitularidadSync,
   lineupNeedsKickoffRepair,
+  lineupStatUpdates,
   mergeLineupIntoNotasPre,
+  savedLineupMatches,
   shouldPersistLineup,
   titularidadFix,
   titularidadUpdates,
@@ -90,6 +92,22 @@ describe('lineup persistence', () => {
     assert.equal(shouldPersistLineup({}, SLOTS), false)
     assert.equal(shouldPersistLineup(SLOTS, SLOTS), true)
     assert.equal(shouldPersistLineup({}, {}), true)
+  })
+
+  it('clears the bench slot and recognises a lineup that already landed', () => {
+    const updates = lineupStatUpdates(
+      [{ id: 'c-por' }, { id: 'c-dc' }, { id: 'c-bench' }],
+      [{ id: 'POR' }, { id: 'DC' }],
+      { POR: 'c-por', DC: 'c-dc' },
+    )
+    assert.deepEqual(updates, [
+      { id: 'c-por', titular: true, posicion_asignada: 'POR' },
+      { id: 'c-dc', titular: true, posicion_asignada: 'DC' },
+      { id: 'c-bench', titular: false, posicion_asignada: null },
+    ])
+    assert.equal(savedLineupMatches({ POR: 'c-por', DC: 'c-dc' }, { formacion_slots: { POR: 'c-por', DC: 'c-dc' } }), true)
+    assert.equal(savedLineupMatches({ POR: 'c-por', DC: 'c-otro' }, { formacion_slots: { POR: 'c-por', DC: 'c-dc' } }), false)
+    assert.equal(savedLineupMatches({}, { formacion_slots: { POR: 'c-por' } }), false)
   })
 
   it('parseNotasPre accepts object payloads that used to throw JSON.parse', () => {
