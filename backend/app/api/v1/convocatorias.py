@@ -443,7 +443,9 @@ async def batch_update_convocatorias(
         for k, v in item.items():
             if k not in allowed_fields:
                 continue
-            if k == "rpe" or v is not None:
+            # null borra el puesto del suplente. El resto de null se ignora
+            # para no vaciar minutos o goles si el cliente no los manda.
+            if k in ("rpe", "posicion_asignada") or v is not None:
                 update_data[k] = v
         if not update_data:
             continue

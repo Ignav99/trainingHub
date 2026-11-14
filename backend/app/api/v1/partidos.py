@@ -264,23 +264,48 @@ async def update_partido(
     if update_data.get("rival_id"):
         update_data["rival_id"] = str(update_data["rival_id"])
 
-    response = write_partido_row(
+    write_partido_row(
         lambda body: supabase.table("partidos").update(body).eq(
             "id", str(partido_id)
         ).execute(),
         update_data,
     )
 
-    # Obtener con relación
-    partido_completo = supabase.table("partidos").select(
-        "*, rivales(*)"
-    ).eq("id", str(partido_id)).single().execute()
+    # La misma lectura que el GET. `*, rivales(*)` arrastra el plan del rival
+    # (cientos de KB) y, si esa respuesta no valida, el cliente ve un error
+    # aunque la fila ya esté guardada.
+    def _read(select_cols: str):
+        return (
+            supabase.table("partidos")
+            .select(select_cols)
+            .eq("id", str(partido_id))
+            .limit(1)
+            .execute()
+        )
 
-    rival_data = partido_completo.data.pop("rivales", None)
-    hydrate_partido_campo(partido_completo.data)
-    result = PartidoResponse(**partido_completo.data)
-    if rival_data:
-        result.rival = RivalResponse(**rival_data)
+    partido_completo = execute_partidos_query(_read, PARTIDOS_GET_SELECT)
+    if not partido_completo.data:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="El partido se guardó, pero no pude volver a leerlo. Recarga.",
+        )
+
+    row = partido_completo.data[0]
+    rival_data = row.pop("rivales", None)
+    hydrate_partido_campo(row)
+    try:
+        result = PartidoResponse(**row)
+    except Exception as exc:
+        logger.exception("Respuesta de partido %s inválida tras guardar", partido_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="El partido se guardó, pero no pude devolverlo. Recarga.",
+        ) from exc
+    if isinstance(rival_data, dict):
+        try:
+            result.rival = RivalResponse(**rival_data)
+        except Exception:
+            logger.warning("Rival del partido %s omitido en la respuesta", partido_id, exc_info=True)
 
     log_update(auth.user_id, "partido", str(partido_id), datos_nuevos=update_data)
 

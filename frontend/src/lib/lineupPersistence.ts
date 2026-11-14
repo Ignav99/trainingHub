@@ -137,6 +137,36 @@ export function shouldPersistLineup(
   return !lineupSlotsFilled(existingSlots)
 }
 
+/** Filas del once. El suplente lleva el puesto a null para no dejar el anterior. */
+export function lineupStatUpdates(
+  convocados: Array<{ id: string }>,
+  formationSlots: Array<{ id: string }>,
+  assignments: Record<string, string>,
+): Array<{ id: string; titular: boolean; posicion_asignada: string | null }> {
+  const assignedByConv = new Map<string, string>()
+  for (const slot of formationSlots) {
+    const convId = assignments[slot.id]
+    if (convId) assignedByConv.set(convId, slot.id)
+  }
+  return convocados.map((conv) => {
+    const pos = assignedByConv.get(conv.id)
+    if (pos) return { id: conv.id, titular: true, posicion_asignada: pos }
+    return { id: conv.id, titular: false, posicion_asignada: null }
+  })
+}
+
+/** El JSON del partido ya tiene el mismo once que se acaba de mandar. */
+export function savedLineupMatches(
+  wanted: Record<string, string>,
+  notasPre: unknown,
+): boolean {
+  const saved = parseNotasPre(notasPre).formacion_slots || {}
+  const wantedPairs = Object.entries(wanted).filter(([, id]) => Boolean(id))
+  const savedPairs = Object.entries(saved).filter(([, id]) => Boolean(id))
+  if (wantedPairs.length === 0 || wantedPairs.length !== savedPairs.length) return false
+  return wantedPairs.every(([slot, id]) => saved[slot] === id)
+}
+
 export type TitularidadFix = {
   /** Once del saque: convocatoria → hueco (null si no tiene puesto en el sistema). */
   starters: Map<string, string | null>

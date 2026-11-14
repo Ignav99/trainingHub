@@ -80,7 +80,7 @@ import { PorAspecto } from '@/components/appearance/PorAspecto'
 import { ConvocatoriaCartelDialog } from './ConvocatoriaCartelDialog'
 import type { AnotacionesPlan, PlayerStatRow } from '@/lib/partidoAnotacionesJson'
 import { periodReportFromNotasPre, parseNotasPre, informeFromSnapshot, hasAnotadorLiveData, resolveGolDetalleNames, remapFormationSlots } from '@/lib/anotador'
-import { hydrateLineup, kickoffTitularidadSync, mergeLineupIntoNotasPre, shouldPersistLineup } from '@/lib/lineupPersistence'
+import { hydrateLineup, kickoffTitularidadSync, lineupStatUpdates, mergeLineupIntoNotasPre, savedLineupMatches, shouldPersistLineup } from '@/lib/lineupPersistence'
 
 const PartidoPlanTab = dynamic(() => import('./PartidoPlanTab').then(m => ({ default: m.PartidoPlanTab })), {
   loading: () => <div className="animate-pulse space-y-4 p-4"><div className="h-8 bg-muted rounded w-1/3" /><div className="h-32 bg-muted rounded" /><div className="h-32 bg-muted rounded" /></div>
@@ -565,25 +565,36 @@ export function MatchDetailPanel({
         return
       }
 
-      const assignedByConv = new Map<string, string>()
-      for (const slot of activeFormation.slots) {
-        const convId = slotAssignments[slot.id]
-        if (convId) assignedByConv.set(convId, slot.id)
-      }
-      await convocatoriasApi.batchUpdateStats(convocados.map((conv) => {
-        const pos = assignedByConv.get(conv.id)
-        if (pos) return { id: conv.id, posicion_asignada: pos, titular: true }
-        return { id: conv.id, titular: false }
-      }))
+      const saveTimeout = { timeout: 90_000 }
+      await convocatoriasApi.batchUpdateStats(
+        lineupStatUpdates(convocados, activeFormation.slots, slotAssignments),
+        saveTimeout,
+      )
 
       const merged = mergeLineupIntoNotasPre(latestNotas, selectedFormation, slotAssignments)
-      await partidosApi.update(selectedPartido.id, { notas_pre: merged })
+      await partidosApi.update(selectedPartido.id, { notas_pre: merged }, saveTimeout)
       lineupDirtyRef.current = false
       toast.success('Alineacion guardada')
       mutate((key: string) => typeof key === 'string' && (key.includes('/convocatorias') || key.includes('/partidos')), undefined, { revalidate: true })
     } catch (err) {
       console.error('Error saving lineup:', err)
-      toast.error('Error al guardar la alineacion')
+      try {
+        const latest = await partidosApi.get(selectedPartido.id)
+        if (savedLineupMatches(slotAssignments, latest.notas_pre)) {
+          lineupDirtyRef.current = false
+          toast.success('Alineacion guardada')
+          mutate((key: string) => typeof key === 'string' && (key.includes('/convocatorias') || key.includes('/partidos')), undefined, { revalidate: true })
+          return
+        }
+      } catch {
+        // The check failed too; show the original error.
+      }
+      const reason = err instanceof Error && err.name !== 'AbortError' ? err.message : ''
+      toast.error(
+        reason
+          ? `No se ha podido guardar la alineacion. ${reason}`
+          : 'No se ha podido guardar la alineacion. Recarga: el once puede haberse guardado igualmente.',
+      )
     } finally {
       setSavingLineup(false)
     }

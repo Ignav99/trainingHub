@@ -224,8 +224,8 @@ export const partidosApi = {
     return api.post<Partido>('/partidos', data)
   },
 
-  async update(id: string, data: PartidoUpdateData): Promise<Partido> {
-    return api.put<Partido>(`/partidos/${id}`, data)
+  async update(id: string, data: PartidoUpdateData, options?: { timeout?: number }): Promise<Partido> {
+    return api.put<Partido>(`/partidos/${id}`, data, options?.timeout ? { timeout: options.timeout } : undefined)
   },
 
   async delete(id: string): Promise<void> {
