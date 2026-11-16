@@ -382,13 +382,14 @@ export async function readLocalVideoFingerprint(file: File): Promise<{
   durationMs: number
 }> {
   const url = URL.createObjectURL(file)
+  const video = document.createElement('video')
+  video.preload = 'metadata'
+  video.muted = true
   try {
     const durationMs = await new Promise<number>((resolve, reject) => {
-      const video = document.createElement('video')
-      video.preload = 'metadata'
       video.onloadedmetadata = () => {
-        const ms = Math.round((video.duration || 0) * 1000)
-        resolve(ms)
+        const seconds = Number.isFinite(video.duration) ? video.duration : 0
+        resolve(Math.round(seconds * 1000))
       }
       video.onerror = () => reject(new Error('No se pudo leer el video'))
       video.src = url
@@ -398,6 +399,9 @@ export async function readLocalVideoFingerprint(file: File): Promise<{
       durationMs,
     }
   } finally {
+    video.pause()
+    video.removeAttribute('src')
+    video.load()
     URL.revokeObjectURL(url)
   }
 }

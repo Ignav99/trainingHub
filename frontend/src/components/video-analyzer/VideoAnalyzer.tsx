@@ -43,6 +43,8 @@ interface VideoAnalyzerProps {
   watchMode?: VideoWatchMode
   watchedOpponent?: string
   rivalName?: string
+  /** Duración real del archivo local, para registrar la sesión sin abrir otro reproductor. */
+  onLocalDuration?: (seconds: number) => void
   onClose: () => void
   /** La página lo llama al pulsar Escape, antes de que cualquier otro listener cierre el vídeo. */
   escapeGuardRef?: React.MutableRefObject<() => void>
@@ -74,6 +76,7 @@ export function VideoAnalyzer({
   watchMode,
   watchedOpponent,
   rivalName,
+  onLocalDuration,
   onClose,
   escapeGuardRef,
 }: VideoAnalyzerProps) {
@@ -138,6 +141,13 @@ export function VideoAnalyzer({
     const url = URL.createObjectURL(localFile)
     setObjectUrl(url)
     return () => URL.revokeObjectURL(url)
+  }, [localFile])
+
+  const onLocalDurationRef = useRef(onLocalDuration)
+  onLocalDurationRef.current = onLocalDuration
+  const handleDuration = useCallback((value: number) => {
+    setDuration(value)
+    if (localFile && Number.isFinite(value) && value > 0) onLocalDurationRef.current?.(value)
   }, [localFile])
 
   const src = localFile ? objectUrl : (videoUrl || '')
@@ -578,7 +588,7 @@ export function VideoAnalyzer({
                 fillFrame
                 keyboardJog={!stage}
                 onTimeUpdate={handleTimeUpdate}
-                onDurationChange={setDuration}
+                onDurationChange={handleDuration}
                 onSeeked={(t) => {
                   currentTimeRef.current = t
                   setCurrentTime(t)
