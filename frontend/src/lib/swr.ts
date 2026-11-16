@@ -1,10 +1,13 @@
 import { api } from './api/client'
+import { listaDescansosEnCache } from './api/descansos'
+import { lecturaDescansosObsoleta } from './descansosSync'
 
 /**
  * Global fetcher for SWR — delegates to api.get() which handles auth headers.
  * SWR keys are API paths with query strings: "/path?param=value&..."
  */
 export async function apiFetcher<T>(key: string): Promise<T> {
+  const inicio = Date.now()
   const [path, queryString] = key.split('?')
   const params: Record<string, string> = {}
   if (queryString) {
@@ -12,7 +15,14 @@ export async function apiFetcher<T>(key: string): Promise<T> {
       params[k] = value
     })
   }
-  return api.get<T>(path, Object.keys(params).length ? { params } : undefined)
+  const data = await api.get<T>(path, Object.keys(params).length ? { params } : undefined)
+  // Un GET de descansos pedido antes del clic no puede borrar el día que
+  // acaba de pintarse. Se devuelve la lista que ya está en caché.
+  if (path === '/descansos' && lecturaDescansosObsoleta(inicio)) {
+    const vigente = listaDescansosEnCache(key)
+    if (vigente) return vigente as T
+  }
+  return data
 }
 
 /**
