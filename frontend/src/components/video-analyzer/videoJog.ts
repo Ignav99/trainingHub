@@ -319,16 +319,26 @@ export async function playForwardToTime(
   }
 }
 
-/** Native frame. A downscaled copy looks soft when it covers the paused video. */
+/** Native frame. Drawn onto a canvas first: createImageBitmap(video) blanks a hardware-decoded match. */
+let snapshotCanvas: HTMLCanvasElement | null = null
+
 export async function snapshotVideoFrame(
   video: HTMLVideoElement
 ): Promise<ImageBitmap | null> {
   if (typeof createImageBitmap !== 'function') return null
   const w = video.videoWidth
   const h = video.videoHeight
-  if (!w || !h) return null
+  if (!w || !h || typeof document === 'undefined') return null
   try {
-    return await createImageBitmap(video)
+    if (!snapshotCanvas) snapshotCanvas = document.createElement('canvas')
+    if (snapshotCanvas.width !== w || snapshotCanvas.height !== h) {
+      snapshotCanvas.width = w
+      snapshotCanvas.height = h
+    }
+    const ctx = snapshotCanvas.getContext('2d')
+    if (!ctx) return null
+    ctx.drawImage(video, 0, 0, w, h)
+    return await createImageBitmap(snapshotCanvas)
   } catch {
     return null
   }

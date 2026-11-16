@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, useRef, lazy, Suspense } from 'react'
+import { useCallback, useEffect, useMemo, useState, useRef, lazy, Suspense } from 'react'
 import Link from 'next/link'
 import useSWR from 'swr'
 import { useEquipoStore } from '@/stores/equipoStore'
@@ -28,7 +28,7 @@ import {
   ChevronDown,
 } from 'lucide-react'
 import { formatTime } from '@/components/video-analyzer/utils'
-import { readLocalVideoFingerprint } from '@/components/video-analyzer/extractClip'
+import { isLocalVideoFile, localVideoFingerprint } from '@/components/video-analyzer/localVideoFile'
 import {
   canLoadMatchVideo,
   groupPartidosByMonth,
@@ -158,6 +158,7 @@ export default function VideoAnalisisPage() {
 
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [localVideoId, setLocalVideoId] = useState<string | null>(null)
+  const sessionKeyRef = useRef<string | null>(null)
 
   const closeDirecto = () => {
     setDirecto((current) => {
@@ -172,7 +173,7 @@ export default function VideoAnalisisPage() {
     const picked = Array.from(e.target.files ?? [])
     e.target.value = ''
     if (picked.length === 0) return
-    const videos = picked.filter((file) => file.type.startsWith('video/'))
+    const videos = picked.filter((file) => isLocalVideoFile(file))
     if (videos.length === 0) {
       toast.error('Solo se permiten archivos de video')
       return
@@ -216,29 +217,41 @@ export default function VideoAnalisisPage() {
     fileRef.current?.click()
   }
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  useEffect(() => {
+    sessionKeyRef.current = null
+  }, [analyzerFile])
+
+  const handleLocalDuration = useCallback((seconds: number) => {
+    const file = analyzerFile
+    if (!file || !Number.isFinite(seconds) || seconds <= 0) return
+    const durationMs = Math.round(seconds * 1000)
+    const fingerprint = localVideoFingerprint(file.name, file.size, durationMs)
+    if (sessionKeyRef.current === fingerprint) return
+    sessionKeyRef.current = fingerprint
+    void videosApi.createLocalSession({
+      partido_id: link?.attachUpcomingMatch ? selectedPartido?.id : undefined,
+      equipo_id: equipoId,
+      filename: file.name,
+      size_bytes: file.size,
+      duration_ms: durationMs,
+      fingerprint,
+    }).then((session) => {
+      setLocalVideoId(session.id)
+    }).catch(() => {
+      if (sessionKeyRef.current === fingerprint) sessionKeyRef.current = null
+      setLocalVideoId(null)
+    })
+  }, [analyzerFile, equipoId, link?.attachUpcomingMatch, selectedPartido?.id])
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
     if (!f) return
-    if (!f.type.startsWith('video/')) {
+    if (!isLocalVideoFile(f)) {
       toast.error('Solo se permiten archivos de video')
       return
     }
 
-    try {
-      const { fingerprint, durationMs } = await readLocalVideoFingerprint(f)
-      const session = await videosApi.createLocalSession({
-        partido_id: link?.attachUpcomingMatch ? selectedPartido?.id : undefined,
-        equipo_id: equipoId,
-        filename: f.name,
-        size_bytes: f.size,
-        duration_ms: durationMs,
-        fingerprint,
-      })
-      setLocalVideoId(session.id)
-    } catch {
-      setLocalVideoId(null)
-    }
-
+    setLocalVideoId(null)
     setAnalyzerFile(f)
     if (source?.kind === 'match' && selectedPartido && watchMode) {
       void videosApi.saveTrabajo({
@@ -549,6 +562,7 @@ export default function VideoAnalisisPage() {
             watchMode={watchMode || undefined}
             watchedOpponent={opponentNote}
             rivalName={selectedPartido ? rivalName : undefined}
+            onLocalDuration={handleLocalDuration}
             escapeGuardRef={escapeGuardRef}
             onClose={() => {
               setAnalyzerFile(null)

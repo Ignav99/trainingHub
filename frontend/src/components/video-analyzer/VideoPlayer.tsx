@@ -53,6 +53,7 @@ import {
   frameDuration,
   type ArrowJog,
 } from './videoJog'
+import { videoMediaMessage } from './localVideoFile'
 
 const HOLD_REWIND_INTERVAL_MS = 70
 
@@ -199,6 +200,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const [rebinding, setRebinding] = useState<SkipDelta | null>(null)
     const [internalFullscreen, setIsFullscreen] = useState(false)
     const [isExpanded, setIsExpanded] = useState(false)
+    const [mediaError, setMediaError] = useState<string | null>(null)
+    const [mediaReady, setMediaReady] = useState(false)
     const currentTimeRef = useRef(0)
     const seekBarRef = useRef<HTMLDivElement>(null)
     const uiMuted = mutedProp ?? internalMuted
@@ -230,6 +233,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     mirrorRef.current = mirrorStream
     const onMirrorToggleRef = useRef(onMirrorToggle)
     onMirrorToggleRef.current = onMirrorToggle
+    const playRetryRef = useRef<(() => void) | null>(null)
+    const playRetriedRef = useRef(false)
     const jogPointer = (standalonePreview || fillFrame) && !presenterEmbed
     const jogKeysWindow = (keyboardJog ?? !!fillFrame) && !presenterEmbed
     const jogKeysContainer = !!standalonePreview && !presenterEmbed
@@ -270,6 +275,39 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       // For non-HLS, the src attribute on <video> handles it
     }, [src, srcObject])
 
+    const beginPlayback = useCallback((v: HTMLVideoElement) => {
+      setMediaError(null)
+      const pendingRetry = playRetryRef.current
+      if (pendingRetry) {
+        v.removeEventListener('canplay', pendingRetry)
+        playRetryRef.current = null
+      }
+      const attempt = () => {
+        const pending = v.play()
+        if (!pending || typeof pending.catch !== 'function') return
+        void pending.catch((err: unknown) => {
+          if (v.error) {
+            setMediaError(videoMediaMessage(v.error.code))
+            return
+          }
+          const name = err && typeof err === 'object' && 'name' in err ? String((err as { name: string }).name) : ''
+          if (name === 'NotAllowedError') return
+          if (playRetriedRef.current) {
+            setMediaError('El vídeo aún no está listo. Espera un momento y vuelve a darle a play.')
+            return
+          }
+          playRetriedRef.current = true
+          const retry = () => {
+            if (playRetryRef.current === retry) playRetryRef.current = null
+            attempt()
+          }
+          playRetryRef.current = retry
+          v.addEventListener('canplay', retry, { once: true })
+        })
+      }
+      attempt()
+    }, [])
+
     const togglePlay = useCallback(() => {
       if (mirrorRef.current) {
         onMirrorToggleRef.current?.()
@@ -292,18 +330,18 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             reverseHoldRef.current = false
             v.style.opacity = ''
             if (overlayRef.current) overlayRef.current.style.opacity = '0'
-            void v.play()?.catch(() => undefined)
+            beginPlayback(v)
           })
           return
         }
         reverseHoldRef.current = false
         v.style.opacity = ''
         if (overlayRef.current) overlayRef.current.style.opacity = '0'
-        void v.play()?.catch(() => undefined)
+        beginPlayback(v)
       } else {
         v.pause()
       }
-    }, [clipRange])
+    }, [beginPlayback, clipRange])
 
     const rangeBounds = useCallback(() => {
       const v = videoRef.current
@@ -584,12 +622,12 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             reverseHoldRef.current = false
             v.style.opacity = ''
             if (overlayRef.current) overlayRef.current.style.opacity = '0'
-            void v.play()?.catch(() => undefined)
+            beginPlayback(v)
           })
           return
         }
         hideOverlay()
-        void v.play()?.catch(() => undefined)
+        beginPlayback(v)
       },
       setMuted: (next) => {
         setInternalMuted(next)
@@ -597,7 +635,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         onMutedChange?.(next)
       },
       toggleFullscreen,
-    }), [frameStep, hideOverlay, seek, seekToTime, playbackMuted, onMutedChange, toggleFullscreen])
+    }), [beginPlayback, frameStep, hideOverlay, seek, seekToTime, playbackMuted, onMutedChange, toggleFullscreen])
 
     const cycleSpeed = useCallback(() => {
       const next = nextPlaybackSpeed(speed)
@@ -631,6 +669,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           v.pause()
           return
         }
+        playRetriedRef.current = false
+        setMediaError(null)
+        setMediaReady(true)
         setPlaying(true)
         onPlayStateChange?.(true)
       }
@@ -644,12 +685,20 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         setDuration(v.duration)
         onDurationChange?.(v.duration)
       }
+      const handleLoaded = () => {
+        if (v.videoWidth > 0) {
+          setMediaReady(true)
+          setMediaError(null)
+        }
+      }
       const handleSeeked = () => {
         if (jogLockRef.current || jogSilentRef.current || reverseHoldRef.current) return
         if (v.readyState >= 2) hideOverlay()
         onSeeked?.(v.currentTime)
       }
       const handleError = () => {
+        setMediaReady(false)
+        setMediaError(videoMediaMessage(v.error?.code))
         onError?.()
       }
 
@@ -657,6 +706,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       v.addEventListener('play', handlePlay)
       v.addEventListener('pause', handlePause)
       v.addEventListener('loadedmetadata', handleDuration)
+      v.addEventListener('loadeddata', handleLoaded)
       v.addEventListener('seeked', handleSeeked)
       v.addEventListener('error', handleError)
 
@@ -665,6 +715,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         v.removeEventListener('play', handlePlay)
         v.removeEventListener('pause', handlePause)
         v.removeEventListener('loadedmetadata', handleDuration)
+        v.removeEventListener('loadeddata', handleLoaded)
         v.removeEventListener('seeked', handleSeeked)
         v.removeEventListener('error', handleError)
       }
@@ -684,13 +735,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           if (fps) fpsRef.current = fps
         }
         last = { frames: meta.presentedFrames, mediaTime: meta.mediaTime }
-        if (!snapBusyRef.current) {
-          snapBusyRef.current = true
-          void snapshotVideoFrame(v).then((bmp) => {
-            snapBusyRef.current = false
-            if (bmp) frameCacheRef.current.push(meta.mediaTime, bmp)
-          })
-        }
+        // No snapshot while the match is playing. createImageBitmap on the
+        // live element blanks a long, hardware-decoded file and the play
+        // button then looks dead on a black picture.
         const canvas = overlayRef.current
         if (reverseHoldRef.current && !jogLockRef.current && meta.mediaTime + 0.04 >= currentTimeRef.current) {
           reverseHoldRef.current = false
@@ -730,6 +777,10 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       frameCacheRef.current.clear()
       reverseHoldRef.current = false
       jogLockRef.current = false
+      playRetriedRef.current = false
+      setMediaError(null)
+      const opened = videoRef.current
+      setMediaReady(Boolean(opened && opened.readyState >= 2 && opened.videoWidth > 0))
       const canvas = overlayRef.current
       if (canvas) canvas.style.opacity = '0'
       if (videoRef.current) videoRef.current.style.opacity = ''
@@ -975,7 +1026,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           <video
             ref={videoRef}
             src={!src || src.includes('.m3u8') || srcObject ? undefined : src}
-            preload={playOnlyChrome ? 'metadata' : 'auto'}
+            preload="metadata"
             muted={elementMuted}
             playsInline
             className={
@@ -986,6 +1037,16 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             style={contentTransform}
             onClick={togglePlay}
           />
+          {!mediaReady && !mediaError && src && !srcObject ? (
+            <div className="pointer-events-none absolute inset-0 z-[5] flex items-center justify-center px-6 text-center text-xs text-white/70">
+              Abriendo el vídeo…
+            </div>
+          ) : null}
+          {mediaError ? (
+            <div className="pointer-events-none absolute inset-0 z-[6] flex items-center justify-center px-6 text-center text-sm text-white">
+              {mediaError}
+            </div>
+          ) : null}
           {playOnlyChrome && (
             <button
               type="button"
