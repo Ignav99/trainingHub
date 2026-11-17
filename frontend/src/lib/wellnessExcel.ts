@@ -224,15 +224,31 @@ export function parseScore1to5(value: unknown): number {
   return 3
 }
 
+function foldHoursText(raw: string): string {
+  return raw
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/,/g, '.')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 export function parseHorasSueno(value: unknown): number | null {
   if (value == null || value === '') return null
   if (typeof value === 'number' && Number.isFinite(value)) {
     if (value > 16 && value <= 24 * 60) return clampHours(value / 60)
     return clampHours(value)
   }
-  const s = String(value).trim().toLowerCase().replace(',', '.')
+  const s = foldHoursText(String(value))
   const hm = s.match(/^(\d{1,2})\s*[:h]\s*(\d{1,2})/)
   if (hm) return clampHours(Number(hm[1]) + Number(hm[2]) / 60)
+  const entre = s.match(/entre\s+(\d+(?:\.\d+)?)\s+y\s+(\d+(?:\.\d+)?)/)
+  if (entre) return clampHours((Number(entre[1]) + Number(entre[2])) / 2)
+  const mas = s.match(/mas de\s+(\d+(?:\.\d+)?)/)
+  if (mas) return clampHours(Number(mas[1]) + 0.5)
+  const menos = s.match(/menos de\s+(\d+(?:\.\d+)?)/)
+  if (menos) return clampHours(Math.max(0, Number(menos[1]) - 0.5))
   const range = s.match(/^(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)/)
   if (range) return clampHours((Number(range[1]) + Number(range[2])) / 2)
   const n = parseFloat(s.replace(/[^\d.]/g, ''))
@@ -266,6 +282,77 @@ export function parseMolestiaFlag(value: unknown): { molestia: boolean | null; t
 
 export function stripNumberPrefix(name: string): string {
   return String(name || '').replace(/^\d+[\.\)\-\s]+\s*/, '').trim()
+}
+
+export interface WellnessPlayerRef {
+  id: string
+  nombre: string
+  apellidos?: string | null
+  apodo?: string | null
+}
+
+/** Minúsculas, sin acentos y con un solo espacio. El formulario y la ficha no coinciden si no. */
+export function foldWellnessName(raw: string): string {
+  return String(raw || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function nameTokens(...parts: Array<string | null | undefined>): Set<string> {
+  const out = new Set<string>()
+  for (const part of parts) {
+    for (const token of foldWellnessName(part || '').split(' ')) {
+      if (token) out.add(token)
+    }
+  }
+  return out
+}
+
+/**
+ * Empareja el nombre del formulario con un jugador de la plantilla.
+ * «Melchor» casa con Melchor Jiménez; «Alberto Heredero» con Heredero y no con Alberto Gil.
+ * Si dos jugadores empatan, no asigna a ninguno.
+ */
+export function matchWellnessJugador(
+  rawNombre: string,
+  jugadores: WellnessPlayerRef[],
+): string | null {
+  const query = foldWellnessName(stripNumberPrefix(rawNombre))
+  if (!query) return null
+  const qTokens = query.split(' ').filter(Boolean)
+
+  const hits: { id: string; score: number }[] = []
+  for (const jugador of jugadores) {
+    const nombre = foldWellnessName(jugador.nombre)
+    const apellidos = foldWellnessName(jugador.apellidos || '')
+    const apodo = foldWellnessName(jugador.apodo || '')
+    const full = foldWellnessName(`${jugador.nombre || ''} ${jugador.apellidos || ''}`)
+    const playerTokens = nameTokens(jugador.nombre, jugador.apellidos, jugador.apodo)
+
+    let score = 0
+    if (query === full) score = 100
+    else if (apodo && query === apodo) score = 90
+    else if (nombre && query === nombre) score = 80
+    else if (apellidos && query === apellidos) score = 80
+    else if (qTokens.length > 0 && qTokens.every((token) => playerTokens.has(token))) {
+      score = 60 + qTokens.length
+    } else if (
+      full.length > 3 &&
+      (full.startsWith(`${query} `) || query.startsWith(`${full} `))
+    ) {
+      score = 50
+    }
+    if (score > 0) hits.push({ id: jugador.id, score })
+  }
+
+  if (hits.length === 0) return null
+  hits.sort((a, b) => b.score - a.score)
+  if (hits.length > 1 && hits[0].score === hits[1].score) return null
+  return hits[0].id
 }
 
 function cell(row: Record<string, unknown>, col: string | undefined): unknown {

@@ -17,7 +17,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { wellnessApi, type WellnessBulkItem } from '@/lib/api/wellness'
-import { parseWellnessSheet, type WellnessParsedRow } from '@/lib/wellnessExcel'
+import { matchWellnessJugador, parseWellnessSheet, type WellnessParsedRow } from '@/lib/wellnessExcel'
 import type { Jugador } from '@/lib/api/jugadores'
 
 interface PreviewRow extends WellnessParsedRow {
@@ -53,28 +53,7 @@ export function ExcelImportDialog({ open, onOpenChange, jugadores }: ExcelImport
   }
 
   const matchJugador = useCallback((rawNombre: string): string | null => {
-    const normalizado = rawNombre.toLowerCase().trim()
-    if (!normalizado) return null
-
-    for (const j of jugadores) {
-      const fullName = `${j.nombre} ${j.apellidos}`.toLowerCase().trim()
-      const nameOnly = j.nombre.toLowerCase().trim()
-      const surnameOnly = (j.apellidos || '').toLowerCase().trim()
-      const apodo = (j.apodo || '').toLowerCase().trim()
-
-      if (
-        normalizado === fullName ||
-        normalizado === nameOnly ||
-        (surnameOnly && normalizado === surnameOnly) ||
-        (apodo && normalizado === apodo) ||
-        (fullName.startsWith(normalizado) && normalizado.length > 3) ||
-        (normalizado.startsWith(fullName) && fullName.length > 3)
-      ) {
-        return j.id
-      }
-    }
-
-    return null
+    return matchWellnessJugador(rawNombre, jugadores)
   }, [jugadores])
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

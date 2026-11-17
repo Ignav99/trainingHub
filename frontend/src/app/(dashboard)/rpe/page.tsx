@@ -102,6 +102,19 @@ function getWellnessBg(value: number | null): string {
   return 'bg-red-50'
 }
 
+/** Plantilla (y filial si está visible). El wellness se rellena también de baja. */
+function visibleEnWellness(j: Jugador, mostrarFilial: boolean): boolean {
+  const tipo = resolveTipoJugador(j)
+  if (tipo === 'invitado' || tipo === 'prueba') return false
+  if (tipo === 'juvenil' && !mostrarFilial) return false
+  return true
+}
+
+function disponibleParaRpe(j: Jugador): boolean {
+  const disp = j.disponibilidad || (j.estado === 'activo' ? 'pleno' : 'fuera')
+  return disp !== 'fuera' && !['sancionado', 'viaje', 'permiso', 'seleccion', 'baja'].includes(j.estado)
+}
+
 export default function RPEPage() {
   const cal = useAppearance() === 'cal'
   const { equipoActivo } = useEquipoStore()
@@ -128,13 +141,8 @@ export default function RPEPage() {
     }, ['equipo_id'])
   )
 
-  const jugadores = (jugadoresData?.data || []).filter((j) => {
-    const tipo = resolveTipoJugador(j)
-    if (tipo === 'invitado' || tipo === 'prueba') return false
-    if (tipo === 'juvenil' && !mostrarFilial) return false
-    const disp = j.disponibilidad || (j.estado === 'activo' ? 'pleno' : 'fuera')
-    return disp !== 'fuera' && !['sancionado', 'viaje', 'permiso', 'seleccion', 'baja'].includes(j.estado)
-  })
+  const jugadoresWellness = (jugadoresData?.data || []).filter((j) => visibleEnWellness(j, mostrarFilial))
+  const jugadores = jugadoresWellness.filter(disponibleParaRpe)
   const wellnessAggregates = wellnessData?.data || []
   const wellnessMap = new Map(wellnessAggregates.map((w) => [w.jugador_id, w]))
   const loading = loadingCarga
@@ -606,14 +614,14 @@ export default function RPEPage() {
       <WellnessDialog
         open={showWellness}
         onOpenChange={setShowWellness}
-        jugadores={jugadores}
+        jugadores={jugadoresWellness}
       />
       {equipoActivo?.id && (
         <>
           <WellnessChartDialog
             open={showChart}
             onOpenChange={setShowChart}
-            jugadores={jugadores}
+            jugadores={jugadoresWellness}
             equipoId={equipoActivo.id}
           />
           <LoadChartDialog
@@ -628,7 +636,7 @@ export default function RPEPage() {
       <ExcelImportDialog
         open={showImport}
         onOpenChange={setShowImport}
-        jugadores={jugadores}
+        jugadores={jugadoresWellness}
       />
     </div>
   )
