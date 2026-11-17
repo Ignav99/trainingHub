@@ -111,12 +111,13 @@ async def get_team_wellness(
     today = date.today()
     d7_ago = today - timedelta(days=7)
 
-    # Get team players (plantilla + filial + prueba; no invitados)
+    # Plantilla, filial y prueba, también de baja o lesionados: el formulario
+    # lo rellenan igual y si no están aquí su wellness no sale en el equipo.
     from app.services.jugador_tipo import incluye_tracking_carga
 
     jugadores = supabase.table("jugadores").select(
         "id, nombre, apellidos, dorsal, posicion_principal, tipo_jugador, es_invitado"
-    ).eq("equipo_id", eid).eq("estado", "activo").order("dorsal").execute()
+    ).eq("equipo_id", eid).order("dorsal").execute()
 
     jugadores_data = [j for j in (jugadores.data or []) if incluye_tracking_carga(j)]
 
@@ -232,7 +233,7 @@ async def get_team_wellness_alerts(
 
     jugadores = supabase.table("jugadores").select(
         "id, nombre, apellidos, dorsal, posicion_principal, tipo_jugador, es_invitado"
-    ).eq("equipo_id", eid).eq("estado", "activo").execute()
+    ).eq("equipo_id", eid).execute()
 
     jugadores_data = [j for j in (jugadores.data or []) if incluye_tracking_carga(j)]
 
