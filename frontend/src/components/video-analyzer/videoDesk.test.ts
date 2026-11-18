@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { concatDemuxerList } from './extractClip.ts'
 import {
   DEFAULT_DESK_BUTTONS,
   clipRangeFromPress,
@@ -15,7 +16,10 @@ import {
   layoutsOverlap,
   clipArchiveFileName,
   clipFileName,
+  downloadFileName,
+  markedClipsForJoin,
   phaseFolderLabel,
+  reorderJoinRows,
   planDeskZip,
   matchRevisionFolderId,
   revisionFolderChoices,
@@ -199,6 +203,26 @@ describe('video desk coding', () => {
     const sinNombre = planDeskZip({ kind: 'marked', matchLabel: 'x', buttons: DEFAULT_DESK_BUTTONS, clips, markedClipIds: [] })
     assert.equal(sinNombre.files.length, 0)
     assert.equal(sinNombre.zipName, 'x — marcados.zip')
+  })
+
+  it('lists marked clips in match order and keeps a coach reorder', () => {
+    const clips = [
+      { id: 'late', buttonId: 'fase-ataque-org', timestamp: 80, startTime: 70, endTime: 80, title: 'Final' },
+      { id: 'early', buttonId: 'fase-abp-of', timestamp: 10, startTime: 8, endTime: 16, title: 'Saque' },
+      { id: 'mid', buttonId: 'fase-ataque-org', timestamp: 40, startTime: 30, endTime: 42 },
+      { id: 'skip', buttonId: 'fase-ataque-org', timestamp: 50, startTime: 48, endTime: 55, title: 'No' },
+    ]
+    const rows = markedClipsForJoin(clips, DEFAULT_DESK_BUTTONS, ['late', 'early', 'mid'])
+    assert.deepEqual(rows.map((row) => row.id), ['early', 'mid', 'late'])
+    assert.equal(rows[0].title, 'Saque')
+    assert.equal(rows[1].title, 'Ataque organizado')
+    assert.equal(rows[2].title, 'Final')
+    const moved = reorderJoinRows(rows, 'late', 'early')
+    assert.deepEqual(moved.map((row) => row.id), ['late', 'early', 'mid'])
+    assert.deepEqual(reorderJoinRows(rows, 'early', 'early').map((row) => row.id), ['early', 'mid', 'late'])
+    assert.equal(downloadFileName('Para el lunes'), 'Para el lunes.mp4')
+    assert.equal(downloadFileName('Para el lunes.mp4', 'webm'), 'Para el lunes.webm')
+    assert.equal(concatDemuxerList(['p0.mp4', "p'1.mp4"]), "file 'p0.mp4'\nfile 'p'\\''1.mp4'")
   })
 
   it('preselects the revision folder even when informe uses other fase ids', () => {

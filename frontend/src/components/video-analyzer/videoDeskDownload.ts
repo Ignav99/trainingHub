@@ -1,9 +1,10 @@
-import { extractClipRange, LOCAL_CLIP_MAX_SECONDS, clipMimeToExt } from './extractClip'
-import { clipDisplayTitle, clipFileName, planDeskZip } from './videoDesk'
+import { extractClipRange, joinMp4Blobs, LOCAL_CLIP_MAX_SECONDS, clipMimeToExt } from './extractClip'
+import { clipDisplayTitle, clipFileName, downloadFileName, planDeskZip } from './videoDesk'
 import { buildZipStore, downloadBlob } from './zipStore'
 import type { CodeButton, CodeEvent } from './types'
 
 export type DeskDownloadKind = 'clip' | 'marked' | 'folder' | 'all-folders' | 'all-flat'
+export type DeskZipKind = Exclude<DeskDownloadKind, 'clip'>
 
 function blobToBytes(blob: Blob): Promise<Uint8Array> {
   return blob.arrayBuffer().then((buf) => new Uint8Array(buf))
@@ -64,6 +65,22 @@ export async function extractAndDownloadDeskClips(opts: {
   }
 
   const clipById = new Map(clips.map((clip) => [clip.id, clip]))
+
+  if (kind === 'marked' && plan.files.length === 1) {
+    const planned = plan.files[0]
+    const clip = clipById.get(planned.clipId)
+    if (!clip) throw new Error('Marca los recortes para revisión (⌘+clic o en el previsualizador)')
+    onProgress?.('Recortando 1/1')
+    const blob = await extractClipRange(video, clip.startTime, clip.endTime, {
+      maxSeconds: LOCAL_CLIP_MAX_SECONDS,
+      sourceFile,
+      onProgress,
+    })
+    const label = opts.archiveName?.trim() || clipDisplayTitle(clip, buttonById.get(clip.buttonId))
+    downloadBlob(blob, downloadFileName(label, clipMimeToExt(blob.type)))
+    return
+  }
+
   const files: { path: string; data: Uint8Array }[] = []
   for (let i = 0; i < plan.files.length; i++) {
     const planned = plan.files[i]
@@ -84,4 +101,43 @@ export async function extractAndDownloadDeskClips(opts: {
   onProgress?.('Empaquetando…')
   const zip = buildZipStore(files)
   downloadBlob(zip, plan.zipName)
+}
+
+export async function extractAndDownloadJoinedClips(opts: {
+  video: HTMLVideoElement
+  clips: CodeEvent[]
+  orderedIds: string[]
+  fileName: string
+  sourceFile?: File
+  onProgress?: (label: string) => void
+}): Promise<void> {
+  const byId = new Map(opts.clips.map((clip) => [clip.id, clip]))
+  const ordered = opts.orderedIds.flatMap((id) => {
+    const clip = byId.get(id)
+    return clip ? [clip] : []
+  })
+  if (!ordered.length) {
+    throw new Error('Marca los recortes para revisión (⌘+clic o en el previsualizador)')
+  }
+
+  const blobs: Blob[] = []
+  for (let i = 0; i < ordered.length; i++) {
+    const clip = ordered[i]
+    opts.onProgress?.(`Recortando ${i + 1}/${ordered.length}`)
+    blobs.push(await extractClipRange(opts.video, clip.startTime, clip.endTime, {
+      maxSeconds: LOCAL_CLIP_MAX_SECONDS,
+      sourceFile: opts.sourceFile,
+      onProgress: opts.onProgress,
+    }))
+  }
+
+  if (blobs.length === 1) {
+    const ext = clipMimeToExt(blobs[0].type)
+    downloadBlob(blobs[0], downloadFileName(opts.fileName, ext))
+    return
+  }
+
+  opts.onProgress?.('Uniendo…')
+  const joined = await joinMp4Blobs(blobs, opts.onProgress)
+  downloadBlob(joined, downloadFileName(opts.fileName, 'mp4'))
 }
