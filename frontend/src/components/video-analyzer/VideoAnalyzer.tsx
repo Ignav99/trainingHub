@@ -14,13 +14,15 @@ import { VideoDeskBotonera } from './VideoDeskBotonera'
 import { VideoDeskFolders } from './VideoDeskFolders'
 import { VideoDeskTimeline } from './VideoDeskTimeline'
 import { VideoDeskDownloadMenu } from './VideoDeskDownloadMenu'
+import { VideoDeskJoinDialog } from './VideoDeskJoinDialog'
 import { VideoDeskClipStage, type ClipStagePlaylist } from './VideoDeskClipStage'
 import { VisionProbe } from './VisionProbe'
-import { extractAndDownloadDeskClips, type DeskDownloadKind } from './videoDeskDownload'
+import { extractAndDownloadDeskClips, extractAndDownloadJoinedClips, type DeskZipKind } from './videoDeskDownload'
 import { splitFase } from '@/lib/bibliotecaCortes'
 import {
   clipDisplayTitle,
   clipsOnLane,
+  markedClipsForJoin,
   idsForKeyboardClipDelete,
   removeClipsFromPlaylist,
   timingsLabel,
@@ -50,7 +52,7 @@ interface VideoAnalyzerProps {
   escapeGuardRef?: React.MutableRefObject<() => void>
 }
 
-type ZipKind = Exclude<DeskDownloadKind, 'clip'>
+type ZipKind = DeskZipKind
 
 const ZIP_TITLE: Record<ZipKind, string> = {
   marked: 'Descargar marcados para revisión',
@@ -103,6 +105,7 @@ export function VideoAnalyzer({
   const [videoFullscreen, setVideoFullscreen] = useState(false)
   const [extractKind, setExtractKind] = useState<ZipKind | null>(null)
   const extractOpen = extractKind !== null
+  const [joinOpen, setJoinOpen] = useState(false)
   const [visionOpen, setVisionOpen] = useState(false)
   const [extractName, setExtractName] = useState('')
 
@@ -152,6 +155,7 @@ export function VideoAnalyzer({
 
   const src = localFile ? objectUrl : (videoUrl || '')
   const title = videoTitle || localFile?.name || 'Video local'
+  const matchLabel = title.replace(/\.[^.]+$/, '')
   const selectedClipIdRef = useRef<string | null>(null)
   const selectedClipIdsRef = useRef<string[]>([])
   const stageRef = useRef<ClipStagePlaylist | null>(null)
@@ -317,6 +321,10 @@ export function VideoAnalyzer({
       botoneraEditRef.current.cancel()
       return
     }
+    if (joinOpen) {
+      setJoinOpen(false)
+      return
+    }
     if (extractOpen) {
       setExtractKind(null)
       return
@@ -325,7 +333,7 @@ export function VideoAnalyzer({
       rangeArmRef.current = null
       setArmedButtonId(null)
     }
-  }, [extractOpen, visionOpen])
+  }, [extractOpen, joinOpen, visionOpen])
 
   useEffect(() => {
     if (!escapeGuardRef) return
@@ -355,7 +363,7 @@ export function VideoAnalyzer({
         return
       }
       if ((e.key === 'f' || e.key === 'F') && !e.metaKey && !e.ctrlKey && !e.altKey && !e.repeat) {
-        if (stage || extractOpen) return
+        if (stage || extractOpen || joinOpen) return
         e.preventDefault()
         playerRef.current?.toggleFullscreen()
         return
@@ -383,7 +391,7 @@ export function VideoAnalyzer({
     }
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
-  }, [buttons, deleteSelectedClips, pressButton, stage, stayOnEscape, visionOpen])
+  }, [buttons, deleteSelectedClips, extractOpen, joinOpen, pressButton, stage, stayOnEscape, visionOpen])
 
   const patchClip = useCallback((clip: CodeEvent, startTime: number, endTime: number) => {
     updateEvent(videoKey, clip.id, { startTime, endTime }, duration)
@@ -406,13 +414,13 @@ export function VideoAnalyzer({
     return () => document.removeEventListener('fullscreenchange', sync)
   }, [])
 
-  const runDownload = useCallback(async (kind: DeskDownloadKind, clip?: CodeEvent, archiveName?: string) => {
+  const runDownload = useCallback(async (kind: ZipKind, archiveName?: string) => {
     const video = playerRef.current?.getVideoElement()
     if (!video) {
       toast.error('No hay vídeo cargado')
       return
     }
-    const target = clip || selectedClip
+    const target = selectedClip
     try {
       setProgress('Recortando…')
       await extractAndDownloadDeskClips({
@@ -423,7 +431,7 @@ export function VideoAnalyzer({
         selectedClipId: target?.id,
         selectedButtonId: selectedLaneId || target?.buttonId || activeButtonId,
         markedClipIds,
-        matchLabel: title.replace(/\.[^.]+$/, ''),
+        matchLabel,
         archiveName,
         sourceFile: localFile,
         onProgress: setProgress,
@@ -434,7 +442,31 @@ export function VideoAnalyzer({
     } finally {
       setProgress(null)
     }
-  }, [activeButtonId, buttons, events, localFile, markedClipIds, selectedClip, selectedLaneId, title])
+  }, [activeButtonId, buttons, events, localFile, markedClipIds, matchLabel, selectedClip, selectedLaneId])
+
+  const runJoined = useCallback(async (orderedIds: string[], fileName: string) => {
+    const video = playerRef.current?.getVideoElement()
+    if (!video) {
+      toast.error('No hay vídeo cargado')
+      return
+    }
+    try {
+      setProgress('Uniendo…')
+      await extractAndDownloadJoinedClips({
+        video,
+        clips: events,
+        orderedIds,
+        fileName,
+        sourceFile: localFile,
+        onProgress: setProgress,
+      })
+      toast.success('Vídeo unido listo. El partido no ha salido de este ordenador.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo unir')
+    } finally {
+      setProgress(null)
+    }
+  }, [events, localFile])
 
   const onVSplit = (e: React.PointerEvent) => {
     const startX = e.clientX
@@ -522,16 +554,18 @@ export function VideoAnalyzer({
             {videoFullscreen ? <Minimize size={14} /> : <Maximize size={14} />}
             {videoFullscreen ? 'Salir' : 'Pantalla completa'}
           </button>
-<VideoDeskDownloadMenu
+          <VideoDeskDownloadMenu
             disabled={!events.length}
-            hasClip={Boolean(selectedClip)}
             markedCount={markedClipIds.length}
+            onJoin={() => setJoinOpen(true)}
             onPick={(kind) => {
-              if (kind === 'clip') {
-                void runDownload('clip')
-                return
+              if (kind === 'marked' && markedClipIds.length === 1) {
+                const clip = events.find((event) => event.id === markedClipIds[0])
+                const button = buttons.find((item) => item.id === clip?.buttonId)
+                setExtractName(clip ? clipDisplayTitle(clip, button) : defaultZipName(kind, matchLabel))
+              } else {
+                setExtractName(defaultZipName(kind, matchLabel))
               }
-              setExtractName(defaultZipName(kind, title.replace(/\.[^.]+$/, '')))
               setExtractKind(kind)
             }}
           />
@@ -667,6 +701,18 @@ export function VideoAnalyzer({
         />
       ) : null}
 
+      {joinOpen ? (
+        <VideoDeskJoinDialog
+          rows={markedClipsForJoin(events, buttons, markedClipIds)}
+          defaultName={`${matchLabel} — unidos`}
+          onClose={() => setJoinOpen(false)}
+          onDownload={(orderedIds, fileName) => {
+            setJoinOpen(false)
+            void runJoined(orderedIds, fileName)
+          }}
+        />
+      ) : null}
+
       {extractOpen ? (
         <form
           className="vd-modal-back"
@@ -677,20 +723,23 @@ export function VideoAnalyzer({
             e.preventDefault()
             const kind = extractKind
             if (!kind) return
-            const name = extractName.trim() || defaultZipName(kind, title.replace(/\.[^.]+$/, ''))
+            const name = extractName.trim() || defaultZipName(kind, matchLabel)
             setExtractKind(null)
-            void runDownload(kind, undefined, name)
+            void runDownload(kind, name)
           }}
         >
           <div className="vd-modal" onMouseDown={(e) => e.stopPropagation()}>
             <h2>{ZIP_TITLE[extractKind ?? 'all-folders']}</h2>
             <p>
-              {extractKind === 'all-flat'
-                ? 'Todos los recortes sueltos, sin carpetas.'
-                : extractKind === 'folder'
-                  ? 'Los recortes de la línea elegida.'
-                  : 'Una carpeta por cada fase con recortes.'}{' '}
-              Si le pusiste nombre a un clip, el archivo lo conserva.
+              {extractKind === 'marked' && markedClipIds.length <= 1
+                ? 'Se baja ese recorte en MP4. El partido no sale de este ordenador.'
+                : extractKind === 'marked'
+                  ? 'Un comprimido con los recortes marcados. Si les pusiste nombre, el archivo lo conserva.'
+                  : extractKind === 'all-flat'
+                    ? 'Todos los recortes sueltos, sin carpetas. Si les pusiste nombre, el archivo lo conserva.'
+                    : extractKind === 'folder'
+                      ? 'Los recortes de la línea elegida. Si les pusiste nombre, el archivo lo conserva.'
+                      : 'Una carpeta por cada fase con recortes. Si les pusiste nombre, el archivo lo conserva.'}
             </p>
             <label>
               Nombre del archivo

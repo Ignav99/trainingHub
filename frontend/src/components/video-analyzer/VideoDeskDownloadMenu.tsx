@@ -2,18 +2,18 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Download } from 'lucide-react'
-import type { DeskDownloadKind } from './videoDeskDownload'
+import type { DeskZipKind } from './videoDeskDownload'
 
 export function VideoDeskDownloadMenu({
   disabled,
-  hasClip,
   markedCount,
   onPick,
+  onJoin,
 }: {
   disabled?: boolean
-  hasClip: boolean
   markedCount: number
-  onPick: (kind: DeskDownloadKind) => void
+  onPick: (kind: DeskZipKind) => void
+  onJoin: () => void
 }) {
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -27,10 +27,14 @@ export function VideoDeskDownloadMenu({
     return () => window.removeEventListener('mousedown', close)
   }, [open])
 
-  const pick = (kind: DeskDownloadKind) => {
+  const pick = (kind: DeskZipKind) => {
     setOpen(false)
     onPick(kind)
   }
+
+  const markedHint = markedCount === 0
+    ? 'Marca recortes para revisión con ⌘+clic o en el previsualizador'
+    : undefined
 
   return (
     <div ref={wrapRef} style={{ position: 'relative' }}>
@@ -40,20 +44,35 @@ export function VideoDeskDownloadMenu({
       </button>
       {open ? (
         <div className="vd-menu" role="menu">
-          <button type="button" disabled={!hasClip} onClick={() => pick('clip')}>Este recorte</button>
           <button
             type="button"
             disabled={markedCount === 0}
-            title={markedCount === 0 ? 'Marca recortes para revisión con ⌘+clic o en el previsualizador' : undefined}
+            title={markedHint}
+            onClick={() => {
+              setOpen(false)
+              onJoin()
+            }}
+          >
+            {markedCount > 0 ? `Vídeos unidos (${markedCount})` : 'Vídeos unidos'}
+          </button>
+          <button
+            type="button"
+            disabled={markedCount === 0}
+            title={markedHint}
             onClick={() => pick('marked')}
           >
-            {markedCount > 0 ? `Marcados para revisión (${markedCount}) · zip` : 'Marcados para revisión · zip'}
+            {markedCount === 1
+              ? 'Marcados para revisión (1)'
+              : markedCount > 1
+                ? `Marcados para revisión (${markedCount}) · zip`
+                : 'Marcados para revisión · zip'}
           </button>
           <button type="button" onClick={() => pick('folder')}>Esta línea · zip</button>
           <button type="button" onClick={() => pick('all-folders')}>Todo, en carpetas por fase · zip</button>
           <button type="button" onClick={() => pick('all-flat')}>Todo, clips sueltos · zip</button>
           <p className="vd-menu-hint">
-            Los zip te piden el nombre antes de bajar. MP4 copia del original cuando se puede; el archivo grande no se sube.
+            Vídeos unidos junta los marcados en un solo MP4. Un recorte marcado se baja solo.
+            El partido no se sube.
           </p>
         </div>
       ) : null}

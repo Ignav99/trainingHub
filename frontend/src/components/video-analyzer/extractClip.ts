@@ -196,6 +196,107 @@ async function ffmpegToMp4(
   }
 }
 
+export function concatDemuxerList(names: string[]): string {
+  return names.map((name) => `file '${name.split("'").join("'\\''")}'`).join('\n')
+}
+
+async function readJoined(ff: FfmpegHandle, args: string[]): Promise<Blob | null> {
+  try {
+    try { await ff.deleteFile('joined.mp4') } catch { /* no estaba */ }
+    const code = await ff.exec(args)
+    if (code !== 0) return null
+    const data = asBytes(await ff.readFile('joined.mp4'))
+    if (data.byteLength > 64) return blobToMp4(data)
+  } catch {
+    return null
+  }
+  return null
+}
+
+/**
+ * Junta recortes ya extraídos en un MP4. Primero copia sin recodificar
+ * (misma calidad que el partido). Si los códecs no casan, recodifica.
+ */
+export async function joinMp4Blobs(
+  parts: Blob[],
+  onProgress?: (msg: string) => void,
+): Promise<Blob> {
+  if (parts.length === 0) throw new Error('No hay recortes para unir')
+  if (parts.length === 1) return parts[0]
+  const ff = await loadFfmpeg(onProgress)
+  const names: string[] = []
+  const extra: string[] = []
+  try {
+    for (let i = 0; i < parts.length; i++) {
+      const name = `p${i}.mp4`
+      names.push(name)
+      onProgress?.(`Preparando ${i + 1}/${parts.length}`)
+      await ff.writeFile(name, new Uint8Array(await parts[i].arrayBuffer()))
+    }
+    const listName = 'join-list.txt'
+    extra.push(listName)
+    await ff.writeFile(listName, new TextEncoder().encode(concatDemuxerList(names)))
+
+    onProgress?.('Uniendo en un solo MP4…')
+    const copied = await readJoined(ff, [
+      '-f', 'concat', '-safe', '0', '-i', listName,
+      '-c', 'copy',
+      '-movflags', '+faststart',
+      'joined.mp4',
+    ])
+    if (copied) return copied
+
+    onProgress?.('Uniendo los recortes…')
+    const tsNames: string[] = []
+    let tsOk = true
+    for (let i = 0; i < names.length; i++) {
+      const ts = `p${i}.ts`
+      tsNames.push(ts)
+      extra.push(ts)
+      try { await ff.deleteFile(ts) } catch { /* no estaba */ }
+      const code = await ff.exec([
+        '-i', names[i],
+        '-c', 'copy',
+        '-bsf:v', 'h264_mp4toannexb',
+        '-f', 'mpegts',
+        ts,
+      ])
+      if (code !== 0) {
+        tsOk = false
+        break
+      }
+    }
+    if (tsOk) {
+      const remuxed = await readJoined(ff, [
+        '-i', `concat:${tsNames.join('|')}`,
+        '-c', 'copy',
+        '-bsf:a', 'aac_adtstoasc',
+        '-movflags', '+faststart',
+        'joined.mp4',
+      ])
+      if (remuxed) return remuxed
+    }
+
+    onProgress?.('Codificando el vídeo unido…')
+    const encoded = await readJoined(ff, [
+      '-f', 'concat', '-safe', '0', '-i', listName,
+      '-c:v', 'libx264',
+      '-preset', 'veryfast',
+      '-crf', CLIP_CRF,
+      '-pix_fmt', 'yuv420p',
+      '-an',
+      '-movflags', '+faststart',
+      'joined.mp4',
+    ])
+    if (encoded) return encoded
+    throw new Error('No se pudo unir los vídeos en un solo MP4')
+  } finally {
+    for (const name of [...names, ...extra, 'joined.mp4']) {
+      try { await ff.deleteFile(name) } catch { /* ignore */ }
+    }
+  }
+}
+
 async function encodeFromOriginalFile(
   file: File,
   startTime: number,

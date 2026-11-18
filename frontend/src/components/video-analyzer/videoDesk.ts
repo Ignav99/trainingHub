@@ -411,6 +411,49 @@ export function clipFileName(label: string, start: number, end: number, ext = 'm
   return `${sanitizeFilename(label)} — ${formatTimecodeFile(start)}-${formatTimecodeFile(end)}.${safeExt}`
 }
 
+export function downloadFileName(label: string, ext = 'mp4'): string {
+  const safeExt = (ext || 'mp4').replace(/^\./, '')
+  const base = sanitizeFilename(label.replace(/\.(mp4|webm|zip)$/i, ''))
+  return `${base}.${safeExt}`
+}
+
+export interface JoinClipRow {
+  id: string
+  title: string
+  startTime: number
+  endTime: number
+}
+
+/** Marcados para revisión, en el orden del partido. El diálogo puede reordenarlos. */
+export function markedClipsForJoin(
+  clips: CodeEvent[],
+  buttons: CodeButton[],
+  markedClipIds: string[],
+): JoinClipRow[] {
+  const marked = new Set(markedClipIds)
+  const buttonById = new Map(buttons.map((button) => [button.id, button]))
+  return clips
+    .filter((clip) => marked.has(clip.id))
+    .slice()
+    .sort((a, b) => a.startTime - b.startTime || a.id.localeCompare(b.id))
+    .map((clip) => ({
+      id: clip.id,
+      title: clipDisplayTitle(clip, buttonById.get(clip.buttonId)),
+      startTime: clip.startTime,
+      endTime: clip.endTime,
+    }))
+}
+
+export function reorderJoinRows<T extends { id: string }>(rows: T[], activeId: string, overId: string): T[] {
+  const from = rows.findIndex((row) => row.id === activeId)
+  const to = rows.findIndex((row) => row.id === overId)
+  if (from < 0 || to < 0 || from === to) return rows
+  const next = rows.slice()
+  const [item] = next.splice(from, 1)
+  next.splice(to, 0, item)
+  return next
+}
+
 export function zipFolderName(label: string): string {
   return sanitizeFilename(label)
 }
