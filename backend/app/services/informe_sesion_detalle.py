@@ -23,6 +23,7 @@ MOTIVO_LABEL = {
     "permiso": "Permiso",
     "seleccion": "1er equipo",
     "viaje": "Viaje",
+    "trabajo": "Trabajo",
     "otro": "Otro",
 }
 RTP_LABEL = {

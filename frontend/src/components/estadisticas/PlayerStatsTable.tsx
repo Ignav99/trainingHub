@@ -26,6 +26,7 @@ const MOTIVO_LABELS: Record<string, string> = {
   permiso: 'Permiso',
   seleccion: '1er equipo',
   viaje: 'Viaje',
+  trabajo: 'Trabajo',
   otro: 'Otro',
 }
 

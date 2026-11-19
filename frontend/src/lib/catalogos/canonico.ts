@@ -349,10 +349,10 @@ export const TAGS_CONTROLADOS = [
 export const MOTIVOS_AUSENCIA = [
   { codigo: 'lesion', nombre: 'Lesión' },
   { codigo: 'enfermedad', nombre: 'Enfermedad' },
-  { codigo: 'sancion', nombre: 'Sanción' },
   { codigo: 'permiso', nombre: 'Permiso' },
   { codigo: 'seleccion', nombre: '1er equipo' },
   { codigo: 'viaje', nombre: 'Viaje' },
+  { codigo: 'trabajo', nombre: 'Trabajo' },
   { codigo: 'otro', nombre: 'Otro' },
 ] as const
 

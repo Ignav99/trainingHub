@@ -223,7 +223,7 @@ export function suggestAttendanceFromDisponibilidad(
   j: Pick<Jugador, 'disponibilidad' | 'estado'>
 ): {
   presente: boolean
-  motivo_ausencia?: 'lesion' | 'enfermedad' | 'sancion' | 'permiso' | 'seleccion' | 'viaje' | 'otro'
+  motivo_ausencia?: 'lesion' | 'enfermedad' | 'sancion' | 'permiso' | 'seleccion' | 'viaje' | 'trabajo' | 'otro'
   tipo_participacion: Array<'sesion' | 'fisio' | 'margen' | 'presente'>
 } {
   const disp = resolveDisponibilidad(j)

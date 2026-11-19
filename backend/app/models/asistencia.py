@@ -18,6 +18,7 @@ class MotivoAusencia(str, Enum):
     PERMISO = "permiso"
     SELECCION = "seleccion"
     VIAJE = "viaje"
+    TRABAJO = "trabajo"
     OTRO = "otro"
 
 

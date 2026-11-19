@@ -196,6 +196,9 @@ export function ConvocatoriaSesionCal({
                             {m.label}
                           </option>
                         ))}
+                        {asistencia?.motivo === 'sancion' && !motivos.some((m) => m.value === 'sancion') ? (
+                          <option value="sancion">Sanción</option>
+                        ) : null}
                       </select>
                     )}
 

@@ -21,8 +21,9 @@ import { useAppearance } from '@/lib/useAppearance'
 import { Ficha } from '@/components/ui/ficha'
 import { EstadoMarca, estadoDe } from '@/components/plantilla/PlantillaTablaCal'
 import { cn } from '@/lib/utils'
+import { MOTIVOS_AUSENCIA as MOTIVOS_AUSENCIA_CATALOGO } from '@/lib/catalogos/canonico'
 
-export type MotivoAusencia = 'lesion' | 'enfermedad' | 'sancion' | 'permiso' | 'seleccion' | 'viaje' | 'otro'
+export type MotivoAusencia = 'lesion' | 'enfermedad' | 'sancion' | 'permiso' | 'seleccion' | 'viaje' | 'trabajo' | 'otro'
 
 export interface PlayerAttendance {
   jugador_id: string
@@ -39,15 +40,10 @@ interface AttendanceStepProps {
   submitting?: boolean
 }
 
-const MOTIVOS: { value: MotivoAusencia; label: string }[] = [
-  { value: 'lesion', label: 'Lesión' },
-  { value: 'enfermedad', label: 'Enfermedad' },
-  { value: 'sancion', label: 'Sanción' },
-  { value: 'permiso', label: 'Permiso' },
-  { value: 'seleccion', label: '1er equipo' },
-  { value: 'viaje', label: 'Viaje' },
-  { value: 'otro', label: 'Otro' },
-]
+const MOTIVOS: { value: MotivoAusencia; label: string }[] = MOTIVOS_AUSENCIA_CATALOGO.map((m) => ({
+  value: m.codigo,
+  label: m.nombre,
+}))
 
 const ZONE_ORDER = ['porteria', 'defensa', 'medio', 'ataque']
 const ZONE_LABELS: Record<string, string> = {
@@ -265,6 +261,9 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip, submitting = false
                         {MOTIVOS.map((m) => (
                           <option key={m.value} value={m.value}>{m.label}</option>
                         ))}
+                        {a.motivo_ausencia === 'sancion' ? (
+                          <option value="sancion">Sanción</option>
+                        ) : null}
                       </select>
                     )}
                     {optIn && (
@@ -414,6 +413,9 @@ export function AttendanceStep({ equipoId, onConfirm, onSkip, submitting = false
                         {MOTIVOS.map((m) => (
                           <option key={m.value} value={m.value}>{m.label}</option>
                         ))}
+                        {a.motivo_ausencia === 'sancion' ? (
+                          <option value="sancion">Sanción</option>
+                        ) : null}
                       </select>
                     )}
                     {optIn && (
