@@ -464,7 +464,7 @@ export interface StaffAsistente {
 // ASISTENCIA
 // ============================================
 
-export type MotivoAusencia = 'lesion' | 'enfermedad' | 'sancion' | 'permiso' | 'seleccion' | 'viaje' | 'otro'
+export type MotivoAusencia = 'lesion' | 'enfermedad' | 'sancion' | 'permiso' | 'seleccion' | 'viaje' | 'trabajo' | 'otro'
 export type TipoParticipacion = 'sesion' | 'fisio' | 'margen' | 'presente'
 
 export interface Asistencia {

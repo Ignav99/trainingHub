@@ -87,6 +87,7 @@ import { variantesFromReglas } from '@/lib/tareaNarrative'
 import { cargaApi } from '@/lib/api/carga'
 import { entrenamientosMargenApi } from '@/lib/api/entrenamientosMargen'
 import { suggestAttendanceFromDisponibilidad, isPlantilla, isFilial, resolveTipoJugador, splitSesionAsistenciaRoster, TIPO_JUGADOR_LABELS } from '@/lib/jugadorTipo'
+import { MOTIVOS_AUSENCIA as MOTIVOS_AUSENCIA_CATALOGO } from '@/lib/catalogos/canonico'
 import { MostrarFilialToggle } from '@/components/jugadores/MostrarFilialToggle'
 import type { CargaJugador } from '@/types'
 import { MATCH_DAYS as MATCH_DAYS_CATALOG, DIAS_CARGA } from '@/lib/catalogos/canonico'
@@ -164,15 +165,10 @@ const ESTADO_CONFIG: Record<string, { color: string; label: string }> = {
 const MATCH_DAYS = MATCH_DAYS_CATALOG.map((d) => d.codigo)
 const INTENSIDADES = ['alta', 'media', 'baja', 'muy_baja']
 const MATERIALES_SUGERIDOS = ['Petos', 'Conos', 'Vallas', 'Porterias reducidas', 'Balones', 'Picas', 'Escaleras', 'Gomas']
-const MOTIVOS_AUSENCIA: { value: MotivoAusencia; label: string }[] = [
-  { value: 'lesion', label: 'Lesion' },
-  { value: 'enfermedad', label: 'Enfermedad' },
-  { value: 'sancion', label: 'Sancion' },
-  { value: 'permiso', label: 'Permiso' },
-  { value: 'seleccion', label: '1er equipo' },
-  { value: 'viaje', label: 'Viaje' },
-  { value: 'otro', label: 'Otro' },
-]
+const MOTIVOS_AUSENCIA: { value: MotivoAusencia; label: string }[] = MOTIVOS_AUSENCIA_CATALOGO.map((m) => ({
+  value: m.codigo,
+  label: m.nombre,
+}))
 
 const POSITION_ORDER: Record<string, number> = {
   POR: 0, DFC: 1, LTD: 2, LTI: 3, CAD: 4, CAI: 5,
@@ -1906,6 +1902,9 @@ export default function SesionDetailPage() {
                                     {MOTIVOS_AUSENCIA.map((m) => (
                                       <option key={m.value} value={m.value}>{m.label}</option>
                                     ))}
+                                    {asistencia?.motivo === 'sancion' ? (
+                                      <option value="sancion">Sanción</option>
+                                    ) : null}
                                   </select>
                                 )}
                                 <Switch
