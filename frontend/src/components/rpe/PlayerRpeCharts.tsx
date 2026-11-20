@@ -1,75 +1,72 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import useSWR from 'swr'
 import {
   Bar,
   BarChart,
   CartesianGrid,
-  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
-import { rpeApi } from '@/lib/api/rpe'
+import { apiKey } from '@/lib/swr'
 import type { RPERegistro } from '@/types'
+import { serieRpeReciente } from '@/lib/rpe/serieRpe'
 import { useAppearance } from '@/lib/useAppearance'
 import { C, barraCal, ejeXCal, ejeYCal, rejillaCal, tooltipCal } from '@/lib/graficoCal'
 
-function kindOf(row: RPERegistro): 'partido' | 'sesion' | 'manual' {
-  if (row.tipo === 'partido' || row.partido_id) return 'partido'
-  if (row.tipo === 'manual' && !row.sesion_id) return 'manual'
-  return 'sesion'
+/** Misma lista que la tabla de registros de debajo: las cargas reales, sin wellness. */
+export function rpeJugadorKey(jugadorId: string) {
+  return apiKey(`/rpe/jugador/${jugadorId}`, { limit: 60, excluir_wellness: true })
 }
 
-function dayLabel(fecha: string): string {
-  const d = new Date(`${fecha.slice(0, 10)}T12:00:00`)
-  return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })
+/**
+ * Recharts mide 0 al montarse dentro de la fila que acaba de abrirse y se
+ * queda en blanco. Aquí el ancho lo da el contenedor ya pintado.
+ */
+function MarcoGrafica({ children }: { children: (width: number) => ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState(0)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const apply = () => {
+      const next = Math.floor(el.getBoundingClientRect().width)
+      setWidth((prev) => (prev === next ? prev : next))
+    }
+    apply()
+    const frame = requestAnimationFrame(apply)
+    const observer = new ResizeObserver(apply)
+    observer.observe(el)
+    return () => {
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+    }
+  }, [])
+
+  return (
+    <div ref={ref} className="h-[140px] w-full min-w-0">
+      {width > 0 ? children(width) : null}
+    </div>
+  )
 }
 
 export function PlayerRpeCharts({ jugadorId }: { jugadorId: string }) {
   const cal = useAppearance() === 'cal'
-  const [rows, setRows] = useState<RPERegistro[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data, isLoading, error } = useSWR<{ data: RPERegistro[] }>(
+    rpeJugadorKey(jugadorId),
+    { keepPreviousData: false, revalidateOnMount: true },
+  )
 
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    rpeApi.listByJugador(jugadorId, { limit: 40 })
-      .then((res) => {
-        if (!cancelled) setRows(res.data || [])
-      })
-      .catch(() => {
-        if (!cancelled) setRows([])
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [jugadorId])
-
-  if (loading) {
+  if (isLoading && !data) {
     return <p className="px-4 py-3 text-xs text-muted-foreground">Cargando RPE…</p>
   }
 
-  const events = [...rows]
-    .filter((row) => row.rpe != null && row.tipo !== 'wellness')
-    .sort((a, b) => a.fecha.localeCompare(b.fecha))
-    .slice(-12)
-    .map((row) => {
-      const kind = kindOf(row)
-      const minutos = row.duracion_percibida || 0
-      const ua = row.carga_sesion || (minutos > 0 ? row.rpe * minutos : 0)
-      return {
-        label: dayLabel(row.fecha),
-        rpe: row.rpe,
-        ua: Math.round(ua),
-        tipo: kind === 'partido' ? 'Partido' : kind === 'manual' ? 'Manual' : 'Sesión',
-      }
-    })
+  const events = serieRpeReciente(data?.data ?? [])
 
-  if (events.length === 0) {
+  if (error || events.length === 0) {
     return (
       <p className="px-4 py-3 text-xs text-muted-foreground border-t">
         Sin registros de RPE todavía.
@@ -77,62 +74,47 @@ export function PlayerRpeCharts({ jugadorId }: { jugadorId: string }) {
     )
   }
 
-  if (cal) {
-    return (
-      <div className="grid gap-4 border-t border-border bg-sunken px-4 py-3 md:grid-cols-2">
-        <div>
-          <p className="cal-rotulo mb-1 text-muted-foreground">RPE reciente</p>
-          <ResponsiveContainer width="100%" height={140}>
-            <BarChart data={events}>
-              <CartesianGrid {...rejillaCal} />
-              <XAxis dataKey="label" {...ejeXCal} />
-              <YAxis domain={[0, 10]} width={24} {...ejeYCal} />
-              <Tooltip {...tooltipCal} formatter={(value: any, _name: any, item: any) => [`${value} · ${item?.payload?.tipo ?? ''}`, 'RPE']} />
-              <Bar dataKey="rpe" fill={C.primary} {...barraCal} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-        <div>
-          <p className="cal-rotulo mb-1 text-muted-foreground">Carga (UA) = RPE × minutos</p>
-          <ResponsiveContainer width="100%" height={140}>
-            <BarChart data={events}>
-              <CartesianGrid {...rejillaCal} />
-              <XAxis dataKey="label" {...ejeXCal} />
-              <YAxis width={32} {...ejeYCal} />
-              <Tooltip {...tooltipCal} formatter={(value: any, _name: any, item: any) => [`${value} UA · ${item?.payload?.tipo ?? ''}`, 'Carga']} />
-              <Bar dataKey="ua" fill={C.neutro} {...barraCal} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-    )
-  }
+  const rpe = (width: number) => (
+    <BarChart width={width} height={140} data={events}>
+      <CartesianGrid {...(cal ? rejillaCal : { strokeDasharray: '3 3', opacity: 0.3 })} />
+      <XAxis dataKey="label" {...(cal ? ejeXCal : { tick: { fontSize: 10 } })} />
+      <YAxis domain={[0, 10]} width={24} {...(cal ? ejeYCal : { tick: { fontSize: 10 } })} />
+      <Tooltip
+        {...(cal ? tooltipCal : {})}
+        formatter={(value: any, _name: any, item: any) => [`${value} · ${item?.payload?.tipo ?? ''}`, 'RPE']}
+      />
+      <Bar dataKey="rpe" fill={cal ? C.primary : '#0f766e'} {...(cal ? barraCal : { radius: [3, 3, 0, 0] })} />
+    </BarChart>
+  )
+
+  const carga = (width: number) => (
+    <BarChart width={width} height={140} data={events}>
+      <CartesianGrid {...(cal ? rejillaCal : { strokeDasharray: '3 3', opacity: 0.3 })} />
+      <XAxis dataKey="label" {...(cal ? ejeXCal : { tick: { fontSize: 10 } })} />
+      <YAxis width={32} {...(cal ? ejeYCal : { tick: { fontSize: 10 } })} />
+      <Tooltip
+        {...(cal ? tooltipCal : {})}
+        formatter={(value: any, _name: any, item: any) => [`${value} UA · ${item?.payload?.tipo ?? ''}`, 'Carga']}
+      />
+      <Bar dataKey="ua" fill={cal ? C.neutro : '#b45309'} {...(cal ? barraCal : { radius: [3, 3, 0, 0] })} />
+    </BarChart>
+  )
 
   return (
-    <div className="grid gap-3 border-t bg-muted/10 px-4 py-3 md:grid-cols-2">
-      <div>
-        <p className="mb-1 text-xs font-medium text-muted-foreground">RPE reciente</p>
-        <ResponsiveContainer width="100%" height={140}>
-          <BarChart data={events}>
-            <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-            <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-            <YAxis domain={[0, 10]} tick={{ fontSize: 10 }} width={24} />
-            <Tooltip formatter={(value: any, _name: any, item: any) => [`${value} · ${item?.payload?.tipo ?? ''}`, 'RPE']} />
-            <Bar dataKey="rpe" fill="#0f766e" radius={[3, 3, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
+    <div className={cal
+      ? 'grid w-full min-w-0 gap-4 border-t border-border bg-sunken px-4 py-3 md:grid-cols-2'
+      : 'grid w-full min-w-0 gap-3 border-t bg-muted/10 px-4 py-3 md:grid-cols-2'}>
+      <div className="min-w-0">
+        <p className={cal ? 'cal-rotulo mb-1 text-muted-foreground' : 'mb-1 text-xs font-medium text-muted-foreground'}>
+          RPE reciente
+        </p>
+        <MarcoGrafica>{rpe}</MarcoGrafica>
       </div>
-      <div>
-        <p className="mb-1 text-xs font-medium text-muted-foreground">Carga (UA) = RPE × minutos</p>
-        <ResponsiveContainer width="100%" height={140}>
-          <BarChart data={events}>
-            <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-            <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-            <YAxis tick={{ fontSize: 10 }} width={32} />
-            <Tooltip formatter={(value: any, _name: any, item: any) => [`${value} UA · ${item?.payload?.tipo ?? ''}`, 'Carga']} />
-            <Bar dataKey="ua" fill="#b45309" radius={[3, 3, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
+      <div className="min-w-0">
+        <p className={cal ? 'cal-rotulo mb-1 text-muted-foreground' : 'mb-1 text-xs font-medium text-muted-foreground'}>
+          Carga (UA) = RPE × minutos
+        </p>
+        <MarcoGrafica>{carga}</MarcoGrafica>
       </div>
     </div>
   )

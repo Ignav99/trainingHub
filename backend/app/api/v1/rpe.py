@@ -252,6 +252,7 @@ async def resumen_rpe(
 async def list_rpe_by_jugador(
     jugador_id: UUID,
     tipo: Optional[str] = Query(None, description="Filtrar por tipo: sesion, manual, wellness"),
+    excluir_wellness: bool = Query(False, description="Omitir wellness para las gráficas de carga"),
     limit: int = Query(20, ge=1, le=100),
     auth: AuthContext = Depends(require_permission(Permission.RPE_READ)),
 ):
@@ -264,6 +265,8 @@ async def list_rpe_by_jugador(
 
     if tipo:
         query = query.eq("tipo", tipo)
+    elif excluir_wellness:
+        query = query.neq("tipo", "wellness")
 
     query = query.order("fecha", desc=True).order("created_at", desc=True).limit(limit)
     response = query.execute()

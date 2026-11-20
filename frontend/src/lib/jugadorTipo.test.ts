@@ -2,6 +2,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   autoIncludeInSesionAsistencia,
+  filaVisibleEnRpe,
   sortRpeRoster,
   splitSesionAsistenciaRoster,
 } from './jugadorTipo.ts'
@@ -24,6 +25,22 @@ describe('sesion asistencia roster', () => {
     const added = splitSesionAsistenciaRoster([plantilla, filial], new Set(['f1']))
     assert.deepEqual(added.inSession.map((j) => j.id), ['p1', 'f1'])
     assert.equal(added.filialDisponibles.length, 0)
+  })
+})
+
+describe('rpe tab roster', () => {
+  it('shows only the first team until the filial button is on', () => {
+    assert.equal(filaVisibleEnRpe('plantilla', false), true)
+    assert.equal(filaVisibleEnRpe('juvenil', false), false)
+    assert.equal(filaVisibleEnRpe('prueba', false), false)
+    assert.equal(filaVisibleEnRpe('invitado', false), false)
+    assert.equal(filaVisibleEnRpe(undefined, false), false)
+  })
+
+  it('adds filial only while that button stays pressed', () => {
+    assert.equal(filaVisibleEnRpe('juvenil', true), true)
+    assert.equal(filaVisibleEnRpe('plantilla', true), true)
+    assert.equal(filaVisibleEnRpe('invitado', true), false)
   })
 })
 
