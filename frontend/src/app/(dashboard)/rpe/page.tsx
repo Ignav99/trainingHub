@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Fragment } from 'react'
+import { useState, Fragment } from 'react'
 import useSWR, { mutate } from 'swr'
 import {
   Activity,
@@ -17,6 +17,7 @@ import {
   Trash2,
   Save,
   X,
+  Users,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -30,7 +31,7 @@ import { SaludTabs } from '@/components/salud/SaludTabs'
 import { ManualRPEDialog } from '@/components/rpe/ManualRPEDialog'
 import { WellnessDialog } from '@/components/rpe/WellnessDialog'
 import { ExcelImportDialog } from '@/components/rpe/ExcelImportDialog'
-import { PlayerRpeCharts } from '@/components/rpe/PlayerRpeCharts'
+import { PlayerRpeCharts, rpeJugadorKey } from '@/components/rpe/PlayerRpeCharts'
 import dynamic from 'next/dynamic'
 import { useAppearance } from '@/lib/useAppearance'
 import { cn } from '@/lib/utils'
@@ -41,9 +42,7 @@ import { VacioCal, fechaCorta } from '@/components/salud/SaludCal'
 const WellnessChartDialog = dynamic(() => import('@/components/rpe/WellnessChartDialog').then(m => ({ default: m.WellnessChartDialog })), { ssr: false })
 const LoadChartDialog = dynamic(() => import('@/components/rpe/LoadChartDialog').then(m => ({ default: m.LoadChartDialog })), { ssr: false })
 import { useEquipoStore } from '@/stores/equipoStore'
-import { useFilialVisibilityStore } from '@/stores/filialVisibilityStore'
-import { MostrarFilialToggle } from '@/components/jugadores/MostrarFilialToggle'
-import { resolveTipoJugador } from '@/lib/jugadorTipo'
+import { filaVisibleEnRpe, resolveTipoJugador } from '@/lib/jugadorTipo'
 import { cargaApi } from '@/lib/api/carga'
 import { rpeApi } from '@/lib/api/rpe'
 import { wellnessApi } from '@/lib/api/wellness'
@@ -118,7 +117,8 @@ function disponibleParaRpe(j: Jugador): boolean {
 export default function RPEPage() {
   const cal = useAppearance() === 'cal'
   const { equipoActivo } = useEquipoStore()
-  const mostrarFilial = useFilialVisibilityStore((s) => s.mostrarFilial)
+  // El filial de otras pestañas no se arrastra aquí. Sale solo con este botón.
+  const [mostrarFilial, setMostrarFilial] = useState(false)
 
   // SWR data fetching
   const { data: cargaData, isLoading: loadingCarga } = useSWR<CargaEquipoResponse>(
@@ -181,9 +181,7 @@ export default function RPEPage() {
   )
   const data = (cargaData?.data || []).filter((item) => {
     const tipo = item.tipo_jugador || tipoById.get(item.jugador_id) || 'plantilla'
-    if (tipo === 'invitado') return false
-    if (tipo === 'juvenil') return mostrarFilial
-    return tipo === 'plantilla'
+    return filaVisibleEnRpe(tipo, mostrarFilial)
   })
   const resumenVisible = data.length
     ? {
@@ -217,7 +215,16 @@ export default function RPEPage() {
           description="Control de carga y bienestar de los jugadores"
           actions={
             <>
-            <MostrarFilialToggle />
+            <Button
+              type="button"
+              variant={mostrarFilial ? 'default' : 'outline'}
+              size="sm"
+              aria-pressed={mostrarFilial}
+              onClick={() => setMostrarFilial((v) => !v)}
+            >
+              <Users className="h-4 w-4 mr-2" />
+              {mostrarFilial ? 'Ocultar filial' : 'Mostrar jugadores del filial'}
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -653,28 +660,16 @@ function rpeRecordTitle(entry: { titulo?: string | null; tipo?: string | null; p
 /** RPE y minutos de sesión, partido y carga manual. */
 function ExpandedRPERow({ jugadorId }: { jugadorId: string }) {
   const cal = useAppearance() === 'cal'
-  const [records, setRecords] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: rpeData, isLoading: loading, mutate: refreshRpe } = useSWR<{ data: any[] }>(
+    rpeJugadorKey(jugadorId),
+    { keepPreviousData: false, revalidateOnMount: true },
+  )
+  const records = (rpeData?.data || []).filter((row) => row.tipo !== 'wellness' && row.rpe != null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValues, setEditValues] = useState({ rpe: 5, duracion_percibida: 60, titulo: '' })
   const [editFechaRpe, setEditFechaRpe] = useState('')
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
-
-  const fetchData = async () => {
-    try {
-      const res = await rpeApi.listByJugador(jugadorId, { limit: 60 })
-      setRecords((res.data || []).filter((row) => row.tipo !== 'wellness' && row.rpe != null))
-    } catch {
-      setRecords([])
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchData()
-  }, [jugadorId])
 
   const handleStartEdit = (entry: any) => {
     setEditingId(entry.id)
@@ -698,9 +693,8 @@ function ExpandedRPERow({ jugadorId }: { jugadorId: string }) {
       })
       toast.success('RPE actualizado')
       setEditingId(null)
-      setLoading(true)
-      await fetchData()
-      mutate((key: string) => typeof key === 'string' && (key.includes('/carga') || key.includes('/rpe')), undefined, { revalidate: true })
+      await refreshRpe()
+      mutate((key: string) => typeof key === 'string' && key.includes('/carga'), undefined, { revalidate: true })
     } catch (err: any) {
       toast.error(err?.message || 'Error al actualizar')
     } finally {
@@ -714,8 +708,8 @@ function ExpandedRPERow({ jugadorId }: { jugadorId: string }) {
     try {
       await rpeApi.delete(id)
       toast.success('Registro eliminado')
-      setRecords((prev) => prev.filter((r) => r.id !== id))
-      mutate((key: string) => typeof key === 'string' && (key.includes('/carga') || key.includes('/rpe')), undefined, { revalidate: true })
+      await refreshRpe()
+      mutate((key: string) => typeof key === 'string' && key.includes('/carga'), undefined, { revalidate: true })
     } catch (err: any) {
       toast.error(err?.message || 'Error al eliminar')
     } finally {

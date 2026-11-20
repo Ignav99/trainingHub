@@ -30,7 +30,7 @@ export const rpeApi = {
   create: (data: CreateRPEData) =>
     api.post<RPERegistro>('/rpe', data),
 
-  listByJugador: (jugadorId: string, params?: { tipo?: string; limit?: number }) =>
+  listByJugador: (jugadorId: string, params?: { tipo?: string; limit?: number; excluir_wellness?: boolean }) =>
     api.get<{ data: RPERegistro[] }>(`/rpe/jugador/${jugadorId}`, { params }),
 
   getResumen: (equipoId: string, params?: { fecha_desde?: string; fecha_hasta?: string }) =>

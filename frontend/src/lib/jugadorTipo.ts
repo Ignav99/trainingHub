@@ -106,6 +106,18 @@ export function splitSesionAsistenciaRoster<T extends Pick<Jugador, 'id' | 'tipo
   return { inSession, filialDisponibles }
 }
 
+/**
+ * Tabla de RPE: primera plantilla siempre. El filial solo entra si en esta
+ * pestaña se pulsó su botón. Prueba e invitado no salen.
+ */
+export function filaVisibleEnRpe(
+  tipo: TipoJugador | null | undefined,
+  mostrarFilial: boolean,
+): boolean {
+  if (tipo === 'juvenil') return mostrarFilial
+  return tipo === 'plantilla'
+}
+
 /** Listas operativas: plantilla siempre; filial solo con el botón. */
 export function visibleEnListaEquipo(
   j: Pick<Jugador, 'tipo_jugador' | 'es_invitado'>,
