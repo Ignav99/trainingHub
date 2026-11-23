@@ -131,7 +131,7 @@ export default function ModeloJuegoPage() {
         await gameModelsApi.create({ equipo_id: eid, ...payload })
       }
 
-      mutate((key: string) => typeof key === 'string' && key.includes('/game-models'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/game-models'))
       setSaveSuccess(true)
       setTimeout(() => setSaveSuccess(false), 3000)
     } catch (err: unknown) {

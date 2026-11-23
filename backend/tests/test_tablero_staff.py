@@ -309,7 +309,7 @@ def test_abrir_un_hilo_da_por_leidos_solo_sus_avisos(monkeypatch):
     otro = tb.crear_post(fake, EQ, ACTOR_ANA, {"contenido": f"{tok('Luis Mora', LUIS)} y el partido"})
     monkeypatch.setattr(notif, "get_supabase", lambda: fake)
 
-    res = asyncio.run(notif.marcar_hilo_leido(uuid.UUID(hilo["id"]), auth=SimpleNamespace(user_id=LUIS)))
+    res = notif.marcar_hilo_leido(uuid.UUID(hilo["id"]), auth=SimpleNamespace(user_id=LUIS))
 
     assert res == {"leidas": 1}
     estado = {n["entidad_id"]: (n["leida"], n["presentada"]) for n in notifs(fake, LUIS)}

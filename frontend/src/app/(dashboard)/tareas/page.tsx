@@ -136,7 +136,8 @@ export default function TareasPage() {
     Boolean(pages?.length) &&
     lastCount > 0 &&
     (total > 0 ? tareas.length < total : lastCount >= pageSize)
-  const error = tareasError ? 'Error al cargar las tareas' : null
+  // Con datos en caché se siguen mostrando: el error solo tapa la lista si no hay nada.
+  const error = tareasError && !pages?.length ? 'Error al cargar las tareas' : null
 
   useEffect(() => {
     setSize(1)
@@ -218,9 +219,7 @@ export default function TareasPage() {
   }, [aiSearchMode, hasMore, isValidating, setSize, tareas.length, size])
 
   const invalidateTareas = () => {
-    mutate((key: string) => typeof key === 'string' && key.includes('/tareas'), undefined, {
-      revalidate: true,
-    })
+    mutate((key: string) => typeof key === 'string' && key.includes('/tareas'))
   }
 
   const handleBatchGenerateDiagrams = async () => {

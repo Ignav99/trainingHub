@@ -91,7 +91,7 @@ function useAperturaAutomatica() {
     void notificacionesApi
       .markPresented(ids)
       .catch(() => undefined)
-      .finally(() => mutateGlobal(isNotificacionesKey, undefined, { revalidate: true }))
+      .finally(() => mutateGlobal(isNotificacionesKey))
   }, [data, pathname, reintento])
 }
 
@@ -174,7 +174,7 @@ function VistaPendiente({ equipoId, meId }: { equipoId: string; meId?: string })
     setMarcando(true)
     try {
       await notificacionesApi.markAllRead('para_ti')
-      await mutateGlobal(isNotificacionesKey, undefined, { revalidate: true })
+      await mutateGlobal(isNotificacionesKey)
     } finally {
       setMarcando(false)
     }

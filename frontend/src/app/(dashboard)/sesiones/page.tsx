@@ -181,7 +181,7 @@ export default function SesionesPage() {
 
     try {
       await sesionesApi.delete(id)
-      mutate((key: string) => typeof key === 'string' && key.includes('/sesiones'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/sesiones'))
     } catch (err) {
       console.error('Error deleting sesion:', err)
     }
@@ -472,11 +472,11 @@ export default function SesionesPage() {
       {/* Lista de sesiones */}
       {loading ? (
         <ListPageSkeleton />
-      ) : error ? (
+      ) : error && !data ? (
         <div className="text-center py-12">
           <p className="text-red-600 mb-4">Error al cargar las sesiones</p>
           <button
-            onClick={() => mutate((key: string) => typeof key === 'string' && key.includes('/sesiones'), undefined, { revalidate: true })}
+            onClick={() => mutate((key: string) => typeof key === 'string' && key.includes('/sesiones'))}
             className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
           >
             Reintentar

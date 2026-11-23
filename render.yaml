@@ -37,10 +37,18 @@ services:
     plan: starter
     autoDeploy: false  # Deploys are controlled by CI/CD via deploy hooks
     buildCommand: cd backend && pip install -r requirements.txt
-    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    # gunicorn = supervisor: reinicia el worker si se cae o si el event loop se
+    # bloquea > --timeout. WEB_CONCURRENCY: 1 en Starter (512 MB; cada worker
+    # ocupa ~250 MB + picos de WeasyPrint). Con plan Standard (2 GB) subir a 3.
+    # Solo un worker ejecuta el scheduler RFAF (lock de fichero en app/main.py).
+    startCommand: cd backend && gunicorn app.main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT --workers ${WEB_CONCURRENCY:-1} --timeout 120 --graceful-timeout 30 --keep-alive 75 --forwarded-allow-ips "*"
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.0"
+      - key: WEB_CONCURRENCY
+        value: "1"  # Starter 512 MB. Standard 2 GB -> "3"
+      - key: THREADPOOL_SIZE
+        value: "60"  # hilos para rutas `def` (Supabase síncrono)
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_ANON_KEY

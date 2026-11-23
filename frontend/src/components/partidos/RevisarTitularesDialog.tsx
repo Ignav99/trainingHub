@@ -111,9 +111,7 @@ export function RevisarTitularesDialog({
       }
     }
     await mutate(
-      (key: string) => typeof key === 'string' && (key.includes('/convocatorias') || key.includes('/partidos')),
-      undefined,
-      { revalidate: true },
+      (key: string) => typeof key === 'string' && (key.includes('/convocatorias') || key.includes('/partidos'))
     )
     setApplying(false)
     if (failed > 0) {

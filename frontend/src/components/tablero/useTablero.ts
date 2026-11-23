@@ -16,7 +16,7 @@ export function useMiembrosStaff(equipoId?: string | null) {
 /** Tras publicar o cambiar algo: listados, resumen, actividad y campana. */
 export function refrescarTablero() {
   return Promise.all([
-    mutate(isTableroKey, undefined, { revalidate: true }),
-    mutate(isNotificacionesKey, undefined, { revalidate: true }),
+    mutate(isTableroKey),
+    mutate(isNotificacionesKey),
   ])
 }

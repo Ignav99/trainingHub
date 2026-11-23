@@ -168,7 +168,7 @@ export default function JugadorDetailPage() {
   }, [jugador])
 
   const invalidateJugadores = () => {
-    mutate((key: string) => typeof key === 'string' && key.includes('/jugadores'), undefined, { revalidate: true })
+    mutate((key: string) => typeof key === 'string' && key.includes('/jugadores'))
   }
 
   const handleSave = async () => {

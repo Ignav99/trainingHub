@@ -4,8 +4,6 @@ import { mutate } from 'swr'
 export function revalidateKeysContaining(...needles: string[]) {
   void mutate(
     (key: unknown) =>
-      typeof key === 'string' && needles.some((needle) => key.includes(needle)),
-    undefined,
-    { revalidate: true },
+      typeof key === 'string' && needles.some((needle) => key.includes(needle))
   )
 }

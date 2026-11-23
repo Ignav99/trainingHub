@@ -421,7 +421,7 @@ api_router.include_router(
 # ============ Catalogos ============
 
 @api_router.get("/catalogos/categorias-tarea", tags=["Catalogos"])
-async def get_categorias_tarea():
+def get_categorias_tarea():
     """Obtiene todas las categorias de tareas."""
     return {
         "data": [
@@ -445,7 +445,7 @@ async def get_categorias_tarea():
 
 
 @api_router.get("/catalogos/fases-juego", tags=["Catalogos"])
-async def get_fases_juego():
+def get_fases_juego():
     """Obtiene todas las fases de juego."""
     return {
         "data": [
@@ -474,7 +474,7 @@ async def get_fases_juego():
 
 
 @api_router.get("/catalogos/match-days", tags=["Catalogos"])
-async def get_match_days():
+def get_match_days():
     """Obtiene configuracion de todos los Match Days."""
     return {
         "data": [
@@ -533,7 +533,7 @@ async def get_match_days():
 
 
 @api_router.get("/catalogos/principios/{fase}", tags=["Catalogos"])
-async def get_principios_por_fase(fase: str):
+def get_principios_por_fase(fase: str):
     """Obtiene principios tacticos por fase de juego."""
     principios = {
         "ataque_organizado": [
@@ -577,21 +577,21 @@ async def get_principios_por_fase(fase: str):
 # ============ Roles catalog ============
 
 @api_router.get("/catalogos/fases-recuperacion", tags=["Catalogos"])
-async def get_fases_recuperacion():
+def get_fases_recuperacion():
     """Obtiene las 8 fases del Return-to-Play."""
     from app.models.entrenamiento_margen import FASES_RECUPERACION_INFO
     return {"data": FASES_RECUPERACION_INFO}
 
 
 @api_router.get("/catalogos/tipos-ejercicio-margen", tags=["Catalogos"])
-async def get_tipos_ejercicio_margen():
+def get_tipos_ejercicio_margen():
     """Obtiene los tipos de ejercicio para trabajo al margen."""
     from app.models.entrenamiento_margen import TIPOS_EJERCICIO_MARGEN_INFO
     return {"data": TIPOS_EJERCICIO_MARGEN_INFO}
 
 
 @api_router.get("/catalogos/roles-equipo", tags=["Catalogos"])
-async def get_roles_equipo():
+def get_roles_equipo():
     """Obtiene todos los roles disponibles en un equipo."""
     return {
         "data": [
@@ -609,7 +609,7 @@ async def get_roles_equipo():
 
 
 @api_router.get("/catalogos/roles-club", tags=["Catalogos"])
-async def get_roles_club():
+def get_roles_club():
     """Obtiene todos los roles disponibles a nivel de club."""
     return {
         "data": [

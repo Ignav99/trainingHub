@@ -29,7 +29,7 @@ export async function abrirNotificacion(n: Notificacion, navegar: (url: string) 
   } catch {
     // la navegación no depende de marcarla
   }
-  void mutate(isNotificacionesKey, undefined, { revalidate: true })
+  void mutate(isNotificacionesKey)
   const hilo = hiloDeEnlace(destino)
   if (hilo) useStaffPanel.getState().verHilo(hilo)
   else if (destino === '/tablero') useStaffPanel.getState().abrir('tablero')

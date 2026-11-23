@@ -137,7 +137,7 @@ DEFAULT_CATEGORIES = [
 # ============ LIST categories with descriptors ============
 
 @router.get("/equipos/{equipo_id}/video-tag-categories")
-async def list_categories(
+def list_categories(
     equipo_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_READ)),
 ):
@@ -179,7 +179,7 @@ async def list_categories(
 # ============ CREATE category ============
 
 @router.post("/equipos/{equipo_id}/video-tag-categories", status_code=201)
-async def create_category(
+def create_category(
     equipo_id: UUID,
     data: VideoTagCategoryCreate,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
@@ -204,7 +204,7 @@ async def create_category(
 # ============ UPDATE category ============
 
 @router.put("/video-tag-categories/{category_id}")
-async def update_category(
+def update_category(
     category_id: UUID,
     data: VideoTagCategoryUpdate,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
@@ -240,7 +240,7 @@ async def update_category(
 # ============ DELETE category ============
 
 @router.delete("/video-tag-categories/{category_id}")
-async def delete_category(
+def delete_category(
     category_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
 ):
@@ -264,7 +264,7 @@ async def delete_category(
 # ============ CREATE descriptor ============
 
 @router.post("/video-tag-categories/{category_id}/descriptors", status_code=201)
-async def create_descriptor(
+def create_descriptor(
     category_id: UUID,
     data: VideoTagDescriptorCreate,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
@@ -297,7 +297,7 @@ async def create_descriptor(
 # ============ UPDATE descriptor ============
 
 @router.put("/video-tag-descriptors/{descriptor_id}")
-async def update_descriptor(
+def update_descriptor(
     descriptor_id: UUID,
     data: VideoTagDescriptorUpdate,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
@@ -331,7 +331,7 @@ async def update_descriptor(
 # ============ DELETE descriptor ============
 
 @router.delete("/video-tag-descriptors/{descriptor_id}")
-async def delete_descriptor(
+def delete_descriptor(
     descriptor_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
 ):
@@ -355,7 +355,7 @@ async def delete_descriptor(
 # ============ SEED default categories ============
 
 @router.post("/equipos/{equipo_id}/video-tag-categories/seed", status_code=201)
-async def seed_default_categories(
+def seed_default_categories(
     equipo_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
 ):

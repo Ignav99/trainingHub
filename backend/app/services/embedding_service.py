@@ -8,6 +8,7 @@ import logging
 import time
 
 from google import genai
+from google.genai import types
 
 from app.config import get_settings
 
@@ -39,7 +40,11 @@ def _get_client() -> genai.Client:
         settings = get_settings()
         if not settings.GEMINI_API_KEY:
             raise EmbeddingError("GEMINI_API_KEY no configurada")
-        _client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        # Timeout (ms): las llamadas de embedding son síncronas y retienen un hilo.
+        _client = genai.Client(
+            api_key=settings.GEMINI_API_KEY,
+            http_options=types.HttpOptions(timeout=30_000),
+        )
     return _client
 
 

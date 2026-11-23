@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 # ============ Biblioteca CRUD ============
 
 @router.get("")
-async def list_jugadas(
+def list_jugadas(
     equipo_id: UUID = Query(...),
     tipo: Optional[str] = None,
     lado: Optional[str] = None,
@@ -58,7 +58,7 @@ async def list_jugadas(
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-async def create_jugada(
+def create_jugada(
     data: ABPJugadaCreate,
     auth: AuthContext = Depends(require_permission(Permission.ABP_CREATE)),
 ):
@@ -143,7 +143,7 @@ async def get_playbook_pdf(
 
 
 @router.get("/{jugada_id}")
-async def get_jugada(
+def get_jugada(
     jugada_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.ABP_READ)),
 ):
@@ -158,7 +158,7 @@ async def get_jugada(
 
 
 @router.put("/{jugada_id}")
-async def update_jugada(
+def update_jugada(
     jugada_id: UUID,
     data: ABPJugadaUpdate,
     auth: AuthContext = Depends(require_permission(Permission.ABP_UPDATE)),
@@ -188,7 +188,7 @@ async def update_jugada(
 
 
 @router.delete("/{jugada_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_jugada(
+def delete_jugada(
     jugada_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.ABP_DELETE)),
 ):
@@ -213,7 +213,7 @@ async def delete_jugada(
 
 
 @router.post("/{jugada_id}/duplicate", status_code=status.HTTP_201_CREATED)
-async def duplicate_jugada(
+def duplicate_jugada(
     jugada_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.ABP_CREATE)),
 ):
@@ -239,7 +239,7 @@ async def duplicate_jugada(
 # ============ Integración Partido ============
 
 @router.get("/partido/{partido_id}")
-async def list_partido_jugadas(
+def list_partido_jugadas(
     partido_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.ABP_READ)),
 ):
@@ -257,7 +257,7 @@ async def list_partido_jugadas(
 
 
 @router.post("/partido/{partido_id}", status_code=status.HTTP_201_CREATED)
-async def assign_jugada_to_partido(
+def assign_jugada_to_partido(
     partido_id: UUID,
     data: ABPPartidoJugadaCreate,
     auth: AuthContext = Depends(require_permission(Permission.ABP_CREATE)),
@@ -282,7 +282,7 @@ async def assign_jugada_to_partido(
 
 
 @router.delete("/partido/{partido_id}/{jugada_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def unassign_jugada_from_partido(
+def unassign_jugada_from_partido(
     partido_id: UUID,
     jugada_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.ABP_DELETE)),
@@ -297,7 +297,7 @@ async def unassign_jugada_from_partido(
 # ============ Scouting Rival ============
 
 @router.get("/rival/{rival_id}")
-async def list_rival_jugadas(
+def list_rival_jugadas(
     rival_id: UUID,
     tipo: Optional[str] = None,
     lado: Optional[str] = None,
@@ -318,7 +318,7 @@ async def list_rival_jugadas(
 
 
 @router.post("/rival/{rival_id}", status_code=status.HTTP_201_CREATED)
-async def create_rival_jugada(
+def create_rival_jugada(
     rival_id: UUID,
     data: ABPRivalJugadaCreate,
     auth: AuthContext = Depends(require_permission(Permission.ABP_CREATE)),
@@ -337,7 +337,7 @@ async def create_rival_jugada(
 
 
 @router.put("/rival/{rival_id}/{jugada_id}")
-async def update_rival_jugada(
+def update_rival_jugada(
     rival_id: UUID,
     jugada_id: UUID,
     data: ABPRivalJugadaUpdate,
@@ -359,7 +359,7 @@ async def update_rival_jugada(
 
 
 @router.delete("/rival/{rival_id}/{jugada_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_rival_jugada(
+def delete_rival_jugada(
     rival_id: UUID,
     jugada_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.ABP_DELETE)),
@@ -374,7 +374,7 @@ async def delete_rival_jugada(
 # ============ Sesiones ============
 
 @router.get("/sesion/{sesion_id}")
-async def list_sesion_jugadas(
+def list_sesion_jugadas(
     sesion_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.ABP_READ)),
 ):
@@ -392,7 +392,7 @@ async def list_sesion_jugadas(
 
 
 @router.post("/sesion/{sesion_id}", status_code=status.HTTP_201_CREATED)
-async def link_jugada_to_sesion(
+def link_jugada_to_sesion(
     sesion_id: UUID,
     data: ABPSesionJugadaCreate,
     auth: AuthContext = Depends(require_permission(Permission.ABP_CREATE)),
@@ -411,7 +411,7 @@ async def link_jugada_to_sesion(
 
 
 @router.delete("/sesion/{sesion_id}/{jugada_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def unlink_jugada_from_sesion(
+def unlink_jugada_from_sesion(
     sesion_id: UUID,
     jugada_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.ABP_DELETE)),
@@ -426,7 +426,7 @@ async def unlink_jugada_from_sesion(
 # ============ Partido Plan (Comments + Bulk Jugadas) ============
 
 @router.get("/partido/{partido_id}/plan")
-async def get_partido_plan(
+def get_partido_plan(
     partido_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.ABP_READ)),
 ):
@@ -454,7 +454,7 @@ async def get_partido_plan(
 
 
 @router.put("/partido/{partido_id}/plan")
-async def save_partido_plan(
+def save_partido_plan(
     partido_id: UUID,
     data: ABPPartidoPlanFullSave,
     auth: AuthContext = Depends(require_permission(Permission.ABP_CREATE)),

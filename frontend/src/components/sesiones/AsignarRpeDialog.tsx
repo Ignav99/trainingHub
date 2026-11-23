@@ -73,9 +73,7 @@ export function AsignarRpeDialog({
       await rpeApi.putSesionAsignacion(sesionId, items)
       toast.success('RPE guardado. Cargas actualizadas.')
       mutate(
-        (key: string) => typeof key === 'string' && (key.includes('/rpe') || key.includes('/carga')),
-        undefined,
-        { revalidate: true },
+        (key: string) => typeof key === 'string' && (key.includes('/rpe') || key.includes('/carga'))
       )
       onOpenChange(false)
     } catch (err: any) {

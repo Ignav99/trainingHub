@@ -22,7 +22,7 @@ router = APIRouter()
 
 
 @router.post("/microciclos/{microciclo_id}/plan-partido", response_model=PlanPartidoResponse, status_code=status.HTTP_201_CREATED)
-async def create_plan_partido(
+def create_plan_partido(
     microciclo_id: UUID,
     plan: PlanPartidoCreate,
     auth: AuthContext = Depends(require_permission(Permission.MICROCICLO_CREATE)),
@@ -47,7 +47,7 @@ async def create_plan_partido(
 
 
 @router.get("/microciclos/{microciclo_id}/plan-partido", response_model=PlanPartidoResponse)
-async def get_plan_partido(
+def get_plan_partido(
     microciclo_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.MICROCICLO_READ)),
 ):
@@ -62,7 +62,7 @@ async def get_plan_partido(
 
 
 @router.get("/planes-partido/{plan_id}", response_model=PlanPartidoResponse)
-async def get_plan_partido_by_id(
+def get_plan_partido_by_id(
     plan_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.MICROCICLO_READ)),
 ):
@@ -77,7 +77,7 @@ async def get_plan_partido_by_id(
 
 
 @router.put("/planes-partido/{plan_id}", response_model=PlanPartidoResponse)
-async def update_plan_partido(
+def update_plan_partido(
     plan_id: UUID,
     plan: PlanPartidoUpdate,
     auth: AuthContext = Depends(require_permission(Permission.MICROCICLO_UPDATE)),
@@ -98,7 +98,7 @@ async def update_plan_partido(
 
 
 @router.post("/planes-partido/{plan_id}/fases/{fase}/video-clips")
-async def vincular_video_clips(
+def vincular_video_clips(
     plan_id: UUID,
     fase: str,
     clips: list[UUID],
@@ -124,7 +124,7 @@ async def vincular_video_clips(
 
 
 @router.delete("/planes-partido/{plan_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_plan_partido(
+def delete_plan_partido(
     plan_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.MICROCICLO_DELETE)),
 ):

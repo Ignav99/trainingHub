@@ -17,6 +17,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { useClubStore } from '@/stores/clubStore'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { LimiteError } from '@/components/errores/LimiteError'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
@@ -422,7 +423,7 @@ export default function DashboardPage() {
             },
       })
       setShowCreateMicro(false)
-      mutate((key: string) => typeof key === 'string' && key.includes('/microciclos'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/microciclos'))
       router.push(`/microciclos/${res.id}`)
     } catch (err: any) {
       toast.error(err.message || 'Error al crear microciclo')
@@ -443,7 +444,7 @@ export default function DashboardPage() {
       })
       // Link orphaned sessions that fall within this week's date range
       await microciclosApi.linkSesiones(res.id)
-      mutate((key: string) => typeof key === 'string' && key.includes('/microciclos'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/microciclos'))
       router.push(`/microciclos/${res.id}`)
     } catch (err: any) {
       toast.error(err.message || 'Error al crear microciclo')
@@ -573,6 +574,7 @@ export default function DashboardPage() {
       style={cal ? undefined : { backgroundImage: FIELD_PATTERN }}
     >
       {/* ============ SECTION 1: Top banner — Rival + Availability ============ */}
+      <LimiteError zona="la cabecera" resetKeys={[equipoId]}>
       <PorAspecto
         cal={
           <HoyCabeceraCal
@@ -597,6 +599,7 @@ export default function DashboardPage() {
         />
         }
       />
+      </LimiteError>
 
       {!cal && (
       <>
@@ -625,14 +628,14 @@ export default function DashboardPage() {
       </>
       )}
 
-      {calParError && (
+      {calParError && !calParRes && (
         <Card className="border-destructive/40 bg-destructive/5">
           <CardContent className="flex items-start gap-3 pt-4">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
             <div>
               <p className="text-sm font-medium">No se pudieron cargar los partidos</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Competición y amistosos no están borrados. Recarga la página. Si el próximo rival
+                Competición y amistosos no están borrados. Se reintenta solo en unos segundos. Si el próximo rival
                 sigue visible arriba, el calendario está en base de datos y el listado ha fallado.
               </p>
             </div>
@@ -642,6 +645,7 @@ export default function DashboardPage() {
 
       {/* ============ SECTION 2: Interactive monthly calendar ============ */}
       <div className={cal ? 'min-w-0 lg:min-h-0 lg:flex-1' : undefined}>
+      <LimiteError zona="el calendario" resetKeys={[equipoId, viewMode, focusDate]} className="min-h-[16rem]">
       <CalendarSection
         acciones={accionesCal}
         calYear={calYear}
@@ -682,6 +686,7 @@ export default function DashboardPage() {
         onGuardarDiaPersonal={cal ? handleGuardarDiaPersonal : undefined}
         onQuitarDiaPersonal={cal ? handleQuitarDiaPersonal : undefined}
       />
+      </LimiteError>
       </div>
 
       {/* ============ Avisos (solo borradores) ============ */}

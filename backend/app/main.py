@@ -4,6 +4,7 @@ Punto de entrada principal de la aplicacion FastAPI.
 """
 
 import logging
+import os
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -40,7 +41,47 @@ from app.middleware import (
     RequestLoggingMiddleware,
     RateLimitMiddleware,
     CacheControlMiddleware,
+    SelectiveGZipMiddleware,
 )
+
+
+# Hilos para el trabajo síncrono (cliente Supabase síncrono, PDFs, scrapers).
+# Las rutas `def` usan el limitador de anyio; asyncio.to_thread usa el executor
+# por defecto del loop, que sin configurar depende de os.cpu_count() del host.
+THREADPOOL_SIZE = int(os.environ.get("THREADPOOL_SIZE", "60"))
+ASYNCIO_EXECUTOR_SIZE = int(os.environ.get("ASYNCIO_EXECUTOR_SIZE", "32"))
+
+
+def _configure_thread_pools() -> None:
+    import asyncio
+    from concurrent.futures import ThreadPoolExecutor
+
+    import anyio.to_thread
+
+    anyio.to_thread.current_default_thread_limiter().total_tokens = THREADPOOL_SIZE
+    asyncio.get_running_loop().set_default_executor(
+        ThreadPoolExecutor(max_workers=ASYNCIO_EXECUTOR_SIZE, thread_name_prefix="th-io")
+    )
+
+
+def _acquire_scheduler_lock():
+    """Lock de fichero no bloqueante: el primer worker que lo coge corre el
+    scheduler. Si ese worker muere, el SO libera el lock y el worker que lo
+    sustituye lo recoge."""
+    if os.environ.get("DISABLE_SCHEDULER") == "1":
+        return None
+    try:
+        import fcntl
+    except ImportError:  # Windows dev
+        return open(os.devnull, "w")
+    path = os.environ.get("SCHEDULER_LOCK_FILE", "/tmp/traininghub-scheduler.lock")
+    fh = open(path, "w")
+    try:
+        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        fh.close()
+        return None
+    return fh
 
 
 @asynccontextmanager
@@ -48,23 +89,31 @@ async def lifespan(app: FastAPI):
     """Lifecycle del servidor - inicializacion y cleanup."""
     # Startup
     print(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+    _configure_thread_pools()
     init_supabase()
 
-    # Start RFAF scraping scheduler
+    # Start RFAF scraping scheduler — SOLO en un worker (con varios workers
+    # cada uno lo arrancaría y el scraping/cron se ejecutaría N veces).
     from app.services.rfef_scheduler_service import start_scheduler, stop_scheduler
-    try:
-        start_scheduler()
-        print("✅ RFAF scheduler started")
-    except Exception as e:
-        print(f"⚠️ RFAF scheduler failed to start: {e}")
+    scheduler_lock = _acquire_scheduler_lock()
+    if scheduler_lock is not None:
+        try:
+            start_scheduler()
+            print("✅ RFAF scheduler started")
+        except Exception as e:
+            print(f"⚠️ RFAF scheduler failed to start: {e}")
+    else:
+        print("ℹ️ RFAF scheduler running in another worker")
 
     yield
 
     # Shutdown
-    try:
-        stop_scheduler()
-    except Exception:
-        pass
+    if scheduler_lock is not None:
+        try:
+            stop_scheduler()
+        except Exception:
+            pass
+        scheduler_lock.close()
     print("Shutting down...")
 
 
@@ -96,6 +145,8 @@ app = FastAPI(
 
 # Middleware stack (order matters: last added = outermost = first executed)
 # Add in reverse order: innermost first, outermost last
+# 0. Compresión JSON (innermost: comprime el cuerpo de la ruta)
+app.add_middleware(SelectiveGZipMiddleware, minimum_size=1024, compresslevel=5)
 # 1. Request logging (innermost - logs after processing)
 app.add_middleware(RequestLoggingMiddleware)
 # 2. Cache-Control headers
@@ -103,7 +154,14 @@ app.add_middleware(CacheControlMiddleware)
 # 3. Security headers (includes Content-Security-Policy)
 app.add_middleware(SecurityHeadersMiddleware)
 # 4. Rate limiting
-app.add_middleware(RateLimitMiddleware, max_requests=100, window_seconds=60)
+app.add_middleware(
+    RateLimitMiddleware,
+    max_requests=600,  # por usuario (sub del JWT); antes 100/min por IP
+    window_seconds=60,
+    anon_max_requests=300,
+    auth_max_requests=30,
+    expensive_max_requests=40,
+)
 # 5. CORS (outermost - MUST wrap everything so error responses get CORS headers)
 app.add_middleware(
     CORSMiddleware,

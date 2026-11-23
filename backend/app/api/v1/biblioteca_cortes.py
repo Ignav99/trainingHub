@@ -300,7 +300,7 @@ def _text(value: str | None, limit: int) -> str | None:
 
 
 @router.get("")
-async def list_cortes(
+def list_cortes(
     equipo_id: UUID,
     q: str | None = None,
     partido_id: UUID | None = None,
@@ -359,7 +359,7 @@ async def list_cortes(
 
 
 @router.get("/uso")
-async def uso_biblioteca(
+def uso_biblioteca(
     equipo_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_READ)),
 ):
@@ -384,7 +384,7 @@ async def uso_biblioteca(
 
 
 @router.post("/descargas")
-async def descargas(
+def descargas(
     data: DescargasBody,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_READ)),
 ):
@@ -436,7 +436,7 @@ async def descargas(
 
 
 @router.post("/upload-url")
-async def upload_url(
+def upload_url(
     data: UploadUrlBody,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
 ):
@@ -479,7 +479,7 @@ async def upload_url(
 
 
 @router.post("/confirm", status_code=201)
-async def confirm_upload(
+def confirm_upload(
     data: ConfirmBody,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
 ):
@@ -527,7 +527,7 @@ async def confirm_upload(
 
 
 @router.patch("/{corte_id}")
-async def update_corte(
+def update_corte(
     corte_id: UUID,
     data: UpdateBody,
     equipo_id: UUID = Query(...),
@@ -574,7 +574,7 @@ async def update_corte(
 
 
 @router.delete("/{corte_id}")
-async def delete_corte(
+def delete_corte(
     corte_id: UUID,
     equipo_id: UUID = Query(...),
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
@@ -600,7 +600,7 @@ async def delete_corte(
 
 
 @router.post("/desde-revision", status_code=201)
-async def desde_revision(
+def desde_revision(
     data: DesdeRevisionBody,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
 ):
@@ -679,7 +679,7 @@ async def desde_revision(
 
 
 @router.post("/{corte_id}/enviar-revision", status_code=201)
-async def enviar_revision(
+def enviar_revision(
     corte_id: UUID,
     data: EnviarRevisionBody,
     equipo_id: UUID = Query(...),

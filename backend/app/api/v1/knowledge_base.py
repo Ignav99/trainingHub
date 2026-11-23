@@ -32,7 +32,7 @@ router = APIRouter()
 
 
 @router.get("/documentos")
-async def list_documentos(
+def list_documentos(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     tipo: Optional[str] = None,
@@ -76,7 +76,7 @@ async def list_documentos(
 
 
 @router.get("/documentos/{documento_id}", response_model=DocumentoKBResponse)
-async def get_documento(
+def get_documento(
     documento_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.KB_READ)),
 ):
@@ -97,7 +97,7 @@ async def get_documento(
 
 
 @router.post("/documentos", response_model=DocumentoKBResponse, status_code=status.HTTP_201_CREATED)
-async def create_documento(
+def create_documento(
     documento: DocumentoKBCreate,
     background_tasks: BackgroundTasks,
     auth: AuthContext = Depends(require_permission(Permission.KB_CREATE)),
@@ -285,7 +285,7 @@ async def upload_documento_pdf(
 
 
 @router.post("/documentos/{documento_id}/indexar")
-async def indexar_documento(
+def indexar_documento(
     documento_id: UUID,
     background_tasks: BackgroundTasks,
     auth: AuthContext = Depends(require_permission(Permission.KB_UPDATE)),
@@ -346,7 +346,7 @@ async def indexar_documento(
 
 
 @router.post("/reindexar-todo")
-async def reindexar_todo(
+def reindexar_todo(
     background_tasks: BackgroundTasks,
     auth: AuthContext = Depends(require_permission(Permission.KB_UPDATE)),
 ):
@@ -443,7 +443,7 @@ async def search_kb(
 
 
 @router.delete("/documentos/{documento_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_documento(
+def delete_documento(
     documento_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.KB_DELETE)),
 ):

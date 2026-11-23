@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect } from 'react'
+import { startTransition, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import * as Sentry from '@sentry/nextjs'
 
 export default function GlobalError({
@@ -10,6 +11,7 @@ export default function GlobalError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  const router = useRouter()
   useEffect(() => {
     // Auto-reload on chunk loading errors (stale deploy)
     if (
@@ -36,13 +38,19 @@ export default function GlobalError({
           Algo salió mal
         </h2>
         <p className="text-purple-300/60 text-sm mb-6">
-          Ha ocurrido un error inesperado. Puedes intentar recargar la página.
+          Ha ocurrido un error inesperado. Puedes reintentar sin perder lo que tenías abierto.
         </p>
         <button
-          onClick={() => window.location.reload()}
+          onClick={() => startTransition(() => { router.refresh(); reset() })}
           className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg transition-colors"
         >
-          Recargar página
+          Reintentar
+        </button>
+        <button
+          onClick={() => window.location.reload()}
+          className="ml-2 px-4 py-2.5 text-purple-300/70 hover:text-white text-sm font-medium rounded-lg transition-colors"
+        >
+          Recargar
         </button>
       </div>
     </div>

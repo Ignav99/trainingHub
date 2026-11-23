@@ -40,7 +40,7 @@ def _row_to_response(row: dict) -> EvaluacionResponse:
 
 
 @router.get("", response_model=EvaluacionListResponse)
-async def list_evaluaciones(
+def list_evaluaciones(
     jugador_id: UUID,
     bloque: Optional[BloqueEvaluacion] = None,
     auth: AuthContext = Depends(
@@ -69,7 +69,7 @@ async def list_evaluaciones(
 
 
 @router.post("", response_model=EvaluacionResponse, status_code=status.HTTP_201_CREATED)
-async def create_evaluacion(
+def create_evaluacion(
     data: EvaluacionCreate,
     auth: AuthContext = Depends(
         require_any_permission(Permission.MEDICAL_CREATE, Permission.JUGADOR_UPDATE)
@@ -117,7 +117,7 @@ def _habitos_row(jugador_id: str, row: Optional[dict] = None) -> HabitosResponse
 
 
 @router.get("/habitos/{jugador_id}", response_model=HabitosResponse)
-async def get_habitos(
+def get_habitos(
     jugador_id: UUID,
     auth: AuthContext = Depends(
         require_any_permission(Permission.MEDICAL_READ, Permission.PLANTILLA_READ)
@@ -142,7 +142,7 @@ async def get_habitos(
 
 
 @router.put("/habitos/{jugador_id}", response_model=HabitosResponse)
-async def upsert_habitos(
+def upsert_habitos(
     jugador_id: UUID,
     data: HabitosUpdate,
     auth: AuthContext = Depends(
@@ -181,7 +181,7 @@ async def upsert_habitos(
 
 
 @router.get("/{evaluacion_id}", response_model=EvaluacionResponse)
-async def get_evaluacion(
+def get_evaluacion(
     evaluacion_id: UUID,
     auth: AuthContext = Depends(
         require_any_permission(Permission.MEDICAL_READ, Permission.PLANTILLA_READ)
@@ -201,7 +201,7 @@ async def get_evaluacion(
 
 
 @router.put("/{evaluacion_id}", response_model=EvaluacionResponse)
-async def update_evaluacion(
+def update_evaluacion(
     evaluacion_id: UUID,
     data: EvaluacionUpdate,
     auth: AuthContext = Depends(
@@ -230,7 +230,7 @@ async def update_evaluacion(
 
 
 @router.delete("/{evaluacion_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_evaluacion(
+def delete_evaluacion(
     evaluacion_id: UUID,
     auth: AuthContext = Depends(
         require_any_permission(Permission.MEDICAL_UPDATE, Permission.JUGADOR_UPDATE)

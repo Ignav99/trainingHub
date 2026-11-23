@@ -142,7 +142,7 @@ def _get_jugador_in_org(supabase, jugador_id: str, organizacion_id: str) -> dict
 
 
 @router.get("", response_model=JugadorListResponse)
-async def list_jugadores(
+def list_jugadores(
     equipo_id: Optional[UUID] = Query(None, description="Filtrar por equipo"),
     organizacion_completa: bool = Query(False, description="Incluir jugadores de todos los equipos de la organizacion"),
     posicion: Optional[str] = Query(None, description="Filtrar por posición"),
@@ -221,7 +221,7 @@ async def list_jugadores(
 
 
 @router.get("/posiciones", response_model=PosicionListResponse)
-async def list_posiciones():
+def list_posiciones():
     """Lista todas las posiciones disponibles."""
     supabase = get_supabase()
     response = supabase.table("posiciones").select("*").order("orden").execute()
@@ -229,7 +229,7 @@ async def list_posiciones():
 
 
 @router.get("/{jugador_id}", response_model=JugadorResponse)
-async def get_jugador(jugador_id: UUID, auth: AuthContext = Depends(require_permission(Permission.PLANTILLA_READ))):
+def get_jugador(jugador_id: UUID, auth: AuthContext = Depends(require_permission(Permission.PLANTILLA_READ))):
     """Obtiene un jugador por ID."""
     supabase = get_supabase()
     response = supabase.table("jugadores").select("*").eq("id", str(jugador_id)).single().execute()
@@ -253,7 +253,7 @@ async def get_jugador(jugador_id: UUID, auth: AuthContext = Depends(require_perm
 
 
 @router.post("", response_model=JugadorResponse, status_code=status.HTTP_201_CREATED)
-async def create_jugador(jugador: JugadorCreate, auth: AuthContext = Depends(require_permission(Permission.PLANTILLA_MANAGE))):
+def create_jugador(jugador: JugadorCreate, auth: AuthContext = Depends(require_permission(Permission.PLANTILLA_MANAGE))):
     """Crea un nuevo jugador."""
     supabase = get_supabase()
 
@@ -281,7 +281,7 @@ async def create_jugador(jugador: JugadorCreate, auth: AuthContext = Depends(req
 
 
 @router.put("/{jugador_id}", response_model=JugadorResponse)
-async def update_jugador(jugador_id: UUID, jugador: JugadorUpdate, auth: AuthContext = Depends(require_permission(Permission.JUGADOR_UPDATE))):
+def update_jugador(jugador_id: UUID, jugador: JugadorUpdate, auth: AuthContext = Depends(require_permission(Permission.JUGADOR_UPDATE))):
     """Actualiza un jugador."""
     supabase = get_supabase()
 
@@ -354,7 +354,7 @@ async def upload_jugador_foto(
 
 
 @router.delete("/{jugador_id}/foto", response_model=JugadorResponse)
-async def delete_jugador_foto(
+def delete_jugador_foto(
     jugador_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.JUGADOR_UPDATE)),
 ):
@@ -388,7 +388,7 @@ async def delete_jugador_foto(
 
 
 @router.post("/{jugador_id}/promover-plantilla", response_model=JugadorResponse)
-async def promover_a_plantilla(
+def promover_a_plantilla(
     jugador_id: UUID,
     body: Optional[dict] = None,
     auth: AuthContext = Depends(require_permission(Permission.PLANTILLA_MANAGE)),
@@ -426,7 +426,7 @@ async def promover_a_plantilla(
 
 
 @router.delete("/{jugador_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_jugador(jugador_id: UUID, auth: AuthContext = Depends(require_permission(Permission.PLANTILLA_MANAGE))):
+def delete_jugador(jugador_id: UUID, auth: AuthContext = Depends(require_permission(Permission.PLANTILLA_MANAGE))):
     """Elimina un jugador y sus referencias en otras tablas."""
     supabase = get_supabase()
     jid = str(jugador_id)
@@ -465,7 +465,7 @@ async def delete_jugador(jugador_id: UUID, auth: AuthContext = Depends(require_p
 
 
 @router.patch("/{jugador_id}/estado")
-async def update_estado_jugador(
+def update_estado_jugador(
     jugador_id: UUID,
     estado: str = Query(..., description="Nuevo estado"),
     motivo: Optional[str] = Query(None, description="Motivo del cambio"),
@@ -524,7 +524,7 @@ async def update_estado_jugador(
 
 
 @router.get("/equipo/{equipo_id}/estadisticas")
-async def get_estadisticas_equipo(equipo_id: UUID, auth: AuthContext = Depends(require_permission(Permission.PLANTILLA_READ, equipo_id_param="equipo_id"))):
+def get_estadisticas_equipo(equipo_id: UUID, auth: AuthContext = Depends(require_permission(Permission.PLANTILLA_READ, equipo_id_param="equipo_id"))):
     """Obtiene estadísticas del equipo."""
     supabase = get_supabase()
 
@@ -578,7 +578,7 @@ async def get_estadisticas_equipo(equipo_id: UUID, auth: AuthContext = Depends(r
 # ─── PLAYER MARGIN WORKOUT HISTORY ─────────────────────────
 
 @router.get("/{jugador_id}/entrenamientos-margen")
-async def get_entrenamientos_margen_jugador(
+def get_entrenamientos_margen_jugador(
     jugador_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.PLANTILLA_READ)),
 ):

@@ -34,7 +34,7 @@ router = APIRouter()
 # ============================================================
 
 @router.get("/perfil", response_model=PerfilNutricionalResponse)
-async def get_perfil_nutricional(
+def get_perfil_nutricional(
     equipo_id: UUID,
     jugador_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.NUTRITION_READ)),
@@ -55,7 +55,7 @@ async def get_perfil_nutricional(
 
 
 @router.post("/perfil", response_model=PerfilNutricionalResponse, status_code=status.HTTP_201_CREATED)
-async def upsert_perfil_nutricional(
+def upsert_perfil_nutricional(
     data: PerfilNutricionalCreate,
     auth: AuthContext = Depends(require_permission(Permission.NUTRITION_CREATE)),
 ):
@@ -95,7 +95,7 @@ async def upsert_perfil_nutricional(
 
 
 @router.put("/perfil/{perfil_id}", response_model=PerfilNutricionalResponse)
-async def update_perfil_nutricional(
+def update_perfil_nutricional(
     perfil_id: UUID,
     data: PerfilNutricionalUpdate,
     auth: AuthContext = Depends(require_permission(Permission.NUTRITION_UPDATE)),
@@ -122,7 +122,7 @@ async def update_perfil_nutricional(
 # ============================================================
 
 @router.get("/plantillas", response_model=List[PlantillaNutricionalResponse])
-async def list_plantillas(
+def list_plantillas(
     equipo_id: UUID,
     tipo_comida: Optional[str] = None,
     contexto: Optional[str] = None,
@@ -147,7 +147,7 @@ async def list_plantillas(
 
 
 @router.post("/plantillas", response_model=PlantillaNutricionalResponse, status_code=status.HTTP_201_CREATED)
-async def create_plantilla(
+def create_plantilla(
     data: PlantillaNutricionalCreate,
     auth: AuthContext = Depends(require_permission(Permission.NUTRITION_CREATE)),
 ):
@@ -170,7 +170,7 @@ async def create_plantilla(
 
 
 @router.put("/plantillas/{plantilla_id}", response_model=PlantillaNutricionalResponse)
-async def update_plantilla(
+def update_plantilla(
     plantilla_id: UUID,
     data: PlantillaNutricionalUpdate,
     auth: AuthContext = Depends(require_permission(Permission.NUTRITION_UPDATE)),
@@ -197,7 +197,7 @@ async def update_plantilla(
 
 
 @router.delete("/plantillas/{plantilla_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_plantilla(
+def delete_plantilla(
     plantilla_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.NUTRITION_UPDATE)),
 ):
@@ -212,7 +212,7 @@ async def delete_plantilla(
 # ============================================================
 
 @router.get("/planes", response_model=List[PlanNutricionalDiaResponse])
-async def list_planes(
+def list_planes(
     equipo_id: UUID,
     fecha: Optional[date] = None,
     jugador_id: Optional[UUID] = None,
@@ -236,7 +236,7 @@ async def list_planes(
 
 
 @router.get("/planes/semana", response_model=List[PlanNutricionalDiaResponse])
-async def get_planes_semana(
+def get_planes_semana(
     equipo_id: UUID,
     fecha_inicio: date,
     jugador_id: Optional[UUID] = None,
@@ -261,7 +261,7 @@ async def get_planes_semana(
 
 
 @router.post("/planes", response_model=PlanNutricionalDiaResponse, status_code=status.HTTP_201_CREATED)
-async def create_plan(
+def create_plan(
     data: PlanNutricionalDiaCreate,
     auth: AuthContext = Depends(require_permission(Permission.NUTRITION_CREATE)),
 ):
@@ -285,7 +285,7 @@ async def create_plan(
 
 
 @router.put("/planes/{plan_id}", response_model=PlanNutricionalDiaResponse)
-async def update_plan(
+def update_plan(
     plan_id: UUID,
     data: PlanNutricionalDiaUpdate,
     auth: AuthContext = Depends(require_permission(Permission.NUTRITION_UPDATE)),
@@ -314,7 +314,7 @@ async def update_plan(
 
 
 @router.delete("/planes/{plan_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_plan(
+def delete_plan(
     plan_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.NUTRITION_UPDATE)),
 ):
@@ -332,7 +332,7 @@ class CopiarSemanaRequest(BaseModel):
 
 
 @router.post("/planes/copiar-semana", response_model=List[PlanNutricionalDiaResponse])
-async def copiar_semana(
+def copiar_semana(
     data: CopiarSemanaRequest,
     auth: AuthContext = Depends(require_permission(Permission.NUTRITION_CREATE)),
 ):
@@ -384,7 +384,7 @@ async def copiar_semana(
 # ============================================================
 
 @router.get("/suplementos", response_model=List[SuplementacionResponse])
-async def list_suplementos(
+def list_suplementos(
     equipo_id: UUID,
     jugador_id: Optional[UUID] = None,
     activo: Optional[bool] = None,
@@ -408,7 +408,7 @@ async def list_suplementos(
 
 
 @router.post("/suplementos", response_model=SuplementacionResponse, status_code=status.HTTP_201_CREATED)
-async def create_suplemento(
+def create_suplemento(
     data: SuplementacionCreate,
     auth: AuthContext = Depends(require_permission(Permission.NUTRITION_CREATE)),
 ):
@@ -429,7 +429,7 @@ async def create_suplemento(
 
 
 @router.put("/suplementos/{suplemento_id}", response_model=SuplementacionResponse)
-async def update_suplemento(
+def update_suplemento(
     suplemento_id: UUID,
     data: SuplementacionUpdate,
     auth: AuthContext = Depends(require_permission(Permission.NUTRITION_UPDATE)),
@@ -453,7 +453,7 @@ async def update_suplemento(
 
 
 @router.delete("/suplementos/{suplemento_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_suplemento(
+def delete_suplemento(
     suplemento_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.NUTRITION_UPDATE)),
 ):
@@ -468,7 +468,7 @@ async def delete_suplemento(
 # ============================================================
 
 @router.get("/composicion", response_model=List[ComposicionCorporalResponse])
-async def list_composicion(
+def list_composicion(
     equipo_id: UUID,
     jugador_id: Optional[UUID] = None,
     auth: AuthContext = Depends(require_permission(Permission.NUTRITION_READ)),
@@ -489,7 +489,7 @@ async def list_composicion(
 
 
 @router.post("/composicion", response_model=ComposicionCorporalResponse, status_code=status.HTTP_201_CREATED)
-async def create_composicion(
+def create_composicion(
     data: ComposicionCorporalCreate,
     auth: AuthContext = Depends(require_permission(Permission.NUTRITION_CREATE)),
 ):
@@ -507,7 +507,7 @@ async def create_composicion(
 
 
 @router.delete("/composicion/{composicion_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_composicion(
+def delete_composicion(
     composicion_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.NUTRITION_UPDATE)),
 ):
@@ -522,7 +522,7 @@ async def delete_composicion(
 # ============================================================
 
 @router.get("/overview/{jugador_id}", response_model=NutricionOverviewResponse)
-async def get_nutricion_overview(
+def get_nutricion_overview(
     jugador_id: UUID,
     equipo_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.NUTRITION_READ)),
@@ -671,7 +671,7 @@ async def get_nutricion_overview(
 # ============================================================
 
 @router.get("/dia-partido")
-async def get_dia_partido_context(
+def get_dia_partido_context(
     equipo_id: UUID,
     fecha: date,
     auth: AuthContext = Depends(require_permission(Permission.NUTRITION_READ)),

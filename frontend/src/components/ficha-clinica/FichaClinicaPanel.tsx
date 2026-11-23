@@ -162,8 +162,8 @@ export function LesionesTab({
   }
 
   const refreshMedico = () => {
-    mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
-    mutate((key: string) => typeof key === 'string' && key.includes('/jugadores'), undefined, { revalidate: true })
+    mutate((key: string) => typeof key === 'string' && key.includes('/medico'))
+    mutate((key: string) => typeof key === 'string' && key.includes('/jugadores'))
   }
 
   const handleCreateRegistro = async () => {

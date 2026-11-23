@@ -17,7 +17,7 @@ router = APIRouter()
 
 
 @router.get("")
-async def list_descansos(
+def list_descansos(
     equipo_id: UUID = Query(...),
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
@@ -42,7 +42,7 @@ async def list_descansos(
 
 
 @router.post("")
-async def toggle_descanso(
+def toggle_descanso(
     data: DescansoCreate,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_CREATE)),
 ):
@@ -109,7 +109,7 @@ def _fijar_descanso(supabase, data: DescansoUpsert, user_id: Optional[str]) -> d
 
 
 @router.put("")
-async def fijar_descanso(
+def fijar_descanso(
     data: DescansoUpsert,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_CREATE)),
 ):
@@ -119,7 +119,7 @@ async def fijar_descanso(
 
 
 @router.delete("/{descanso_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_descanso(
+def delete_descanso(
     descanso_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_CREATE)),
 ):

@@ -48,7 +48,7 @@ export default function NotificacionesPage() {
     }
   }, [ambito, soloNoLeidas, pagina])
 
-  const refrescarCampana = () => mutate(isNotificacionesKey, undefined, { revalidate: true })
+  const refrescarCampana = () => mutate(isNotificacionesKey)
 
   const marcarLeida = async (id: string) => {
     setNotificaciones((prev) => prev.map((n) => (n.id === id ? { ...n, leida: true } : n)))

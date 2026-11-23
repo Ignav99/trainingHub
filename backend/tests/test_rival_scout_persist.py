@@ -35,5 +35,5 @@ def test_informe_autosave_uses_persistent_extract():
 
 def test_put_scout_manual_stores_body_as_is():
     src = (ROOT / "backend/app/api/v1/rivales.py").read_text()
-    put = src.split("async def put_scout_manual")[1].split("async def get_plan_partido_manual")[0]
+    put = src.split("def put_scout_manual(")[1].split("def get_plan_partido_manual(")[0]
     assert '"scout_manual": body' in put

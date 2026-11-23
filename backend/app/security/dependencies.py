@@ -168,7 +168,7 @@ async def _cached_user(token: str) -> UsuarioResponse:
             headers={"WWW-Authenticate": "Bearer"},
         )
     if not cache_enabled():
-        return _load_user_sync(token)
+        return await asyncio.to_thread(_load_user_sync, token)
 
     cached = _user_cache.get(key)
     if cached is not None:
@@ -454,7 +454,12 @@ def require_permission(
             )
 
         # 2. Check subscription status
-        sub_info = _get_subscription_info(org_id) if org_id else {}
+        sub_info = {}
+        if org_id:
+            sub_info = _subscription_cache.get(org_id)
+            if sub_info is None:
+                # Miss: consulta síncrona fuera del event loop.
+                sub_info = await asyncio.to_thread(_get_subscription_info, org_id)
         plan_info = sub_info.get("planes", {}) if sub_info else {}
         sub_status = sub_info.get("estado", "active") if sub_info else "active"
         is_read_only = sub_status == "grace_period"
@@ -484,7 +489,7 @@ def require_permission(
                 rol_en_equipo = rows[0]["rol_en_equipo"]
                 equipo_id = rows[0]["equipo_id"]
         elif rows is None:
-            ue_result = _team_role_rows(supabase, user_id, equipo_id)
+            ue_result = await asyncio.to_thread(_team_role_rows, supabase, user_id, equipo_id)
             if ue_result and ue_result.data:
                 first = ue_result.data[0] if isinstance(ue_result.data, list) else ue_result.data
                 rol_en_equipo = first["rol_en_equipo"]

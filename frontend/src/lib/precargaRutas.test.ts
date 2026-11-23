@@ -15,6 +15,18 @@ describe('clavesDeRuta', () => {
       '/rfef/competiciones?equipo_id=e1',
     ])
   })
+  it('Hoy con temporada precarga también el calendario completo', () => {
+    const t = { desde: '2025-08-01', hasta: '2026-07-31' }
+    const claves = clavesDeRuta('/', 'e1', t)
+    assert.equal(claves.length, 9)
+    assert.deepEqual(claves.slice(5), [
+      '/sesiones?equipo_id=e1&fecha_desde=2025-08-01&fecha_hasta=2026-07-31&limit=500',
+      '/partidos?equipo_id=e1&fecha_desde=2025-08-01&fecha_hasta=2026-07-31&limit=300&direccion=asc',
+      '/microciclos?equipo_id=e1&fecha_desde=2025-08-01&fecha_hasta=2026-07-31&limit=120',
+      '/descansos?equipo_id=e1&fecha_desde=2025-08-01&fecha_hasta=2026-07-31',
+    ])
+    assert.deepEqual(clavesDeRuta('/microciclos', 'e1'), ['/microciclos?equipo_id=e1&limit=24&page=1&estado=en_curso'])
+  })
   it('sin equipo no precarga rutas dependientes de equipo', () => {
     assert.deepEqual(clavesDeRuta('/partidos', undefined), [])
     assert.deepEqual(clavesDeRuta('/plantilla', null), [])

@@ -31,7 +31,7 @@ router = APIRouter()
 # ============ Consentimientos ============
 
 @router.get("/consentimientos", response_model=ConsentimientoListResponse)
-async def list_consentimientos(
+def list_consentimientos(
     auth: AuthContext = Depends(require_permission()),
 ):
     """Lista consentimientos del usuario actual."""
@@ -49,7 +49,7 @@ async def list_consentimientos(
 
 
 @router.post("/consentimientos", response_model=ConsentimientoResponse, status_code=status.HTTP_201_CREATED)
-async def create_consentimiento(
+def create_consentimiento(
     data: ConsentimientoCreate,
     request: Request,
     auth: AuthContext = Depends(require_permission()),
@@ -79,7 +79,7 @@ async def create_consentimiento(
 
 
 @router.post("/consentimientos/bulk", response_model=ConsentimientoListResponse)
-async def create_consentimientos_bulk(
+def create_consentimientos_bulk(
     data: ConsentimientoBulkCreate,
     request: Request,
     auth: AuthContext = Depends(require_permission()),
@@ -104,7 +104,7 @@ async def create_consentimientos_bulk(
 
 
 @router.post("/consentimientos/{consentimiento_id}/revoke", response_model=ConsentimientoResponse)
-async def revoke_consentimiento(
+def revoke_consentimiento(
     consentimiento_id: UUID,
     request: Request,
     auth: AuthContext = Depends(require_permission()),
@@ -147,7 +147,7 @@ async def revoke_consentimiento(
 # ============ Solicitudes de Derechos GDPR ============
 
 @router.get("/solicitudes", response_model=SolicitudGDPRListResponse)
-async def list_solicitudes(
+def list_solicitudes(
     auth: AuthContext = Depends(require_permission()),
 ):
     """Lista solicitudes GDPR del usuario actual."""
@@ -166,7 +166,7 @@ async def list_solicitudes(
 
 
 @router.post("/solicitudes", response_model=SolicitudGDPRResponse, status_code=status.HTTP_201_CREATED)
-async def create_solicitud(
+def create_solicitud(
     data: SolicitudGDPRCreate,
     request: Request,
     auth: AuthContext = Depends(require_permission()),
@@ -211,7 +211,7 @@ async def create_solicitud(
 # ============ Admin: Process GDPR requests ============
 
 @router.get("/solicitudes/admin", response_model=SolicitudGDPRListResponse)
-async def list_solicitudes_admin(
+def list_solicitudes_admin(
     estado: str = None,
     auth: AuthContext = Depends(require_permission(Permission.CLUB_MANAGE_ORG, allow_club_roles=True)),
 ):
@@ -246,7 +246,7 @@ async def list_solicitudes_admin(
 
 
 @router.put("/solicitudes/{solicitud_id}", response_model=SolicitudGDPRResponse)
-async def update_solicitud(
+def update_solicitud(
     solicitud_id: UUID,
     data: SolicitudGDPRUpdateAdmin,
     auth: AuthContext = Depends(require_permission(Permission.CLUB_MANAGE_ORG, allow_club_roles=True)),
@@ -294,7 +294,7 @@ async def update_solicitud(
 # ============ Data Export (Portabilidad) ============
 
 @router.post("/export", response_model=DataExportResponse)
-async def export_user_data(
+def export_user_data(
     auth: AuthContext = Depends(require_permission()),
 ):
     """

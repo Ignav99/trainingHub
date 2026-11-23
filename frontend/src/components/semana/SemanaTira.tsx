@@ -25,8 +25,8 @@ import {
   MD_NOMBRE,
   numeroSesion,
   resultadoPartido,
-  semanaDelAno,
 } from '@/lib/calendarioColores'
+import { useMicrociclosTemporada } from '@/lib/hooks/useNumeroMicrociclo'
 import { diasPersonalesDe, fechasDescanso, hslColorDia } from '@/lib/diaPersonal'
 import { FondoDia, MarcaEscudo, MarcoHoy, Muestra, aspectoDia } from '@/components/dashboard/calendar/DiaCal'
 import { useEstiloCasa } from '@/components/dashboard/calendar/useEstiloCasa'
@@ -162,11 +162,9 @@ export function SemanaTira() {
       ? apiKey('/sesiones', { equipo_id: equipoId, fecha_desde: lunes, fecha_hasta: domingo, limit: 100 }, ['equipo_id'])
       : null
   )
-  const { data: microData } = useSWR<PaginatedResponse<Microciclo>>(
-    enCal
-      ? apiKey('/microciclos', { equipo_id: equipoId, fecha_desde: lunes, fecha_hasta: domingo, limit: 10 }, ['equipo_id'])
-      : null
-  )
+  // Microciclos: la lista completa de la temporada (la misma petición que
+  // numera los microciclos en el calendario y en /microciclos).
+  const { micros: microsTemporada, numero: numeroMicro } = useMicrociclosTemporada(lunes, domingo, enCal)
 
   // Los cambios del calendario (descanso, nota del día) se aplican a esta
   // clave también: ver `sincronizarDescansos` en lib/api/descansos.ts.
@@ -205,11 +203,12 @@ export function SemanaTira() {
 
   const micro = useMemo(
     () =>
-      (microData?.data ?? []).find(
+      microsTemporada.find(
         (m) => String(m.fecha_inicio).slice(0, 10) <= domingo && String(m.fecha_fin).slice(0, 10) >= lunes
       ),
-    [microData, lunes, domingo]
+    [microsTemporada, lunes, domingo]
   )
+  const nMicro = numeroMicro(micro)
 
   const [abierto, setAbierto] = useState<{ fecha: string; rect: DOMRect } | null>(null)
   const cerrar = useCallback(() => setAbierto(null), [])
@@ -371,14 +370,14 @@ export function SemanaTira() {
         <div className="flex h-12 flex-none items-stretch border-l border-border p-1.5">
           <Link
             href={micro ? `/microciclos/${micro.id}` : '/microciclos'}
-            title={micro ? `Abrir microciclo Sem ${semanaDelAno(String(micro.fecha_inicio))}` : 'Microciclos'}
-            aria-label={micro ? `Abrir microciclo de la semana ${semanaDelAno(String(micro.fecha_inicio))}` : 'Ver microciclos'}
+            title={micro ? `Abrir microciclo${nMicro ? ` ${nMicro}` : ''}` : 'Microciclos'}
+            aria-label={micro ? `Abrir microciclo${nMicro ? ` ${nMicro}` : ' de esta semana'}` : 'Ver microciclos'}
             className="group/mc inline-flex items-center gap-1.5 rounded-[var(--radius)] border-l-2 border-[hsl(var(--casa,var(--primary)))] bg-[hsl(var(--casa,var(--primary))/0.1)] pl-2 pr-1.5 text-foreground transition-colors duration-150 ease-sale hover:bg-[hsl(var(--casa,var(--primary))/0.2)] motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
           >
             <span className="flex flex-col leading-none">
               <span className="cal-rotulo text-[9px] text-muted-foreground">Microciclo</span>
               <span className="mt-0.5 font-mono text-[12px] font-bold tabular-nums">
-                {micro ? `Sem ${semanaDelAno(String(micro.fecha_inicio))}` : 'Todos'}
+                {micro ? (nMicro ?? 'Actual') : 'Todos'}
               </span>
             </span>
             <ChevronRight

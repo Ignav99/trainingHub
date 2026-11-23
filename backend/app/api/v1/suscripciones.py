@@ -32,7 +32,7 @@ router = APIRouter()
 # ============ Planes (public) ============
 
 @router.get("/planes", response_model=PlanListResponse)
-async def list_planes():
+def list_planes():
     """Lista todos los planes disponibles (public)."""
     supabase = get_supabase()
     result = supabase.table("planes").select("*").eq("activo", True).order("orden").execute()
@@ -40,7 +40,7 @@ async def list_planes():
 
 
 @router.get("/planes/{plan_codigo}", response_model=PlanResponse)
-async def get_plan(plan_codigo: str):
+def get_plan(plan_codigo: str):
     """Obtiene un plan por su codigo (public)."""
     supabase = get_supabase()
     result = supabase.table("planes").select("*").eq("codigo", plan_codigo).single().execute()
@@ -52,7 +52,7 @@ async def get_plan(plan_codigo: str):
 # ============ Suscripcion actual ============
 
 @router.get("/actual", response_model=SuscripcionResponse)
-async def get_suscripcion_actual(
+def get_suscripcion_actual(
     auth: AuthContext = Depends(require_permission()),
 ):
     """Obtiene la suscripcion actual de la organizacion del usuario."""
@@ -79,7 +79,7 @@ async def get_suscripcion_actual(
 # ============ Usage ============
 
 @router.get("/uso", response_model=UsageResponse)
-async def get_usage(
+def get_usage(
     auth: AuthContext = Depends(require_permission()),
 ):
     """Obtiene el uso actual vs limites del plan."""
@@ -125,7 +125,7 @@ async def get_usage(
 # ============ Stripe Checkout & Portal ============
 
 @router.post("/checkout", response_model=CheckoutSessionResponse)
-async def create_checkout_session(
+def create_checkout_session(
     data: CheckoutSessionRequest,
     auth: AuthContext = Depends(require_permission(Permission.CLUB_MANAGE_BILLING)),
 ):
@@ -211,7 +211,7 @@ async def create_checkout_session(
 
 
 @router.post("/portal")
-async def create_portal_session(
+def create_portal_session(
     auth: AuthContext = Depends(require_permission(Permission.CLUB_MANAGE_BILLING)),
 ):
     """Create a Stripe Customer Portal session for managing billing."""
@@ -247,7 +247,7 @@ async def create_portal_session(
 # ============ Upgrade/Downgrade ============
 
 @router.post("/upgrade", response_model=SuscripcionResponse)
-async def upgrade_plan(
+def upgrade_plan(
     data: SuscripcionUpgrade,
     auth: AuthContext = Depends(require_permission(Permission.CLUB_MANAGE_BILLING)),
 ):
@@ -322,7 +322,7 @@ async def upgrade_plan(
 # ============ Cancel ============
 
 @router.post("/cancel", response_model=SuscripcionResponse)
-async def cancel_suscripcion(
+def cancel_suscripcion(
     auth: AuthContext = Depends(require_permission(Permission.CLUB_MANAGE_BILLING)),
 ):
     """Cancelar suscripcion (se mantiene hasta fin del periodo)."""
@@ -366,7 +366,7 @@ async def cancel_suscripcion(
 # ============ Historial ============
 
 @router.get("/historial", response_model=HistorialListResponse)
-async def get_historial(
+def get_historial(
     auth: AuthContext = Depends(require_permission()),
 ):
     """Obtiene historial de cambios de suscripcion."""
@@ -387,7 +387,7 @@ async def get_historial(
 # ============ Trial check ============
 
 @router.get("/trial-status")
-async def get_trial_status(
+def get_trial_status(
     auth: AuthContext = Depends(require_permission()),
 ):
     """Verifica el estado del trial."""

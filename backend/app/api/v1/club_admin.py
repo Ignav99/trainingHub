@@ -82,7 +82,7 @@ class InviteStaffRequest(BaseModel):
 # ============ Dashboard ============
 
 @router.get("/dashboard")
-async def club_dashboard(user: UsuarioResponse = Depends(require_club_admin)):
+def club_dashboard(user: UsuarioResponse = Depends(require_club_admin)):
     """KPIs agregados de toda la organizacion."""
     supabase = get_supabase()
     org_id = str(user.organizacion_id)
@@ -180,7 +180,7 @@ async def club_dashboard(user: UsuarioResponse = Depends(require_club_admin)):
 # ============ Equipos ============
 
 @router.get("/equipos")
-async def club_list_equipos(user: UsuarioResponse = Depends(require_club_admin)):
+def club_list_equipos(user: UsuarioResponse = Depends(require_club_admin)):
     """Lista todos los equipos de la org con stats por equipo."""
     supabase = get_supabase()
     org_id = str(user.organizacion_id)
@@ -248,7 +248,7 @@ async def club_list_equipos(user: UsuarioResponse = Depends(require_club_admin))
 
 
 @router.post("/equipos")
-async def club_create_equipo(
+def club_create_equipo(
     data: CreateEquipoRequest,
     user: UsuarioResponse = Depends(require_club_admin),
 ):
@@ -309,7 +309,7 @@ async def club_create_equipo(
 
 
 @router.patch("/equipos/{equipo_id}")
-async def club_update_equipo(
+def club_update_equipo(
     equipo_id: str,
     data: UpdateEquipoRequest,
     user: UsuarioResponse = Depends(require_club_admin),
@@ -361,7 +361,7 @@ async def club_update_equipo(
 
 
 @router.get("/equipos/{equipo_id}", response_model=EquipoDetalleResponse)
-async def club_get_equipo_detalle(
+def club_get_equipo_detalle(
     equipo_id: str,
     user: UsuarioResponse = Depends(require_club_admin),
 ):
@@ -423,7 +423,7 @@ async def club_get_equipo_detalle(
 
 
 @router.get("/equipos/{equipo_id}/staff")
-async def club_get_equipo_staff(
+def club_get_equipo_staff(
     equipo_id: str,
     user: UsuarioResponse = Depends(require_club_admin),
 ):
@@ -454,7 +454,7 @@ async def club_get_equipo_staff(
 
 
 @router.delete("/equipos/{equipo_id}/staff/{user_id}")
-async def club_unlink_staff_from_equipo(
+def club_unlink_staff_from_equipo(
     equipo_id: str,
     user_id: str,
     user: UsuarioResponse = Depends(require_club_admin),
@@ -501,7 +501,7 @@ async def club_unlink_staff_from_equipo(
 # ============ Miembros ============
 
 @router.get("/miembros")
-async def club_list_miembros(user: UsuarioResponse = Depends(require_club_admin)):
+def club_list_miembros(user: UsuarioResponse = Depends(require_club_admin)):
     """Lista todos los miembros de la org con equipos y roles."""
     supabase = get_supabase()
     org_id = str(user.organizacion_id)
@@ -518,7 +518,7 @@ async def club_list_miembros(user: UsuarioResponse = Depends(require_club_admin)
 
 
 @router.patch("/miembros/{user_id}/rol")
-async def club_change_member_role(
+def club_change_member_role(
     user_id: str,
     data: ChangeRolRequest,
     user: UsuarioResponse = Depends(require_club_admin),
@@ -574,7 +574,7 @@ async def club_change_member_role(
 
 
 @router.delete("/miembros/{user_id}")
-async def club_deactivate_member(
+def club_deactivate_member(
     user_id: str,
     user: UsuarioResponse = Depends(require_club_admin),
 ):
@@ -617,7 +617,7 @@ async def club_deactivate_member(
 # ============ Invitaciones ============
 
 @router.post("/invitaciones")
-async def club_invite_staff(
+def club_invite_staff(
     data: InviteStaffRequest,
     user: UsuarioResponse = Depends(require_club_admin),
 ):
@@ -716,7 +716,7 @@ async def club_invite_staff(
 
 
 @router.post("/invitaciones/batch")
-async def club_batch_invite_players(
+def club_batch_invite_players(
     data: BatchInviteRequest,
     user: UsuarioResponse = Depends(require_club_admin),
 ):
@@ -789,7 +789,7 @@ async def club_batch_invite_players(
 
 
 @router.delete("/invitaciones/{invite_id}")
-async def club_revoke_invite(
+def club_revoke_invite(
     invite_id: str,
     user: UsuarioResponse = Depends(require_club_admin),
 ):
@@ -830,7 +830,7 @@ async def club_revoke_invite(
 # ============ Cross-team views ============
 
 @router.get("/tareas")
-async def club_list_tareas(
+def club_list_tareas(
     equipo_id: Optional[str] = None,
     categoria: Optional[str] = None,
     fase_juego: Optional[str] = None,
@@ -879,7 +879,7 @@ async def club_list_tareas(
 
 
 @router.get("/categorias")
-async def club_list_categorias(user: UsuarioResponse = Depends(require_club_admin)):
+def club_list_categorias(user: UsuarioResponse = Depends(require_club_admin)):
     """Lista todas las categorias de tarea disponibles."""
     supabase = get_supabase()
     result = (
@@ -893,7 +893,7 @@ async def club_list_categorias(user: UsuarioResponse = Depends(require_club_admi
 
 
 @router.get("/sesiones")
-async def club_list_sesiones(
+def club_list_sesiones(
     equipo_id: Optional[str] = None,
     match_day: Optional[str] = None,
     estado: Optional[str] = None,
@@ -952,7 +952,7 @@ async def club_list_sesiones(
 
 
 @router.get("/jugadores")
-async def club_list_jugadores(
+def club_list_jugadores(
     equipo_id: Optional[str] = None,
     search: Optional[str] = None,
     page: int = Query(1, ge=1),
@@ -1001,7 +1001,7 @@ async def club_list_jugadores(
 # ============ Analytics ============
 
 @router.get("/analytics")
-async def club_analytics(
+def club_analytics(
     meses: int = Query(6, ge=1, le=12),
     user: UsuarioResponse = Depends(require_club_admin),
 ):
@@ -1087,7 +1087,7 @@ async def club_analytics(
 
 
 @router.get("/actividad")
-async def club_recent_activity(
+def club_recent_activity(
     limit: int = Query(20, ge=1, le=100),
     user: UsuarioResponse = Depends(require_club_admin),
 ):
@@ -1108,7 +1108,7 @@ async def club_recent_activity(
 
 
 @router.get("/audit")
-async def club_audit_log(
+def club_audit_log(
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
     accion: Optional[str] = None,

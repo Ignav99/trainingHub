@@ -28,7 +28,7 @@ router = APIRouter()
 
 
 @router.get("/conversaciones")
-async def list_ai_conversaciones(
+def list_ai_conversaciones(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     auth: AuthContext = Depends(require_permission(Permission.AI_USE)),
@@ -60,7 +60,7 @@ async def list_ai_conversaciones(
 
 
 @router.get("/conversaciones/{conversacion_id}")
-async def get_ai_conversacion(
+def get_ai_conversacion(
     conversacion_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.AI_USE)),
 ):
@@ -230,7 +230,7 @@ async def chat_with_ai(
 
 
 @router.patch("/mensajes/{mensaje_id}/feedback")
-async def feedback_ai_mensaje(
+def feedback_ai_mensaje(
     mensaje_id: UUID,
     feedback: str = Query(..., regex="^(positivo|negativo)$"),
     auth: AuthContext = Depends(require_permission(Permission.AI_USE)),
@@ -269,7 +269,7 @@ async def feedback_ai_mensaje(
 
 
 @router.delete("/conversaciones/{conversacion_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_ai_conversacion(
+def delete_ai_conversacion(
     conversacion_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.AI_USE)),
 ):

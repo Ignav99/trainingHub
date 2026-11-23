@@ -43,6 +43,7 @@ import { useClubStore } from '@/stores/clubStore'
 import { useSidebarStore } from '@/stores/sidebarStore'
 import { ClubAvatar, Avatar } from '@/components/ui/avatar'
 import { SplashScreen } from '@/components/ui/splash-screen'
+import { LimiteError } from '@/components/errores/LimiteError'
 import { SemanaTira } from '@/components/semana/SemanaTira'
 import { Toaster } from '@/components/ui/toast'
 import { MobileBottomNav } from '@/components/ui/mobile-nav'
@@ -365,7 +366,9 @@ export default function DashboardLayout({
         {/* Tira de la semana: siempre visible (sticky), solo en Cal */}
         {!isClubOnlyRole && (
           <div className="solo-cal">
-            <SemanaTira />
+            <LimiteError zona="la barra de la semana" silencioso>
+              <SemanaTira />
+            </LimiteError>
           </div>
         )}
 

@@ -94,7 +94,7 @@ def _verify_rival_access(supabase, rival_id: UUID, org_id: UUID) -> dict:
 
 
 @router.get("/{rival_id}/scout-manual")
-async def get_scout_manual(
+def get_scout_manual(
     rival_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.RIVAL_READ)),
 ):
@@ -105,7 +105,7 @@ async def get_scout_manual(
 
 
 @router.put("/{rival_id}/scout-manual")
-async def put_scout_manual(
+def put_scout_manual(
     rival_id: UUID,
     body: dict = Body(...),
     auth: AuthContext = Depends(require_permission(Permission.RIVAL_UPDATE)),
@@ -120,7 +120,7 @@ async def put_scout_manual(
 
 
 @router.get("/{rival_id}/plan-partido-manual")
-async def get_plan_partido_manual(
+def get_plan_partido_manual(
     rival_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.RIVAL_READ)),
 ):
@@ -131,7 +131,7 @@ async def get_plan_partido_manual(
 
 
 @router.put("/{rival_id}/plan-partido-manual")
-async def put_plan_partido_manual(
+def put_plan_partido_manual(
     rival_id: UUID,
     body: dict = Body(...),
     auth: AuthContext = Depends(require_permission(Permission.RIVAL_UPDATE)),
@@ -239,7 +239,7 @@ def _marcar_tiene_informe(supabase, rows: list[dict]) -> list[dict]:
 
 
 @router.get("", response_model=RivalListResponse)
-async def list_rivales(
+def list_rivales(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     busqueda: Optional[str] = None,
@@ -375,7 +375,7 @@ async def list_rivales(
 
 
 @router.post("/backfill-escudos")
-async def backfill_escudos(
+def backfill_escudos(
     equipo_id: UUID = Query(..., description="Equipo activo con competición RFAF"),
     force: bool = Query(
         True,
@@ -467,7 +467,7 @@ async def upload_escudo(
 
 
 @router.get("/{rival_id}/once-probable")
-async def get_once_probable(
+def get_once_probable(
     rival_id: UUID,
     competicion_id: Optional[UUID] = None,
     auth: AuthContext = Depends(require_permission(Permission.RIVAL_READ)),
@@ -512,7 +512,7 @@ async def get_once_probable(
 
 
 @router.get("/{rival_id}/tarjetas")
-async def get_tarjetas_resumen(
+def get_tarjetas_resumen(
     rival_id: UUID,
     competicion_id: Optional[UUID] = None,
     auth: AuthContext = Depends(require_permission(Permission.RIVAL_READ)),
@@ -606,7 +606,7 @@ async def get_tarjetas_resumen(
 
 
 @router.get("/{rival_id}/intel")
-async def get_rival_intel(
+def get_rival_intel(
     rival_id: UUID,
     competicion_id: UUID = Query(..., description="RFEF competition ID"),
     partido_id: Optional[UUID] = Query(None, description="Partido para el que se cuentan las sanciones"),
@@ -652,7 +652,7 @@ async def get_rival_intel(
 
 
 @router.post("/{rival_id}/populate-intel")
-async def populate_intel(
+def populate_intel(
     rival_id: UUID,
     competicion_id: UUID = Query(..., description="RFEF competition ID"),
     auth: AuthContext = Depends(require_permission(Permission.RIVAL_UPDATE)),
@@ -778,7 +778,7 @@ async def scouting_chat(
 
 
 @router.get("/{rival_id}/informes")
-async def list_rival_informes(
+def list_rival_informes(
     rival_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.RIVAL_READ)),
 ):
@@ -901,7 +901,7 @@ async def download_rival_informe_pdf(
 
 
 @router.get("/{rival_id}/perfil-competicion")
-async def get_rival_perfil_competicion(
+def get_rival_perfil_competicion(
     rival_id: UUID,
     competicion_id: Optional[UUID] = None,
     auth: AuthContext = Depends(require_permission(Permission.RIVAL_READ)),
@@ -961,7 +961,7 @@ async def get_rival_perfil_competicion(
 
 
 @router.get("/{rival_id}/equipaciones", response_model=list[EquipacionResponse])
-async def get_equipaciones_rival(
+def get_equipaciones_rival(
     rival_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.RIVAL_READ)),
 ):
@@ -980,7 +980,7 @@ async def get_equipaciones_rival(
 
 
 @router.put("/{rival_id}/equipaciones/{tipo}", response_model=EquipacionResponse)
-async def upsert_equipacion_rival(
+def upsert_equipacion_rival(
     rival_id: UUID,
     tipo: str,
     data: EquipacionUpsert,
@@ -1018,7 +1018,7 @@ async def upsert_equipacion_rival(
 
 
 @router.get("/{rival_id}", response_model=RivalResponse)
-async def get_rival(
+def get_rival(
     rival_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.RIVAL_READ)),
 ):
@@ -1041,7 +1041,7 @@ async def get_rival(
 
 
 @router.post("", response_model=RivalResponse, status_code=status.HTTP_201_CREATED)
-async def create_rival(
+def create_rival(
     rival: RivalCreate,
     auth: AuthContext = Depends(require_permission(Permission.RIVAL_CREATE)),
 ):
@@ -1065,7 +1065,7 @@ async def create_rival(
 
 
 @router.put("/{rival_id}", response_model=RivalResponse)
-async def update_rival(
+def update_rival(
     rival_id: UUID,
     rival: RivalUpdate,
     auth: AuthContext = Depends(require_permission(Permission.RIVAL_UPDATE)),
@@ -1102,7 +1102,7 @@ async def update_rival(
 
 
 @router.delete("/{rival_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_rival(
+def delete_rival(
     rival_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.RIVAL_DELETE)),
 ):

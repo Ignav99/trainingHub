@@ -45,7 +45,7 @@ def _con_actores(supabase, filas: list[dict]) -> list[dict]:
 
 
 @router.get("", response_model=NotificacionListResponse)
-async def list_notificaciones(
+def list_notificaciones(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     solo_no_leidas: bool = False,
@@ -84,7 +84,7 @@ async def list_notificaciones(
 
 
 @router.get("/count")
-async def count_no_leidas(
+def count_no_leidas(
     auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
 ):
     """Cuenta notificaciones no leídas, en total y las personales."""
@@ -104,7 +104,7 @@ async def count_no_leidas(
 
 
 @router.get("/emergentes")
-async def list_emergentes(
+def list_emergentes(
     auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
 ):
     """Menciones, tareas y respuestas que aún no se han enseñado como aviso al entrar."""
@@ -131,7 +131,7 @@ async def list_emergentes(
 
 
 @router.put("/presentadas")
-async def marcar_presentadas(
+def marcar_presentadas(
     body: IdsBody,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
 ):
@@ -147,7 +147,7 @@ async def marcar_presentadas(
 
 
 @router.put("/leer-hilo/{post_id}")
-async def marcar_hilo_leido(
+def marcar_hilo_leido(
     post_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
 ):
@@ -166,7 +166,7 @@ async def marcar_hilo_leido(
 
 
 @router.put("/{notificacion_id}/leer")
-async def marcar_leida(
+def marcar_leida(
     notificacion_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
 ):
@@ -189,7 +189,7 @@ async def marcar_leida(
 
 
 @router.put("/leer-todas")
-async def marcar_todas_leidas(
+def marcar_todas_leidas(
     ambito: Literal["todo", "para_ti"] = "todo",
     auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
 ):
@@ -207,7 +207,7 @@ async def marcar_todas_leidas(
 
 
 @router.delete("/{notificacion_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_notificacion(
+def delete_notificacion(
     notificacion_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
 ):

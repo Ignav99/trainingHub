@@ -29,7 +29,7 @@ router = APIRouter()
 
 
 @router.get("/{sesion_id}/portero-tareas")
-async def list_portero_tareas(
+def list_portero_tareas(
     sesion_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
 ):
@@ -46,7 +46,7 @@ async def list_portero_tareas(
 
 
 @router.post("/{sesion_id}/portero-tareas", status_code=status.HTTP_201_CREATED)
-async def create_portero_tarea(
+def create_portero_tarea(
     sesion_id: UUID,
     data: PorteroTareaCreate,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_CREATE)),
@@ -79,7 +79,7 @@ async def create_portero_tarea(
 
 
 @router.put("/{sesion_id}/portero-tareas/{tarea_id}")
-async def update_portero_tarea(
+def update_portero_tarea(
     sesion_id: UUID,
     tarea_id: UUID,
     data: PorteroTareaUpdate,
@@ -116,7 +116,7 @@ async def update_portero_tarea(
     "/{sesion_id}/portero-tareas/{tarea_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-async def delete_portero_tarea(
+def delete_portero_tarea(
     sesion_id: UUID,
     tarea_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_CREATE)),
@@ -148,7 +148,7 @@ class ReorderItem(BaseModel):
 
 
 @router.put("/{sesion_id}/portero-tareas/reorder")
-async def reorder_portero_tareas(
+def reorder_portero_tareas(
     sesion_id: UUID,
     items: list[ReorderItem],
     auth: AuthContext = Depends(require_permission(Permission.SESSION_CREATE)),
@@ -175,7 +175,7 @@ class SaveToLibraryRequest(BaseModel):
 
 
 @router.post("/{sesion_id}/portero-tareas/save-to-library")
-async def save_portero_tarea_to_library(
+def save_portero_tarea_to_library(
     sesion_id: UUID,
     data: SaveToLibraryRequest,
     auth: AuthContext = Depends(require_permission(Permission.TASK_CREATE)),

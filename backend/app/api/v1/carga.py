@@ -103,7 +103,7 @@ def _rpe_columnas_map(supabase, jugador_ids: list[str]) -> dict[str, dict]:
 
 
 @router.get("/equipo/{equipo_id}", response_model=CargaEquipoResponse)
-async def get_carga_equipo(
+def get_carga_equipo(
     equipo_id: UUID,
     ambito: str = Query(
         AMBITO_COMPETICION,
@@ -222,7 +222,7 @@ async def get_carga_equipo(
 
 
 @router.get("/jugador/{jugador_id}/historial", response_model=CargaHistorialResponse)
-async def get_historial_jugador(
+def get_historial_jugador(
     jugador_id: UUID,
     dias: int = Query(default=28, ge=7, le=56),
     auth: AuthContext = Depends(require_permission(Permission.RPE_READ)),
@@ -270,7 +270,7 @@ async def get_historial_jugador(
 
 
 @router.get("/equipo/{equipo_id}/semanal", response_model=CargaSemanalEquipoResponse)
-async def get_semanal_equipo(
+def get_semanal_equipo(
     equipo_id: UUID,
     semanas: int = Query(default=4, ge=1, le=8),
     auth: AuthContext = Depends(require_permission(Permission.RPE_READ)),
@@ -340,7 +340,7 @@ async def get_semanal_equipo(
 
 
 @router.put("/wellness/{jugador_id}")
-async def update_wellness(
+def update_wellness(
     jugador_id: UUID,
     body: WellnessUpdate,
     auth: AuthContext = Depends(require_permission(Permission.RPE_CREATE)),
@@ -375,7 +375,7 @@ async def update_wellness(
 
 
 @router.post("/recalcular/{equipo_id}")
-async def recalcular_carga(
+def recalcular_carga(
     equipo_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.RPE_CREATE)),
 ):
@@ -385,7 +385,7 @@ async def recalcular_carga(
 
 
 @router.post("/daily-job")
-async def trigger_daily_job(
+def trigger_daily_job(
     auth: AuthContext = Depends(require_permission(Permission.RPE_CREATE)),
 ):
     """Manually trigger the daily auto-complete + load recalculation.

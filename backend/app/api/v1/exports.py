@@ -36,7 +36,7 @@ def _csv_response(content: str, filename: str) -> StreamingResponse:
 
 
 @router.get("/jugadores")
-async def export_jugadores(
+def export_jugadores(
     equipo_id: UUID = Query(...),
     auth: AuthContext = Depends(require_permission(Permission.EXPORT_DATA)),
 ):
@@ -54,7 +54,7 @@ async def export_jugadores(
 
 
 @router.get("/sesiones")
-async def export_sesiones(
+def export_sesiones(
     equipo_id: UUID = Query(...),
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
@@ -81,7 +81,7 @@ async def export_sesiones(
 
 
 @router.get("/rpe")
-async def export_rpe(
+def export_rpe(
     equipo_id: UUID = Query(...),
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
@@ -118,7 +118,7 @@ async def export_rpe(
 
 
 @router.get("/partidos")
-async def export_partidos(
+def export_partidos(
     equipo_id: UUID = Query(...),
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
@@ -149,7 +149,7 @@ async def export_partidos(
 
 
 @router.get("/convocatoria/{partido_id}")
-async def export_convocatoria(
+def export_convocatoria(
     partido_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.EXPORT_DATA)),
 ):

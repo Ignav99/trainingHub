@@ -114,7 +114,7 @@ async def dashboard_resumen(
 
 
 @router.get("/semana")
-async def dashboard_semana(
+def dashboard_semana(
     equipo_id: Optional[UUID] = None,
     fecha_referencia: Optional[date] = None,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
@@ -173,7 +173,7 @@ async def dashboard_semana(
 
 
 @router.get("/plantilla")
-async def dashboard_plantilla(
+def dashboard_plantilla(
     equipo_id: UUID = Query(...),
     auth: AuthContext = Depends(require_permission(Permission.PLANTILLA_READ)),
 ):
@@ -234,7 +234,7 @@ async def dashboard_plantilla(
 
 
 @router.get("/carga-semanal")
-async def dashboard_carga_semanal(
+def dashboard_carga_semanal(
     equipo_id: UUID = Query(...),
     semanas: int = Query(4, ge=1, le=12),
     auth: AuthContext = Depends(require_permission(Permission.RPE_READ)),
@@ -297,7 +297,7 @@ async def dashboard_carga_semanal(
 
 
 @router.get("/actividad-reciente")
-async def dashboard_actividad_reciente(
+def dashboard_actividad_reciente(
     limit: int = Query(10, ge=1, le=50),
     auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
 ):
@@ -435,7 +435,7 @@ def _calculate_cost_usd(
 
 
 @router.get("/ai-usage")
-async def dashboard_ai_usage(
+def dashboard_ai_usage(
     meses: int = Query(3, ge=1, le=12, description="Meses de historico"),
     auth: AuthContext = Depends(require_permission(Permission.AI_USE)),
 ):

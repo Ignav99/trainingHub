@@ -17,7 +17,7 @@ router = APIRouter()
 
 
 @router.post("", status_code=201)
-async def create_game_model(
+def create_game_model(
     data: GameModelCreate,
     auth: AuthContext = Depends(require_permission(Permission.GAME_MODEL_CREATE)),
 ):
@@ -33,7 +33,7 @@ async def create_game_model(
 
 
 @router.get("")
-async def list_game_models(
+def list_game_models(
     equipo_id: UUID = Query(...),
     auth: AuthContext = Depends(require_permission(Permission.GAME_MODEL_READ)),
 ):
@@ -50,7 +50,7 @@ async def list_game_models(
 
 
 @router.get("/{game_model_id}")
-async def get_game_model(
+def get_game_model(
     game_model_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.GAME_MODEL_READ)),
 ):
@@ -69,7 +69,7 @@ async def get_game_model(
 
 
 @router.put("/{game_model_id}")
-async def update_game_model(
+def update_game_model(
     game_model_id: UUID,
     data: GameModelUpdate,
     auth: AuthContext = Depends(require_permission(Permission.GAME_MODEL_UPDATE)),
@@ -99,7 +99,7 @@ async def update_game_model(
 
 
 @router.delete("/{game_model_id}")
-async def delete_game_model(
+def delete_game_model(
     game_model_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.GAME_MODEL_DELETE)),
 ):

@@ -170,7 +170,7 @@ class SemanticSearchResponse(BaseModel):
 
 
 @router.post("/semantic-search", response_model=SemanticSearchResponse)
-async def semantic_search_tareas(
+def semantic_search_tareas(
     request: SemanticSearchRequest,
     auth: AuthContext = Depends(require_permission(Permission.TASK_READ)),
 ):
@@ -245,7 +245,7 @@ async def semantic_search_tareas(
 
 
 @router.post("/backfill-embeddings")
-async def backfill_tarea_embeddings(
+def backfill_tarea_embeddings(
     auth: AuthContext = Depends(require_permission(Permission.TASK_CREATE)),
 ):
     """
@@ -293,7 +293,7 @@ async def backfill_tarea_embeddings(
 
 
 @router.get("", response_model=TareaListResponse)
-async def list_tareas(
+def list_tareas(
     # Paginación
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
@@ -701,7 +701,7 @@ async def list_tareas(
 
 
 @router.get("/{tarea_id}", response_model=TareaResponse)
-async def get_tarea(
+def get_tarea(
     tarea_id: UUID,
     current_user = Depends(get_optional_user),
 ):
@@ -768,7 +768,7 @@ async def get_tarea(
 
 
 @router.post("", response_model=TareaResponse, status_code=status.HTTP_201_CREATED)
-async def create_tarea(
+def create_tarea(
     tarea: TareaCreate,
     background_tasks: BackgroundTasks,
     auth: AuthContext = Depends(require_permission(Permission.TASK_CREATE)),
@@ -849,7 +849,7 @@ async def create_tarea(
 
 
 @router.put("/{tarea_id}", response_model=TareaResponse)
-async def update_tarea(
+def update_tarea(
     tarea_id: UUID,
     tarea: TareaUpdate,
     background_tasks: BackgroundTasks,
@@ -943,7 +943,7 @@ async def update_tarea(
 
 
 @router.delete("/{tarea_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_tarea(
+def delete_tarea(
     tarea_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.TASK_DELETE)),
 ):
@@ -980,7 +980,7 @@ async def delete_tarea(
 
 
 @router.post("/{tarea_id}/duplicar", response_model=TareaResponse, status_code=status.HTTP_201_CREATED)
-async def duplicar_tarea(
+def duplicar_tarea(
     tarea_id: UUID,
     nuevo_titulo: Optional[str] = None,
     auth: AuthContext = Depends(require_permission(Permission.TASK_CREATE)),
@@ -1042,7 +1042,7 @@ async def duplicar_tarea(
 
 
 @router.post("/{tarea_id}/variantes", response_model=TareaResponse, status_code=status.HTTP_201_CREATED)
-async def crear_variante(
+def crear_variante(
     tarea_id: UUID,
     body: CrearVarianteRequest,
     auth: AuthContext = Depends(require_permission(Permission.TASK_CREATE)),
@@ -1135,7 +1135,7 @@ async def crear_variante(
 
 
 @router.get("/{tarea_id}/variantes", response_model=TareaListResponse)
-async def list_variantes(
+def list_variantes(
     tarea_id: UUID,
     current_user=Depends(get_optional_user),
 ):
@@ -1241,7 +1241,7 @@ async def task_design_chat(
 
 
 @router.post("/from-ai", response_model=TareaResponse, status_code=status.HTTP_201_CREATED)
-async def create_tarea_from_ai(
+def create_tarea_from_ai(
     tarea_ai: AITareaNueva,
     background_tasks: BackgroundTasks,
     auth: AuthContext = Depends(require_permission(Permission.TASK_CREATE, Permission.AI_USE)),

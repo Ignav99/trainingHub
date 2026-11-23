@@ -26,7 +26,7 @@ router = APIRouter()
 
 
 @router.post("", status_code=201)
-async def create_board(
+def create_board(
     data: TacticalBoardCreate,
     auth: AuthContext = Depends(require_permission(Permission.TACTICAL_BOARD_CREATE)),
 ):
@@ -42,7 +42,7 @@ async def create_board(
 
 
 @router.get("")
-async def list_boards(
+def list_boards(
     equipo_id: UUID = Query(...),
     tipo: str | None = Query(None),
     auth: AuthContext = Depends(require_permission(Permission.TACTICAL_BOARD_READ)),
@@ -66,7 +66,7 @@ async def list_boards(
 
 
 @router.get("/{board_id}")
-async def get_board(
+def get_board(
     board_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.TACTICAL_BOARD_READ)),
 ):
@@ -90,7 +90,7 @@ async def get_board(
 
 
 @router.put("/{board_id}")
-async def update_board(
+def update_board(
     board_id: UUID,
     data: TacticalBoardUpdate,
     auth: AuthContext = Depends(require_permission(Permission.TACTICAL_BOARD_UPDATE)),
@@ -111,7 +111,7 @@ async def update_board(
 
 
 @router.delete("/{board_id}")
-async def delete_board(
+def delete_board(
     board_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.TACTICAL_BOARD_DELETE)),
 ):
@@ -125,7 +125,7 @@ async def delete_board(
 
 
 @router.post("/{board_id}/duplicate", status_code=201)
-async def duplicate_board(
+def duplicate_board(
     board_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.TACTICAL_BOARD_CREATE)),
 ):
@@ -169,7 +169,7 @@ async def duplicate_board(
 
 
 @router.post("/{board_id}/frames", status_code=201)
-async def create_frame(
+def create_frame(
     board_id: UUID,
     data: TacticalBoardFrameCreate,
     auth: AuthContext = Depends(require_permission(Permission.TACTICAL_BOARD_UPDATE)),
@@ -195,7 +195,7 @@ async def create_frame(
 
 
 @router.put("/{board_id}/frames/{frame_id}")
-async def update_frame(
+def update_frame(
     board_id: UUID,
     frame_id: UUID,
     data: TacticalBoardFrameUpdate,
@@ -234,7 +234,7 @@ async def update_frame(
 
 
 @router.delete("/{board_id}/frames/{frame_id}")
-async def delete_frame(
+def delete_frame(
     board_id: UUID,
     frame_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.TACTICAL_BOARD_UPDATE)),
@@ -263,7 +263,7 @@ async def delete_frame(
 
 
 @router.put("/{board_id}/frames/reorder")
-async def reorder_frames(
+def reorder_frames(
     board_id: UUID,
     data: TacticalBoardFrameReorder,
     auth: AuthContext = Depends(require_permission(Permission.TACTICAL_BOARD_UPDATE)),

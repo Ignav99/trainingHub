@@ -364,7 +364,7 @@ export function MatchDetailPanel({
     const updates = kickoffTitularidadSync({ notasPre: selectedPartido.notas_pre, convocados })
     if (updates.length === 0) return
     convocatoriasApi.batchUpdateStats(updates)
-      .then(() => mutate((key: string) => typeof key === 'string' && key.includes('/convocatorias'), undefined, { revalidate: true }))
+      .then(() => mutate((key: string) => typeof key === 'string' && key.includes('/convocatorias')))
       .catch(() => {})
   }, [lineupSourceKey, selectedPartido, convocados, loadingConv])
 
@@ -497,7 +497,7 @@ export function MatchDetailPanel({
       }))
       await convocatoriasApi.createBatch(batch)
       setShowAdd(false)
-      mutate((key: string) => typeof key === 'string' && key.includes('/convocatorias'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/convocatorias'))
     } catch (err: any) {
       toast.error(err.message || 'Error al crear convocatoria')
     } finally {
@@ -516,7 +516,7 @@ export function MatchDetailPanel({
     })
     try {
       await convocatoriasApi.delete(convId)
-      mutate((key: string) => typeof key === 'string' && key.includes('/convocatorias'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/convocatorias'))
     } catch (err) {
       console.error(err)
     }
@@ -575,7 +575,7 @@ export function MatchDetailPanel({
       await partidosApi.update(selectedPartido.id, { notas_pre: merged }, saveTimeout)
       lineupDirtyRef.current = false
       toast.success('Alineacion guardada')
-      mutate((key: string) => typeof key === 'string' && (key.includes('/convocatorias') || key.includes('/partidos')), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && (key.includes('/convocatorias') || key.includes('/partidos')))
     } catch (err) {
       console.error('Error saving lineup:', err)
       try {
@@ -583,7 +583,7 @@ export function MatchDetailPanel({
         if (savedLineupMatches(slotAssignments, latest.notas_pre)) {
           lineupDirtyRef.current = false
           toast.success('Alineacion guardada')
-          mutate((key: string) => typeof key === 'string' && (key.includes('/convocatorias') || key.includes('/partidos')), undefined, { revalidate: true })
+          mutate((key: string) => typeof key === 'string' && (key.includes('/convocatorias') || key.includes('/partidos')))
           return
         }
       } catch {
@@ -626,7 +626,7 @@ export function MatchDetailPanel({
     setSavingResult(true)
     try {
       await partidosApi.registrarResultado(selectedId, resultForm.goles_favor, resultForm.goles_contra, resultForm.notas_post || undefined)
-      mutate((key: string) => typeof key === 'string' && key.includes('/partidos'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/partidos'))
       setShowResult(false)
     } catch (err: any) {
       toast.error(err.message || 'Error al registrar resultado')
@@ -642,7 +642,7 @@ export function MatchDetailPanel({
       const result = await partidosApi.generarInforme(selectedId)
       if (result.informe_url) {
         window.open(result.informe_url, '_blank')
-        mutate((key: string) => typeof key === 'string' && key.includes('/partidos'), undefined, { revalidate: true })
+        mutate((key: string) => typeof key === 'string' && key.includes('/partidos'))
       }
     } catch (err: any) {
       toast.error(err.message || 'Error al generar el informe')
@@ -656,8 +656,8 @@ export function MatchDetailPanel({
     setDeleting(true)
     try {
       await partidosApi.delete(selectedId)
-      mutate((key: string) => typeof key === 'string' && key.includes('/partidos'), undefined, { revalidate: true })
-      mutate((key: string) => typeof key === 'string' && key.includes('/calendario'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/partidos'))
+      mutate((key: string) => typeof key === 'string' && key.includes('/calendario'))
       toast.success('Partido eliminado')
       setShowDelete(false)
       onDeleteSuccess()
@@ -717,7 +717,7 @@ export function MatchDetailPanel({
           splitCampoArbitro(editForm.ubicacion).arbitro ||
           null,
       })
-      mutate((key: string) => typeof key === 'string' && key.includes('/partidos'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/partidos'))
       setShowEdit(false)
       toast.success('Partido actualizado')
     } catch (err) {
@@ -760,7 +760,7 @@ export function MatchDetailPanel({
       }
 
       // Revalidate + allow re-init from fresh SWR data
-      mutate((key: string) => typeof key === 'string' && (key.includes('/estadisticas-partido') || key.includes('/convocatorias') || key.includes('/microciclos')), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && (key.includes('/estadisticas-partido') || key.includes('/convocatorias') || key.includes('/microciclos')))
       setInformeInitialized(null)
       toast.success('Informe guardado')
     } catch (err: any) {
@@ -813,7 +813,7 @@ export function MatchDetailPanel({
       || key.includes('/convocatorias')
       || key.includes('/partidos')
       || key.includes('/microciclos')
-    ), undefined, { revalidate: true })
+    ))
     setInformeInitialized(null)
     toast.success('Anotaciones aplicadas al informe')
   }

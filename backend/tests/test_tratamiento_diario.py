@@ -49,7 +49,7 @@ class TestUpdateTratamiento:
         auth.user_id = "user-1"
 
         with patch("app.api.v1.medico.get_supabase", return_value=supabase):
-            result = await update_tratamiento(
+            result = update_tratamiento(
                 registro_id,
                 entrada_id,
                 TratamientoDiarioUpdate(
@@ -86,7 +86,7 @@ class TestUpdateTratamiento:
 
         with patch("app.api.v1.medico.get_supabase", return_value=supabase):
             with pytest.raises(HTTPException) as err:
-                await update_tratamiento(
+                update_tratamiento(
                     uuid4(),
                     uuid4(),
                     TratamientoDiarioUpdate(trabajo="x"),

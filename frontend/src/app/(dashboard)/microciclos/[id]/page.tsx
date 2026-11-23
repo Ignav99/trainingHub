@@ -144,7 +144,7 @@ export default function MicrocicloDetallePage() {
           : {}),
       } as Parameters<typeof microciclosApi.update>[1])
       setShowEdit(false)
-      mutate((key: string) => typeof key === 'string' && key.includes('/microciclos'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/microciclos'))
     } catch (err: any) {
       toast.error(err.message || 'Error al guardar')
     } finally {

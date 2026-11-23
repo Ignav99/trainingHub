@@ -8,7 +8,7 @@ import { ArrowRight, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { buildDayIndex, getBucket } from '@/lib/calendar/dayIndex'
 import { DAY_NAMES_FULL, addDays, startOfWeekMonday, toLocalDateStr } from '@/lib/calendar/types'
-import { etiquetaMicrociclo } from '@/lib/calendarioColores'
+import { useNumeroMicrociclo } from '@/lib/hooks/useNumeroMicrociclo'
 import { estadoDeMicrociclo } from '@/lib/microcicloEstado'
 import type { Sesion } from '@/types'
 import type { CalendarWeekViewProps } from './CalendarWeekView'
@@ -63,6 +63,8 @@ export function CalendarWeekViewCal({
     const domingo = addDays(lunes, 6)
     return microciclos.find((m) => m.fecha_inicio.slice(0, 10) <= domingo && m.fecha_fin.slice(0, 10) >= lunes) || null
   }, [microciclos, lunes])
+  const numeroMicro = useNumeroMicrociclo(micro?.fecha_inicio)
+  const nMicro = numeroMicro(micro)
   const hoy = toLocalDateStr(new Date())
   const semana = semanaDeHoy()
 
@@ -79,7 +81,7 @@ export function CalendarWeekViewCal({
         >
           <div className="min-w-0">
             <p className="cal-rotulo text-muted-foreground">
-              Microciclo <span className="font-mono tabular-nums text-foreground">{etiquetaMicrociclo(micro)}</span> ·{' '}
+              Microciclo{nMicro ? <> <span className="font-mono tabular-nums text-foreground">{nMicro}</span></> : null} ·{' '}
               {estadoDeMicrociclo(micro).replace('_', ' ')}
             </p>
             <p className="truncate text-sm font-medium">{micro.objetivo_principal || 'Sin objetivo principal'}</p>

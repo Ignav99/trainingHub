@@ -440,7 +440,7 @@ export default function SesionDetailPage() {
         ...(fase_notas ? { fase_notas } : {}),
       } as SesionUpdateData)
       setSesion((prev) => prev ? { ...prev, estado: nuevoEstado, ...(fase_notas ? { fase_notas } : {}) } : prev)
-      mutate((key: string) => typeof key === 'string' && key.includes('/sesiones'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/sesiones'))
     } catch (err) {
       console.error('Error updating estado:', err)
     }
@@ -452,7 +452,7 @@ export default function SesionDetailPage() {
     setDeleting(true)
     try {
       await sesionesApi.delete(sesionId)
-      mutate((key: string) => typeof key === 'string' && key.includes('/sesiones'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/sesiones'))
       router.push('/sesiones')
     } catch (err: any) {
       toast.error(err.message || 'Error al eliminar')
@@ -548,9 +548,7 @@ export default function SesionDetailPage() {
       const updated = await sesionesApi.batchUpdateTareas(sesionId, batch)
       setSesion(updated)
       mutate(
-        (key: string) => typeof key === 'string' && (key.includes('/carga') || key.includes('/rpe')),
-        undefined,
-        { revalidate: true },
+        (key: string) => typeof key === 'string' && (key.includes('/carga') || key.includes('/rpe'))
       )
     } catch (err: any) {
       console.error('Error saving tareas:', err)

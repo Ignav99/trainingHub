@@ -104,7 +104,7 @@ export default function RivalesPage() {
     setBackfilling(true)
     try {
       const stats = await rivalesApi.backfillEscudos(equipoActivo.id, true)
-      mutate((key: string) => typeof key === 'string' && key.includes('/rivales'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/rivales'))
       toast.success(
         `Escudos importados: ${stats.updated} actualizados` +
           (stats.created ? `, ${stats.created} rivales nuevos` : '') +
@@ -139,7 +139,7 @@ export default function RivalesPage() {
       setEditingId(null)
       setPendingEscudoFile(null)
       setForm({ nombre: '', nombre_corto: '', escudo_url: '', estadio: '', ciudad: '', notas: '' })
-      mutate((key: string) => typeof key === 'string' && key.includes('/rivales'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/rivales'))
       toast.success(editingId ? 'Rival actualizado' : 'Rival creado')
     } catch (err: any) {
       toast.error(err.message || 'Error')
@@ -168,7 +168,7 @@ export default function RivalesPage() {
     try {
       await rivalesApi.delete(deleteId)
       setDeleteId(null)
-      mutate((key: string) => typeof key === 'string' && key.includes('/rivales'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/rivales'))
     } catch (err) {
       console.error(err)
     } finally {

@@ -25,7 +25,7 @@ router = APIRouter()
 # ============ Conversaciones ============
 
 @router.get("/conversaciones")
-async def list_conversaciones(
+def list_conversaciones(
     auth: AuthContext = Depends(require_permission(Permission.COMUNICACION_SEND_MESSAGE)),
 ):
     """Lista conversaciones del usuario actual."""
@@ -49,7 +49,7 @@ async def list_conversaciones(
 
 
 @router.get("/conversaciones/{conversacion_id}")
-async def get_conversacion(
+def get_conversacion(
     conversacion_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.COMUNICACION_SEND_MESSAGE)),
 ):
@@ -70,7 +70,7 @@ async def get_conversacion(
 
 
 @router.post("/conversaciones", status_code=status.HTTP_201_CREATED)
-async def create_conversacion(
+def create_conversacion(
     conv: ConversacionCreate,
     auth: AuthContext = Depends(require_permission(Permission.COMUNICACION_CREATE_GRUPO)),
 ):
@@ -121,7 +121,7 @@ async def create_conversacion(
 # ============ Mensajes ============
 
 @router.get("/conversaciones/{conversacion_id}/mensajes")
-async def list_mensajes(
+def list_mensajes(
     conversacion_id: UUID,
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
@@ -162,7 +162,7 @@ async def list_mensajes(
 
 
 @router.post("/mensajes", status_code=status.HTTP_201_CREATED)
-async def create_mensaje(
+def create_mensaje(
     mensaje: MensajeCreate,
     auth: AuthContext = Depends(require_permission(Permission.COMUNICACION_SEND_MESSAGE)),
 ):
@@ -195,7 +195,7 @@ async def create_mensaje(
 
 
 @router.put("/mensajes/{mensaje_id}")
-async def update_mensaje(
+def update_mensaje(
     mensaje_id: UUID,
     contenido: str = Query(..., min_length=1),
     auth: AuthContext = Depends(require_permission(Permission.COMUNICACION_SEND_MESSAGE)),
@@ -220,7 +220,7 @@ async def update_mensaje(
 
 
 @router.delete("/mensajes/{mensaje_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_mensaje(
+def delete_mensaje(
     mensaje_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.COMUNICACION_SEND_MESSAGE)),
 ):

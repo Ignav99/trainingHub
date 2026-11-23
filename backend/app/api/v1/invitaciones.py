@@ -46,7 +46,7 @@ def _generate_token() -> tuple[str, str]:
 
 
 @router.post("", response_model=InvitacionResponse, status_code=status.HTTP_201_CREATED)
-async def create_invitacion(
+def create_invitacion(
     data: InvitacionCreate,
     request: Request,
     auth: AuthContext = Depends(require_permission(Permission.INVITACION_MANAGE)),
@@ -176,7 +176,7 @@ async def create_invitacion(
 
 
 @router.get("", response_model=InvitacionListResponse)
-async def list_invitaciones(
+def list_invitaciones(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     estado: Optional[str] = None,
@@ -206,7 +206,7 @@ async def list_invitaciones(
 
 
 @router.get("/verify/{token}", response_model=InvitacionVerifyResponse)
-async def verify_invitacion(token: str):
+def verify_invitacion(token: str):
     """Verifica un token de invitacion (no requiere auth)."""
     supabase = get_supabase()
     token_hash = hashlib.sha256(token.encode()).hexdigest()
@@ -259,7 +259,7 @@ async def verify_invitacion(token: str):
 
 
 @router.post("/accept", response_model=UsuarioResponse)
-async def accept_invitacion(data: InvitacionAcceptRequest, request: Request):
+def accept_invitacion(data: InvitacionAcceptRequest, request: Request):
     """Acepta una invitacion, crea usuario si es nuevo y lo asocia a la org/equipo."""
     supabase = get_supabase()
     token_hash = hashlib.sha256(data.token.encode()).hexdigest()
@@ -387,7 +387,7 @@ async def accept_invitacion(data: InvitacionAcceptRequest, request: Request):
 
 
 @router.post("/{invitacion_id}/resend", response_model=InvitacionResponse)
-async def resend_invitacion(
+def resend_invitacion(
     invitacion_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.INVITACION_MANAGE)),
 ):
@@ -459,7 +459,7 @@ async def resend_invitacion(
 
 
 @router.delete("/{invitacion_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def revoke_invitacion(
+def revoke_invitacion(
     invitacion_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.INVITACION_MANAGE)),
 ):
@@ -490,7 +490,7 @@ async def revoke_invitacion(
 # ============ Transferencias de Propiedad ============
 
 @router.post("/transferencia", response_model=TransferenciaResponse, status_code=status.HTTP_201_CREATED)
-async def create_transferencia(
+def create_transferencia(
     data: TransferenciaCreate,
     auth: AuthContext = Depends(require_permission(Permission.TRANSFERIR_PROPIEDAD)),
 ):
@@ -538,7 +538,7 @@ async def create_transferencia(
 
 
 @router.post("/transferencia/{transferencia_id}/accept", response_model=TransferenciaResponse)
-async def accept_transferencia(
+def accept_transferencia(
     transferencia_id: UUID,
     auth: AuthContext = Depends(require_permission()),
 ):

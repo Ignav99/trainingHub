@@ -101,7 +101,7 @@ async def _simple_completion(system_prompt: str, user_message: str) -> str:
                 from anthropic import AsyncAnthropic
                 from app.config import get_settings
                 settings = get_settings()
-                client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+                client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY, timeout=60.0, max_retries=1)
                 response = await client.messages.create(
                     model=settings.CLAUDE_MODEL or "claude-sonnet-4-20250514",
                     max_tokens=4096,

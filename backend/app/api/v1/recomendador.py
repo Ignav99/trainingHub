@@ -143,7 +143,7 @@ def calcular_score(tarea: dict, params: RecomendadorInput, fase: str) -> tuple[f
 
 
 @router.post("/sesion", response_model=RecomendadorOutput)
-async def recomendar_sesion(
+def recomendar_sesion(
     params: RecomendadorInput,
     auth: AuthContext = Depends(require_permission(Permission.TASK_READ)),
 ):
@@ -417,7 +417,7 @@ async def recomendar_sesion_ai(
         )
 
         # Obtener recomendaciones básicas
-        basic_result = await recomendar_sesion(basic_input, auth)
+        basic_result = recomendar_sesion(basic_input, auth)
 
         # Convertir a formato AI
         fases_convertidas = {}

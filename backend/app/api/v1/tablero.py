@@ -63,7 +63,7 @@ def _run(fn, *args, **kwargs):
 
 
 @router.get("/miembros")
-async def list_miembros(
+def list_miembros(
     equipo_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
 ):
@@ -73,7 +73,7 @@ async def list_miembros(
 
 
 @router.get("/resumen")
-async def get_resumen(
+def get_resumen(
     equipo_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
 ):
@@ -82,7 +82,7 @@ async def get_resumen(
 
 
 @router.get("/actividad")
-async def get_actividad(
+def get_actividad(
     equipo_id: UUID,
     dias: int = Query(14, ge=1, le=60),
     limit: int = Query(40, ge=1, le=100),
@@ -94,7 +94,7 @@ async def get_actividad(
 
 
 @router.get("")
-async def list_posts(
+def list_posts(
     equipo_id: UUID,
     filtro: str = Query("todo"),
     entidad_tipo: Optional[Literal["sesion", "partido", "jugador"]] = None,
@@ -118,7 +118,7 @@ async def list_posts(
 
 
 @router.get("/{post_id}")
-async def get_post(
+def get_post(
     post_id: UUID,
     equipo_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
@@ -128,7 +128,7 @@ async def get_post(
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-async def create_post(
+def create_post(
     body: PostCreate,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
 ):
@@ -140,7 +140,7 @@ async def create_post(
 
 
 @router.patch("/{post_id}")
-async def update_post(
+def update_post(
     post_id: UUID,
     body: PostUpdate,
     equipo_id: UUID,
@@ -160,7 +160,7 @@ async def update_post(
 
 
 @router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_post(
+def delete_post(
     post_id: UUID,
     equipo_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
