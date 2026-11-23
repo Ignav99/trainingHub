@@ -288,6 +288,11 @@ class ApiClient {
           await response.body?.cancel().catch(() => {})
           continue
         }
+        if (response.status === 401 && opts.auth && typeof window !== 'undefined') {
+          // Ni el refresco la salvó: la sesión está muerta. El store de auth
+          // escucha este aviso y manda a iniciar sesión.
+          window.dispatchEvent(new Event('kabine:sesion-perdida'))
+        }
         try {
           const e = await errorDeRespuesta(response, opts.auth)
           if (falloDeServidor(e.statusCode)) conexion.fallo()
