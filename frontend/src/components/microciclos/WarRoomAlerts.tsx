@@ -38,7 +38,7 @@ export function WarRoomAlerts({ alertas, equipoId, microcicloId }: WarRoomAlerts
     setDetecting(true)
     try {
       await alertasApi.detectar(equipoId, microcicloId)
-      mutate((key: string) => typeof key === 'string' && key.includes('/microciclos'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/microciclos'))
     } finally {
       setDetecting(false)
     }

@@ -502,7 +502,7 @@ def _recalc_sesion_carga(supabase, sesion_id: str) -> dict:
 
 
 @router.get("", response_model=SesionListResponse)
-async def list_sesiones(
+def list_sesiones(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=1000),
     equipo_id: Optional[UUID] = None,
@@ -636,7 +636,7 @@ async def list_sesiones(
 
 
 @router.get("/asistencia-historico", response_model=AsistenciaHistoricoResponse)
-async def get_asistencia_historico(
+def get_asistencia_historico(
     equipo_id: UUID = Query(...),
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
@@ -740,7 +740,7 @@ async def get_asistencia_historico(
 # Rutas estáticas ANTES de /{sesion_id} para no capturar "share"/"completar-vencidas"
 
 @router.post("/completar-vencidas")
-async def completar_sesiones_vencidas(
+def completar_sesiones_vencidas(
     auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
 ):
     """
@@ -784,7 +784,7 @@ async def completar_sesiones_vencidas(
 
 
 @router.get("/share/{token}")
-async def get_sesion_by_share_token(token: str):
+def get_sesion_by_share_token(token: str):
     """Vista pública de solo lectura por share_token (contexto + tareas + RPE)."""
     supabase = get_supabase()
     response = supabase.table("sesiones").select(
@@ -909,7 +909,7 @@ async def get_sesion_by_share_token(token: str):
 
 
 @router.get("/{sesion_id}", response_model=SesionResponse)
-async def get_sesion(
+def get_sesion(
     sesion_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
 ):
@@ -958,7 +958,7 @@ async def get_sesion(
 
 
 @router.post("", response_model=SesionResponse, status_code=status.HTTP_201_CREATED)
-async def create_sesion(
+def create_sesion(
     sesion: SesionCreate,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_CREATE)),
 ):
@@ -1055,7 +1055,7 @@ async def create_sesion(
 
 
 @router.put("/{sesion_id}", response_model=SesionResponse)
-async def update_sesion(
+def update_sesion(
     sesion_id: UUID,
     sesion: SesionUpdate,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
@@ -1142,7 +1142,7 @@ async def update_sesion(
 
 
 @router.delete("/{sesion_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_sesion(
+def delete_sesion(
     sesion_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_DELETE)),
 ):
@@ -1169,7 +1169,7 @@ async def delete_sesion(
 
 
 @router.post("/{sesion_id}/tareas", response_model=SesionResponse)
-async def add_tarea_to_sesion(
+def add_tarea_to_sesion(
     sesion_id: UUID,
     tarea_data: SesionTareaCreate,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
@@ -1190,11 +1190,11 @@ async def add_tarea_to_sesion(
 
     _insert_sesion_tarea(supabase, _sesion_tarea_row(str(sesion_id), tarea_data))
     _recalc_sesion_carga(supabase, str(sesion_id))
-    return await get_sesion(sesion_id, auth)
+    return get_sesion(sesion_id, auth)
 
 
 @router.delete("/{sesion_id}/tareas/{tarea_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def remove_tarea_from_sesion(
+def remove_tarea_from_sesion(
     sesion_id: UUID,
     tarea_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
@@ -1212,7 +1212,7 @@ async def remove_tarea_from_sesion(
 
 
 @router.put("/{sesion_id}/tareas/{sesion_tarea_id}", response_model=SesionResponse)
-async def update_sesion_tarea(
+def update_sesion_tarea(
     sesion_id: UUID,
     sesion_tarea_id: UUID,
     tarea_data: SesionTareaUpdate,
@@ -1245,11 +1245,11 @@ async def update_sesion_tarea(
             raise
 
     _recalc_sesion_carga(supabase, str(sesion_id))
-    return await get_sesion(sesion_id, auth)
+    return get_sesion(sesion_id, auth)
 
 
 @router.put("/{sesion_id}/tareas-batch", response_model=SesionResponse)
-async def batch_update_tareas(
+def batch_update_tareas(
     sesion_id: UUID,
     batch: SesionTareasBatchUpdate,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
@@ -1290,14 +1290,14 @@ async def batch_update_tareas(
 
     log_update(auth.user_id, "sesion", str(sesion_id), datos_nuevos={"tareas_batch": len(batch.tareas)})
 
-    return await get_sesion(sesion_id, auth)
+    return get_sesion(sesion_id, auth)
 
 
 # ============ Asistencia Endpoints ============
 
 
 @router.get("/{sesion_id}/asistencias", response_model=AsistenciaListResponse)
-async def get_asistencias(
+def get_asistencias(
     sesion_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
 ):
@@ -1329,7 +1329,7 @@ async def get_asistencias(
 
 
 @router.post("/{sesion_id}/asistencias/batch", response_model=AsistenciaListResponse)
-async def batch_save_asistencias(
+def batch_save_asistencias(
     sesion_id: UUID,
     batch: AsistenciaBatchCreate,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
@@ -1365,11 +1365,11 @@ async def batch_save_asistencias(
     # Cambiar sesión, margen o fisio cambia los minutos de cada jugador y, si ya hay RPE, su Foster.
     _recalc_sesion_carga(supabase, str(sesion_id))
 
-    return await get_asistencias(sesion_id, auth)
+    return get_asistencias(sesion_id, auth)
 
 
 @router.post("/{sesion_id}/asistencias/jugador", response_model=AsistenciaResponse)
-async def upsert_asistencia_jugador(
+def upsert_asistencia_jugador(
     sesion_id: UUID,
     payload: AsistenciaCreate,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
@@ -1409,7 +1409,7 @@ async def upsert_asistencia_jugador(
 
 
 @router.delete("/{sesion_id}/asistencias/jugador/{jugador_id}", status_code=204)
-async def delete_asistencia_jugador(
+def delete_asistencia_jugador(
     sesion_id: UUID,
     jugador_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
@@ -1423,7 +1423,7 @@ async def delete_asistencia_jugador(
 
 
 @router.delete("/{sesion_id}/asistencias/filial", status_code=204)
-async def delete_asistencias_filial(
+def delete_asistencias_filial(
     sesion_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
 ):
@@ -1442,7 +1442,7 @@ async def delete_asistencias_filial(
 
 
 @router.put("/{sesion_id}/asistencias/{asistencia_id}", response_model=AsistenciaResponse)
-async def update_asistencia(
+def update_asistencia(
     sesion_id: UUID,
     asistencia_id: UUID,
     data: AsistenciaUpdate,
@@ -1475,7 +1475,7 @@ async def update_asistencia(
 
 
 @router.get("/{sesion_id}/asistencias/resumen", response_model=AsistenciaResumen)
-async def get_asistencia_resumen(
+def get_asistencia_resumen(
     sesion_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
 ):
@@ -1522,7 +1522,7 @@ class SugerirEquiposRequest(BaseModel):
 
 
 @router.post("/{sesion_id}/sugerir-equipos")
-async def sugerir_equipos(
+def sugerir_equipos(
     sesion_id: UUID,
     request: SugerirEquiposRequest,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
@@ -1759,7 +1759,7 @@ class DuplicarYEditarTareaRequest(BaseModel):
 
 
 @router.post("/{sesion_id}/tareas/{sesion_tarea_id}/duplicar-y-editar")
-async def duplicar_y_editar_tarea(
+def duplicar_y_editar_tarea(
     sesion_id: UUID,
     sesion_tarea_id: UUID,
     cambios: DuplicarYEditarTareaRequest,
@@ -1957,7 +1957,7 @@ class AICrearTareaRequest(BaseModel):
 
 
 @router.post("/{sesion_id}/tareas/crear")
-async def crear_tarea_en_sesion(
+def crear_tarea_en_sesion(
     sesion_id: UUID,
     request: CrearTareaEnSesionRequest,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
@@ -2020,7 +2020,7 @@ async def crear_tarea_en_sesion(
     }).execute()
 
     # Return full updated session
-    return await get_sesion(sesion_id, auth)
+    return get_sesion(sesion_id, auth)
 
 
 @router.post("/{sesion_id}/tareas/ai-crear")
@@ -2106,7 +2106,7 @@ async def ai_crear_tarea_en_sesion(
     }).execute()
 
     # Return full updated session
-    return await get_sesion(sesion_id, auth)
+    return get_sesion(sesion_id, auth)
 
 
 class GenerarEquiposTareaRequest(BaseModel):
@@ -2114,7 +2114,7 @@ class GenerarEquiposTareaRequest(BaseModel):
 
 
 @router.post("/{sesion_id}/tareas/{sesion_tarea_id}/generar-equipos")
-async def generar_equipos_tarea(
+def generar_equipos_tarea(
     sesion_id: UUID,
     sesion_tarea_id: UUID,
     request: GenerarEquiposTareaRequest,
@@ -2180,7 +2180,7 @@ async def generar_equipos_tarea(
 
 
 @router.put("/{sesion_id}/tareas/{sesion_tarea_id}/formacion")
-async def update_formacion_tarea(
+def update_formacion_tarea(
     sesion_id: UUID,
     sesion_tarea_id: UUID,
     formacion: FormacionEquipos,
@@ -2209,7 +2209,7 @@ async def update_formacion_tarea(
 
 
 @router.delete("/{sesion_id}/tareas/{sesion_tarea_id}/formacion", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_formacion_tarea(
+def delete_formacion_tarea(
     sesion_id: UUID,
     sesion_tarea_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
@@ -2597,7 +2597,7 @@ async def generate_pdf(
 
 
 @router.post("/{sesion_id}/cerrar-planificacion", response_model=SesionResponse)
-async def cerrar_planificacion(
+def cerrar_planificacion(
     sesion_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
 ):
@@ -2629,12 +2629,12 @@ async def cerrar_planificacion(
             raise
 
     log_update(auth.user_id, "sesion", str(sesion_id), datos_nuevos={"estado": "planificada"})
-    return await get_sesion(sesion_id, auth)
+    return get_sesion(sesion_id, auth)
 
 
 
 @router.post("/{sesion_id}/share", response_model=SesionResponse)
-async def enable_share(
+def enable_share(
     sesion_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
 ):
@@ -2656,7 +2656,7 @@ async def enable_share(
             status_code=400,
             detail=f"No se pudo crear share_token (¿migración 063 aplicada?): {e}",
         )
-    return await get_sesion(sesion_id, auth)
+    return get_sesion(sesion_id, auth)
 
 
 
@@ -2668,7 +2668,7 @@ class InvitadoFromOrgRequest(BaseModel):
 
 
 @router.post("/{sesion_id}/invitados/from-org", response_model=AsistenciaResponse)
-async def add_invitado_from_org(
+def add_invitado_from_org(
     sesion_id: UUID,
     request: InvitadoFromOrgRequest,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
@@ -2736,7 +2736,7 @@ async def add_invitado_from_org(
 
 
 @router.post("/{sesion_id}/invitados/quick-add")
-async def quick_add_invitado(
+def quick_add_invitado(
     sesion_id: UUID,
     data: JugadorInvitadoCreate,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
@@ -2901,7 +2901,7 @@ async def design_session_chat(
 
 
 @router.post("/design-chat/stream")
-async def stream_session_design_chat(
+def stream_session_design_chat(
     request: SessionDesignRequest,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_CREATE)),
 ):

@@ -23,7 +23,7 @@ router = APIRouter()
 
 
 @router.get("", response_model=EquipoListResponse)
-async def list_equipos(auth: AuthContext = Depends(require_permission(Permission.PLANTILLA_READ))):
+def list_equipos(auth: AuthContext = Depends(require_permission(Permission.PLANTILLA_READ))):
     """Lista los equipos a los que el usuario esta vinculado (usuarios_equipos).
 
     Solo el staff de club-admin gestiona todos los equipos de la organizacion,
@@ -51,7 +51,7 @@ async def list_equipos(auth: AuthContext = Depends(require_permission(Permission
 
 
 @router.get("/{equipo_id}", response_model=EquipoResponse)
-async def get_equipo(equipo_id: UUID, auth: AuthContext = Depends(require_permission(Permission.PLANTILLA_READ, equipo_id_param="equipo_id"))):
+def get_equipo(equipo_id: UUID, auth: AuthContext = Depends(require_permission(Permission.PLANTILLA_READ, equipo_id_param="equipo_id"))):
     """Obtiene un equipo por ID."""
     supabase = get_supabase()
     response = supabase.table("equipos").select("*").eq("id", str(equipo_id)).eq(
@@ -65,7 +65,7 @@ async def get_equipo(equipo_id: UUID, auth: AuthContext = Depends(require_permis
 
 
 @router.post("", response_model=EquipoResponse, status_code=status.HTTP_201_CREATED)
-async def create_equipo(equipo: EquipoCreate, auth: AuthContext = Depends(require_permission(Permission.CONFIG_TEAM))):
+def create_equipo(equipo: EquipoCreate, auth: AuthContext = Depends(require_permission(Permission.CONFIG_TEAM))):
     """Crea un nuevo equipo."""
     # Check team limit for the organization's plan
     allowed, msg = LicenseChecker.check_team_limit(auth.organizacion_id)
@@ -82,7 +82,7 @@ async def create_equipo(equipo: EquipoCreate, auth: AuthContext = Depends(requir
 
 
 @router.put("/{equipo_id}", response_model=EquipoResponse)
-async def update_equipo(equipo_id: UUID, equipo: EquipoUpdate, auth: AuthContext = Depends(require_permission(Permission.CONFIG_TEAM, equipo_id_param="equipo_id"))):
+def update_equipo(equipo_id: UUID, equipo: EquipoUpdate, auth: AuthContext = Depends(require_permission(Permission.CONFIG_TEAM, equipo_id_param="equipo_id"))):
     """Actualiza un equipo."""
     supabase = get_supabase()
     data = equipo.model_dump(exclude_unset=True)
@@ -101,7 +101,7 @@ async def update_equipo(equipo_id: UUID, equipo: EquipoUpdate, auth: AuthContext
 
 
 @router.delete("/{equipo_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_equipo(equipo_id: UUID, auth: AuthContext = Depends(require_permission(Permission.CONFIG_TEAM, equipo_id_param="equipo_id"))):
+def delete_equipo(equipo_id: UUID, auth: AuthContext = Depends(require_permission(Permission.CONFIG_TEAM, equipo_id_param="equipo_id"))):
     """Desactiva un equipo."""
     supabase = get_supabase()
     supabase.table("equipos").update({"activo": False}).eq("id", str(equipo_id)).eq(
@@ -111,7 +111,7 @@ async def delete_equipo(equipo_id: UUID, auth: AuthContext = Depends(require_per
 
 
 @router.post("/{equipo_id}/nueva-temporada", response_model=NuevaTemporadaResponse, status_code=status.HTTP_201_CREATED)
-async def nueva_temporada(
+def nueva_temporada(
     equipo_id: UUID,
     data: NuevaTemporadaRequest,
     auth: AuthContext = Depends(require_permission(Permission.CONFIG_TEAM, equipo_id_param="equipo_id")),

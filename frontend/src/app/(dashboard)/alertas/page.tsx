@@ -66,7 +66,7 @@ export default function AlertasPage() {
     setDetecting(true)
     try {
       const result = await alertasApi.detectar(equipoActivo.id)
-      mutate((key: string) => typeof key === 'string' && key.includes('/alertas'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/alertas'))
       if (result.generadas === 0) {
         // ok
       }
@@ -80,7 +80,7 @@ export default function AlertasPage() {
   const handleResolve = async (alerta: Alerta) => {
     try {
       await alertasApi.update(alerta.id, { resuelta: true, notas_resolucion: 'Resuelta desde el dashboard' })
-      mutate((key: string) => typeof key === 'string' && key.includes('/alertas'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/alertas'))
     } catch (err: any) {
       // ignore
     }
@@ -89,7 +89,7 @@ export default function AlertasPage() {
   const handleDelete = async (alerta: Alerta) => {
     try {
       await alertasApi.delete(alerta.id)
-      mutate((key: string) => typeof key === 'string' && key.includes('/alertas'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/alertas'))
     } catch (err: any) {
       // ignore
     }

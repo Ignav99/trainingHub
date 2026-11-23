@@ -18,7 +18,7 @@ router = APIRouter()
 
 
 @router.get("/me", response_model=UsuarioResponse)
-async def get_current_user_info(
+def get_current_user_info(
     auth: AuthContext = Depends(require_permission()),
 ):
     """Obtiene información del usuario actual."""
@@ -26,7 +26,7 @@ async def get_current_user_info(
 
 
 @router.put("/me", response_model=UsuarioResponse)
-async def update_current_user(
+def update_current_user(
     usuario: UsuarioUpdate,
     auth: AuthContext = Depends(require_permission()),
 ):
@@ -42,7 +42,7 @@ async def update_current_user(
 
 
 @router.get("", response_model=UsuarioListResponse)
-async def list_usuarios(
+def list_usuarios(
     auth: AuthContext = Depends(require_permission(Permission.CONFIG_TEAM)),
 ):
     """Lista usuarios de la organización."""
@@ -55,7 +55,7 @@ async def list_usuarios(
 
 
 @router.get("/{usuario_id}", response_model=UsuarioResponse)
-async def get_usuario(
+def get_usuario(
     usuario_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.CONFIG_TEAM)),
 ):

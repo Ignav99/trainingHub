@@ -234,9 +234,7 @@ export function WarRoomTimeline({ microcicloId, weekDates, sessionsByDate, parti
       await microciclosApi.reordenarSesiones(microcicloId, { sesiones: items })
       // Revalidate SWR cache
       mutate(
-        (key: string) => typeof key === 'string' && key.includes('/microciclos'),
-        undefined,
-        { revalidate: true }
+        (key: string) => typeof key === 'string' && key.includes('/microciclos')
       )
       toast.success('Orden guardado', { duration: 1500 })
     } catch (err: any) {

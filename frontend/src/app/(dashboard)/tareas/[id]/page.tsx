@@ -101,7 +101,7 @@ export default function TareaDetailPage() {
   const error = actionError || (swrError ? (swrError.message || 'Error al cargar la tarea') : null)
 
   const invalidateTareas = () => {
-    mutate((key: string) => typeof key === 'string' && key.includes('/tareas'), undefined, { revalidate: true })
+    mutate((key: string) => typeof key === 'string' && key.includes('/tareas'))
   }
 
   const handleDuplicate = async () => {

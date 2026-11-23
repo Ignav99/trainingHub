@@ -183,7 +183,7 @@ def _pack_payload(supabase, pack: dict, *, folders_only: bool = False) -> dict:
 # ============ PACKS ============
 
 @router.post("/packs", status_code=201)
-async def get_or_create_pack(
+def get_or_create_pack(
     data: PackGetOrCreate,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_READ)),
 ):
@@ -240,7 +240,7 @@ async def get_or_create_pack(
 
 
 @router.get("/packs/{pack_id}")
-async def get_pack(
+def get_pack(
     pack_id: UUID,
     equipo_id: UUID = Query(...),
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_READ)),
@@ -253,7 +253,7 @@ async def get_pack(
 # ============ FOLDERS ============
 
 @router.post("/folders", status_code=201)
-async def create_folder(
+def create_folder(
     data: FolderCreate,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
 ):
@@ -283,7 +283,7 @@ async def create_folder(
 
 
 @router.patch("/folders/{folder_id}")
-async def update_folder(
+def update_folder(
     folder_id: UUID,
     data: FolderUpdate,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
@@ -307,7 +307,7 @@ async def update_folder(
 
 
 @router.delete("/folders/{folder_id}")
-async def delete_folder(
+def delete_folder(
     folder_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
 ):
@@ -400,7 +400,7 @@ def _insert_clip(
 
 
 @router.post("/clips/upload-url")
-async def create_clip_upload_url(
+def create_clip_upload_url(
     data: ClipUploadUrlRequest,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
 ):
@@ -454,7 +454,7 @@ async def create_clip_upload_url(
 
 
 @router.post("/clips/confirm", status_code=201)
-async def confirm_clip_upload(
+def confirm_clip_upload(
     data: ClipConfirmRequest,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
 ):
@@ -593,7 +593,7 @@ async def upload_clip(
 
 
 @router.patch("/clips/{clip_id}")
-async def update_clip(
+def update_clip(
     clip_id: UUID,
     data: ClipUpdate,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
@@ -613,7 +613,7 @@ async def update_clip(
 
 
 @router.delete("/clips/{clip_id}")
-async def delete_clip(
+def delete_clip(
     clip_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
 ):
@@ -634,7 +634,7 @@ async def delete_clip(
 
 
 @router.post("/packs/{pack_id}/purge")
-async def purge_pack_clips(
+def purge_pack_clips(
     pack_id: UUID,
     equipo_id: UUID = Query(...),
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
@@ -654,7 +654,7 @@ async def purge_pack_clips(
 
 
 @router.post("/clips/{clip_id}/links", status_code=201)
-async def add_clip_link(
+def add_clip_link(
     clip_id: UUID,
     data: ClipLinkCreate,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
@@ -678,7 +678,7 @@ async def add_clip_link(
 
 
 @router.delete("/clip-links/{link_id}")
-async def delete_clip_link(
+def delete_clip_link(
     link_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_UPLOAD)),
 ):
@@ -690,7 +690,7 @@ async def delete_clip_link(
 # ============ SALA ============
 
 @router.post("/video-rooms", status_code=201)
-async def open_video_room(
+def open_video_room(
     _auth: AuthContext = Depends(require_permission(Permission.VIDEO_READ)),
 ):
     """Sala de vídeo en directo. El pase va en el QR; no crea un pack ni sube el partido."""
@@ -699,7 +699,7 @@ async def open_video_room(
 
 
 @router.post("/sessions", status_code=201)
-async def create_session(
+def create_session(
     data: SessionCreate,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_READ)),
 ):
@@ -764,7 +764,7 @@ async def get_session_by_code(
 
 
 @router.patch("/sessions/{code}")
-async def update_session_state(
+def update_session_state(
     code: str,
     data: SessionStateUpdate,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_READ)),
@@ -797,7 +797,7 @@ async def update_session_state(
 # ============ CRON ============
 
 @router.post("/cron/archive")
-async def cron_archive_clips(request: Request):
+def cron_archive_clips(request: Request):
     from app.config import get_settings
 
     settings = get_settings()

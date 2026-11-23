@@ -112,7 +112,7 @@ def _prepare_record_dates(record: dict) -> dict:
 # ============ CRUD ============
 
 @router.post("", response_model=RegistroMedicoResponse, status_code=status.HTTP_201_CREATED)
-async def create_registro_medico(
+def create_registro_medico(
     data: RegistroMedicoCreate,
     request: Request,
     auth: AuthContext = Depends(require_permission(Permission.MEDICAL_CREATE)),
@@ -181,7 +181,7 @@ async def create_registro_medico(
     return RegistroMedicoResponse(**response_data)
 
 @router.get("", response_model=RegistroMedicoListResponse)
-async def list_registros_medicos(
+def list_registros_medicos(
     equipo_id: Optional[UUID] = None,
     jugador_id: Optional[UUID] = None,
     tipo: Optional[str] = None,
@@ -245,7 +245,7 @@ async def list_registros_medicos(
 
 
 @router.get("/{registro_id}", response_model=RegistroMedicoResponse)
-async def get_registro_medico(
+def get_registro_medico(
     registro_id: UUID,
     request: Request,
     auth: AuthContext = Depends(require_any_permission(
@@ -278,7 +278,7 @@ async def get_registro_medico(
 
 
 @router.put("/{registro_id}", response_model=RegistroMedicoResponse)
-async def update_registro_medico(
+def update_registro_medico(
     registro_id: UUID,
     data: RegistroMedicoUpdate,
     request: Request,
@@ -378,7 +378,7 @@ async def update_registro_medico(
 
 
 @router.delete("/{registro_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_registro_medico(
+def delete_registro_medico(
     registro_id: UUID,
     request: Request,
     auth: AuthContext = Depends(require_permission(Permission.MEDICAL_UPDATE)),
@@ -495,7 +495,7 @@ async def upload_document(
 
 
 @router.delete("/{registro_id}/document")
-async def delete_document(
+def delete_document(
     registro_id: UUID,
     url: str = Query(...),
     request: Request = None,
@@ -539,7 +539,7 @@ async def delete_document(
 # ============ Access Log ============
 
 @router.get("/{registro_id}/accesos", response_model=AccesoMedicoLogListResponse)
-async def get_accesos_log(
+def get_accesos_log(
     registro_id: UUID,
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
@@ -567,7 +567,7 @@ async def get_accesos_log(
 # ============ Player fitness status ============
 
 @router.post("/{registro_id}/mark-fit")
-async def mark_player_fit(
+def mark_player_fit(
     registro_id: UUID,
     body: MarkFitRequest = MarkFitRequest(),
     request: Request = None,
@@ -623,7 +623,7 @@ class MoveToRehabRequest(BaseModel):
 
 
 @router.post("/{registro_id}/move-to-rehab")
-async def move_to_rehab(
+def move_to_rehab(
     registro_id: UUID,
     body: MoveToRehabRequest = MoveToRehabRequest(),
     request: Request = None,
@@ -675,7 +675,7 @@ async def move_to_rehab(
 # ============ Pruebas médicas ============
 
 @router.get("/{registro_id}/pruebas", response_model=list[PruebaMedicaResponse])
-async def list_pruebas(
+def list_pruebas(
     registro_id: UUID,
     auth: AuthContext = Depends(require_any_permission(
         Permission.MEDICAL_READ, Permission.MEDICAL_READ_SUMMARY,
@@ -693,7 +693,7 @@ async def list_pruebas(
 
 
 @router.post("/{registro_id}/pruebas", response_model=PruebaMedicaResponse, status_code=status.HTTP_201_CREATED)
-async def create_prueba(
+def create_prueba(
     registro_id: UUID,
     data: PruebaMedicaCreate,
     auth: AuthContext = Depends(require_permission(Permission.MEDICAL_UPDATE)),
@@ -726,7 +726,7 @@ async def create_prueba(
 
 
 @router.put("/{registro_id}/pruebas/{prueba_id}", response_model=PruebaMedicaResponse)
-async def update_prueba(
+def update_prueba(
     registro_id: UUID,
     prueba_id: UUID,
     data: PruebaMedicaUpdate,
@@ -750,7 +750,7 @@ async def update_prueba(
 
 
 @router.delete("/{registro_id}/pruebas/{prueba_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_prueba(
+def delete_prueba(
     registro_id: UUID,
     prueba_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.MEDICAL_UPDATE)),
@@ -784,7 +784,7 @@ def _tratamiento_row(row: dict) -> TratamientoDiarioResponse:
 
 
 @router.get("/{registro_id}/tratamiento")
-async def list_tratamiento(
+def list_tratamiento(
     registro_id: UUID,
     auth: AuthContext = Depends(require_any_permission(
         Permission.MEDICAL_READ, Permission.MEDICAL_READ_SUMMARY,
@@ -825,7 +825,7 @@ async def list_tratamiento(
 
 
 @router.post("/{registro_id}/tratamiento", status_code=status.HTTP_201_CREATED)
-async def create_tratamiento(
+def create_tratamiento(
     registro_id: UUID,
     data: TratamientoDiarioCreate,
     auth: AuthContext = Depends(require_permission(Permission.MEDICAL_UPDATE)),
@@ -867,7 +867,7 @@ async def create_tratamiento(
 
 
 @router.put("/{registro_id}/tratamiento/{entrada_id}")
-async def update_tratamiento(
+def update_tratamiento(
     registro_id: UUID,
     entrada_id: UUID,
     data: TratamientoDiarioUpdate,
@@ -894,7 +894,7 @@ async def update_tratamiento(
 
 
 @router.delete("/{registro_id}/tratamiento/{entrada_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_tratamiento(
+def delete_tratamiento(
     registro_id: UUID,
     entrada_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.MEDICAL_UPDATE)),

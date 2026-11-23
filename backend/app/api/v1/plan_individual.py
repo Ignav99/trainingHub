@@ -159,7 +159,7 @@ def _decorar(supabase, rows: list[dict]) -> list[dict]:
 
 
 @router.get("")
-async def list_entradas(
+def list_entradas(
     jugador_id: UUID,
     equipo_id: UUID,
     area: AreaPlan | None = None,
@@ -185,7 +185,7 @@ async def list_entradas(
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-async def create_entrada(data: EntradaCreate, auth: AuthContext = Depends(require_permission(_CT))):
+def create_entrada(data: EntradaCreate, auth: AuthContext = Depends(require_permission(_CT))):
     supabase = get_supabase()
     jugador = _jugador_en_org(supabase, str(data.jugador_id), auth)
     corte_ids = [str(cid) for cid in data.corte_ids]
@@ -223,7 +223,7 @@ async def create_entrada(data: EntradaCreate, auth: AuthContext = Depends(requir
 
 
 @router.patch("/{entrada_id}")
-async def update_entrada(
+def update_entrada(
     entrada_id: UUID,
     data: EntradaUpdate,
     equipo_id: UUID = Query(...),
@@ -270,7 +270,7 @@ async def update_entrada(
 
 
 @router.delete("/{entrada_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_entrada(
+def delete_entrada(
     entrada_id: UUID,
     equipo_id: UUID = Query(...),
     auth: AuthContext = Depends(require_permission(_CT)),
@@ -282,7 +282,7 @@ async def delete_entrada(
 
 
 @router.post("/{entrada_id}/mediciones", status_code=status.HTTP_201_CREATED)
-async def add_medicion(
+def add_medicion(
     entrada_id: UUID,
     data: MedicionCreate,
     equipo_id: UUID = Query(...),
@@ -306,7 +306,7 @@ def _medicion(supabase, medicion_id: str, auth: AuthContext) -> tuple[dict, dict
 
 
 @router.patch("/mediciones/{medicion_id}")
-async def update_medicion(
+def update_medicion(
     medicion_id: UUID,
     data: MedicionUpdate,
     equipo_id: UUID = Query(...),
@@ -337,7 +337,7 @@ async def update_medicion(
 
 
 @router.delete("/mediciones/{medicion_id}")
-async def delete_medicion(
+def delete_medicion(
     medicion_id: UUID,
     equipo_id: UUID = Query(...),
     auth: AuthContext = Depends(require_permission(_CT)),
@@ -350,7 +350,7 @@ async def delete_medicion(
 
 
 @router.post("/{entrada_id}/cortes")
-async def link_corte(
+def link_corte(
     entrada_id: UUID,
     data: CorteEnlace,
     equipo_id: UUID = Query(...),
@@ -364,7 +364,7 @@ async def link_corte(
 
 
 @router.delete("/{entrada_id}/cortes/{corte_id}")
-async def unlink_corte(
+def unlink_corte(
     entrada_id: UUID,
     corte_id: UUID,
     equipo_id: UUID = Query(...),

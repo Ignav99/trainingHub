@@ -60,7 +60,7 @@ def _recalc_jugador(jugador_id: str):
 
 
 @router.post("", response_model=WellnessResponse, status_code=status.HTTP_201_CREATED)
-async def create_wellness(
+def create_wellness(
     data: WellnessCreate,
     bg: BackgroundTasks,
     auth: AuthContext = Depends(require_permission(Permission.RPE_CREATE)),
@@ -101,7 +101,7 @@ async def create_wellness(
 
 
 @router.get("/equipo/{equipo_id}")
-async def get_team_wellness(
+def get_team_wellness(
     equipo_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.RPE_READ)),
 ):
@@ -189,7 +189,7 @@ async def get_team_wellness(
 
 
 @router.get("/jugador/{jugador_id}/historial")
-async def get_player_wellness_history(
+def get_player_wellness_history(
     jugador_id: UUID,
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
@@ -221,7 +221,7 @@ async def get_player_wellness_history(
 
 
 @router.get("/equipo/{equipo_id}/alertas")
-async def get_team_wellness_alerts(
+def get_team_wellness_alerts(
     equipo_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.RPE_READ)),
 ):
@@ -289,7 +289,7 @@ async def get_team_wellness_alerts(
 
 
 @router.put("/{wellness_id}")
-async def update_wellness(
+def update_wellness(
     wellness_id: UUID,
     data: WellnessCreate,
     bg: BackgroundTasks,
@@ -340,7 +340,7 @@ async def update_wellness(
 
 
 @router.delete("/{wellness_id}", status_code=status.HTTP_200_OK)
-async def delete_wellness(
+def delete_wellness(
     wellness_id: UUID,
     bg: BackgroundTasks,
     auth: AuthContext = Depends(require_permission(Permission.RPE_CREATE)),
@@ -364,7 +364,7 @@ async def delete_wellness(
 
 
 @router.post("/import", status_code=status.HTTP_201_CREATED)
-async def bulk_import_wellness(
+def bulk_import_wellness(
     items: list[WellnessBulkItem],
     auth: AuthContext = Depends(require_permission(Permission.RPE_CREATE)),
 ):

@@ -53,7 +53,7 @@ def _verify_partido(supabase, partido_id: str, equipo_id: str):
 # ============ LIST ============
 
 @router.get("/partido/{partido_id}")
-async def list_videos(
+def list_videos(
     partido_id: UUID,
     equipo_id: UUID = Query(...),
     contexto: str | None = None,
@@ -86,7 +86,7 @@ async def list_videos(
 # ============ LOCAL SESSION (for tagging local files) ============
 
 @router.post("/local-session", status_code=201)
-async def create_local_session(
+def create_local_session(
     data: dict,
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
 ):
@@ -152,7 +152,7 @@ async def create_local_session(
 # ============ WORK MARK (resume a match that already had a video) ============
 
 @router.get("/trabajo")
-async def list_video_trabajo(
+def list_video_trabajo(
     equipo_id: UUID = Query(...),
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
 ):
@@ -173,7 +173,7 @@ async def list_video_trabajo(
 
 
 @router.put("/trabajo")
-async def save_video_trabajo(
+def save_video_trabajo(
     data: dict,
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
 ):
@@ -234,7 +234,7 @@ async def save_video_trabajo(
 # ============ ADD LINK (Veo / External) ============
 
 @router.post("/link", status_code=201)
-async def add_video_link(
+def add_video_link(
     data: VideoPartidoCreate,
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_UPDATE)),
 ):
@@ -333,7 +333,7 @@ async def upload_video_clip(
 # ============ UPDATE ============
 
 @router.put("/{video_id}")
-async def update_video(
+def update_video(
     video_id: UUID,
     data: VideoPartidoUpdate,
     equipo_id: UUID = Query(...),
@@ -371,7 +371,7 @@ async def update_video(
 # ============ DELETE ============
 
 @router.delete("/{video_id}")
-async def delete_video(
+def delete_video(
     video_id: UUID,
     equipo_id: UUID = Query(...),
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_UPDATE)),

@@ -57,7 +57,7 @@ def _upsert_jornada(supabase, comp_id: str, jornada: dict):
 # ============ Competiciones ============
 
 @router.get("/competiciones")
-async def list_competiciones(
+def list_competiciones(
     equipo_id: Optional[UUID] = None,
     temporada: Optional[str] = None,
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
@@ -88,7 +88,7 @@ async def list_competiciones(
 
 
 @router.get("/competiciones/{competicion_id}")
-async def get_competicion(
+def get_competicion(
     competicion_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
 ):
@@ -109,7 +109,7 @@ async def get_competicion(
 
 
 @router.post("/competiciones", status_code=status.HTTP_201_CREATED)
-async def create_competicion(
+def create_competicion(
     equipo_id: UUID,
     nombre: str = Query(..., min_length=2),
     categoria: Optional[str] = None,
@@ -144,7 +144,7 @@ async def create_competicion(
 
 
 @router.put("/competiciones/{competicion_id}")
-async def update_competicion(
+def update_competicion(
     competicion_id: UUID,
     nombre: Optional[str] = None,
     categoria: Optional[str] = None,
@@ -191,7 +191,7 @@ async def update_competicion(
 
 
 @router.delete("/competiciones/{competicion_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_competicion(
+def delete_competicion(
     competicion_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_DELETE)),
 ):
@@ -214,7 +214,7 @@ async def delete_competicion(
 # ============ Jornadas ============
 
 @router.get("/competiciones/{competicion_id}/jornadas")
-async def list_jornadas(
+def list_jornadas(
     competicion_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
 ):
@@ -229,7 +229,7 @@ async def list_jornadas(
 
 
 @router.get("/jornadas/{jornada_id}")
-async def get_jornada(
+def get_jornada(
     jornada_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
 ):
@@ -250,7 +250,7 @@ async def get_jornada(
 
 
 @router.post("/competiciones/{competicion_id}/jornadas", status_code=status.HTTP_201_CREATED)
-async def create_jornada(
+def create_jornada(
     competicion_id: UUID,
     numero: int = Query(..., ge=1),
     fecha: Optional[str] = None,
@@ -279,7 +279,7 @@ async def create_jornada(
 
 
 @router.put("/jornadas/{jornada_id}")
-async def update_jornada(
+def update_jornada(
     jornada_id: UUID,
     fecha: Optional[str] = None,
     partidos: Optional[list] = None,
@@ -314,7 +314,7 @@ class MiEquipoRequest(BaseModel):
 
 
 @router.put("/competiciones/{competicion_id}/mi-equipo")
-async def set_mi_equipo(
+def set_mi_equipo(
     competicion_id: UUID,
     body: MiEquipoRequest,
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_UPDATE)),
@@ -694,7 +694,7 @@ async def sync_competicion_full(
 
 
 @router.get("/competiciones/{competicion_id}/sync-status")
-async def get_sync_status(
+def get_sync_status(
     competicion_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
 ):
@@ -735,7 +735,7 @@ async def get_sync_status(
 
 
 @router.post("/competiciones/{competicion_id}/link")
-async def link_competicion(
+def link_competicion(
     competicion_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_CREATE)),
 ):
@@ -775,7 +775,7 @@ async def trigger_daily_sync(
 # ============ Mi Equipo Tarjetas ============
 
 @router.get("/competiciones/{competicion_id}/mi-equipo/tarjetas")
-async def mi_equipo_tarjetas(
+def mi_equipo_tarjetas(
     competicion_id: UUID,
     jornada_objetivo: Optional[int] = Query(None, description="Target jornada for state calculation"),
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
@@ -1016,7 +1016,7 @@ async def sync_actas(
 
 
 @router.get("/competiciones/{competicion_id}/actas")
-async def list_actas(
+def list_actas(
     competicion_id: UUID,
     jornada: Optional[int] = None,
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
@@ -1040,7 +1040,7 @@ async def list_actas(
 
 
 @router.get("/actas/{cod_acta}")
-async def get_acta(
+def get_acta(
     cod_acta: str,
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
 ):
@@ -1104,7 +1104,7 @@ async def browse_temporadas(
 
 
 @router.get("/health/rfaf")
-async def rfaf_connectivity_health(
+def rfaf_connectivity_health(
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
 ):
     """Diagnóstico: comprueba si el backend puede leer HTML de la RFAF."""
@@ -1260,7 +1260,7 @@ class SancionesConfigRequest(BaseModel):
 
 
 @router.put("/competiciones/{competicion_id}/sanciones-config")
-async def set_sanciones_config(
+def set_sanciones_config(
     competicion_id: UUID,
     body: SancionesConfigRequest,
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_UPDATE)),
@@ -1510,7 +1510,7 @@ async def sync_sanciones(
 
 
 @router.post("/competiciones/{competicion_id}/sanciones-autolink")
-async def sanciones_autolink(
+def sanciones_autolink(
     competicion_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_UPDATE)),
 ):
@@ -1558,7 +1558,7 @@ async def sanciones_autolink(
 
 
 @router.get("/competiciones/{competicion_id}/sanciones")
-async def list_sanciones(
+def list_sanciones(
     competicion_id: UUID,
     jornada: Optional[int] = None,
     equipo: Optional[str] = None,
@@ -1824,7 +1824,7 @@ async def sync_competicion(
 
 
 @router.get("/competiciones/{competicion_id}/jornada-actual")
-async def get_jornada_actual(
+def get_jornada_actual(
     competicion_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
 ):
@@ -1845,7 +1845,7 @@ async def get_jornada_actual(
 
 
 @router.get("/competiciones/{competicion_id}/proximo-rival")
-async def get_proximo_rival(
+def get_proximo_rival(
     competicion_id: UUID,
     nombre_equipo: str = Query(..., description="Nombre del equipo del usuario"),
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),

@@ -89,7 +89,7 @@ class AdminOrgCreate(BaseModel):
 # ============ Endpoints ============
 
 @router.get("/overview", response_model=AdminOverview)
-async def admin_overview(admin: UsuarioResponse = Depends(require_superadmin)):
+def admin_overview(admin: UsuarioResponse = Depends(require_superadmin)):
     """Resumen general de la plataforma."""
     supabase = get_supabase()
 
@@ -120,7 +120,7 @@ async def admin_overview(admin: UsuarioResponse = Depends(require_superadmin)):
 
 
 @router.get("/organizaciones")
-async def admin_list_organizaciones(admin: UsuarioResponse = Depends(require_superadmin)):
+def admin_list_organizaciones(admin: UsuarioResponse = Depends(require_superadmin)):
     """Lista todas las organizaciones con su suscripcion y equipos."""
     supabase = get_supabase()
 
@@ -168,7 +168,7 @@ async def admin_list_organizaciones(admin: UsuarioResponse = Depends(require_sup
 
 
 @router.post("/organizaciones")
-async def admin_create_organizacion(
+def admin_create_organizacion(
     data: AdminOrgCreate,
     admin: UsuarioResponse = Depends(require_superadmin),
 ):
@@ -240,7 +240,7 @@ async def admin_create_organizacion(
 
 
 @router.patch("/organizaciones/{org_id}")
-async def admin_update_organizacion(
+def admin_update_organizacion(
     org_id: str,
     data: dict,
     admin: UsuarioResponse = Depends(require_superadmin),
@@ -276,7 +276,7 @@ async def admin_update_organizacion(
 
 
 @router.get("/organizaciones/{org_id}/detalle")
-async def admin_org_detail(
+def admin_org_detail(
     org_id: str,
     admin: UsuarioResponse = Depends(require_superadmin),
 ):
@@ -359,7 +359,7 @@ class AdminClubUpdate(BaseModel):
 
 
 @router.patch("/organizaciones/{org_id}/administrador")
-async def admin_update_club_admin(
+def admin_update_club_admin(
     org_id: str,
     data: AdminClubUpdate,
     admin: UsuarioResponse = Depends(require_superadmin),
@@ -401,7 +401,7 @@ async def admin_update_club_admin(
 
 
 @router.patch("/organizaciones/{org_id}/suscripcion")
-async def admin_update_suscripcion(
+def admin_update_suscripcion(
     org_id: str,
     data: UpdateSuscripcionAdmin,
     admin: UsuarioResponse = Depends(require_superadmin),
@@ -474,7 +474,7 @@ async def admin_update_suscripcion(
 
 
 @router.post("/invitaciones")
-async def admin_create_invite(
+def admin_create_invite(
     data: AdminInviteCreate,
     admin: UsuarioResponse = Depends(require_superadmin),
 ):
@@ -569,7 +569,7 @@ async def admin_create_invite(
 
 
 @router.get("/usuarios")
-async def admin_list_usuarios(
+def admin_list_usuarios(
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
     search: Optional[str] = None,
@@ -598,7 +598,7 @@ async def admin_list_usuarios(
 
 
 @router.delete("/usuarios/{user_id}")
-async def admin_delete_user(
+def admin_delete_user(
     user_id: str,
     admin: UsuarioResponse = Depends(require_superadmin),
 ):
@@ -630,7 +630,7 @@ async def admin_delete_user(
 
 
 @router.patch("/usuarios/{user_id}/rol")
-async def admin_change_user_role(
+def admin_change_user_role(
     user_id: str,
     data: dict,
     admin: UsuarioResponse = Depends(require_superadmin),
@@ -676,7 +676,7 @@ async def admin_change_user_role(
 
 
 @router.delete("/invitaciones/{invite_id}")
-async def admin_revoke_invite(
+def admin_revoke_invite(
     invite_id: str,
     admin: UsuarioResponse = Depends(require_superadmin),
 ):
@@ -709,7 +709,7 @@ async def admin_revoke_invite(
 
 
 @router.post("/invitaciones/{invite_id}/resend")
-async def admin_resend_invite(
+def admin_resend_invite(
     invite_id: str,
     admin: UsuarioResponse = Depends(require_superadmin),
 ):
@@ -732,7 +732,7 @@ async def admin_resend_invite(
 
 
 @router.get("/planes")
-async def admin_list_planes(admin: UsuarioResponse = Depends(require_superadmin)):
+def admin_list_planes(admin: UsuarioResponse = Depends(require_superadmin)):
     """Lista todos los planes disponibles."""
     supabase = get_supabase()
     result = supabase.table("planes").select("*").eq("activo", True).order("precio_mensual_cents").execute()
@@ -742,7 +742,7 @@ async def admin_list_planes(admin: UsuarioResponse = Depends(require_superadmin)
 # ============ Platform Analytics ============
 
 @router.get("/organizaciones/{org_id}/stats")
-async def admin_org_stats(
+def admin_org_stats(
     org_id: str,
     admin: UsuarioResponse = Depends(require_superadmin),
 ):
@@ -823,7 +823,7 @@ async def admin_org_stats(
 
 
 @router.get("/platform-analytics")
-async def admin_platform_analytics(
+def admin_platform_analytics(
     admin: UsuarioResponse = Depends(require_superadmin),
 ):
     """Global platform analytics: growth, active users, MRR, AI costs."""
@@ -893,7 +893,7 @@ async def admin_platform_analytics(
 
 
 @router.get("/comparisons")
-async def admin_org_comparisons(
+def admin_org_comparisons(
     admin: UsuarioResponse = Depends(require_superadmin),
 ):
     """Top 10 orgs by AI calls, sessions, active users, storage."""

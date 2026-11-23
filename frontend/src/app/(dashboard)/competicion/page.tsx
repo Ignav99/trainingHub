@@ -186,7 +186,7 @@ export default function CompeticionPage() {
       // Show team selector immediately
       setSelectingEquipo(true)
       // Reload to get jornadas
-      mutate((key: string) => typeof key === 'string' && key.includes('/rfef'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/rfef'))
       await reloadCompeticion()
     } catch (err: any) {
       const msg = err.message || 'Error al importar'
@@ -214,7 +214,7 @@ export default function CompeticionPage() {
           (result.link_result ? `, ${result.link_result.partidos_created || 0} partidos creados` : '') +
           (result.errors?.length ? ` (${result.errors.length} errores)` : '')
         )
-        mutate((key: string) => typeof key === 'string' && key.includes('/rfef'), undefined, { revalidate: true })
+        mutate((key: string) => typeof key === 'string' && key.includes('/rfef'))
         await reloadCompeticion()
       } catch (err: any) {
         // Non-critical — the setup itself already worked
@@ -242,7 +242,7 @@ export default function CompeticionPage() {
           (result.errors?.length ? ` (${result.errors.length} errores)` : '')
         )
       }
-      mutate((key: string) => typeof key === 'string' && key.includes('/rfef'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/rfef'))
       await reloadCompeticion()
       // Refresh sync status
       rfefApi.getSyncStatus(competicion.id).then(setDataSyncStatus).catch(() => {})
@@ -275,7 +275,7 @@ export default function CompeticionPage() {
       } catch {
         // Link might fail if no jornadas yet — that's ok
       }
-      mutate((key: string) => typeof key === 'string' && key.includes('/rfef'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/rfef'))
     } catch (err: any) {
       setError(err.message || 'Error al seleccionar equipo')
     } finally {
@@ -291,7 +291,7 @@ export default function CompeticionPage() {
       setJornadas([])
       setConfirmDelete(false)
       setSyncStatus(null)
-      mutate((key: string) => typeof key === 'string' && key.includes('/rfef'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/rfef'))
     } catch (err: any) {
       setError(err.message || 'Error al eliminar')
     }
@@ -441,7 +441,7 @@ export default function CompeticionPage() {
         `Actas: ${res.actas_scraped} sincronizadas de ${res.total_available} disponibles` +
         (res.errors ? ` (${res.errors} errores)` : '')
       )
-      mutate((key: string) => typeof key === 'string' && key.includes('/rfef'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/rfef'))
     } catch (err: any) {
       setError(err.message || 'Error al sincronizar actas')
     } finally {
@@ -472,9 +472,7 @@ export default function CompeticionPage() {
               onDone={async (comp) => {
                 setCompeticion(comp)
                 setError(null)
-                mutate((key: string) => typeof key === 'string' && key.includes('/rfef'), undefined, {
-                  revalidate: true,
-                })
+                mutate((key: string) => typeof key === 'string' && key.includes('/rfef'))
                 await reloadCompeticion()
               }}
             />

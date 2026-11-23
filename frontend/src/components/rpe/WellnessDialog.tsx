@@ -86,7 +86,7 @@ export function WellnessDialog({ open, onOpenChange, jugadores }: WellnessDialog
       toast.success('Wellness registrado')
       onOpenChange(false)
       resetForm()
-      mutate((key: string) => typeof key === 'string' && (key.includes('/wellness') || key.includes('/carga')), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && (key.includes('/wellness') || key.includes('/carga')))
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error al registrar wellness'
       toast.error(message)

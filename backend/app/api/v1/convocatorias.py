@@ -61,7 +61,7 @@ def _recompute_rendimiento_media(supabase, convocatoria_id: str) -> Tuple[Option
 
 
 @router.get("/partido/{partido_id}", response_model=ConvocatoriaListResponse)
-async def list_convocatorias_partido(
+def list_convocatorias_partido(
     partido_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.CONVOCATORIA_READ)),
 ):
@@ -100,7 +100,7 @@ async def list_convocatorias_partido(
 
 
 @router.get("/jugador/{jugador_id}")
-async def list_convocatorias_jugador(
+def list_convocatorias_jugador(
     jugador_id: UUID,
     limit: int = Query(20, ge=1, le=100),
     ambito: str = Query(AMBITO_COMPETICION),
@@ -159,7 +159,7 @@ async def list_convocatorias_jugador(
 
 
 @router.get("/equipo/{equipo_id}/resumen", response_model=ResumenEquipoConvocatoriasResponse)
-async def resumen_convocatorias_equipo(
+def resumen_convocatorias_equipo(
     equipo_id: UUID,
     limit_racha: int = Query(5, ge=1, le=10),
     ambito: str = Query(AMBITO_COMPETICION),
@@ -219,7 +219,7 @@ async def resumen_convocatorias_equipo(
 
 
 @router.get("/{convocatoria_id}", response_model=ConvocatoriaResponse)
-async def get_convocatoria(
+def get_convocatoria(
     convocatoria_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.CONVOCATORIA_READ)),
 ):
@@ -240,7 +240,7 @@ async def get_convocatoria(
 
 
 @router.put("/{convocatoria_id}/rendimiento", response_model=RendimientoNotaResponse)
-async def upsert_rendimiento_nota(
+def upsert_rendimiento_nota(
     convocatoria_id: UUID,
     body: RendimientoNotaUpsert,
     auth: AuthContext = Depends(require_permission(Permission.CONVOCATORIA_UPDATE)),
@@ -290,7 +290,7 @@ async def upsert_rendimiento_nota(
 
 
 @router.delete("/{convocatoria_id}/rendimiento", response_model=RendimientoNotaResponse)
-async def delete_rendimiento_nota(
+def delete_rendimiento_nota(
     convocatoria_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.CONVOCATORIA_UPDATE)),
 ):
@@ -340,7 +340,7 @@ def _assert_jugador_convocable(supabase, jugador_id: str):
 
 
 @router.post("", response_model=ConvocatoriaResponse, status_code=status.HTTP_201_CREATED)
-async def create_convocatoria(
+def create_convocatoria(
     convocatoria: ConvocatoriaCreate,
     auth: AuthContext = Depends(require_permission(Permission.CONVOCATORIA_CREATE)),
 ):
@@ -364,7 +364,7 @@ async def create_convocatoria(
 
 
 @router.post("/batch", status_code=status.HTTP_201_CREATED)
-async def create_convocatorias_batch(
+def create_convocatorias_batch(
     convocatorias: list[ConvocatoriaCreate],
     auth: AuthContext = Depends(require_permission(Permission.CONVOCATORIA_CREATE)),
 ):
@@ -413,7 +413,7 @@ async def create_convocatorias_batch(
 
 
 @router.put("/batch-update")
-async def batch_update_convocatorias(
+def batch_update_convocatorias(
     updates: list[dict],
     bg: BackgroundTasks,
     auth: AuthContext = Depends(require_permission(Permission.CONVOCATORIA_UPDATE)),
@@ -489,7 +489,7 @@ async def batch_update_convocatorias(
 
 
 @router.put("/{convocatoria_id}", response_model=ConvocatoriaResponse)
-async def update_convocatoria(
+def update_convocatoria(
     convocatoria_id: UUID,
     convocatoria: ConvocatoriaUpdate,
     bg: BackgroundTasks,
@@ -540,7 +540,7 @@ async def update_convocatoria(
 
 
 @router.delete("/{convocatoria_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_convocatoria(
+def delete_convocatoria(
     convocatoria_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.CONVOCATORIA_CREATE)),
 ):

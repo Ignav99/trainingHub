@@ -23,7 +23,7 @@ router = APIRouter()
 
 
 @router.get("/alertas")
-async def list_alertas(
+def list_alertas(
     equipo_id: Optional[UUID] = None,
     microciclo_id: Optional[UUID] = None,
     resuelta: Optional[bool] = False,
@@ -66,7 +66,7 @@ async def list_alertas(
 
 
 @router.post("/alertas/detectar")
-async def detectar_alertas(
+def detectar_alertas(
     equipo_id: UUID,
     microciclo_id: Optional[UUID] = None,
     auth: AuthContext = Depends(require_permission(Permission.MICROCICLO_CREATE)),
@@ -166,7 +166,7 @@ async def detectar_alertas(
 
 
 @router.put("/alertas/{alerta_id}", response_model=AlertaResponse)
-async def update_alerta(
+def update_alerta(
     alerta_id: UUID,
     alerta: AlertaUpdate,
     auth: AuthContext = Depends(require_permission(Permission.MICROCICLO_UPDATE)),
@@ -188,7 +188,7 @@ async def update_alerta(
 
 
 @router.delete("/alertas/{alerta_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_alerta(
+def delete_alerta(
     alerta_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.MICROCICLO_DELETE)),
 ):

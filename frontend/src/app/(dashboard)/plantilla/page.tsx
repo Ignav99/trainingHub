@@ -571,7 +571,8 @@ export default function PlantillaPage() {
   }, [resumenResponse])
 
   const jugadores = jugadoresResponse?.data || []
-  const error = swrError ? 'Error al cargar la plantilla' : null
+  // Con datos en caché se siguen mostrando: el error solo tapa la lista si no hay nada.
+  const error = swrError && !jugadoresResponse ? 'Error al cargar la plantilla' : null
 
   const countsByTipo = useMemo(() => {
     const counts: Record<TipoJugador, number> = { plantilla: 0, juvenil: 0, prueba: 0, invitado: 0 }
@@ -621,7 +622,7 @@ export default function PlantillaPage() {
   }, [jugadores, jugadoresResponse])
 
   const invalidateJugadores = () => {
-    mutate((key: string) => typeof key === 'string' && key.includes('/jugadores'), undefined, { revalidate: true })
+    mutate((key: string) => typeof key === 'string' && key.includes('/jugadores'))
   }
 
   const handleDelete = async (id: string) => {

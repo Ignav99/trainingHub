@@ -123,7 +123,7 @@ ALLOWED_VIDEO_TYPES = ("video/",)
 
 
 @router.get("", response_model=MicrocicloListResponse)
-async def list_microciclos(
+def list_microciclos(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=500),
     equipo_id: Optional[UUID] = None,
@@ -182,7 +182,7 @@ async def list_microciclos(
 
 
 @router.get("/{microciclo_id}/completo")
-async def get_microciclo_completo(
+def get_microciclo_completo(
     microciclo_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.MICROCICLO_READ)),
 ):
@@ -401,7 +401,7 @@ async def get_microciclo_completo(
 
 
 @router.get("/{microciclo_id}", response_model=MicrocicloResponse)
-async def get_microciclo(
+def get_microciclo(
     microciclo_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.MICROCICLO_READ)),
 ):
@@ -423,7 +423,7 @@ async def get_microciclo(
 
 
 @router.get("/{microciclo_id}/sesiones")
-async def get_microciclo_sesiones(
+def get_microciclo_sesiones(
     microciclo_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.MICROCICLO_READ)),
 ):
@@ -454,7 +454,7 @@ async def get_microciclo_sesiones(
 
 
 @router.post("", response_model=MicrocicloResponse, status_code=status.HTTP_201_CREATED)
-async def create_microciclo(
+def create_microciclo(
     microciclo: MicrocicloCreate,
     auth: AuthContext = Depends(require_permission(Permission.MICROCICLO_CREATE)),
 ):
@@ -510,7 +510,7 @@ async def create_microciclo(
 
 
 @router.put("/{microciclo_id}", response_model=MicrocicloResponse)
-async def update_microciclo(
+def update_microciclo(
     microciclo_id: UUID,
     microciclo: MicrocicloUpdate,
     auth: AuthContext = Depends(require_permission(Permission.MICROCICLO_UPDATE)),
@@ -554,7 +554,7 @@ async def update_microciclo(
 
 
 @router.delete("/{microciclo_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_microciclo(
+def delete_microciclo(
     microciclo_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.MICROCICLO_DELETE)),
 ):
@@ -576,7 +576,7 @@ async def delete_microciclo(
 
 
 @router.post("/{microciclo_id}/link-sesiones")
-async def link_sesiones_to_microciclo(
+def link_sesiones_to_microciclo(
     microciclo_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.MICROCICLO_UPDATE)),
 ):
@@ -624,7 +624,7 @@ async def link_sesiones_to_microciclo(
 
 
 @router.put("/{microciclo_id}/reordenar")
-async def reordenar_sesiones(
+def reordenar_sesiones(
     microciclo_id: UUID,
     request: ReordenarSesionesRequest,
     auth: AuthContext = Depends(require_permission(Permission.MICROCICLO_UPDATE)),

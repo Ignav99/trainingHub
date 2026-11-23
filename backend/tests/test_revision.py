@@ -414,7 +414,7 @@ class TestClipUploadEndpoints:
         auth.user_id = "user-1"
         with patch("app.api.v1.revision.get_supabase") as get_sb:
             with pytest.raises(HTTPException) as err:
-                await create_clip_upload_url(
+                create_clip_upload_url(
                     ClipUploadUrlRequest(
                         pack_id=uuid4(),
                         equipo_id=uuid4(),
@@ -462,7 +462,7 @@ class TestClipUploadEndpoints:
         auth.user_id = "user-1"
         with patch("app.api.v1.revision.get_supabase", return_value=supabase):
             with patch("app.api.v1.revision.r2_enabled", return_value=False):
-                result = await create_clip_upload_url(
+                result = create_clip_upload_url(
                     ClipUploadUrlRequest(
                         pack_id=pack,
                         equipo_id=equipo,
@@ -507,7 +507,7 @@ class TestClipUploadEndpoints:
         with patch("app.api.v1.revision.get_supabase", return_value=supabase):
             with patch("app.api.v1.revision.r2_enabled", return_value=True):
                 with patch("app.api.v1.revision.presign_put", return_value=signed) as presign:
-                    result = await create_clip_upload_url(
+                    result = create_clip_upload_url(
                         ClipUploadUrlRequest(
                             pack_id=pack,
                             equipo_id=equipo,
@@ -538,7 +538,7 @@ class TestClipUploadEndpoints:
         auth.user_id = "user-1"
         with patch("app.api.v1.revision.get_supabase") as get_sb:
             with pytest.raises(HTTPException) as err:
-                await confirm_clip_upload(
+                confirm_clip_upload(
                     ClipConfirmRequest(
                         pack_id=uuid4(),
                         equipo_id=uuid4(),

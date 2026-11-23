@@ -14,7 +14,7 @@ router = APIRouter()
 
 
 @router.get("")
-async def list_tasks(
+def list_tasks(
     estado: Optional[str] = Query(None, description="Filtrar por estado"),
     tipo: Optional[str] = Query(None, description="Filtrar por tipo de tarea"),
     limit: int = Query(20, ge=1, le=100),
@@ -31,7 +31,7 @@ async def list_tasks(
 
 
 @router.get("/tipos")
-async def list_task_types(
+def list_task_types(
     auth: AuthContext = Depends(require_permission()),
 ):
     """Lista los tipos de tareas disponibles."""
@@ -44,7 +44,7 @@ async def list_task_types(
 
 
 @router.get("/{task_id}")
-async def get_task(
+def get_task(
     task_id: UUID,
     auth: AuthContext = Depends(require_permission()),
 ):
@@ -68,7 +68,7 @@ async def get_task(
 
 
 @router.post("/{task_id}/cancelar")
-async def cancel_task(
+def cancel_task(
     task_id: UUID,
     auth: AuthContext = Depends(require_permission()),
 ):

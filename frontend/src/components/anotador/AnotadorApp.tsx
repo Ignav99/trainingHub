@@ -332,9 +332,7 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
           key.includes('/partidos')
           || key.includes('/convocatorias')
           || key.includes('/estadisticas-partido')
-        ),
-        undefined,
-        { revalidate: true },
+        )
       )
       if (dumpError) {
         const msg = dumpError instanceof Error ? dumpError.message : 'Error del servidor'

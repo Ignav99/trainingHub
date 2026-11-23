@@ -114,7 +114,7 @@ export default function RivalDetailPage() {
     setUploadingEscudo(true)
     try {
       await rivalesApi.uploadEscudo(id, file)
-      mutate((key: string) => typeof key === 'string' && key.includes('/rivales'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/rivales'))
       toast.success('Escudo actualizado')
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Error al subir el escudo')

@@ -61,7 +61,7 @@ def _pdf_response(pdf_bytes: bytes, filename: str, preview: bool) -> StreamingRe
 
 
 @router.get("/plantillas")
-async def listar_plantillas(
+def listar_plantillas(
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
 ):
     data = catalogo()
@@ -118,7 +118,7 @@ async def interpretar_informe(
 
 
 @router.get("/microciclo/{microciclo_id}/pizarras")
-async def pizarras_microciclo(
+def pizarras_microciclo(
     microciclo_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
 ):

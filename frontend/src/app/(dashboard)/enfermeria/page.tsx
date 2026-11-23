@@ -116,7 +116,8 @@ export default function EnfermeriaPage() {
   const jugadoresMap = useMemo(() => new Map(jugadores.map((j) => [j.id, j])), [jugadores])
 
   const loading = loadingRegistros || loadingJugadores
-  const error = registrosError ? 'Error al cargar los datos médicos' : null
+  // Con datos en caché se siguen mostrando: el error solo tapa la lista si no hay nada.
+  const error = registrosError && !registrosRaw ? 'Error al cargar los datos médicos' : null
 
   const [view, setView] = useState<'ahora' | 'historico'>('ahora')
   const [busqueda, setBusqueda] = useState('')
@@ -368,8 +369,8 @@ export default function EnfermeriaPage() {
 
       setShowNuevo(false)
       resetForm()
-      mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
-      mutate((key: string) => typeof key === 'string' && key.includes('/jugadores'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/medico'))
+      mutate((key: string) => typeof key === 'string' && key.includes('/jugadores'))
       toast.success(esHistorico ? 'Registro histórico creado' : 'Registro médico creado')
       if (!esHistorico && created?.id) router.push(`/enfermeria/${created.id}`)
     } catch (err) {
@@ -471,9 +472,7 @@ export default function EnfermeriaPage() {
                 size="sm"
                 variant="outline"
                 onClick={() =>
-                  mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, {
-                    revalidate: true,
-                  })
+                  mutate((key: string) => typeof key === 'string' && key.includes('/medico'))
                 }
               >
                 Reintentar
@@ -485,9 +484,7 @@ export default function EnfermeriaPage() {
               <p className="text-red-600 mb-4">{error}</p>
               <Button
                 onClick={() =>
-                  mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, {
-                    revalidate: true,
-                  })
+                  mutate((key: string) => typeof key === 'string' && key.includes('/medico'))
                 }
               >
                 Reintentar

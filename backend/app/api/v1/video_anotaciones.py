@@ -26,7 +26,7 @@ router = APIRouter()
 # ============ LIST by partido ============
 
 @router.get("/partido/{partido_id}")
-async def list_anotaciones(
+def list_anotaciones(
     partido_id: UUID,
     equipo_id: UUID = Query(...),
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
@@ -48,7 +48,7 @@ async def list_anotaciones(
 # ============ CREATE ============
 
 @router.post("/", status_code=201)
-async def create_anotacion(
+def create_anotacion(
     data: VideoAnotacionCreate,
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_UPDATE)),
 ):
@@ -87,7 +87,7 @@ async def create_anotacion(
 # ============ UPDATE ============
 
 @router.put("/{anotacion_id}")
-async def update_anotacion(
+def update_anotacion(
     anotacion_id: UUID,
     data: VideoAnotacionUpdate,
     equipo_id: UUID = Query(...),
@@ -125,7 +125,7 @@ async def update_anotacion(
 # ============ DELETE ============
 
 @router.delete("/{anotacion_id}")
-async def delete_anotacion(
+def delete_anotacion(
     anotacion_id: UUID,
     equipo_id: UUID = Query(...),
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_UPDATE)),

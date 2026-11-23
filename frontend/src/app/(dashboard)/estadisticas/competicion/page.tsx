@@ -161,7 +161,7 @@ export default function CompeticionPage() {
       setShowSetup(false)
       setSetupUrl('')
       setSetupNombre('')
-      mutate((key: string) => typeof key === 'string' && key.includes('/rfef'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/rfef'))
       await loadCompeticionData(comp)
     } catch (err: any) {
       setSetupError(err.message || 'Error al conectar con la RFAF')
@@ -178,7 +178,7 @@ export default function CompeticionPage() {
       const updated = await rfefApi.getCompeticion(selected.id)
       setSelected(updated)
       await loadCompeticionData(updated)
-      mutate((key: string) => typeof key === 'string' && key.includes('/rfef'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/rfef'))
     } catch (err) {
       console.error('Sync error:', err)
     } finally {
@@ -194,7 +194,7 @@ export default function CompeticionPage() {
       const updated = await rfefApi.getCompeticion(selected.id)
       setSelected(updated)
       await loadCompeticionData(updated)
-      mutate((key: string) => typeof key === 'string' && key.includes('/rfef'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/rfef'))
     } catch (err) {
       console.error('Full sync error:', err)
     } finally {
@@ -213,7 +213,7 @@ export default function CompeticionPage() {
       setSelected(updated)
       setSelectingEquipo(false)
       await loadCompeticionData(updated)
-      mutate((key: string) => typeof key === 'string' && key.includes('/rfef'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/rfef'))
     } catch (err: any) {
       console.error('Error setting mi equipo:', err)
     } finally {

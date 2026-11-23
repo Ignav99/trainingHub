@@ -41,6 +41,8 @@ import { useAppearance } from '@/lib/useAppearance'
 import { Localia } from '@/components/ui/localia'
 import { KpiFranja } from '@/components/estadisticas/KpiFranja'
 import { estadoDeMicrociclo } from '@/lib/microcicloEstado'
+import { useNumeroMicrociclo } from '@/lib/hooks/useNumeroMicrociclo'
+import { etiquetaMC, rangoInicios } from '@/lib/microcicloNumero'
 
 type FilterKey = 'todos' | 'en_curso' | 'planificado' | 'completado' | 'borrador' | 'competicion' | 'pretemporada'
 
@@ -222,7 +224,7 @@ const ESTADO_FORMA: Record<string, EstadoTipo> = {
 }
 
 /** Fila de microciclo en Cal: lista continua con las mismas columnas de datos que la tarjeta. */
-function MicrocicloFilaCal({ m }: { m: Microciclo }) {
+function MicrocicloFilaCal({ m, numero }: { m: Microciclo; numero: number | null }) {
   const estadoKey = estadoDeMicrociclo(m)
   const estado = ESTADO_STYLE[estadoKey] || ESTADO_STYLE.borrador
   const pre = isPretemporada(m)
@@ -237,7 +239,7 @@ function MicrocicloFilaCal({ m }: { m: Microciclo }) {
         <div className="w-28 flex-none sm:w-36">
           <p className="text-sm font-semibold tabular-nums">{formatRange(m.fecha_inicio, m.fecha_fin)}</p>
           <p className="font-mono text-xs tabular-nums text-muted-foreground">
-            {weekLabel(m.fecha_inicio)} · {daysSpan(m.fecha_inicio, m.fecha_fin)} d
+            {numero ? `${etiquetaMC(numero)} · ` : ''}{daysSpan(m.fecha_inicio, m.fecha_fin)} d
           </p>
         </div>
         <div className="min-w-0 flex-1">
@@ -329,9 +331,7 @@ export default function MicrociclosListPage() {
       setShowCreate(false)
       setForm({ fecha_inicio: '', fecha_fin: '', fase: 'competicion' })
       mutate(
-        (key: string) => typeof key === 'string' && key.includes('/microciclos'),
-        undefined,
-        { revalidate: true }
+        (key: string) => typeof key === 'string' && key.includes('/microciclos')
       )
       try {
         await microciclosApi.linkSesiones(created.id)
@@ -380,6 +380,9 @@ export default function MicrociclosListPage() {
 
   // Vista habitual: solo el microciclo en curso. El resto se busca con filtros.
   const library = useMemo(() => filtered, [filtered])
+  // Número de microciclo de la temporada (solo Cal lo muestra).
+  const rangoLibrary = useMemo(() => rangoInicios(library), [library])
+  const numeroMicro = useNumeroMicrociclo(rangoLibrary.desde, rangoLibrary.hasta, cal)
 
   const counts = useMemo(() => {
     return {
@@ -528,12 +531,16 @@ export default function MicrociclosListPage() {
         </div>
       )}
 
-      {error && (
+      {error && !data && (
         <div className="rounded-2xl border bg-card py-12 text-center px-4">
           <AlertCircle className="h-10 w-10 text-destructive mx-auto mb-3" />
           <p className="font-medium">Error al cargar microciclos</p>
           <p className="text-sm text-muted-foreground mt-1">{error.message}</p>
-          <Button variant="outline" className="mt-4" onClick={() => window.location.reload()}>
+          <Button
+            variant="outline"
+            className="mt-4"
+            onClick={() => mutate((key: string) => typeof key === 'string' && key.startsWith('/microciclos'))}
+          >
             Reintentar
           </Button>
         </div>
@@ -613,7 +620,7 @@ export default function MicrociclosListPage() {
                 cal={
                   <ul className="cal-linea bg-card">
                     {library.map((m) => (
-                      <MicrocicloFilaCal key={m.id} m={m} />
+                      <MicrocicloFilaCal key={m.id} m={m} numero={numeroMicro(m)} />
                     ))}
                   </ul>
                 }

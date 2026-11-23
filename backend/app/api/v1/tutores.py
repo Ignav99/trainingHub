@@ -9,7 +9,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from app.database import get_supabase
+from app.database import get_supabase, new_auth_client
 from app.dependencies import require_permission, AuthContext
 from app.models import (
     VinculoTutorCreate,
@@ -25,7 +25,7 @@ router = APIRouter()
 
 
 @router.get("/verify/{token}", response_model=TutorVerifyResponse)
-async def verify_tutor_invitation(token: str):
+def verify_tutor_invitation(token: str):
     """Verifica una invitacion de tutor (no requiere auth)."""
     supabase = get_supabase()
     token_hash = hashlib.sha256(token.encode()).hexdigest()
@@ -68,7 +68,7 @@ async def verify_tutor_invitation(token: str):
 
 
 @router.post("/accept", response_model=UsuarioResponse, status_code=status.HTTP_201_CREATED)
-async def accept_tutor_invitation(data: TutorAcceptRequest, request: Request):
+def accept_tutor_invitation(data: TutorAcceptRequest, request: Request):
     """
     Tutor acepta invitacion, crea cuenta y vinculo con el menor.
     El menor NO tiene cuenta propia — accede via la cuenta del tutor.
@@ -111,7 +111,8 @@ async def accept_tutor_invitation(data: TutorAcceptRequest, request: Request):
         }).eq("id", user_id).execute()
     else:
         # Create new user account
-        auth_response = supabase.auth.sign_up({
+        # Cliente desechable: sign_up guarda la sesión en el cliente que lo llama.
+        auth_response = new_auth_client().auth.sign_up({
             "email": inv["email"],
             "password": data.password,
         })
@@ -178,7 +179,7 @@ async def accept_tutor_invitation(data: TutorAcceptRequest, request: Request):
 # ============ Tutor Dashboard ============
 
 @router.get("/mis-menores", response_model=VinculoTutorListResponse)
-async def list_mis_menores(
+def list_mis_menores(
     auth: AuthContext = Depends(require_permission()),
 ):
     """Lista los menores vinculados al tutor actual."""
@@ -196,7 +197,7 @@ async def list_mis_menores(
 
 
 @router.post("/{vinculo_id}/revoke", response_model=VinculoTutorResponse)
-async def revoke_consentimiento_menor(
+def revoke_consentimiento_menor(
     vinculo_id: UUID,
     request: Request,
     auth: AuthContext = Depends(require_permission()),
@@ -235,7 +236,7 @@ async def revoke_consentimiento_menor(
 
 
 @router.get("/menor/{jugador_id}/sesiones")
-async def get_menor_sesiones(
+def get_menor_sesiones(
     jugador_id: UUID,
     auth: AuthContext = Depends(require_permission()),
 ):
@@ -276,7 +277,7 @@ async def get_menor_sesiones(
 
 
 @router.get("/menor/{jugador_id}/convocatorias")
-async def get_menor_convocatorias(
+def get_menor_convocatorias(
     jugador_id: UUID,
     auth: AuthContext = Depends(require_permission()),
 ):

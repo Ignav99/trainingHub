@@ -163,7 +163,7 @@ export default function RPEPage() {
     setRecalculating(true)
     try {
       await cargaApi.recalcular(equipoActivo.id)
-      mutate((key: string) => typeof key === 'string' && (key.includes('/carga') || key.includes('/wellness')), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && (key.includes('/carga') || key.includes('/wellness')))
     } catch (err: any) {
       toast.error(err.message || 'Error al recalcular')
     } finally {
@@ -694,7 +694,7 @@ function ExpandedRPERow({ jugadorId }: { jugadorId: string }) {
       toast.success('RPE actualizado')
       setEditingId(null)
       await refreshRpe()
-      mutate((key: string) => typeof key === 'string' && key.includes('/carga'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/carga'))
     } catch (err: any) {
       toast.error(err?.message || 'Error al actualizar')
     } finally {
@@ -709,7 +709,7 @@ function ExpandedRPERow({ jugadorId }: { jugadorId: string }) {
       await rpeApi.delete(id)
       toast.success('Registro eliminado')
       await refreshRpe()
-      mutate((key: string) => typeof key === 'string' && key.includes('/carga'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/carga'))
     } catch (err: any) {
       toast.error(err?.message || 'Error al eliminar')
     } finally {

@@ -59,7 +59,7 @@ PASOS_ONBOARDING = [
 
 
 @router.get("/progreso")
-async def get_onboarding_progreso(
+def get_onboarding_progreso(
     auth: AuthContext = Depends(require_permission()),
 ):
     """Obtiene el progreso de onboarding del usuario."""
@@ -89,7 +89,7 @@ async def get_onboarding_progreso(
 
 
 @router.post("/completar-paso/{paso}")
-async def completar_paso(
+def completar_paso(
     paso: str,
     auth: AuthContext = Depends(require_permission()),
 ):
@@ -141,7 +141,7 @@ async def completar_paso(
 
 
 @router.post("/skip")
-async def skip_onboarding(
+def skip_onboarding(
     auth: AuthContext = Depends(require_permission()),
 ):
     """Salta el onboarding completo."""
@@ -168,7 +168,7 @@ async def skip_onboarding(
 
 
 @router.get("/check")
-async def check_onboarding_auto(
+def check_onboarding_auto(
     auth: AuthContext = Depends(require_permission()),
 ):
     """

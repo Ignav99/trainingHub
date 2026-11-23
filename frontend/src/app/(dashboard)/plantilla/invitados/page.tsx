@@ -249,7 +249,7 @@ export default function ExtraplantillaPage() {
   }, [extras])
 
   const invalidate = () => {
-    mutate((key: string) => typeof key === 'string' && key.includes('/jugadores'), undefined, { revalidate: true })
+    mutate((key: string) => typeof key === 'string' && key.includes('/jugadores'))
   }
 
   const handleAdd = async (data: {

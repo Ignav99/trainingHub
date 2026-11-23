@@ -41,7 +41,7 @@ class OrganizacionResponse(BaseModel):
 # ============ Endpoints ============
 
 @router.get("")
-async def get_organizacion(auth: AuthContext = Depends(require_permission())):
+def get_organizacion(auth: AuthContext = Depends(require_permission())):
     """Obtiene los datos de la organizacion del usuario autenticado."""
     from app.database import get_supabase
 
@@ -61,7 +61,7 @@ async def get_organizacion(auth: AuthContext = Depends(require_permission())):
 
 
 @router.patch("")
-async def update_organizacion(
+def update_organizacion(
     data: OrganizacionUpdate,
     auth: AuthContext = Depends(require_permission()),
 ):
@@ -122,7 +122,7 @@ async def update_organizacion(
 
 
 @router.get("/equipaciones", response_model=list[EquipacionResponse])
-async def get_equipaciones_organizacion(auth: AuthContext = Depends(require_permission())):
+def get_equipaciones_organizacion(auth: AuthContext = Depends(require_permission())):
     """Lista las equipaciones (local/visitante) del club."""
     from app.database import get_supabase
 
@@ -134,7 +134,7 @@ async def get_equipaciones_organizacion(auth: AuthContext = Depends(require_perm
 
 
 @router.put("/equipaciones/{tipo}", response_model=EquipacionResponse)
-async def upsert_equipacion_organizacion(
+def upsert_equipacion_organizacion(
     tipo: str,
     data: EquipacionUpsert,
     auth: AuthContext = Depends(require_permission()),
@@ -168,7 +168,7 @@ async def upsert_equipacion_organizacion(
 
 
 @router.get("/miembros")
-async def list_miembros(auth: AuthContext = Depends(require_permission())):
+def list_miembros(auth: AuthContext = Depends(require_permission())):
     """Lista a los companeros de equipo del usuario (comparten al menos un
     equipo), no a todo el staff de la organizacion. Solo el club-admin
     gestiona el staff de todos los equipos, y lo hace desde /club/miembros

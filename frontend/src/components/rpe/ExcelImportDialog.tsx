@@ -142,7 +142,7 @@ export function ExcelImportDialog({ open, onOpenChange, jugadores }: ExcelImport
       setImportResult(result)
       setStep('done')
       toast.success(`${result.imported} registros importados`)
-      mutate((key: string) => typeof key === 'string' && (key.includes('/wellness') || key.includes('/carga')), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && (key.includes('/wellness') || key.includes('/carga')))
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error al importar'
       toast.error(message)

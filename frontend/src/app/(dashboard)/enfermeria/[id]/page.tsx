@@ -180,7 +180,7 @@ export default function EnfermeriaDetailPage() {
       }
       await medicoApi.update(registro.id, payload)
       setIsEditing(false)
-      mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/medico'))
     } catch (err) {
       console.error('Error saving:', err)
       toast.error('Error al guardar los cambios')
@@ -198,7 +198,7 @@ export default function EnfermeriaDetailPage() {
         dias_baja_reales: daysSince(registro.fecha_inicio),
       })
       setShowAlta(false)
-      mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/medico'))
     } catch (err) {
       console.error('Error giving alta:', err)
       toast.error('Error al dar de alta')
@@ -220,7 +220,7 @@ export default function EnfermeriaDetailPage() {
       setDiasRecuperacion(undefined)
       setFaseRehab('fase_1_control_dolor')
       setDispRehab('individual')
-      mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/medico'))
       toast.success('Jugador pasado a rehabilitación')
     } catch (err) {
       console.error('Error moving to rehab:', err)
@@ -235,8 +235,8 @@ export default function EnfermeriaDetailPage() {
     setDeleting(true)
     try {
       await medicoApi.delete(registro.id)
-      mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
-      mutate((key: string) => typeof key === 'string' && key.includes('/jugadores'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/medico'))
+      mutate((key: string) => typeof key === 'string' && key.includes('/jugadores'))
       toast.success('Registro eliminado')
       router.push('/enfermeria')
     } catch (err) {
@@ -254,7 +254,7 @@ export default function EnfermeriaDetailPage() {
     setUploading(true)
     try {
       await medicoApi.uploadDocument(registro.id, file)
-      mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/medico'))
       toast.success('Documento subido correctamente')
     } catch (err) {
       console.error('Error uploading document:', err)
@@ -269,7 +269,7 @@ export default function EnfermeriaDetailPage() {
     if (!registro) return
     try {
       await medicoApi.deleteDocument(registro.id, urlToRemove)
-      mutate((key: string) => typeof key === 'string' && key.includes('/medico'), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && key.includes('/medico'))
       toast.success('Documento eliminado')
     } catch (err) {
       console.error('Error deleting doc:', err)

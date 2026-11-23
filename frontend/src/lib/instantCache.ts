@@ -1,6 +1,7 @@
 import { cache as swrCache, mutate } from 'swr/_internal'
 import { api, registerInstantCache } from '@/lib/api/client'
 import { applyInstantWrite, listParams, type InstantStore, type WriteOp } from './instantCacheCore'
+import { invalidarTrasEscritura } from './invalidar'
 
 const refreshTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
@@ -64,6 +65,9 @@ export function startInstantWrite(op: WriteOp): { rollback(): void } {
 export function commitInstantWrite(op: WriteOp): void {
   const applied = applyInstantWrite(swrStore, 'commit', op)
   if (applied.refreshCollection) scheduleListRefresh(applied.refreshCollection)
+  // Listas filtradas (rango de fechas, estado…), colecciones relacionadas y
+  // resúmenes del dashboard: se revalidan en segundo plano, sin recargar.
+  invalidarTrasEscritura(op.path)
 }
 
 let installed = false

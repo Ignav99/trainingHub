@@ -52,7 +52,9 @@ import { estadoDeMicrociclo } from '@/lib/microcicloEstado'
 import { DiaCal, aspectoDia, FondoDia, NotaDiaCal, semanaDeHoy } from '@/components/dashboard/calendar/DiaCal'
 import { BotonLeyendaCal } from '@/components/dashboard/calendar/LeyendaCal'
 import { useEstiloCasa } from '@/components/dashboard/calendar/useEstiloCasa'
-import { colorLocalia, colorMD, etiquetaMicrociclo, nombreSesion, semanaDelAno, solido } from '@/lib/calendarioColores'
+import { colorLocalia, colorMD, nombreSesion, solido } from '@/lib/calendarioColores'
+import { useNumeroMicrociclo } from '@/lib/hooks/useNumeroMicrociclo'
+import { etiquetaMC, rangoInicios } from '@/lib/microcicloNumero'
 import type { DiaPersonal } from '@/lib/diaPersonal'
 
 // ============ Match Day color palette ============
@@ -206,6 +208,11 @@ export function CalendarSection({
   const isMobile = useIsMobile()
   const cal = useAppearance() === 'cal'
   const estiloCasa = useEstiloCasa()
+  const rangoMicros = useMemo(
+    () => rangoInicios(microcicloActivo ? [...microciclosMes, microcicloActivo] : microciclosMes),
+    [microciclosMes, microcicloActivo]
+  )
+  const numeroMicro = useNumeroMicrociclo(rangoMicros.desde, rangoMicros.hasta, cal)
   const [editorDia, setEditorDia] = useState<string | null>(null)
   const now = new Date()
   const [selectedMicro, setSelectedMicro] = useState<Microciclo | null>(null)
@@ -368,7 +375,10 @@ export function CalendarSection({
             </div>
             {microcicloActivo && viewMode !== 'ano' && cal && (
               <span className="hidden sm:inline-flex items-center rounded-[var(--radius)] border-[1.5px] border-line px-1.5 py-0.5 text-[10px] font-semibold text-foreground">
-                Microciclo activo · <span className="ml-1 font-mono tabular-nums">{etiquetaMicrociclo(microcicloActivo)}</span>
+                Microciclo activo
+                {numeroMicro(microcicloActivo) ? (
+                  <> · <span className="ml-1 font-mono tabular-nums">{etiquetaMC(numeroMicro(microcicloActivo))}</span></>
+                ) : null}
               </span>
             )}
             {microcicloActivo && viewMode !== 'ano' && !cal && (
@@ -722,6 +732,8 @@ export function CalendarSection({
                         {weekMicro ? (() => {
                           const estado = estadoDeMicrociclo(weekMicro)
                           const enCurso = estado === 'en_curso'
+                          const nMicro = numeroMicro(weekMicro)
+                          const nombreMicro = nMicro ? `microciclo ${nMicro}` : 'microciclo'
                           return (
                           <button
                             type="button"
@@ -735,12 +747,15 @@ export function CalendarSection({
                             onMouseLeave={() => setHoveredWeekIdx(null)}
                             onFocus={() => setHoveredWeekIdx(weekIdx)}
                             onBlur={() => setHoveredWeekIdx(null)}
-                            title={`Abrir microciclo ${etiquetaMicrociclo(weekMicro)} (${estado.replace('_', ' ')})`}
-                            aria-label={`Abrir microciclo ${etiquetaMicrociclo(weekMicro)}, ${estado.replace('_', ' ')}`}
+                            title={`Abrir ${nombreMicro} (${estado.replace('_', ' ')})`}
+                            aria-label={`Abrir ${nombreMicro}, ${estado.replace('_', ' ')}`}
                           >
-                            <span className="cal-rotulo text-[8.5px] leading-none text-muted-foreground">Sem</span>
-                            <span className="rotate-180 font-mono text-[12px] font-bold tabular-nums leading-none [writing-mode:vertical-rl]">
-                              {semanaDelAno(weekMicro.fecha_inicio)}
+                            {/* "MC" y número apilados, ambos en horizontal */}
+                            <span className="flex flex-col items-center gap-[3px]">
+                              <span className="cal-rotulo text-[8.5px] leading-none text-muted-foreground">MC</span>
+                              <span className="font-mono text-[12px] font-bold tabular-nums leading-none tracking-tight">
+                                {nMicro ?? '·'}
+                              </span>
                             </span>
                             <ChevronRight
                               aria-hidden

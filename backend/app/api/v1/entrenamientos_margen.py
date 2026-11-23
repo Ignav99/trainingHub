@@ -95,7 +95,7 @@ def _fetch_tareas(supabase, entrenamiento_id: str) -> list:
 # ─── LIST BY SESSION ───────────────────────────────────────
 
 @router.get("/sesion/{sesion_id}", response_model=List[EntrenamientoMargenResponse])
-async def list_by_sesion(
+def list_by_sesion(
     sesion_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
 ):
@@ -132,7 +132,7 @@ async def list_by_sesion(
 # ─── CREATE ────────────────────────────────────────────────
 
 @router.post("", response_model=EntrenamientoMargenResponse, status_code=status.HTTP_201_CREATED)
-async def create_entrenamiento_margen(
+def create_entrenamiento_margen(
     data: EntrenamientoMargenCreate,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
 ):
@@ -182,7 +182,7 @@ async def create_entrenamiento_margen(
 # ─── GET SINGLE ────────────────────────────────────────────
 
 @router.get("/{entrenamiento_id}", response_model=EntrenamientoMargenResponse)
-async def get_entrenamiento_margen(
+def get_entrenamiento_margen(
     entrenamiento_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
 ):
@@ -206,7 +206,7 @@ async def get_entrenamiento_margen(
 # ─── UPDATE ────────────────────────────────────────────────
 
 @router.put("/{entrenamiento_id}", response_model=EntrenamientoMargenResponse)
-async def update_entrenamiento_margen(
+def update_entrenamiento_margen(
     entrenamiento_id: UUID,
     data: EntrenamientoMargenUpdate,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
@@ -244,7 +244,7 @@ async def update_entrenamiento_margen(
 # ─── DELETE ────────────────────────────────────────────────
 
 @router.delete("/{entrenamiento_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_entrenamiento_margen(
+def delete_entrenamiento_margen(
     entrenamiento_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),
 ):
@@ -263,7 +263,7 @@ async def delete_entrenamiento_margen(
 # ─── REPLACE TAREAS (BATCH) ───────────────────────────────
 
 @router.put("/{entrenamiento_id}/tareas", response_model=List[EntrenamientoMargenTareaResponse])
-async def replace_tareas(
+def replace_tareas(
     entrenamiento_id: UUID,
     tareas: List[EntrenamientoMargenTareaCreate],
     auth: AuthContext = Depends(require_permission(Permission.SESSION_UPDATE)),

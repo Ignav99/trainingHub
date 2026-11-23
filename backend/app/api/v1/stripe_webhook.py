@@ -20,7 +20,7 @@ router = APIRouter()
 # ============ Cron Jobs ============
 
 @router.post("/cron/process-expirations")
-async def process_expirations(request: Request):
+def process_expirations(request: Request):
     """
     Cron endpoint para procesar trials expirados y periodos de gracia.
     Protegido por SECRET_KEY en header X-Cron-Secret.

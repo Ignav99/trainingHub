@@ -26,7 +26,7 @@ router = APIRouter()
 # ============ LIST playlists ============
 
 @router.get("/equipos/{equipo_id}/video-playlists")
-async def list_playlists(
+def list_playlists(
     equipo_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_READ)),
 ):
@@ -46,7 +46,7 @@ async def list_playlists(
 # ============ GET playlist with items ============
 
 @router.get("/video-playlists/{playlist_id}")
-async def get_playlist(
+def get_playlist(
     playlist_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_READ)),
 ):
@@ -79,7 +79,7 @@ async def get_playlist(
 # ============ CREATE playlist ============
 
 @router.post("/equipos/{equipo_id}/video-playlists", status_code=201)
-async def create_playlist(
+def create_playlist(
     equipo_id: UUID,
     data: VideoPlaylistCreate,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
@@ -101,7 +101,7 @@ async def create_playlist(
 # ============ UPDATE playlist ============
 
 @router.put("/video-playlists/{playlist_id}")
-async def update_playlist(
+def update_playlist(
     playlist_id: UUID,
     data: VideoPlaylistUpdate,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
@@ -137,7 +137,7 @@ async def update_playlist(
 # ============ DELETE playlist ============
 
 @router.delete("/video-playlists/{playlist_id}")
-async def delete_playlist(
+def delete_playlist(
     playlist_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
 ):
@@ -161,7 +161,7 @@ async def delete_playlist(
 # ============ ADD item to playlist ============
 
 @router.post("/video-playlists/{playlist_id}/items", status_code=201)
-async def add_playlist_item(
+def add_playlist_item(
     playlist_id: UUID,
     data: VideoPlaylistItemCreate,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
@@ -193,7 +193,7 @@ async def add_playlist_item(
 # ============ REMOVE item from playlist ============
 
 @router.delete("/video-playlist-items/{item_id}")
-async def remove_playlist_item(
+def remove_playlist_item(
     item_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
 ):
@@ -217,7 +217,7 @@ async def remove_playlist_item(
 # ============ REORDER playlist items ============
 
 @router.put("/video-playlists/{playlist_id}/reorder")
-async def reorder_playlist_items(
+def reorder_playlist_items(
     playlist_id: UUID,
     items: list[dict],
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),

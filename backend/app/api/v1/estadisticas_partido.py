@@ -61,7 +61,7 @@ router = APIRouter()
 
 
 @router.get("/{partido_id}", response_model=EstadisticaPartidoResponse)
-async def get_estadisticas_partido(
+def get_estadisticas_partido(
     partido_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
 ):
@@ -97,7 +97,7 @@ async def get_estadisticas_partido(
 
 
 @router.put("/{partido_id}", response_model=EstadisticaPartidoResponse)
-async def upsert_estadisticas_partido(
+def upsert_estadisticas_partido(
     partido_id: UUID,
     data: EstadisticaPartidoUpdate,
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_UPDATE)),

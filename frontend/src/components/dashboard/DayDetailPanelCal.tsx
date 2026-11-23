@@ -37,13 +37,13 @@ import {
   numeroSesion,
   partidoJugado,
   resultadoPartido,
-  semanaDelAno,
   solido,
   textoEstadoSesion,
   tinte,
 } from '@/lib/calendarioColores'
 import { hslColorDia, type DiaPersonal } from '@/lib/diaPersonal'
 import { estadoDeMicrociclo } from '@/lib/microcicloEstado'
+import { useNumeroMicrociclo } from '@/lib/hooks/useNumeroMicrociclo'
 import type { Microciclo, Partido, Sesion } from '@/types'
 import { EditorDiaPersonal, MarcaEscudo, Muestra, TRAMA_DESCANSO } from './calendar/DiaCal'
 import { useEstiloCasa } from './calendar/useEstiloCasa'
@@ -119,6 +119,7 @@ export function DayDetailPanelCal({
   onQuitarDiaPersonal,
 }: DayDetailPanelCalProps) {
   const estiloCasa = useEstiloCasa()
+  const numeroMicro = useNumeroMicrociclo(selectedDay)
   const [editando, setEditando] = useState(false)
   const ir = (path: string) => {
     onClose()
@@ -183,7 +184,7 @@ export function DayDetailPanelCal({
                     >
                       <span className="min-w-0 flex-1">
                         <span className="cal-rotulo block text-[10.5px] text-muted-foreground">
-                          Microciclo <span className="font-mono text-foreground">Sem {semanaDelAno(mc.fecha_inicio)}</span> ·{' '}
+                          Microciclo{numeroMicro(mc) ? <> <span className="font-mono text-foreground">{numeroMicro(mc)}</span></> : null} ·{' '}
                           {estadoDeMicrociclo(mc).replace('_', ' ')}
                         </span>
                         <span className="block truncate text-sm font-medium">{mc.objetivo_principal || 'Ver microciclo'}</span>

@@ -30,7 +30,7 @@ router = APIRouter()
 # ============ CREATE tag ============
 
 @router.post("/videos/{video_id}/tags", status_code=201)
-async def create_tag(
+def create_tag(
     video_id: UUID,
     data: VideoTagCreate,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
@@ -80,7 +80,7 @@ async def create_tag(
 # ============ BULK CREATE tags ============
 
 @router.post("/videos/{video_id}/tags/bulk", status_code=201)
-async def create_tags_bulk(
+def create_tags_bulk(
     video_id: UUID,
     data: VideoTagBulkCreate,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
@@ -135,7 +135,7 @@ async def create_tags_bulk(
 # ============ LIST tags with filters ============
 
 @router.get("/videos/{video_id}/tags")
-async def list_tags(
+def list_tags(
     video_id: UUID,
     category_id: Optional[UUID] = Query(None),
     jugador_id: Optional[UUID] = Query(None),
@@ -174,7 +174,7 @@ async def list_tags(
 # ============ UPDATE tag ============
 
 @router.put("/video-tags/{tag_id}")
-async def update_tag(
+def update_tag(
     tag_id: UUID,
     data: VideoTagUpdate,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
@@ -215,7 +215,7 @@ async def update_tag(
 # ============ DELETE tag ============
 
 @router.delete("/video-tags/{tag_id}")
-async def delete_tag(
+def delete_tag(
     tag_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.VIDEO_TAG_CREATE)),
 ):
@@ -239,7 +239,7 @@ async def delete_tag(
 # ============ EXPORT CSV ============
 
 @router.get("/videos/{video_id}/tags/export-csv")
-async def export_tags_csv(
+def export_tags_csv(
     video_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.EXPORT_DATA)),
 ):

@@ -28,7 +28,7 @@ class ResolveUsernameResponse(BaseModel):
 
 
 @router.post("/resolve-username", response_model=ResolveUsernameResponse)
-async def resolve_username(data: ResolveUsernameRequest):
+def resolve_username(data: ResolveUsernameRequest):
     """
     Traduce un username (superadmin/administrador_club/coordinador_club) al
     email interno sintetico que necesita Supabase Auth para iniciar sesion.
@@ -40,7 +40,7 @@ async def resolve_username(data: ResolveUsernameRequest):
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(credentials: LoginRequest, request: Request):
+def login(credentials: LoginRequest, request: Request):
     """
     Inicia sesion con email y contrasena.
     Devuelve tokens JWT para usar en siguientes requests.
@@ -108,7 +108,7 @@ async def login(credentials: LoginRequest, request: Request):
 
 
 @router.post("/register", response_model=UsuarioResponse, status_code=status.HTTP_201_CREATED)
-async def register(user_data: UsuarioCreate, request: Request):
+def register(user_data: UsuarioCreate, request: Request):
     """
     Registra un nuevo usuario.
     If organizacion_nombre is provided, creates a new org with:
@@ -244,13 +244,13 @@ async def register(user_data: UsuarioCreate, request: Request):
 
 
 @router.post("/logout")
-async def logout():
+def logout():
     """Cierra la sesion actual."""
     return {"message": "Sesion cerrada correctamente"}
 
 
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh_token(refresh_token: str):
+def refresh_token(refresh_token: str):
     """Refresca el access token usando el refresh token."""
     try:
         supabase = get_supabase()
@@ -289,7 +289,7 @@ async def refresh_token(refresh_token: str):
 
 
 @router.get("/me", response_model=UsuarioResponse)
-async def get_current_user_info(
+def get_current_user_info(
     auth: AuthContext = Depends(require_permission()),
 ):
     """
@@ -313,7 +313,7 @@ class MiCuentaUpdate(BaseModel):
 
 
 @router.patch("/mi-cuenta", response_model=UsuarioResponse)
-async def actualizar_mi_cuenta(
+def actualizar_mi_cuenta(
     data: MiCuentaUpdate,
     current_user: UsuarioResponse = Depends(get_current_user),
 ):

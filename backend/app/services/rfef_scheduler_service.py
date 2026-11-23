@@ -767,10 +767,29 @@ async def _monday_sanciones_full():
     await sync_all_sanciones(modo="todas")
 
 
+def _off_loop(job):
+    """Ejecuta el job en un hilo con su propio event loop.
+
+    Los jobs mezclan `await` con muchas llamadas síncronas a Supabase (upserts en
+    bucle). En el loop de la API eso congelaba todas las peticiones del worker
+    durante el sync (vie/sáb/dom/mar en horario de uso). Aislado en un hilo, el
+    loop de la API sigue atendiendo.
+    """
+    async def runner():
+        await asyncio.to_thread(asyncio.run, job())
+
+    runner.__name__ = getattr(job, "__name__", "job")
+    return runner
+
+
+def _add_job(job, *args, **kwargs):
+    return scheduler.add_job(_off_loop(job), *args, **kwargs)
+
+
 def start_scheduler():
     """Configura y arranca el scheduler de scraping RFAF."""
     # Viernes 20:00 — Pre-jornada
-    scheduler.add_job(
+    _add_job(
         sync_all_competitions,
         CronTrigger(day_of_week="fri", hour=20, minute=0, timezone="Europe/Madrid"),
         id="rfaf_viernes",
@@ -778,13 +797,13 @@ def start_scheduler():
     )
 
     # Sábado 14:00 y 22:00 — Durante jornada
-    scheduler.add_job(
+    _add_job(
         sync_all_competitions,
         CronTrigger(day_of_week="sat", hour=14, minute=0, timezone="Europe/Madrid"),
         id="rfaf_sabado_14",
         replace_existing=True,
     )
-    scheduler.add_job(
+    _add_job(
         sync_all_competitions,
         CronTrigger(day_of_week="sat", hour=22, minute=0, timezone="Europe/Madrid"),
         id="rfaf_sabado_22",
@@ -792,13 +811,13 @@ def start_scheduler():
     )
 
     # Domingo 14:00 y 22:00
-    scheduler.add_job(
+    _add_job(
         sync_all_competitions,
         CronTrigger(day_of_week="sun", hour=14, minute=0, timezone="Europe/Madrid"),
         id="rfaf_domingo_14",
         replace_existing=True,
     )
-    scheduler.add_job(
+    _add_job(
         sync_all_competitions,
         CronTrigger(day_of_week="sun", hour=22, minute=0, timezone="Europe/Madrid"),
         id="rfaf_domingo_22",
@@ -806,7 +825,7 @@ def start_scheduler():
     )
 
     # Lunes 08:00 — Full sync + pre-match intel
-    scheduler.add_job(
+    _add_job(
         sync_all_competitions,
         CronTrigger(day_of_week="mon", hour=8, minute=0, timezone="Europe/Madrid"),
         id="rfaf_lunes_08",
@@ -814,7 +833,7 @@ def start_scheduler():
     )
 
     # Lunes 10:00 — Post-jornada
-    scheduler.add_job(
+    _add_job(
         sync_all_competitions,
         CronTrigger(day_of_week="mon", hour=10, minute=0, timezone="Europe/Madrid"),
         id="rfaf_lunes",
@@ -822,13 +841,13 @@ def start_scheduler():
     )
 
     # Martes 17:00 y 21:00 — horarios de jornada
-    scheduler.add_job(
+    _add_job(
         sync_all_competitions,
         CronTrigger(day_of_week="tue", hour=17, minute=0, timezone="Europe/Madrid"),
         id="rfaf_martes_17",
         replace_existing=True,
     )
-    scheduler.add_job(
+    _add_job(
         sync_all_competitions,
         CronTrigger(day_of_week="tue", hour=21, minute=0, timezone="Europe/Madrid"),
         id="rfaf_martes_21",
@@ -836,13 +855,13 @@ def start_scheduler():
     )
 
     # Viernes 12:00 y 14:00 — Comité de sanciones (jornada anterior)
-    scheduler.add_job(
+    _add_job(
         _friday_sanciones_midday,
         CronTrigger(day_of_week="fri", hour=12, minute=0, timezone="Europe/Madrid"),
         id="rfaf_sanciones_viernes_12",
         replace_existing=True,
     )
-    scheduler.add_job(
+    _add_job(
         _friday_sanciones_retry,
         CronTrigger(day_of_week="fri", hour=14, minute=0, timezone="Europe/Madrid"),
         id="rfaf_sanciones_viernes_14",
@@ -850,7 +869,7 @@ def start_scheduler():
     )
 
     # Lunes 09:00 — Catch-up completo de sanciones
-    scheduler.add_job(
+    _add_job(
         _monday_sanciones_full,
         CronTrigger(day_of_week="mon", hour=9, minute=0, timezone="Europe/Madrid"),
         id="rfaf_sanciones_lunes_09",
@@ -858,7 +877,7 @@ def start_scheduler():
     )
 
     # Daily 03:00 CET — lightweight sync: clasificación + goleadores + all jornadas
-    scheduler.add_job(
+    _add_job(
         daily_sync_data,
         CronTrigger(hour=3, minute=0, timezone="Europe/Madrid"),
         id="daily_sync_data",
@@ -866,7 +885,7 @@ def start_scheduler():
     )
 
     # Daily 06:00 CET — full acta sync: scrape all missing/incomplete actas
-    scheduler.add_job(
+    _add_job(
         daily_sync_actas,
         CronTrigger(hour=6, minute=0, timezone="Europe/Madrid"),
         id="daily_sync_actas",
@@ -874,14 +893,14 @@ def start_scheduler():
     )
 
     # Daily load recalculation at 00:15 CET
-    scheduler.add_job(
+    _add_job(
         _daily_load_recalc,
         CronTrigger(hour=0, minute=15, timezone="Europe/Madrid"),
         id="daily_load_recalc",
         replace_existing=True,
     )
 
-    scheduler.add_job(
+    _add_job(
         _archive_revision_clips,
         CronTrigger(hour=3, minute=20, timezone="Europe/Madrid"),
         id="revision_clip_archive",

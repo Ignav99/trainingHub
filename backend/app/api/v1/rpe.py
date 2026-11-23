@@ -110,7 +110,7 @@ router = APIRouter()
 
 
 @router.get("", response_model=RPEListResponse)
-async def list_rpe(
+def list_rpe(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     jugador_id: Optional[UUID] = None,
@@ -169,7 +169,7 @@ async def list_rpe(
 
 
 @router.get("/resumen")
-async def resumen_rpe(
+def resumen_rpe(
     equipo_id: UUID = Query(...),
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
@@ -249,7 +249,7 @@ async def resumen_rpe(
 
 
 @router.get("/jugador/{jugador_id}")
-async def list_rpe_by_jugador(
+def list_rpe_by_jugador(
     jugador_id: UUID,
     tipo: Optional[str] = Query(None, description="Filtrar por tipo: sesion, manual, wellness"),
     excluir_wellness: bool = Query(False, description="Omitir wellness para las gráficas de carga"),
@@ -410,7 +410,7 @@ def _sesion_rpe_jugadores(supabase, sesion_id: str) -> RPESesionAssignResponse:
 
 
 @router.get("/sesion/{sesion_id}/asignacion", response_model=RPESesionAssignResponse)
-async def get_rpe_sesion_asignacion(
+def get_rpe_sesion_asignacion(
     sesion_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.RPE_READ)),
 ):
@@ -419,7 +419,7 @@ async def get_rpe_sesion_asignacion(
 
 
 @router.put("/sesion/{sesion_id}/asignacion", response_model=RPESesionAssignResponse)
-async def put_rpe_sesion_asignacion(
+def put_rpe_sesion_asignacion(
     sesion_id: UUID,
     body: RPESesionAssignRequest,
     bg: BackgroundTasks,
@@ -460,7 +460,7 @@ async def put_rpe_sesion_asignacion(
 
 
 @router.get("/{rpe_id}", response_model=RPEResponse)
-async def get_rpe(
+def get_rpe(
     rpe_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.RPE_READ)),
 ):
@@ -481,7 +481,7 @@ async def get_rpe(
 
 
 @router.post("", response_model=RPEResponse, status_code=status.HTTP_201_CREATED)
-async def create_rpe(
+def create_rpe(
     rpe: RPECreate,
     bg: BackgroundTasks,
     auth: AuthContext = Depends(require_permission(Permission.RPE_CREATE)),
@@ -571,7 +571,7 @@ async def create_rpe(
 
 
 @router.post("/batch", status_code=status.HTTP_201_CREATED)
-async def create_rpe_batch(
+def create_rpe_batch(
     registros: list[RPECreate],
     bg: BackgroundTasks,
     auth: AuthContext = Depends(require_permission(Permission.RPE_CREATE)),
@@ -631,7 +631,7 @@ async def create_rpe_batch(
 
 
 @router.put("/{rpe_id}", response_model=RPEResponse)
-async def update_rpe(
+def update_rpe(
     rpe_id: UUID,
     data: RPEUpdate,
     bg: BackgroundTasks,
@@ -704,7 +704,7 @@ async def update_rpe(
 
 
 @router.delete("/{rpe_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_rpe(
+def delete_rpe(
     rpe_id: UUID,
     bg: BackgroundTasks,
     auth: AuthContext = Depends(require_permission(Permission.RPE_CREATE)),

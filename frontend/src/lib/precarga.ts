@@ -2,6 +2,18 @@ import { preload } from 'swr'
 import { SWRGlobalState, cache } from 'swr/_internal'
 import { apiFetcher } from '@/lib/swr'
 import { clavesDeRuta } from './precargaRutas'
+import { getSeasonBounds, getStoredSeasonStartMonth, resolveSeasonStartYear } from './calendar/season'
+
+/** Misma temporada con la que arranca el calendario de Hoy. */
+function temporadaActual(): { desde: string; hasta: string } | null {
+  try {
+    const mes = getStoredSeasonStartMonth()
+    const { desde, hasta } = getSeasonBounds(resolveSeasonStartYear(new Date(), mes), mes)
+    return { desde, hasta }
+  } catch {
+    return null
+  }
+}
 
 const MIN_GAP_MS = 15_000
 /**
@@ -25,7 +37,7 @@ function ahorroDeDatos(): boolean {
 export function precargarRuta(href: string, equipoId: string | null | undefined, rutaActual?: string) {
   if (typeof window === 'undefined' || href === rutaActual || ahorroDeDatos()) return
   const now = Date.now()
-  for (const key of clavesDeRuta(href, equipoId)) {
+  for (const key of clavesDeRuta(href, equipoId, href === '/' ? temporadaActual() : null)) {
     const prev = lastRun.get(key)
     if (prev !== undefined && now - prev < MIN_GAP_MS) continue
     lastRun.set(key, now)

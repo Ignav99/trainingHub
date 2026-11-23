@@ -46,7 +46,7 @@ router = APIRouter()
 
 
 @router.get("", response_model=PartidoListResponse)
-async def list_partidos(
+def list_partidos(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=1000),
     equipo_id: Optional[UUID] = None,
@@ -125,7 +125,7 @@ async def list_partidos(
 
 
 @router.get("/{partido_id}", response_model=PartidoResponse)
-async def get_partido(
+def get_partido(
     partido_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
 ):
@@ -162,7 +162,7 @@ async def get_partido(
 
 
 @router.post("", response_model=PartidoResponse, status_code=status.HTTP_201_CREATED)
-async def create_partido(
+def create_partido(
     partido: PartidoCreate,
     background_tasks: BackgroundTasks,
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_CREATE)),
@@ -226,7 +226,7 @@ async def create_partido(
 
 
 @router.put("/{partido_id}", response_model=PartidoResponse)
-async def update_partido(
+def update_partido(
     partido_id: UUID,
     partido: PartidoUpdate,
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_UPDATE)),
@@ -313,7 +313,7 @@ async def update_partido(
 
 
 @router.delete("/{partido_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_partido(
+def delete_partido(
     partido_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_DELETE)),
 ):
@@ -344,7 +344,7 @@ async def delete_partido(
 
 
 @router.get("/{partido_id}/equipaciones")
-async def get_equipaciones_partido(
+def get_equipaciones_partido(
     partido_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
 ):
@@ -394,7 +394,7 @@ async def get_equipaciones_partido(
 
 
 @router.post("/{partido_id}/resultado", response_model=PartidoResponse)
-async def registrar_resultado(
+def registrar_resultado(
     partido_id: UUID,
     goles_favor: int = Query(..., ge=0),
     goles_contra: int = Query(..., ge=0),
@@ -541,7 +541,7 @@ async def generar_informe_partido(
 
 
 @router.get("/{partido_id}/pre-match-intel")
-async def get_pre_match_intel(
+def get_pre_match_intel(
     partido_id: UUID,
     force_refresh: bool = Query(False),
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_READ)),
@@ -583,7 +583,7 @@ async def get_pre_match_intel(
 
 
 @router.post("/{partido_id}/populate-pre-match")
-async def populate_pre_match(
+def populate_pre_match(
     partido_id: UUID,
     auth: AuthContext = Depends(require_permission(Permission.PARTIDO_UPDATE)),
 ):

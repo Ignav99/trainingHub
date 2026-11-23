@@ -52,7 +52,7 @@ export function ManualRPEDialog({ open, onOpenChange, jugadores }: ManualRPEDial
       setTitulo('')
       setRpe(5)
       setDuracion(60)
-      mutate((key: string) => typeof key === 'string' && (key.includes('/rpe') || key.includes('/carga')), undefined, { revalidate: true })
+      mutate((key: string) => typeof key === 'string' && (key.includes('/rpe') || key.includes('/carga')))
     } catch (err: any) {
       toast.error(err.message || 'Error al registrar RPE')
     } finally {
