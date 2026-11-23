@@ -458,7 +458,7 @@ export function CalendarSection({
             <>
           {/* Day headers */}
           <div className="flex border-b bg-muted/30 shrink-0">
-            <div className={`hidden md:block shrink-0 ${cal ? 'w-7' : 'w-6'}`} />
+            <div className={`hidden md:block shrink-0 ${cal ? 'w-8' : 'w-6'}`} />
             <div className="flex-1 grid grid-cols-7">
               {DAY_NAMES.map((d, i) => (
                 <div
@@ -728,7 +728,7 @@ export function CalendarSection({
                   >
                     {/* LEFT SIDEBAR — microciclo bar */}
                     {cal ? (
-                      <div className="hidden md:flex w-7 shrink-0 items-stretch border-b border-r border-border bg-card p-[3px]">
+                      <div className="hidden md:flex w-8 shrink-0 items-stretch border-b border-r border-border bg-card p-[3px]">
                         {weekMicro ? (() => {
                           const estado = estadoDeMicrociclo(weekMicro)
                           const enCurso = estado === 'en_curso'
@@ -737,10 +737,10 @@ export function CalendarSection({
                           return (
                           <button
                             type="button"
-                            className={`group/mc relative flex w-full flex-col items-center justify-between gap-1 rounded-[var(--radius)] border-l-2 border-[hsl(var(--casa,var(--primary)))] py-1.5 text-foreground transition-colors duration-150 ease-sale motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring ${
+                            className={`group/mc relative flex w-full flex-col items-center justify-center rounded-[var(--radius)] border text-foreground transition-colors duration-150 ease-sale motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring ${
                               enCurso
-                                ? 'bg-[hsl(var(--casa,var(--primary))/0.16)] hover:bg-[hsl(var(--casa,var(--primary))/0.26)]'
-                                : 'bg-[hsl(var(--casa,var(--primary))/0.08)] hover:bg-[hsl(var(--casa,var(--primary))/0.18)]'
+                                ? 'border-[hsl(var(--casa,var(--primary))/0.55)] bg-[hsl(var(--casa,var(--primary))/0.16)] hover:bg-[hsl(var(--casa,var(--primary))/0.26)]'
+                                : 'border-[hsl(var(--casa,var(--primary))/0.25)] bg-[hsl(var(--casa,var(--primary))/0.07)] hover:bg-[hsl(var(--casa,var(--primary))/0.17)]'
                             }`}
                             onClick={(e) => { e.stopPropagation(); onNavigate(`/microciclos/${weekMicro.id}`) }}
                             onMouseEnter={() => setHoveredWeekIdx(weekIdx)}
@@ -750,16 +750,18 @@ export function CalendarSection({
                             title={`Abrir ${nombreMicro} (${estado.replace('_', ' ')})`}
                             aria-label={`Abrir ${nombreMicro}, ${estado.replace('_', ' ')}`}
                           >
-                            {/* "MC" y número apilados, ambos en horizontal */}
-                            <span className="flex flex-col items-center gap-[3px]">
-                              <span className="cal-rotulo text-[8.5px] leading-none text-muted-foreground">MC</span>
-                              <span className="font-mono text-[12px] font-bold tabular-nums leading-none tracking-tight">
-                                {nMicro ?? '·'}
-                              </span>
+                            {/* Bloque centrado: "MC" y debajo cada cifra en su línea (12 → 1 / 2). */}
+                            <span className="flex flex-col items-center">
+                              <span className="cal-rotulo mb-1 text-[8px] leading-none tracking-[0.08em] text-muted-foreground">MC</span>
+                              {String(nMicro ?? '·').split('').map((cifra, i) => (
+                                <span key={i} className="font-mono text-[14px] font-bold tabular-nums leading-[1.05]">
+                                  {cifra}
+                                </span>
+                              ))}
                             </span>
                             <ChevronRight
                               aria-hidden
-                              className="h-3 w-3 text-muted-foreground transition-transform duration-150 ease-sale group-hover/mc:translate-x-px group-hover/mc:text-foreground motion-reduce:transition-none"
+                              className="absolute bottom-1 left-1/2 h-3 w-3 -translate-x-1/2 text-muted-foreground opacity-0 transition-opacity duration-150 ease-sale group-hover/mc:opacity-100 group-focus-visible/mc:opacity-100 motion-reduce:transition-none"
                               strokeWidth={2.25}
                             />
                           </button>
