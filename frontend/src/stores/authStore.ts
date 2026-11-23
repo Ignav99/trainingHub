@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import type { Subscription } from '@supabase/supabase-js'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { api } from '@/lib/api/client'
+import { tokenVigente } from '@/lib/api/reintento'
 import {
   localSupabaseSessionPresent,
   readPersistedAuth,
@@ -33,6 +34,7 @@ interface RegisterData {
 
 // Module-level reference for cleanup between hot-reloads in dev
 let _authListenerUnsub: Subscription['unsubscribe'] | null = null
+let _sesionPerdidaRegistrada = false
 // Set only while this tab calls logout(). A SIGNED_OUT broadcast from
 // another tab must not wipe the shared localStorage session.
 let explicitLogout = false
@@ -90,6 +92,21 @@ export const useAuthStore = create<AuthState>()(
         )
         _authListenerUnsub = subscription.unsubscribe
 
+        // 401 que ni el refresco salvó: si de verdad no queda sesión renovable,
+        // salir para que el layout mande a /login en vez de dejar la app rota.
+        if (typeof window !== 'undefined' && !_sesionPerdidaRegistrada) {
+          _sesionPerdidaRegistrada = true
+          window.addEventListener('kabine:sesion-perdida', () => {
+            getSupabaseClient().auth.getSession()
+              .then(({ data: { session } }) => {
+                if (session?.access_token && tokenVigente(session.access_token, Date.now(), 0)) return
+                if (!get().isAuthenticated) return
+                set({ user: null, accessToken: null, isAuthenticated: false, isLoading: false })
+              })
+              .catch(() => {})
+          })
+        }
+
         try {
           const { data: { session } } = await getSupabaseClient().auth.getSession()
 
@@ -113,7 +130,10 @@ export const useAuthStore = create<AuthState>()(
           const persisted = typeof window !== 'undefined'
             ? readPersistedAuth(window.localStorage)
             : null
-          if (persisted?.isAuthenticated && persisted.accessToken) {
+          // Sin sesión de Supabase solo vale un token guardado que siga vigente:
+          // uno vencido no se puede renovar y dejaría la app "dentro" pero con
+          // cada petición fallando. En ese caso, a iniciar sesión.
+          if (persisted?.isAuthenticated && persisted.accessToken && tokenVigente(persisted.accessToken, Date.now(), 0)) {
             const current = get()
             set({
               user: current.user ?? (persisted.user as Usuario | null),
@@ -124,7 +144,7 @@ export const useAuthStore = create<AuthState>()(
             return
           }
 
-          set({ isLoading: false })
+          set({ user: null, accessToken: null, isAuthenticated: false, isLoading: false })
         } catch (error) {
           console.error('Error initializing auth:', error)
           const persisted = typeof window !== 'undefined'
