@@ -1,5 +1,5 @@
 import { normalizeDescansoSeconds } from '@/lib/tareaDescanso'
-import type { FaseSesion, SesionBloque, SesionTarea, Tarea } from '@/types'
+import type { FaseSesion, SesionBloque, Tarea } from '@/types'
 
 export const COMPENSATORIO_MIN_LANES = 2
 export const COMPENSATORIO_MAX_LANES = 8
@@ -97,11 +97,17 @@ export function minutosEfectivosCatalogo(
   return Math.max(0, Math.round(clock - totalRest))
 }
 
-export function clockMinutosSesionTarea(st: Pick<SesionTarea, 'duracion_override' | 'tarea'>): number {
+type TareaReloj = {
+  duracion_override?: number | null
+  minutos_efectivos?: number | null
+  tarea?: { duracion_total?: number | null; tiempo_descanso?: number | null; num_series?: number | null } | null
+}
+
+export function clockMinutosSesionTarea(st: TareaReloj): number {
   return Math.max(0, Math.round(Number(st.duracion_override || st.tarea?.duracion_total || 0)))
 }
 
-export function minutosCargaSesionTarea(st: SesionTarea): number {
+export function minutosCargaSesionTarea(st: TareaReloj): number {
   if (st.minutos_efectivos != null && Number.isFinite(st.minutos_efectivos)) {
     return Math.max(0, Math.round(st.minutos_efectivos))
   }
@@ -119,4 +125,72 @@ export function defaultEfectivosForTarea(tarea?: Pick<Tarea, 'duracion_total' | 
     tarea?.tiempo_descanso,
     tarea?.num_series,
   )
+}
+
+type TareaTiempo = {
+  fase_sesion?: string | null
+  fase?: string | null
+  duracion_override?: number | null
+  minutos_efectivos?: number | null
+  carga_calculada?: number | null
+  tarea?: Pick<Tarea, 'duracion_total' | 'tiempo_descanso' | 'num_series'> | null
+}
+
+function faseDeTarea(t: TareaTiempo): string | null {
+  return t.fase_sesion || t.fase || null
+}
+
+/** Reloj y efectivo de la sesión. El compensatorio aporta el grupo más largo, no la suma. */
+export function tiemposSesion(tareas: TareaTiempo[] | undefined, extra = 0): { reloj: number; efectivo: number } {
+  let seqReloj = 0
+  let seqEfectivo = 0
+  const relojPorGrupo = new Map<number, number>()
+  const efectivoPorGrupo = new Map<number, number>()
+  for (const t of tareas || []) {
+    const fase = faseDeTarea(t)
+    const reloj = clockMinutosSesionTarea(t)
+    const efectivo = minutosCargaSesionTarea(t)
+    const lane = isCompensatorioFase(fase) ? compensatorioLaneIndex(fase) : null
+    if (lane == null) {
+      seqReloj += reloj
+      seqEfectivo += efectivo
+      continue
+    }
+    relojPorGrupo.set(lane, (relojPorGrupo.get(lane) || 0) + reloj)
+    efectivoPorGrupo.set(lane, (efectivoPorGrupo.get(lane) || 0) + efectivo)
+  }
+  const relojes = Array.from(relojPorGrupo.values())
+  const efectivos = Array.from(efectivoPorGrupo.values())
+  const paraleloReloj = relojes.length ? Math.max(...relojes) : 0
+  const paraleloEfectivo = efectivos.length ? Math.max(...efectivos) : 0
+  const added = Math.max(0, Math.round(extra || 0))
+  return { reloj: seqReloj + paraleloReloj + added, efectivo: seqEfectivo + paraleloEfectivo + added }
+}
+
+/** Carga de la sesión: tareas seguidas más la carga del grupo con más reloj. */
+export function cargaDelGrupoMasLargo(tareas: TareaTiempo[] | undefined): number {
+  let seq = 0
+  const porGrupo = new Map<number, { reloj: number; carga: number }>()
+  for (const t of tareas || []) {
+    const fase = faseDeTarea(t)
+    const reloj = clockMinutosSesionTarea(t)
+    const carga = Number(t.carga_calculada) || 0
+    const lane = isCompensatorioFase(fase) ? compensatorioLaneIndex(fase) : null
+    if (lane == null) {
+      seq += carga
+      continue
+    }
+    const prev = porGrupo.get(lane) || { reloj: 0, carga: 0 }
+    prev.reloj += reloj
+    prev.carga += carga
+    porGrupo.set(lane, prev)
+  }
+  let paralelo = 0
+  const grupos = Array.from(porGrupo.values())
+  if (grupos.length) {
+    const maxReloj = Math.max(...grupos.map((g) => g.reloj))
+    const candidatos = grupos.filter((g) => g.reloj === maxReloj)
+    paralelo = Math.max(...candidatos.map((g) => g.carga))
+  }
+  return Math.round((seq + paralelo) * 100) / 100
 }

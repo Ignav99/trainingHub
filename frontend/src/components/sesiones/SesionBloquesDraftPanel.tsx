@@ -45,7 +45,7 @@ import {
   normalizeOrden,
   type AddBloqueKind,
 } from '@/lib/sesionEstructura'
-import { faseForLane, lanesFromBloque } from '@/lib/duracionEfectiva'
+import { clockMinutosSesionTarea, faseForLane, lanesFromBloque } from '@/lib/duracionEfectiva'
 import { cn } from '@/lib/utils'
 
 export interface DraftTareaItem {
@@ -198,16 +198,26 @@ export function SesionBloquesDraftPanel({
     const fase = faseSesionFromBloque(bloque)
     const tareasBloque = fase ? tareasByFase[fase] || [] : []
     const hasTareas = tareasBloque.length > 0
-    const tareasDuration = tareasBloque.reduce(
-      (s, t) => s + (t.duracion_override || t.tarea.duracion_total || 0),
-      0
-    )
-    const displayDuration = bloque.duracion_objetivo ?? (hasTareas ? tareasDuration : null)
     const isVideo = bloque.tipo === 'videoanalisis'
     const isPartido = isPartidoCondicionado(bloque)
     const isCompensatorio = isCompensatorioBloque(bloque)
-    const removable = canRemoveDraftBloque(bloque, tareas)
     const lanes = isCompensatorio ? lanesFromBloque(bloque) : []
+    const tareasDuration = isCompensatorio
+      ? lanes.reduce((max, _, i) => {
+          const suma = (tareasByFase[faseForLane(i)] || []).reduce(
+            (s, t) => s + clockMinutosSesionTarea(t),
+            0,
+          )
+          return Math.max(max, suma)
+        }, 0)
+      : tareasBloque.reduce(
+          (s, t) => s + (t.duracion_override || t.tarea.duracion_total || 0),
+          0,
+        )
+    const displayDuration = isCompensatorio
+      ? (tareasDuration || bloque.duracion_objetivo || null)
+      : (bloque.duracion_objetivo ?? (hasTareas ? tareasDuration : null))
+    const removable = canRemoveDraftBloque(bloque, tareas)
     const laneTaskCounts = isCompensatorio
       ? lanes.map((_, i) => (tareasByFase[faseForLane(i)] || []).length)
       : []

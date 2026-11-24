@@ -333,6 +333,31 @@ def player_session_loads(ctx: SessionLoadContext, jugador_id: str) -> dict[date,
             else:
                 loads[session["fecha"]] += round(DEFAULT_SESSION_RPE * mins, 1)
             continue
+        group = (session.get("player_group") or {}).get(jid)
+        if isinstance(group, dict):
+            real = ctx.real.get((jid, sid), 0.0)
+            if real > 0:
+                loads[session["fecha"]] += real
+                continue
+            try:
+                mins = float(group.get("minutes") or 0)
+            except (TypeError, ValueError):
+                mins = 0.0
+            try:
+                own = float(group.get("carga") or 0)
+            except (TypeError, ValueError):
+                own = 0.0
+            if mins <= 0 and own <= 0:
+                continue
+            loads[session["fecha"]] += imputed_session_load(
+                peer_mean=None,
+                structural=own,
+                minutes=mins,
+                mean_foster=ctx.mean_foster,
+                mean_structural=ctx.mean_structural,
+                mean_minutes=ctx.mean_minutes,
+            )
+            continue
         real = ctx.real.get((jid, sid), 0.0)
         if real > 0:
             loads[session["fecha"]] += real
@@ -426,10 +451,16 @@ def fetch_session_load_context(supabase, equipo_id: str, since: date) -> Session
             from app.services.rpe_sync import minute_overrides_for_sessions
 
             overrides = minute_overrides_for_sessions(supabase, ids, attendance)
+            from app.services.rpe_sync import group_work_for_sessions
+
+            groups = group_work_for_sessions(supabase, ids, attendance)
             for session in ctx.sessions:
                 custom = overrides.get(session["id"])
                 if custom:
                     session["player_minutes"] = custom
+                grouped = groups.get(session["id"])
+                if grouped:
+                    session["player_group"] = grouped
         except Exception as e:
             logger.warning("minutos parciales para carga %s: %s", equipo_id, e)
         return ctx

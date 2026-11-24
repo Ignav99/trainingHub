@@ -5,8 +5,9 @@ from app.services.duracion_efectiva import (
     minutos_efectivos_catalogo,
     normalize_descanso_seconds,
     player_session_minutes,
+    tiempos_sesion,
 )
-from app.services.sesion_carga import aggregate_sesion_carga
+from app.services.sesion_carga import aggregate_sesion_carga, player_session_carga
 
 
 class TestDescanso:
@@ -185,4 +186,56 @@ class TestCompensatorioLaneCount:
         assert player_session_minutes(tareas, estructura, "p1") == 20
         assert player_session_minutes(tareas, estructura, "p4") == 12
         assert player_session_minutes(tareas, estructura, "p2") == 0
+
+    def test_session_effective_is_max_of_lane_sums(self):
+        tareas = [
+            {
+                "fase_sesion": "activacion",
+                "duracion_override": 10,
+                "minutos_efectivos": 8,
+                "tarea": {},
+            },
+            {
+                "fase_sesion": "compensatorio_1",
+                "duracion_override": 20,
+                "minutos_efectivos": 12,
+                "tarea": {},
+            },
+            {
+                "fase_sesion": "compensatorio_2",
+                "duracion_override": 15,
+                "minutos_efectivos": 15,
+                "tarea": {},
+            },
+        ]
+        reloj, efectivo = tiempos_sesion(tareas)
+        assert reloj == 30  # 10 + max(20, 15)
+        assert efectivo == 23  # 8 + max(12, 15)
+
+    def test_player_carga_is_own_lane_only(self):
+        estructura = [
+            {
+                "tipo": "compensatorio",
+                "compensatorio": {
+                    "lanes": [
+                        {"id": "lane-1", "label": "A", "jugador_ids": ["p1"]},
+                        {"id": "lane-2", "label": "B", "jugador_ids": ["p2"]},
+                    ]
+                },
+            }
+        ]
+        tarea = {"duracion_total": 10, "densidad": "media", "categoria": {"codigo": "JDP"}}
+        tareas = [
+            {"fase_sesion": "activacion", "duracion_override": 10, "tarea": tarea},
+            {"fase_sesion": "compensatorio_1", "duracion_override": 20, "tarea": {**tarea, "duracion_total": 20}},
+            {"fase_sesion": "compensatorio_2", "duracion_override": 12, "tarea": {**tarea, "duracion_total": 12}},
+        ]
+        ambos = aggregate_sesion_carga(tareas, estructura)
+        solo_a = player_session_carga(tareas, estructura, "p1")
+        solo_b = player_session_carga(tareas, estructura, "p2")
+        sin_grupo = player_session_carga(tareas, estructura, "p3")
+        assert ambos[2] == 30
+        assert solo_a == ambos[0]
+        assert solo_b < solo_a
+        assert sin_grupo < solo_b
 

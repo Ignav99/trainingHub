@@ -13,6 +13,7 @@ interface Props {
   sesion: Sesion
   matchDays: string[]
   minutos: number
+  minutosEfectivos?: number
   tareas: number
   jugadores?: number
   autoSaving: boolean
@@ -33,7 +34,7 @@ const ESTADO: Record<string, { tipo: EstadoTipo; texto: string }> = {
   cancelada: { tipo: 'baja', texto: 'Cancelada' },
 }
 
-function Cifra({ valor, unidad, rotulo }: { valor: number | string; unidad?: string; rotulo: string }) {
+function Cifra({ valor, unidad, rotulo, nota }: { valor: number | string; unidad?: string; rotulo: string; nota?: string }) {
   return (
     <div className="min-w-0">
       <p className="cal-rotulo text-muted-foreground">{rotulo}</p>
@@ -41,6 +42,7 @@ function Cifra({ valor, unidad, rotulo }: { valor: number | string; unidad?: str
         {valor}
         {unidad && <span className="ml-1 text-sm font-semibold text-muted-foreground">{unidad}</span>}
       </p>
+      {nota ? <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">{nota}</p> : null}
     </div>
   )
 }
@@ -50,6 +52,7 @@ export function SesionCabeceraCal({
   sesion,
   matchDays,
   minutos,
+  minutosEfectivos,
   tareas,
   jugadores,
   autoSaving,
@@ -160,7 +163,12 @@ export function SesionCabeceraCal({
       </div>
       <div className="flex min-w-0 flex-col justify-between gap-4 border-t border-border p-4 sm:p-5 lg:col-span-2 lg:border-l lg:border-t-0">
         <div className="grid grid-cols-3 gap-3">
-          <Cifra rotulo="Duración" valor={minutos} unidad="min" />
+          <Cifra
+            rotulo="Duración"
+            valor={minutos}
+            unidad="min"
+            nota={minutosEfectivos != null && minutosEfectivos !== minutos ? `${minutosEfectivos} min efectivos` : undefined}
+          />
           <Cifra rotulo="Tareas" valor={tareas} />
           {jugadores != null && jugadores > 0 && <Cifra rotulo="Jugadores" valor={jugadores} />}
         </div>

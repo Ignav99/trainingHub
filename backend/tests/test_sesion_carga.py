@@ -1,6 +1,10 @@
+from datetime import date
+
+from app.services.load_calculation_service import SessionLoadContext, player_session_loads
 from app.services.sesion_carga import (
     aggregate_sesion_carga,
     carga_from_partido_bloque,
+    carga_from_sesion_tarea,
     carga_partido_condicionado,
     carga_tarea,
 )
@@ -95,3 +99,51 @@ class TestAggregateWithPartido:
         a = aggregate_sesion_carga(tareas)
         b = aggregate_sesion_carga(tareas, [])
         assert a == b
+
+    def test_compensatorio_carga_is_longest_group_not_both(self):
+        media = {"densidad": "media", "categoria": {"codigo": "JDP"}, "num_jugadores_min": 8}
+        tareas = [
+            {"fase_sesion": "activacion", "duracion_override": 10, "tarea": {**media, "duracion_total": 10}},
+            {"fase_sesion": "compensatorio_1", "duracion_override": 20, "tarea": {**media, "duracion_total": 20}},
+            {"fase_sesion": "compensatorio_2", "duracion_override": 12, "tarea": {**media, "duracion_total": 12}},
+        ]
+        carga, _, dur = aggregate_sesion_carga(tareas, [])
+        seq = carga_from_sesion_tarea(tareas[0])
+        largo = carga_from_sesion_tarea(tareas[1])
+        corto = carga_from_sesion_tarea(tareas[2])
+        assert dur == 30
+        assert carga == round(seq + largo, 2)
+        assert carga < round(seq + largo + corto, 2)
+
+
+class TestCargaPorGrupo:
+    def test_short_group_does_not_inherit_both(self):
+        day = date(2026, 11, 24)
+        ctx = SessionLoadContext(
+            sessions=[{
+                "id": "s1",
+                "fecha": day,
+                "minutes": 30,
+                "structural": 40,
+                "peer_mean": 500,
+                "presentes": {"a", "b"},
+                "player_group": {
+                    "a": {"minutes": 30, "carga": 40},
+                    "b": {"minutes": 18, "carga": 12},
+                },
+            }],
+            real={},
+            mean_foster=100,
+            mean_structural=40,
+            mean_minutes=30,
+        )
+        assert player_session_loads(ctx, "a")[day] == 100
+        assert player_session_loads(ctx, "b")[day] == 30
+        with_rpe = SessionLoadContext(
+            sessions=ctx.sessions,
+            real={("b", "s1"): 90},
+            mean_foster=100,
+            mean_structural=40,
+            mean_minutes=30,
+        )
+        assert player_session_loads(with_rpe, "b")[day] == 90

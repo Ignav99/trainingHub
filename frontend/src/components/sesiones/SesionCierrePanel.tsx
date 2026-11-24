@@ -16,6 +16,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import type { EstadoSesion, SesionBloque, SesionTarea } from '@/types'
 import { cargaPartidoCondicionado } from '@/lib/partidoCarga'
+import { cargaDelGrupoMasLargo } from '@/lib/duracionEfectiva'
 import { duracionBloquePartido, isPartidoCondicionado } from '@/lib/sesionEstructura'
 
 type PdfVariant = 'reducido' | 'extendido'
@@ -105,7 +106,7 @@ export function SesionCierrePanel({
     }
   }
 
-  const cargaTareas = tareas.reduce((sum, t) => sum + (t.carga_calculada || 0), 0)
+  const cargaTareas = cargaDelGrupoMasLargo(tareas)
   const partidos = bloques.filter(isPartidoCondicionado)
   const cargaPartidos = partidos.reduce(
     (sum, b) => sum + cargaPartidoCondicionado(duracionBloquePartido(b)),
