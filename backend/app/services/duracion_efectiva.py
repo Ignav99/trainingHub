@@ -276,8 +276,9 @@ def stamp_margen_notas(notas: Any, minutos_efectivos: Any) -> Optional[str]:
     return f"{base}\n[[efe:{n}]]".strip()
 
 
-def _partido_minutes(estructura: list | None, jugador_id: str) -> int:
-    total = 0
+def partido_duraciones_jugador(estructura: list | None, jugador_id: str) -> list[int]:
+    """Minutos de cada partido condicionado en el que el jugador está alineado."""
+    out: list[int] = []
     jid = str(jugador_id)
     for bloque in estructura or []:
         if not isinstance(bloque, dict) or bloque.get("tipo") != "partido_condicionado":
@@ -291,10 +292,78 @@ def _partido_minutes(estructura: list | None, jugador_id: str) -> int:
         if jid not in ids:
             continue
         try:
-            total += int(partido.get("duracion_min") or bloque.get("duracion_objetivo") or 0)
+            out.append(int(partido.get("duracion_min") or bloque.get("duracion_objetivo") or 0))
         except (TypeError, ValueError):
-            pass
-    return total
+            continue
+    return out
+
+
+def _partido_minutes(estructura: list | None, jugador_id: str) -> int:
+    return sum(partido_duraciones_jugador(estructura, jugador_id))
+
+
+def tasks_for_player(
+    sesion_tareas: list[dict] | None,
+    estructura: list | None,
+    jugador_id: str,
+    *,
+    parcial: bool = False,
+) -> list[dict]:
+    """Tareas que cuenta ese jugador. Un compensatorio paralelo no mete los otros grupos."""
+    jid = str(jugador_id)
+    rows = [st for st in (sesion_tareas or []) if isinstance(st, dict)]
+    if parcial:
+        return [st for st in rows if player_named_on_task(st, jid)]
+    fases = player_compensatorio_fases(estructura, jid)
+    out: list[dict] = []
+    for st in rows:
+        fase = st.get("fase_sesion")
+        if is_compensatorio_fase(fase) and fase not in fases:
+            continue
+        out.append(st)
+    return out
+
+
+def reparto_paralelo(sesion_tareas: list | None) -> tuple[int, int, dict[int, dict[str, int]]]:
+    """Reloj y efectivo secuenciales, y por grupo de compensatorio.
+
+    Los grupos corren a la vez: el tiempo de la sesión es el del grupo más
+    largo, no la suma de las ramas.
+    """
+    seq_clock = 0
+    seq_efectivo = 0
+    lanes: dict[int, dict[str, int]] = {}
+    for st in sesion_tareas or []:
+        if not isinstance(st, dict):
+            continue
+        clock = clock_minutos_sesion_tarea(st)
+        efectivo = minutos_carga_sesion_tarea(st)
+        fase = st.get("fase_sesion")
+        lane_idx = compensatorio_lane_index(fase) if is_compensatorio_fase(fase) else None
+        if lane_idx is None:
+            seq_clock += clock
+            seq_efectivo += efectivo
+            continue
+        lane = lanes.setdefault(lane_idx, {"clock": 0, "efectivo": 0})
+        lane["clock"] += clock
+        lane["efectivo"] += efectivo
+    return seq_clock, seq_efectivo, lanes
+
+
+def tiempos_sesion(sesion_tareas: list | None, extra: int = 0) -> tuple[int, int]:
+    """(reloj, efectivo) de la sesión.
+
+    Cada grupo suma sus tareas. La sesión se queda con el máximo de esas
+    sumas, en reloj y en efectivo por separado. No se suman las ramas.
+    """
+    try:
+        added = max(0, int(extra or 0))
+    except (TypeError, ValueError):
+        added = 0
+    seq_clock, seq_efectivo, lanes = reparto_paralelo(sesion_tareas)
+    parallel_clock = max((lane["clock"] for lane in lanes.values()), default=0)
+    parallel_efectivo = max((lane["efectivo"] for lane in lanes.values()), default=0)
+    return seq_clock + parallel_clock + added, seq_efectivo + parallel_efectivo + added
 
 
 def player_session_minutes(
@@ -321,20 +390,10 @@ def player_session_minutes(
         return extra
     if sin_campo:
         return 0
-    jid = str(jugador_id)
     total = 0
-    if parcial:
-        for st in sesion_tareas or []:
-            if player_named_on_task(st, jid):
-                total += minutos_carga_sesion_tarea(st)
-    else:
-        fases = player_compensatorio_fases(estructura, jid)
-        for st in sesion_tareas or []:
-            fase = st.get("fase_sesion")
-            if is_compensatorio_fase(fase) and fase not in fases:
-                continue
-            total += minutos_carga_sesion_tarea(st)
-    total += _partido_minutes(estructura, jid)
+    for st in tasks_for_player(sesion_tareas, estructura, jugador_id, parcial=parcial):
+        total += minutos_carga_sesion_tarea(st)
+    total += _partido_minutes(estructura, jugador_id)
     return total + extra
 
 

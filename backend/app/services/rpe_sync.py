@@ -7,6 +7,7 @@ from typing import Optional
 from uuid import UUID
 
 from app.services.duracion_efectiva import (
+    is_compensatorio_fase,
     margin_minutes_for_tipos,
     minutos_plan_margen,
     named_players_on_task,
@@ -14,6 +15,7 @@ from app.services.duracion_efectiva import (
     player_session_minutes,
     split_margen_efectivo,
 )
+from app.services.sesion_carga import player_session_carga
 from app.services.load_calculation_service import recalculate_player_load
 from app.services.sesion_recalculo import (
     apply_minutes_to_rpe_rows,
@@ -493,6 +495,55 @@ def minute_overrides_for_sessions(supabase, session_ids: list, attendance: list)
                 minutos_margen=margin_minutes_for_tipos(tipos, margin.get((sid, jid), 0)),
             )
     return overrides
+
+
+def group_work_for_sessions(supabase, session_ids: list, attendance: list) -> dict[str, dict[str, dict]]:
+    """Minutos y carga de cada jugador en sesiones con compensatorio.
+
+    Solo quien hace la sesión entera. Quien está al margen sigue por el
+    recuento parcial. Cada uno lleva el grupo al que está asignado.
+    """
+    wanted = {str(s) for s in session_ids if s}
+    by_session: dict[str, list[str]] = {}
+    for row in attendance or []:
+        if not row.get("presente"):
+            continue
+        sid = str(row.get("sesion_id") or "")
+        jid = str(row.get("jugador_id") or "")
+        if not sid or not jid or (wanted and sid not in wanted):
+            continue
+        if participation_kind(_tipos(row.get("tipo_participacion"))) != "completa":
+            continue
+        by_session.setdefault(sid, []).append(jid)
+    if not by_session:
+        return {}
+    sids = list(by_session)
+    rows_by: dict[str, list] = {}
+    compensatorio: set[str] = set()
+    for row in _select_tarea_rows(supabase, sesion_ids=sids):
+        sid = str(row.get("sesion_id") or "")
+        rows_by.setdefault(sid, []).append(row)
+        if is_compensatorio_fase(row.get("fase_sesion")):
+            compensatorio.add(sid)
+    if not compensatorio:
+        return {}
+    estructura_by: dict[str, list] = {}
+    try:
+        for ses in _rows_in(supabase, "sesiones", "id, estructura_fases", "id", list(compensatorio)):
+            estructura = ses.get("estructura_fases") or []
+            estructura_by[str(ses.get("id"))] = estructura if isinstance(estructura, list) else []
+    except Exception as e:
+        logger.warning("estructura para grupos de compensatorio: %s", e)
+    out: dict[str, dict[str, dict]] = {}
+    for sid in compensatorio:
+        rows = rows_by.get(sid) or []
+        estructura = estructura_by.get(sid) or []
+        for jid in by_session.get(sid, []):
+            out.setdefault(sid, {})[jid] = {
+                "minutes": player_session_minutes(rows, estructura, jid),
+                "carga": player_session_carga(rows, estructura, jid),
+            }
+    return out
 
 
 def player_minutes_for_sesion(

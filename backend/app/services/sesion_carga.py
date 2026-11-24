@@ -7,10 +7,12 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.services.duracion_efectiva import (
-    clock_minutos_sesion_tarea,
     compensatorio_lane_index,
     is_compensatorio_fase,
     minutos_carga_sesion_tarea,
+    partido_duraciones_jugador,
+    reparto_paralelo,
+    tasks_for_player,
 )
 
 
@@ -119,6 +121,26 @@ def intensidad_from_carga(carga_total: float, duracion_total: int) -> str:
     return "muy_baja"
 
 
+def player_session_carga(
+    sesion_tareas: List[Dict[str, Any]],
+    estructura: Optional[List[Dict[str, Any]]],
+    jugador_id: str,
+    *,
+    parcial: bool = False,
+    solo_margen: bool = False,
+    sin_campo: bool = False,
+) -> float:
+    """Carga de las tareas de su grupo, no de las ramas que corren a la vez."""
+    if solo_margen or sin_campo:
+        return 0.0
+    total = 0.0
+    for st in tasks_for_player(sesion_tareas, estructura, jugador_id, parcial=parcial):
+        total += carga_from_sesion_tarea(st)
+    for dur in partido_duraciones_jugador(estructura, jugador_id):
+        total += carga_partido_condicionado(dur)
+    return round(total, 2)
+
+
 def aggregate_sesion_carga(
     sesion_tareas: List[Dict[str, Any]],
     estructura_fases: Optional[List[Dict[str, Any]]] = None,
@@ -126,25 +148,35 @@ def aggregate_sesion_carga(
     """
     Returns (carga_sesion, intensidad_calculada, duracion_total_min).
 
+    El compensatorio es paralelo: el reloj y la carga de la sesión son los del
+    grupo más largo, no la suma de los grupos. La carga de cada jugador se
+    calcula aparte, con el grupo al que está asignado.
     Incluye bloques de partido condicionado (no son tareas).
     """
-    total_carga = 0.0
-    sequential_dur = 0
-    lane_durs: dict[int, int] = {}
+    sequential_dur, _, lanes = reparto_paralelo(sesion_tareas)
+    seq_carga = 0.0
+    lane_carga: dict[int, float] = {}
     for st in sesion_tareas or []:
-        tarea = st.get("tarea") or st.get("tareas") or {}
-        if not isinstance(tarea, dict):
-            tarea = {}
-        clock = clock_minutos_sesion_tarea(st)
+        if not isinstance(st, dict):
+            continue
+        carga = carga_from_sesion_tarea(st)
         fase = st.get("fase_sesion")
         lane_idx = compensatorio_lane_index(fase) if is_compensatorio_fase(fase) else None
-        if lane_idx is not None:
-            lane_durs[lane_idx] = lane_durs.get(lane_idx, 0) + clock
+        if lane_idx is None:
+            seq_carga += carga
         else:
-            sequential_dur += clock
-        total_carga += carga_from_sesion_tarea(st)
+            lane_carga[lane_idx] = lane_carga.get(lane_idx, 0.0) + carga
+
+    parallel_dur = 0
+    parallel_carga = 0.0
+    if lanes:
+        parallel_dur = max(lane["clock"] for lane in lanes.values())
+        candidatos = [i for i, lane in lanes.items() if lane["clock"] == parallel_dur]
+        longest = max(candidatos, key=lambda i: lane_carga.get(i, 0.0))
+        parallel_carga = lane_carga.get(longest, 0.0)
 
     partido_dur = 0
+    total_carga = seq_carga + parallel_carga
     for bloque in estructura_fases or []:
         if not isinstance(bloque, dict):
             continue
@@ -153,6 +185,6 @@ def aggregate_sesion_carga(
             partido_dur += dur_p
             total_carga += carga_p
 
-    total_dur = sequential_dur + (max(lane_durs.values()) if lane_durs else 0) + partido_dur
+    total_dur = sequential_dur + parallel_dur + partido_dur
     intensidad = intensidad_from_carga(total_carga, total_dur)
     return round(total_carga, 2), intensidad, total_dur

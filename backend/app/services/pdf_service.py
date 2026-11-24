@@ -20,6 +20,7 @@ from app.services.duracion_efectiva import (
     fase_for_lane,
     is_compensatorio_fase,
     lanes_from_bloque,
+    tiempos_sesion,
 )
 
 logger = logging.getLogger(__name__)
@@ -1794,7 +1795,7 @@ async def generate_sesion_pdf_reducido(
 
     # —— Tareas (máx. 4 para grid 2×2 en 1 página) ——
     todas = []
-    duracion_total = 0
+    duracion_total = tiempos_sesion(tareas_sesion)[0]
     for i, ts in enumerate(tareas_sesion or [], start=1):
         tarea = ts.get("tareas") or ts.get("tarea") or {}
         if not isinstance(tarea, dict):
@@ -1804,7 +1805,6 @@ async def generate_sesion_pdf_reducido(
         if isinstance(cat, dict):
             cat_code = cat.get("codigo") or cat.get("nombre_corto") or cat.get("nombre") or ""
         dur = ts.get("duracion_override") or tarea.get("duracion_total") or 0
-        duracion_total += int(dur or 0)
 
         desc = tarea.get("desarrollo") or tarea.get("descripcion") or ""
         formacion = ts.get("formacion_equipos") if isinstance(ts.get("formacion_equipos"), dict) else None

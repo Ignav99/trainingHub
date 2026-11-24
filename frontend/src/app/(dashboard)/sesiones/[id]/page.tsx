@@ -101,6 +101,7 @@ import {
   type CampogramaEstimado,
 } from '@/lib/campogramaEstimado'
 import { duracionBloquePartido, faseSesionFromBloque, isPartidoCondicionado, resolveEstructura } from '@/lib/sesionEstructura'
+import { tiemposSesion } from '@/lib/duracionEfectiva'
 import { tipoDesdePlan } from '@/lib/sesionMicrociclo'
 import {
   clearCreacion,
@@ -1223,9 +1224,10 @@ export default function SesionDetailPage() {
     }
     return (tareasByFase[b.tipo]?.length || 0) > 0
   })
-  const totalDuration =
-    allTareas.reduce((sum, st) => sum + (st.duracion_override || st.tarea?.duracion_total || 0), 0) +
-    bloquesResueltos.reduce((sum, b) => sum + duracionBloquePartido(b), 0)
+  const minutosPartido = bloquesResueltos.reduce((sum, b) => sum + duracionBloquePartido(b), 0)
+  const tiempos = tiemposSesion(allTareas, minutosPartido)
+  const totalDuration = tiempos.reloj
+  const totalEfectivo = tiempos.efectivo
 
   // ============ Render ============
   if (loading) {
@@ -1277,6 +1279,7 @@ export default function SesionDetailPage() {
             sesion={sesion}
             matchDays={MATCH_DAYS}
             minutos={totalDuration || sesion.duracion_total || 0}
+            minutosEfectivos={totalEfectivo}
             tareas={allTareas.length + bloquesResueltos.filter((b) => b.tipo === 'partido_condicionado').length}
             jugadores={enSesionCount}
             autoSaving={autoSaving}
@@ -1380,6 +1383,9 @@ export default function SesionDetailPage() {
               </span>
               <span className="flex items-center gap-1 text-xs">
                 {totalDuration || sesion.duracion_total || 0} min
+                {totalEfectivo !== (totalDuration || sesion.duracion_total || 0)
+                  ? ` · ${totalEfectivo} efect.`
+                  : ''}
               </span>
               <span className="flex items-center gap-1">
                 <Users className="h-4 w-4" />
@@ -1455,6 +1461,7 @@ export default function SesionDetailPage() {
           </div>
           <span className="text-xs text-muted-foreground shrink-0 tabular-nums">
             {completedBloques.length}/{bloquesResueltos.length || 0} bloques · {totalDuration || sesion.duracion_total || 0} min
+            {totalEfectivo !== (totalDuration || sesion.duracion_total || 0) ? ` · ${totalEfectivo} efect.` : ''}
           </span>
         </div>
         {sesion.microciclo_id && (

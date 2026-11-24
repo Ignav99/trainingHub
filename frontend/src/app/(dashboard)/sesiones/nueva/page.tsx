@@ -38,6 +38,7 @@ import { SesionBloquesDraftPanel } from '@/components/sesiones/SesionBloquesDraf
 import { TaskPickerDialog } from '@/components/tareas/TaskPickerDialog'
 import TareaCreatorFullscreen, { type TareaCreatorData } from '@/components/tareas/TareaCreatorFullscreen'
 import { FASE_LABELS, ensureBloqueForFase } from '@/lib/sesionEstructura'
+import { tiemposSesion } from '@/lib/duracionEfectiva'
 import { madreToCreatorPrefill } from '@/lib/tareaVariante'
 import { jugadoresApi } from '@/lib/api/jugadores'
 import {
@@ -588,9 +589,14 @@ export default function NuevaSesionPage() {
     setCreatorFromMother(null)
   }
 
-  const calcularDuracionTotal = () => {
-    return tareasEnSesion.reduce((acc, t) => acc + (t.duracion_override || t.tarea.duracion_total), 0)
-  }
+  const tiemposNueva = tiemposSesion(
+    tareasEnSesion.map((t) => ({
+      fase: t.fase,
+      duracion_override: t.duracion_override,
+      tarea: t.tarea,
+    })),
+  )
+  const calcularDuracionTotal = () => tiemposNueva.reloj
 
   // Flujo: Config → (IA) → Tareas → Convocatoria opcional
   const canGoNext = () => {
@@ -891,6 +897,7 @@ export default function NuevaSesionPage() {
               </div>
               <div className="text-sm text-gray-500">
                 Duración total: <span className="font-medium text-gray-900">{calcularDuracionTotal()} min</span>
+                {tiemposNueva.efectivo !== tiemposNueva.reloj ? ` · ${tiemposNueva.efectivo} efect.` : ''}
               </div>
             </div>
             <p className="text-sm text-gray-500 -mt-2 mb-4">

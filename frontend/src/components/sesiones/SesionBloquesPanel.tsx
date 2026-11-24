@@ -245,13 +245,10 @@ export function SesionBloquesPanel({
       ? lanes.map((_, i) => (tareasByFase[faseForLane(i)] || []).length)
       : []
     const compensatorioMin = isCompensatorio ? Math.max(0, ...laneDurations) : 0
-    const displayDuration =
-      bloque.duracion_objetivo ??
-      (isCompensatorio
-        ? compensatorioMin || null
-        : hasTareas
-          ? tareasDuration
-          : partidoMin || null)
+    const displayDuration = isCompensatorio
+      ? compensatorioMin || bloque.duracion_objetivo || null
+      : bloque.duracion_objetivo ??
+        (hasTareas ? tareasDuration : partidoMin || null)
     const removable = canRemoveBloque(bloque, tareas)
 
     return (
