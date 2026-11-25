@@ -18,7 +18,7 @@ Descartado: N+1 en las rutas calientes (`list_sesiones` agrupa en lotes de 80 co
 ## Qué se ha arreglado
 
 1. **470 rutas `async def` → `def`** (AST: solo las decoradas con `@router.<verbo>` y sin `await`, `async for/with`, `yield` ni APIs del loop en su propio cuerpo). FastAPI las ejecuta en el threadpool. Hay 3 llamadas internas (`await get_sesion`, `await get_asistencias`, `await recomendar_sesion`) que pasan a llamada directa. Gracias a eso se convierten 7 rutas más (473 en total). Quedan 59 rutas `async` legítimas (IA, PDF, uploads, scraping).
-2. **Threadpool**: anyio a 60 tokens (`THREADPOOL_SIZE`) y executor de asyncio a 32 hilos (`ASYNCIO_EXECUTOR_SIZE`), configurados en el lifespan (`app/main.py`).
+2. **Threadpool**: anyio a 16 tokens (`THREADPOOL_SIZE`) y executor de asyncio a 8 hilos (con 60+32 la instancia de 512 MB moría por memoria; ver `MALLOC_ARENA_MAX=2` y `--max-requests` en el startCommand) (`ASYNCIO_EXECUTOR_SIZE`), configurados en el lifespan (`app/main.py`).
 3. **Rate limit** (`app/middleware.py`):
    - autenticado: 600/min por usuario (clave = `sub` del JWT, sin verificar la firma: solo sirve como clave de cuota);
    - anónimo: 300/min por IP;
