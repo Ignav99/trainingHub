@@ -48,8 +48,52 @@ from app.middleware import (
 # Hilos para el trabajo síncrono (cliente Supabase síncrono, PDFs, scrapers).
 # Las rutas `def` usan el limitador de anyio; asyncio.to_thread usa el executor
 # por defecto del loop, que sin configurar depende de os.cpu_count() del host.
-THREADPOOL_SIZE = int(os.environ.get("THREADPOOL_SIZE", "60"))
-ASYNCIO_EXECUTOR_SIZE = int(os.environ.get("ASYNCIO_EXECUTOR_SIZE", "32"))
+# Cada hilo puede retener su propia arena de malloc: con 60+32 hilos en 512 MB
+# la instancia moría por memoria (nov 2026). Los hilos casi siempre esperan
+# red, así que 16 bastan; subir solo si sube la RAM del plan.
+THREADPOOL_SIZE = int(os.environ.get("THREADPOOL_SIZE", "16"))
+ASYNCIO_EXECUTOR_SIZE = int(os.environ.get("ASYNCIO_EXECUTOR_SIZE", "8"))
+MEMORIA_LOG_SEGUNDOS = int(os.environ.get("MEMORIA_LOG_SEGUNDOS", "120"))
+
+_log_memoria = logging.getLogger("traininghub.memoria")
+
+
+def _leer_mb(path: str) -> int | None:
+    try:
+        with open(path) as fh:
+            valor = fh.read().strip()
+        return None if valor == "max" else int(valor) // (1024 * 1024)
+    except (OSError, ValueError):
+        return None
+
+
+def _rss_mb() -> int | None:
+    try:
+        with open("/proc/self/status") as fh:
+            for linea in fh:
+                if linea.startswith("VmRSS:"):
+                    return int(linea.split()[1]) // 1024
+    except (OSError, ValueError, IndexError):
+        pass
+    return None
+
+
+async def _vigilar_memoria() -> None:
+    """Una línea periódica en los logs con la memoria del worker y del
+    contenedor, para ver en Render si crece antes de que lo maten."""
+    import asyncio
+    import threading
+
+    while True:
+        _log_memoria.info(
+            "rss_worker=%sMB contenedor=%s/%sMB hilos=%s limite_hilos=%s",
+            _rss_mb(),
+            _leer_mb("/sys/fs/cgroup/memory.current"),
+            _leer_mb("/sys/fs/cgroup/memory.max"),
+            threading.active_count(),
+            THREADPOOL_SIZE,
+        )
+        await asyncio.sleep(MEMORIA_LOG_SEGUNDOS)
 
 
 def _configure_thread_pools() -> None:
@@ -91,6 +135,10 @@ async def lifespan(app: FastAPI):
     print(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     _configure_thread_pools()
     init_supabase()
+    import asyncio
+    vigilante_memoria = (
+        asyncio.create_task(_vigilar_memoria()) if MEMORIA_LOG_SEGUNDOS > 0 else None
+    )
 
     # Start RFAF scraping scheduler — SOLO en un worker (con varios workers
     # cada uno lo arrancaría y el scraping/cron se ejecutaría N veces).
@@ -108,6 +156,8 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
+    if vigilante_memoria is not None:
+        vigilante_memoria.cancel()
     if scheduler_lock is not None:
         try:
             stop_scheduler()
