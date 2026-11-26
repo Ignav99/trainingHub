@@ -5,8 +5,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Loader2, CheckCircle2 } from 'lucide-react'
 import { getSupabaseClient } from '@/lib/supabase/client'
-import { PorAspecto } from '@/components/appearance/PorAspecto'
-import { PuertaCal } from '@/components/puerta/PuertaCal'
 import { AuthShell, authButton, authInput, authLabel } from '@/components/auth/AuthShell'
 
 
@@ -151,17 +149,8 @@ export default function ResetPasswordPage() {
     )
 
   return (
-    <PorAspecto
-      resto={
-        <AuthShell titulo="Nueva contraseña" subtitulo="Elige una contraseña que no uses en otros sitios.">
-          {cuerpo}
-        </AuthShell>
-      }
-      cal={
-        <PuertaCal rotulo="Acceso" titulo="Elige una contraseña nueva">
-          {cuerpo}
-        </PuertaCal>
-      }
-    />
+    <AuthShell titulo="Nueva contraseña" subtitulo="Elige una contraseña que no uses en otros sitios.">
+      {cuerpo}
+    </AuthShell>
   )
 }

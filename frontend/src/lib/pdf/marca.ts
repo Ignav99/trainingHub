@@ -283,7 +283,7 @@ export async function cerrarPdf(
   doc: jsPDF,
   tema: TemaPdf,
   titulo = '',
-  opciones: { marcaAgua?: boolean } = {},
+  opciones: { marcaAgua?: boolean; opacidadMarca?: number } = {},
 ): Promise<void> {
   const marca = opciones.marcaAgua === false ? null : await marcaPng(tema.primario, 640)
   const marcaPie = await marcaPng(tema.primario, 96)
@@ -296,7 +296,7 @@ export async function cerrarPdf(
     if (marca && GState) {
       const lado = Math.min(w, h) * 0.56
       doc.saveGraphicsState()
-      doc.setGState(new GState({ opacity: 0.055 }) as never)
+      doc.setGState(new GState({ opacity: opciones.opacidadMarca ?? 0.055 }) as never)
       doc.addImage(marca, 'PNG', (w - lado) / 2, (h - lado) / 2, lado, lado, 'kabine-marca-agua', 'FAST', -12)
       doc.restoreGraphicsState()
     }

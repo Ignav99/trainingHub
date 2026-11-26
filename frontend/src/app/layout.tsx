@@ -46,7 +46,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="es" className={`${ui.variable} ${mono.variable} ${classic.variable} ${cal.variable} ${calMono.variable}`}>
+    <html lang="es" data-appearance="cal" suppressHydrationWarning className={`${ui.variable} ${mono.variable} ${classic.variable} ${cal.variable} ${calMono.variable}`}>
       <body>
         <Script id="kabine-appearance" strategy="beforeInteractive">{appearanceBootScript}</Script>
         <AuthProvider>

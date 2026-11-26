@@ -4,8 +4,6 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Loader2, Mail, ArrowLeft } from 'lucide-react'
 import { getSupabaseClient } from '@/lib/supabase/client'
-import { PorAspecto } from '@/components/appearance/PorAspecto'
-import { PuertaCal } from '@/components/puerta/PuertaCal'
 import { AuthShell, authButton, authInput, authLabel } from '@/components/auth/AuthShell'
 
 
@@ -100,20 +98,8 @@ export default function ForgotPasswordPage() {
   )
 
   return (
-    <PorAspecto
-      resto={
-        <AuthShell titulo="Recuperar contraseña" subtitulo="Te enviaremos un enlace para elegir una contraseña nueva.">
-          {sent ? enviado : formulario}
-        </AuthShell>
-      }
-      cal={
-        <PuertaCal rotulo="Acceso" titulo="Recupera tu contraseña">
-          <p className="mb-6 text-sm text-muted-foreground">
-            Te enviaremos un enlace para elegir una contraseña nueva.
-          </p>
-          {sent ? enviado : formulario}
-        </PuertaCal>
-      }
-    />
+    <AuthShell titulo="Recuperar contraseña" subtitulo="Te enviaremos un enlace para elegir una contraseña nueva.">
+      {sent ? enviado : formulario}
+    </AuthShell>
   )
 }

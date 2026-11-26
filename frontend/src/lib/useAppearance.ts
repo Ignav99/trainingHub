@@ -9,9 +9,9 @@ function subscribe(onChange: () => void) {
   return () => observador.disconnect()
 }
 
-/** Aspecto activo, reactivo al atributo de <html>. En servidor siempre `acta`. */
+/** Aspecto activo, reactivo al atributo de <html>. Siempre `cal` (único aspecto). */
 export function useAppearance(): Appearance {
-  return useSyncExternalStore(subscribe, readAppearance, () => 'acta')
+  return useSyncExternalStore(subscribe, readAppearance, () => 'cal')
 }
 
 /** false en servidor y en el primer render; true tras montar. */
