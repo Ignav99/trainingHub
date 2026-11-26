@@ -53,6 +53,7 @@ class CameraTests(unittest.TestCase):
         camera.position, camera.pitch = VIEW[:3].copy(), PITCH
         found = camera.fit(frame)
         self.assertIsNotNone(found)
+        self.assertLess(camera.last.ring, 4.0)
         grid = np.array([[x, y] for x in range(300, 1700, 200) for y in range(500, 1000, 100)], float)
         error = np.hypot(*(apply_h(found, grid) - apply_h(truth, grid)).T)
         self.assertLess(float(np.median(error)), 0.6)
@@ -95,6 +96,14 @@ class CameraTests(unittest.TestCase):
         self.assertGreater(int(np.count_nonzero(lines[60:660, 950:971])), 1500)
         self.assertEqual(int(np.count_nonzero(lines[220:261, 680:940])), 0)
         self.assertEqual(int(np.count_nonzero(lines[460:620, 1000:1260])), 0)
+
+    def test_warm_pitch_line_under_floodlights_is_kept(self) -> None:
+        """La línea de juego al sol y con focos sale amarilla. Tiene que contar."""
+        frame = np.zeros((720, 1280, 3), np.uint8)
+        frame[:, :] = (49, 93, 73)
+        cv2.line(frame, (200, 80), (1100, 640), (101, 162, 181), 3)
+        lines = C.line_mask(frame)
+        self.assertGreater(int(np.count_nonzero(lines)), 800)
 
 
 class KeypointTests(unittest.TestCase):
