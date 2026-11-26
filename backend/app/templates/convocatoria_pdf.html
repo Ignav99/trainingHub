@@ -3,193 +3,62 @@
 <head>
     <meta charset="UTF-8">
     <style>
+        @page { size: A4; margin: 14mm 14mm 15mm; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-            margin: 30px 40px;
-            color: #0B1F17;
-            font-size: 13px;
-            line-height: 1.5;
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 24px;
-            padding-bottom: 16px;
-            border-bottom: 3px solid {{ color_primario }};
-        }
-        .header .org-name {
-            font-size: 12px;
-            color: #666;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            margin-bottom: 5px;
-        }
-        .header .title {
-            font-size: 22px;
-            font-weight: 700;
-            color: {{ color_primario }};
-        }
-        .header .subtitle {
-            font-size: 14px;
-            color: #555;
-            margin-top: 5px;
-        }
-        .match-bar {
-            background: {{ color_primario }};
-            color: white;
-            border-radius: 8px;
-            padding: 18px 25px;
-            margin: 16px 0;
-        }
-        .match-bar .team {
-            font-size: 18px;
-            font-weight: 700;
-        }
-        .match-bar .info {
-            font-size: 11px;
-            opacity: 0.9;
-            margin-top: 4px;
-        }
-        .meta-row {
-            display: flex;
-            gap: 12px;
-            margin: 12px 0 18px;
-        }
-        .meta-box {
-            flex: 1;
-            background: #f8f9fa;
-            border-radius: 6px;
-            padding: 10px 12px;
-            border-left: 3px solid {{ color_primario }};
-        }
-        .meta-box .label {
-            font-size: 9px;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-            color: #888;
-            font-weight: 700;
-        }
-        .meta-box .value {
-            font-size: 13px;
-            font-weight: 700;
-            margin-top: 2px;
-        }
-        .section-title {
-            font-size: 14px;
-            font-weight: 700;
-            color: {{ color_primario }};
-            border-bottom: 1px solid #e2e8f0;
-            padding-bottom: 6px;
-            margin: 20px 0 12px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 15px;
-        }
-        table th {
-            text-align: left;
-            font-size: 10px;
-            font-weight: 700;
-            color: #888;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            padding: 8px 10px;
-            border-bottom: 2px solid {{ color_primario }};
-        }
-        table td {
-            padding: 10px 10px;
-            font-size: 15px;
-            border-bottom: 1px solid #f1f5f9;
-        }
-        table tr:nth-child(even) { background: #fafbfc; }
-        .dorsal {
-            display: inline-block;
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            background: {{ color_primario }};
-            color: white;
-            text-align: center;
-            line-height: 28px;
-            font-size: 12px;
-            font-weight: 700;
-        }
-        .apodo {
-            color: #667;
-            font-size: 11px;
-        }
-        .pos-badge {
-            display: inline-block;
-            padding: 2px 8px;
-            background: #f1f5f9;
-            border-radius: 3px;
-            font-size: 10px;
-            font-weight: 700;
-            color: #555;
-        }
-        .footer {
-            margin-top: 40px;
-            padding-top: 15px;
-            border-top: 1px solid #e2e8f0;
-            text-align: center;
-            color: #aaa;
-            font-size: 10px;
-        }
+        body { font-size: 9pt; line-height: 1.45; }
+
+        .partido { background: var(--k-primario); color: var(--k-sobre-primario);
+            border-radius: 2.6mm; padding: 4mm 5mm; margin-bottom: 3mm; }
+        .partido .k-eyebrow { color: var(--k-sobre-primario); opacity: .8; }
+        .partido .equipos { font-size: 15pt; font-weight: 800; letter-spacing: -.02em; line-height: 1.15; margin-top: 1mm; }
+        .partido .info { font-size: 8pt; margin-top: 1.2mm; opacity: .9; }
+
+        .meta { width: 100%; border-collapse: separate; border-spacing: 1.6mm 1.6mm; margin: 0 -1.6mm 1mm; table-layout: fixed; }
+        .meta td { vertical-align: top; }
+        .meta .k-tarjeta { padding: 2.4mm 2.8mm; min-height: 13mm; }
+        .meta .valor { font-size: 9.5pt; font-weight: 700; margin-top: .6mm; line-height: 1.2; }
+
+        .k-tabla td { padding: 1.5mm 2mm; font-size: 10pt; vertical-align: middle; }
+        .dorsal { display: inline-block; width: 6.8mm; height: 6.8mm; border-radius: 50%;
+            background: var(--k-primario); color: var(--k-sobre-primario);
+            text-align: center; line-height: 6.8mm; font-size: 8.5pt; font-weight: 700; }
+        .nombre { font-weight: 700; font-size: 10.5pt; }
+        .apodo { color: var(--k-tinta-suave); font-size: 8.5pt; }
+        .k-tabla tr:nth-child(even) td .k-chip { background: #fff; }
     </style>
 </head>
 <body>
-    <div class="header">
-        <div class="org-name">{{ org_nombre }}</div>
-        <div class="title">Convocatoria</div>
-        <div class="subtitle">{{ equipo_nombre }}{% if equipo_categoria %} &mdash; {{ equipo_categoria }}{% endif %}</div>
-    </div>
+    {% from "_marca/cabecera.html" import cabecera %}
+    {% set sub %}{{ equipo_nombre }}{% if equipo_categoria %} · {{ equipo_categoria }}{% endif %}{% endset %}
+    {{ cabecera(tema, titulo="Convocatoria", subtitulo=sub, meta=fecha, eyebrow=(tema.club or org_nombre)) }}
 
-    <div class="match-bar">
-        <div class="team">{{ equipo_nombre }} vs {{ rival_nombre }}</div>
+    <div class="partido">
+        <div class="k-eyebrow">{{ localia | capitalize }}{% if competicion %} · {{ competicion.replace('_', ' ') | capitalize }}{% endif %}{% if jornada %} · Jornada {{ jornada }}{% endif %}</div>
+        <div class="equipos">{{ equipo_nombre }} vs {{ rival_nombre }}</div>
         <div class="info">
-            {{ fecha }}{% if hora %} &bull; {{ hora }}h{% endif %}
-            {% if competicion %} &bull; {{ competicion | capitalize }}{% endif %}
-            {% if jornada %} &bull; Jornada {{ jornada }}{% endif %}
-            {% if lugar_partido %} &bull; {{ lugar_partido }}{% endif %}
-            &bull; {{ localia | capitalize }}
+            {{ fecha }}{% if hora %} · {{ hora }}h{% endif %}
+            {% if lugar_partido %} · {{ lugar_partido }}{% endif %}
         </div>
     </div>
 
-    <div class="meta-row">
-        <div class="meta-box">
-            <div class="label">Convocados</div>
-            <div class="value">{{ total_convocados }}</div>
-        </div>
-        <div class="meta-box">
-            <div class="label">Lugar</div>
-            <div class="value">{{ lugar_partido or '—' }}</div>
-        </div>
-        <div class="meta-box">
-            <div class="label">Árbitro</div>
-            <div class="value">{{ arbitro or '—' }}</div>
-        </div>
-        <div class="meta-box">
-            <div class="label">Citación</div>
-            <div class="value">{% if hora_citacion %}{{ hora_citacion }} h{% else %}—{% endif %}</div>
-        </div>
-        <div class="meta-box">
-            <div class="label">Lugar de citación</div>
-            <div class="value">{{ lugar_citacion or '—' }}</div>
-        </div>
-        <div class="meta-box">
-            <div class="label">Equipación</div>
-            <div class="value">{{ kit_convocatoria | capitalize }}</div>
-        </div>
-    </div>
+    <table class="meta">
+        <tr>
+            <td><div class="k-tarjeta"><div class="k-dato-label">Convocados</div><div class="valor">{{ total_convocados }}</div></div></td>
+            <td><div class="k-tarjeta"><div class="k-dato-label">Lugar</div><div class="valor">{{ lugar_partido or '—' }}</div></div></td>
+            <td><div class="k-tarjeta"><div class="k-dato-label">Árbitro</div><div class="valor">{{ arbitro or '—' }}</div></div></td>
+        </tr>
+        <tr>
+            <td><div class="k-tarjeta"><div class="k-dato-label">Citación</div><div class="valor">{% if hora_citacion %}{{ hora_citacion }} h{% else %}—{% endif %}</div></div></td>
+            <td><div class="k-tarjeta"><div class="k-dato-label">Lugar de citación</div><div class="valor">{{ lugar_citacion or '—' }}</div></div></td>
+            <td><div class="k-tarjeta"><div class="k-dato-label">Equipación</div><div class="valor">{{ kit_convocatoria | capitalize }}</div></div></td>
+        </tr>
+    </table>
 
-    <div class="section-title">Convocados por dorsal ({{ total_convocados }})</div>
-    <table>
+    <div class="k-seccion">Convocados por dorsal ({{ total_convocados }})</div>
+    <table class="k-tabla">
         <thead>
             <tr>
-                <th style="width: 45px;">#</th>
+                <th style="width: 13mm;">#</th>
                 <th>Jugador</th>
                 <th>Apodo</th>
                 <th>Posición</th>
@@ -198,17 +67,13 @@
         <tbody>
             {% for c in convocados %}
             <tr>
-                <td><span class="dorsal">{{ c.dorsal or '-' }}</span></td>
-                <td style="font-weight: 700; font-size: 16px;">{{ c.jugador_nombre }}</td>
+                <td><span class="dorsal k-mono">{{ c.dorsal or '-' }}</span></td>
+                <td class="nombre">{{ c.jugador_nombre }}</td>
                 <td class="apodo">{{ c.apodo or '—' }}</td>
-                <td><span class="pos-badge">{{ c.posicion or '-' }}</span></td>
+                <td><span class="k-chip">{{ c.posicion or '-' }}</span></td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
-
-    <div class="footer">
-        Generado con Kabin-e &bull; {{ org_nombre }}
-    </div>
 </body>
 </html>

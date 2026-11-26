@@ -21,7 +21,6 @@ import {
   formatLocalia,
   formatPlanFecha,
   formatPlanTramo,
-  hexToRgb,
   informeRivalPdfFilename,
   PITCH_PDF_MAX_MM,
   pitchDisplaySize,
@@ -31,6 +30,25 @@ import { ATTR_EMOJI, collectContextoPdfBlocks, collectIntelVisual, collectOncePd
 import { inferPlanTramo } from '@/lib/planPartidoTramos'
 import { buildOncePitchTokens } from '@/lib/oncePitch'
 import { partidosApi, rivalesApi } from '@/lib/api/partidos'
+import {
+  bandaPdf,
+  cabeceraPdf,
+  cerrarPdf,
+  colorTexto,
+  etiquetaPdf,
+  fuente,
+  LINEA,
+  prepararPdf,
+  relleno,
+  rgbHex,
+  seccionPdf,
+  temaDelClub,
+  tinta,
+  TINTA,
+  TINTA_SUAVE,
+  trazo,
+  type TemaPdf,
+} from './marca'
 
 const FASE_LABELS: Record<FaseRival, string> = {
   ataque_organizado: 'Ataque organizado',
@@ -51,8 +69,6 @@ const FASE_TITLE_COLORS: Record<string, [number, number, number]> = {
   abp_defensiva: [180, 83, 9],
   general: [30, 41, 59],
 }
-
-const SUBFASE_TITLE_COLOR: [number, number, number] = [146, 64, 14]
 
 const SUBFASE_LABELS: Record<string, string> = {
   creacion: 'Creación',
@@ -88,6 +104,8 @@ export interface InformeRivalPdfMeta {
 }
 
 let lockPage = false
+/** Tema del club del PDF en curso (lo fija exportRivalScoutPDF). */
+let temaActual: TemaPdf | null = null
 
 function ensureSpace(doc: jsPDF, y: number, needed: number, margin: number): number {
   const pageHeight = doc.internal.pageSize.getHeight()
@@ -149,12 +167,9 @@ function writeRoles(
   if (!roles.length) return y
   const options = getRolesForContext(context)
   y = ensureSpace(doc, y, 10 + roles.length * 5, margin)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
-  doc.setTextColor(100, 116, 139)
-  doc.text('ROLES', margin, y)
+  etiquetaPdf(doc, 'ROLES', margin, y)
   y += 4.5
-  doc.setFont('helvetica', 'normal')
+  fuente(doc)
   doc.setFontSize(9)
   const colW = (contentWidth - 4) / 2
   let col = 0
@@ -163,7 +178,7 @@ function writeRoles(
   for (const r of roles) {
     const label = `${rolLabel(r.rol, options)}  ·  ${r.jugador}`
     const x = margin + col * (colW + 4)
-    doc.setTextColor(30, 41, 59)
+    tinta(doc, TINTA)
     const next = writeWrapped(doc, label, x, rowY, colW, 4)
     maxY = Math.max(maxY, next)
     col += 1
@@ -194,8 +209,8 @@ function addPizarraImage(
     const props = doc.getImageProperties(png)
     const { w, h } = pitchDisplaySize(contentWidth, props.width, props.height, room)
     const x = margin + (contentWidth - w) / 2
-    doc.setDrawColor(226, 232, 240)
-    doc.setFillColor(15, 40, 12)
+    trazo(doc, LINEA)
+    doc.setFillColor(15, 40, 12) // fondo de césped tras la pizarra
     doc.roundedRect(x - 1, y - 1, w + 2, h + 2, 1.5, 1.5, 'FD')
     const format = png.includes('image/jpeg') ? 'JPEG' : 'PNG'
     const alias = `pz-${doc.getNumberOfPages()}-${Math.round(y)}-${png.length}`
@@ -306,14 +321,11 @@ function writePdfBlock(
   contentWidth: number
 ): number {
   y = ensureSpace(doc, y, 10, margin)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
-  doc.setTextColor(100, 116, 139)
-  doc.text(title, margin, y)
+  etiquetaPdf(doc, title, margin, y)
   y += 5
-  doc.setFont('helvetica', 'normal')
+  fuente(doc)
   doc.setFontSize(9)
-  doc.setTextColor(51, 65, 85)
+  tinta(doc, TINTA)
   for (const line of lines) {
     if (!line.text.trim()) continue
     const icons = line.icons ?? []
@@ -349,68 +361,28 @@ async function loadIntelForPdf(meta: InformeRivalPdfMeta): Promise<PreMatchIntel
   }
 }
 
+/** Cabecera normalizada: escudo propio · rival · partido · INFORME RIVAL · escudo rival. */
 function drawHeader(
   doc: jsPDF,
+  tema: TemaPdf,
   meta: InformeRivalPdfMeta,
   logos: { club?: string | null; rival?: string | null }
-) {
-  const pageWidth = doc.internal.pageSize.getWidth()
-  const [pr, pg, pb] = hexToRgb(meta.colorPrimario || '#0d1117')
-  doc.setFillColor(pr, pg, pb)
-  doc.rect(0, 0, pageWidth, 36, 'F')
-  doc.setFillColor(16, 185, 129)
-  doc.rect(0, 36, pageWidth, 2.2, 'F')
-
-  let x = 12
-  if (logos.club?.startsWith('data:image')) {
-    try {
-      doc.addImage(logos.club, logos.club.includes('jpeg') ? 'JPEG' : 'PNG', x, 8, 18, 18)
-      x += 22
-    } catch {
-      /* skip */
-    }
-  }
-
-  doc.setTextColor(226, 232, 240)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  const club = (meta.clubNombre || '').toUpperCase()
-  if (club) doc.text(club, x, 10)
-
+): Promise<number> {
   const matchTitle = [
     formatPlanFecha(meta.fecha),
     meta.jornada != null && Number.isFinite(meta.jornada) ? `Jornada ${meta.jornada}` : '',
     formatPlanTramo(meta.tramo),
   ].filter(Boolean).join('  ·  ')
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(matchTitle ? 12 : 18)
-  doc.setTextColor(255, 255, 255)
-  const titleLines = doc.splitTextToSize(matchTitle || 'INFORME RIVAL', pageWidth - x - 36) as string[]
-  doc.text(titleLines.slice(0, 2), x, matchTitle ? 17 : 20)
-
   const rival = (meta.rivalNombre || '').trim()
-  if (rival) {
-    doc.setFontSize(11)
-    doc.setTextColor(252, 165, 165)
-    const vs = rival.toUpperCase()
-    const vsW = doc.getTextWidth(vs)
-    const rivalX = pageWidth - 12 - vsW - (logos.rival ? 16 : 0)
-    doc.text(vs, rivalX, 16, { align: 'left' })
-    if (logos.rival?.startsWith('data:image')) {
-      try {
-        doc.addImage(logos.rival, logos.rival.includes('jpeg') ? 'JPEG' : 'PNG', pageWidth - 28, 8, 16, 18)
-      } catch {
-        /* skip */
-      }
-    }
-  }
-
-  const kicker = [matchTitle ? 'INFORME RIVAL' : '', formatLocalia(meta.localia)].filter(Boolean).join('  ·  ')
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8.5)
-  doc.setTextColor(203, 213, 225)
-  if (kicker) doc.text(kicker, x, 28)
+  const kicker = ['INFORME RIVAL', formatLocalia(meta.localia)].filter(Boolean).join('\n')
+  return cabeceraPdf(doc, tema, {
+    titulo: rival || 'Informe rival',
+    subtitulo: matchTitle || undefined,
+    meta: kicker,
+    escudo: logos.club?.startsWith('data:image') ? logos.club : null,
+    escudoDerecha: logos.rival?.startsWith('data:image') ? logos.rival : null,
+    margen: 14,
+  })
 }
 
 function fillHex(doc: jsPDF, hex: string) {
@@ -467,31 +439,15 @@ function drawMatchPitch(
     doc.setDrawColor(255, 255, 255)
     doc.setLineWidth(0.35)
     doc.circle(cx, cy, 4.8, 'S')
-    doc.setFont('helvetica', 'bold')
+    fuente(doc, 'mono')
     doc.setFontSize(9)
     doc.setTextColor(255, 255, 255)
     doc.text(token.dorsal || token.label.slice(0, 3), cx, cy + 1.5, { align: 'center' })
     if (token.nombre) {
-      doc.setFont('helvetica', 'normal')
+      fuente(doc, 'media')
       doc.setFontSize(7.5)
       doc.text(token.nombre, cx, cy + 8, { align: 'center' })
     }
-  }
-}
-
-function drawFooters(doc: jsPDF, clubNombre?: string) {
-  const total = doc.getNumberOfPages()
-  const pageWidth = doc.internal.pageSize.getWidth()
-  const pageHeight = doc.internal.pageSize.getHeight()
-  for (let i = 1; i <= total; i++) {
-    doc.setPage(i)
-    doc.setDrawColor(226, 232, 240)
-    doc.line(12, pageHeight - 10, pageWidth - 12, pageHeight - 10)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7.5)
-    doc.setTextColor(148, 163, 184)
-    doc.text(clubNombre || 'Informe Rival', 12, pageHeight - 6)
-    doc.text(`${i} / ${total}`, pageWidth - 12, pageHeight - 6, { align: 'right' })
   }
 }
 
@@ -512,13 +468,12 @@ function writeScoutTagList(
 ): number {
   if (!items?.length) return y
   y = ensureSpace(doc, y, 10, margin)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
-  doc.setTextColor(color[0], color[1], color[2])
-  doc.text(label, margin, y)
+  // Verde/rojo = semántico (fortaleza / debilidad), oscurecido para leerse sobre blanco.
+  etiquetaPdf(doc, label, margin, y, colorTexto(rgbHex(color)))
   y += 4
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(51, 65, 85)
+  fuente(doc)
+  doc.setFontSize(9)
+  tinta(doc, TINTA)
   y = writeWrapped(doc, items.join(' · '), margin, y, contentWidth)
   return y + 3
 }
@@ -627,14 +582,12 @@ function drawIntelVisual(
   const hasBody = visual.charts.length > 0 || visual.resultados.length > 0 || visual.goleadores.length > 0 || visual.posicion
   if (!hasBody) return y
   y = ensureSpace(doc, y, 36, margin)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(11)
-  doc.setTextColor(30, 64, 175)
-  doc.text('Contexto', margin, y)
+  if (temaActual) seccionPdf(doc, temaActual, 'Contexto', margin, y)
   y += 6
   if (visual.posicion) {
+    fuente(doc, 'media')
     doc.setFontSize(9)
-    doc.setTextColor(15, 23, 42)
+    tinta(doc, TINTA)
     doc.text(`${visual.posicion}º${visual.puntos != null ? ` · ${visual.puntos} pts` : ''}`, margin, y)
     y += 5
   }
@@ -645,14 +598,14 @@ function drawIntelVisual(
     const boxW = (contentWidth - gap * (boxes.length - 1)) / boxes.length
     boxes.forEach((row, index) => {
       const x = margin + index * (boxW + gap)
-      doc.setDrawColor(203, 213, 225)
-      doc.setFillColor(248, 250, 252)
+      trazo(doc, LINEA)
+      relleno(doc, temaActual?.primarioSuave ?? '#F7F8FB')
       doc.roundedRect(x, y, boxW, boxH, 1.5, 1.5, 'FD')
       paintCrest(doc, row.localEscudo ? crests.get(row.localEscudo) : undefined, x + 1.2, y + 3.4, 9)
       paintCrest(doc, row.visitanteEscudo ? crests.get(row.visitanteEscudo) : undefined, x + boxW - 10.2, y + 3.4, 9)
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(8)
-      doc.setTextColor(15, 23, 42)
+      fuente(doc, 'mono')
+      doc.setFontSize(8.5)
+      tinta(doc, TINTA)
       doc.text(`${row.golesLocal} - ${row.golesVisitante}`, x + boxW / 2, y + 9.6, { align: 'center' })
     })
     y += boxH + 4
@@ -663,9 +616,9 @@ function drawIntelVisual(
     const colW = contentWidth / charts.length
     charts.forEach((chart, index) => {
       const x = margin + index * colW
-      doc.setFont('helvetica', 'bold')
+      fuente(doc, 'media')
       doc.setFontSize(8)
-      doc.setTextColor(51, 65, 85)
+      tinta(doc, TINTA_SUAVE)
       doc.text(chart.label, x, y)
       const gfH = 16 * (chart.gf / max)
       const gcH = 16 * (chart.gc / max)
@@ -673,7 +626,7 @@ function drawIntelVisual(
       doc.rect(x, y + 18 - gfH, 6, gfH, 'F')
       doc.setFillColor(239, 68, 68)
       doc.rect(x + 8, y + 18 - gcH, 6, gcH, 'F')
-      doc.setFont('helvetica', 'normal')
+      fuente(doc, 'mono')
       doc.setFontSize(7)
       doc.setTextColor(5, 150, 105)
       doc.text(String(chart.gf), x + 3, y + 22, { align: 'center' })
@@ -683,9 +636,9 @@ function drawIntelVisual(
     y += 26
   }
   if (visual.goleadores.length) {
-    doc.setFont('helvetica', 'bold')
+    fuente(doc, 'media')
     doc.setFontSize(8)
-    doc.setTextColor(146, 64, 14)
+    tinta(doc, temaActual?.primarioTexto ?? TINTA)
     doc.text(
       visual.goleadores.slice(0, 5).map((row) => `${row.nombre} ${row.goles}`).join('   '),
       margin,
@@ -700,7 +653,7 @@ function drawIntelVisual(
   if (cards.length) {
     let x = margin
     cards.forEach((card) => {
-      doc.setFont('helvetica', 'bold')
+      fuente(doc, 'media')
       doc.setFontSize(7)
       doc.setTextColor(card.color[0], card.color[1], card.color[2])
       const label = card.name
@@ -749,13 +702,21 @@ export async function exportRivalScoutPDF(
   ])
 
   const doc = new jsPDF()
+  const tema = await prepararPdf(
+    doc,
+    temaDelClub({
+      colorPrimario: resolved.colorPrimario ?? null,
+      club: resolved.clubNombre ?? null,
+      logoUrl: resolved.clubLogoUrl ?? null,
+    }),
+  )
+  temaActual = tema
   const pageWidth = doc.internal.pageSize.getWidth()
   const margin = 14
   const contentWidth = pageWidth - margin * 2
-  drawHeader(doc, resolved, { club: clubLogo, rival: rivalCrest })
+  let y = await drawHeader(doc, tema, resolved, { club: clubLogo, rival: rivalCrest })
 
   lockPage = true
-  let y = 46
   const contextoBlocks = collectContextoPdfBlocks(data.estrategia)
   for (const block of contextoBlocks) {
     y = writePdfBlock(doc, block.title, block.lines, margin, y, contentWidth)
@@ -768,9 +729,9 @@ export async function exportRivalScoutPDF(
   const pitchH = 108
   if (y + pitchH < pageFloor(doc)) {
     if (data.estrategia?.sistema) {
-      doc.setFont('helvetica', 'bold')
+      fuente(doc, 'bold')
       doc.setFontSize(9)
-      doc.setTextColor(15, 23, 42)
+      tinta(doc, TINTA)
       doc.text(data.estrategia.sistema, margin, y)
       y += 4
     }
@@ -800,28 +761,24 @@ export async function exportRivalScoutPDF(
       y = margin + 2
     }
     lockPage = true
+    // Color de fase = código semántico (se mantiene); el texto elige contraste.
     const titleColor = FASE_TITLE_COLORS[faseKey] ?? [30, 41, 59]
-    doc.setFillColor(titleColor[0], titleColor[1], titleColor[2])
-    doc.roundedRect(margin, y, contentWidth, 10, 1.2, 1.2, 'F')
-    doc.setTextColor(255, 255, 255)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(13)
-    doc.text(FASE_LABELS[faseKey], margin + 3, y + 6.8)
+    bandaPdf(doc, rgbHex(titleColor), FASE_LABELS[faseKey], margin, y, contentWidth, 10)
     y += 14
 
-    doc.setFont('helvetica', 'normal')
+    fuente(doc)
     doc.setFontSize(9)
-    doc.setTextColor(51, 65, 85)
+    tinta(doc, TINTA)
 
     const organized = isOrganizedScout(phase?.fase)
     if (organized && phase?.comentario_general?.trim()) {
-      doc.setFont('helvetica', 'bold')
+      fuente(doc, 'media')
       doc.setFontSize(9)
-      doc.setTextColor(15, 23, 42)
+      tinta(doc, TINTA)
       doc.text('Comentario general', margin, y)
       y += 4.5
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(51, 65, 85)
+      fuente(doc)
+      tinta(doc, TINTA)
       y = writeWrapped(doc, phase.comentario_general.trim(), margin, y, contentWidth)
       y += 3
     }
@@ -844,14 +801,14 @@ export async function exportRivalScoutPDF(
       for (const [key, sub] of eachScoutSubfase(phase)) {
         if (!scoutSubHasContent(sub)) continue
         y = ensureSpace(doc, y, 14, margin)
-        doc.setFont('helvetica', 'bold')
+        fuente(doc, 'bold')
         doc.setFontSize(11.5)
-        doc.setTextColor(SUBFASE_TITLE_COLOR[0], SUBFASE_TITLE_COLOR[1], SUBFASE_TITLE_COLOR[2])
+        tinta(doc, tema.primarioTexto)
         doc.text(SUBFASE_LABELS[key] ?? key, margin, y)
         y += 6
-        doc.setFont('helvetica', 'normal')
+        fuente(doc)
         doc.setFontSize(9)
-        doc.setTextColor(51, 65, 85)
+        tinta(doc, TINTA)
         if (sub.notas?.trim()) {
           y = writeWrapped(doc, sub.notas, margin, y, contentWidth)
           y += 3
@@ -876,18 +833,18 @@ export async function exportRivalScoutPDF(
     }
 
     if (phase?.vigilancias?.trim()) {
-      doc.setFont('helvetica', 'bold')
+      fuente(doc, 'media')
       doc.text('Vigilancias', margin, y)
       y += 4.5
-      doc.setFont('helvetica', 'normal')
+      fuente(doc)
       y = writeWrapped(doc, phase.vigilancias, margin, y, contentWidth)
       y += 3
     }
     if (phase?.repliegue?.trim()) {
-      doc.setFont('helvetica', 'bold')
+      fuente(doc, 'media')
       doc.text('Repliegue', margin, y)
       y += 4.5
-      doc.setFont('helvetica', 'normal')
+      fuente(doc)
       y = writeWrapped(doc, phase.repliegue, margin, y, contentWidth)
       y += 3
     }
@@ -921,14 +878,11 @@ export async function exportRivalScoutPDF(
     }
 
     if (phase?.clips?.length) {
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(8)
-      doc.setTextColor(100, 116, 139)
-      doc.text('CLIPS', margin, y)
+      etiquetaPdf(doc, 'CLIPS', margin, y)
       y += 5
-      doc.setFont('helvetica', 'normal')
+      fuente(doc)
       doc.setFontSize(9)
-      doc.setTextColor(51, 65, 85)
+      tinta(doc, TINTA)
       for (const clip of phase.clips) {
         y = writeWrapped(doc, `•  ${clip.titulo}`, margin, y, contentWidth)
       }
@@ -938,6 +892,7 @@ export async function exportRivalScoutPDF(
     lockPage = false
   }
 
-  drawFooters(doc, resolved.clubNombre)
+  await cerrarPdf(doc, tema, 'Informe rival')
+  temaActual = null
   doc.save(informeRivalPdfFilename(resolved.rivalNombre))
 }

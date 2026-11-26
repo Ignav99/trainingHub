@@ -1,0 +1,75 @@
+/* Kabin-e · base común de todos los PDF (la inyecta pdf_marca.html_a_pdf).
+   Las variables --k-* de color se añaden detrás con los colores del club. */
+
+@font-face { font-family: "Schibsted Grotesk"; font-weight: 400; src: url("__FUENTES__/SchibstedGrotesk-Regular.ttf"); }
+@font-face { font-family: "Schibsted Grotesk"; font-weight: 500 600 700; src: url("__FUENTES__/SchibstedGrotesk-SemiBold.ttf"); }
+@font-face { font-family: "Schibsted Grotesk"; font-weight: 800 900; src: url("__FUENTES__/SchibstedGrotesk-ExtraBold.ttf"); }
+@font-face { font-family: "IBM Plex Mono"; font-weight: 400 700; src: url("__FUENTES__/IBMPlexMono-Medium.ttf"); }
+
+/* Una sola familia en todo el documento, venga de donde venga la plantilla. */
+html, body, body * { font-family: "Schibsted Grotesk", sans-serif !important; }
+body .k-mono, body .k-mono *, body .k-eyebrow, body code, body .mono { font-family: "IBM Plex Mono", monospace !important; }
+body { color: var(--k-tinta); -weasy-hyphens: manual; }
+
+/* Margen inferior fijo para el pie normalizado. */
+@page {
+  margin-bottom: 15mm;
+  @bottom-left { content: element(kpie); vertical-align: middle; }
+  @bottom-right {
+    content: counter(page) " / " counter(pages);
+    font-family: "IBM Plex Mono", monospace; font-size: 7pt; color: #8A90B0;
+    vertical-align: middle; letter-spacing: .06em;
+  }
+}
+
+/* ── Marca de agua: isotipo teñido con el color del club, en cada página ── */
+.k-marca-agua {
+  position: fixed; top: 50%; left: 50%;
+  width: 118mm; height: 118mm; margin: -59mm 0 0 -59mm;
+  opacity: .055; z-index: -1; transform: rotate(-12deg);
+}
+.k-marca-agua img { width: 100%; height: 100%; }
+
+/* ── Pie corrido ── */
+.k-pie { position: running(kpie); display: block; white-space: nowrap;
+  font-size: 7pt; line-height: 3.6mm; color: #8A90B0; }
+.k-pie img { display: inline-block; vertical-align: middle; }
+.k-pie-marca { width: 3.6mm; height: 3.6mm; margin-right: 1.6mm; }
+.k-pie-word { height: 2.4mm; width: 11.2mm; margin-right: 2.4mm; }
+.k-pie-club, .k-pie-titulo { display: inline-block; vertical-align: middle; padding: 0 2.4mm;
+  border-left: .3mm solid #D5D9E8; line-height: 3mm; }
+.k-pie-club { font-weight: 600; color: var(--k-tinta-suave); }
+
+/* ── Piezas comunes (opcionales para las plantillas) ── */
+.k-cabecera { display: flex; align-items: center; gap: 4mm; padding-bottom: 3.5mm;
+  border-bottom: .6mm solid var(--k-primario); margin-bottom: 5mm; }
+.k-cabecera .k-escudo { width: 13mm; height: 13mm; object-fit: contain; }
+.k-cabecera .k-cab-texto { flex: 1; min-width: 0; }
+.k-cabecera .k-cab-club { font-size: 7.5pt; font-weight: 600; color: var(--k-tinta-suave);
+  text-transform: uppercase; letter-spacing: .12em; }
+.k-cabecera .k-cab-titulo { font-size: 18pt; font-weight: 800; letter-spacing: -.02em;
+  line-height: 1.05; color: var(--k-tinta); }
+.k-cabecera .k-cab-sub { font-size: 8.5pt; color: var(--k-tinta-suave); margin-top: .8mm; }
+.k-cabecera .k-cab-meta { text-align: right; font-size: 7.5pt; color: var(--k-tinta-suave); }
+
+.k-eyebrow { font-size: 6.8pt; font-weight: 700; text-transform: uppercase; letter-spacing: .16em;
+  color: var(--k-primario-texto); }
+.k-titulo { font-size: 13pt; font-weight: 800; letter-spacing: -.015em; color: var(--k-tinta); }
+.k-seccion { margin: 5mm 0 2.5mm; padding-left: 2.6mm; border-left: 1mm solid var(--k-primario);
+  font-size: 10.5pt; font-weight: 800; color: var(--k-tinta); letter-spacing: -.01em; }
+
+.k-tarjeta { background: #fff; border: .25mm solid var(--k-linea); border-radius: 2.6mm; padding: 3.5mm; }
+.k-tarjeta-suave { background: var(--k-primario-suave); border-radius: 2.6mm; padding: 3.5mm; }
+
+.k-chip { display: inline-block; padding: .5mm 2mm; border-radius: 9mm; font-size: 7pt; font-weight: 600;
+  background: var(--k-primario-suave); color: var(--k-primario-texto); }
+.k-chip-solido { background: var(--k-primario); color: var(--k-sobre-primario); }
+
+.k-tabla { width: 100%; border-collapse: collapse; font-size: 8pt; }
+.k-tabla th { background: var(--k-primario); color: var(--k-sobre-primario); font-weight: 600;
+  text-align: left; padding: 1.6mm 2mm; font-size: 7pt; text-transform: uppercase; letter-spacing: .06em; }
+.k-tabla td { padding: 1.5mm 2mm; border-bottom: .2mm solid var(--k-linea); }
+.k-tabla tr:nth-child(even) td { background: var(--k-primario-suave); }
+
+.k-dato { font-size: 16pt; font-weight: 800; letter-spacing: -.02em; color: var(--k-tinta); line-height: 1; }
+.k-dato-label { font-size: 6.8pt; color: var(--k-tinta-suave); text-transform: uppercase; letter-spacing: .1em; }

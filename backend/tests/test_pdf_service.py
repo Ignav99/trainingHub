@@ -39,25 +39,7 @@ def _patch_jinja():
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_generate_sesion_pdf_is_async_and_returns_bytes():
-    from app.services import pdf_service
-
-    assert asyncio.iscoroutinefunction(pdf_service.generate_sesion_pdf), \
-        "generate_sesion_pdf must be async"
-
-    ctx1, ctx2 = _patch_jinja()
-    with _patch_weasyprint(), ctx1, ctx2:
-        result = await pdf_service.generate_sesion_pdf(
-            sesion_data={"equipos": {}, "titulo": "Test"},
-            tareas=[],
-            organizacion={"nombre": "Club Test"},
-        )
-    assert isinstance(result, bytes)
-    assert len(result) > 0
-
-
-@pytest.mark.asyncio
-async def test_generate_sesion_pdf_uses_to_thread():
+async def test_pdf_generation_uses_to_thread():
     """asyncio.to_thread must be called so WeasyPrint runs off the event loop."""
     from app.services import pdf_service
 
@@ -71,10 +53,8 @@ async def test_generate_sesion_pdf_uses_to_thread():
     ctx1, ctx2 = _patch_jinja()
     with _patch_weasyprint(), ctx1, ctx2:
         with patch("asyncio.to_thread", side_effect=spy_to_thread):
-            await pdf_service.generate_sesion_pdf(
-                sesion_data={"equipos": {}, "titulo": "Test"},
-                tareas=[],
-                organizacion={"nombre": "Club Test"},
+            await pdf_service.generate_informe_partido_pdf(
+                partido={}, rival={}, convocatoria=[], organizacion={}, equipo_nombre=""
             )
 
     assert len(to_thread_calls) >= 1, \

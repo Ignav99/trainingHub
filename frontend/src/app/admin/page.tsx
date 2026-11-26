@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import {
   Shield,
@@ -25,6 +24,7 @@ import OrgCard from './components/OrgCard'
 import UsersList from './components/UsersList'
 import ConfirmDialog from './components/ConfirmDialog'
 import PlatformAnalyticsTab from './components/PlatformAnalyticsTab'
+import { KabineMark } from '@/components/brand/KabineLogo'
 
 export default function AdminPage() {
   const router = useRouter()
@@ -219,7 +219,7 @@ export default function AdminPage() {
       <header className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Image src="/logo-icon.png" alt="Kabin-e" width={32} height={32} className="rounded-lg" />
+            <KabineMark className="h-8 w-8" />
             <div>
               <h1 className="font-bold text-gray-900 text-sm sm:text-base">Kabin-e Admin</h1>
               <p className="text-xs text-gray-500 hidden sm:block">{user?.email}</p>

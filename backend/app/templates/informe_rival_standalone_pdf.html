@@ -4,497 +4,260 @@
 <meta charset="UTF-8">
 <title>Informe Rival | {{ rival.get('nombre', 'Rival') }}</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=Bebas+Neue&display=swap');
-
 @page {
     size: A4 portrait;
-    margin: 20mm 15mm 18mm 15mm;
-    @top-center { content: element(page-header); }
-    @bottom-center { content: element(page-footer); }
+    margin: 20mm 14mm 15mm 14mm;
+    @top-center { content: element(page-header); vertical-align: bottom; padding-bottom: 3mm; }
 }
 @page :first {
-    margin-top: 15mm;
+    margin-top: 12mm;
     @top-center { content: none; }
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-size: 8.8pt; line-height: 1.45; }
 
-body {
-    font-family: 'Barlow Condensed', 'Helvetica Neue', Arial, sans-serif;
-    color: #1a1a2e;
-    font-size: 12px;
-    line-height: 1.45;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-}
+/* ── Cabecera corrida (páginas 2+) ── */
+.rh { position: running(page-header); width: 182mm; border-bottom: .3mm solid var(--k-primario); padding-bottom: 2mm; }
+.rh table { width: 100%; border-collapse: collapse; }
+.rh td { vertical-align: middle; }
+.rh img { width: 6mm; height: 6mm; object-fit: contain; display: block; }
+.rh .rh-titulo { padding-left: 2.5mm; font-size: 9pt; font-weight: 800; letter-spacing: -.01em; white-space: nowrap; }
+.rh .rh-club { font-size: 7pt; font-weight: 600; color: var(--k-tinta-suave); text-transform: uppercase; letter-spacing: .12em; margin-right: 1.6mm; }
+.rh .rh-meta { text-align: right; font-size: 7.5pt; color: var(--k-tinta-suave); }
 
-/* ===== RUNNING HEADER (pages 2+) ===== */
-.rh {
-    position: running(page-header);
-    display: table;
-    width: 100%;
-    padding-bottom: 6px;
-    border-bottom: 2px solid {{ color_primario }};
-    font-size: 10px;
-    color: #555;
-}
-.rh .rh-l, .rh .rh-r {
-    display: table-cell;
-    vertical-align: middle;
-}
-.rh .rh-l { text-align: left; white-space: nowrap; }
-.rh .rh-r { text-align: right; color: #aaa; font-size: 9px; }
-.rh img { width: 18px; height: 18px; object-fit: contain; vertical-align: middle; margin-right: 8px; }
-.rh .rh-club { font-weight: 700; color: {{ color_primario }}; text-transform: uppercase; letter-spacing: 0.5px; }
-.rh .rh-sep { color: #ccc; margin: 0 6px; }
-.rh .rh-name { font-weight: 600; color: #333; }
-
-/* ===== RUNNING FOOTER ===== */
-.rf {
-    position: running(page-footer);
-    display: table;
-    width: 100%;
-    padding-top: 6px;
-    border-top: 1px solid #e2e8f0;
-    font-size: 9px;
-    color: #aaa;
-}
-.rf .rf-l, .rf .rf-r {
-    display: table-cell;
-    vertical-align: middle;
-}
-.rf .rf-l { text-align: left; width: 50%; }
-.rf .rf-r { text-align: right; width: 50%; }
-.rf img { width: 12px; height: 12px; object-fit: contain; vertical-align: middle; margin-right: 6px; opacity: 0.5; }
-
-/* ===== TABLE LAYOUTS (replaces all floats) ===== */
-.tbl { display: table; width: 100%; table-layout: fixed; }
-.tbl > .cl { display: table-cell; vertical-align: top; }
-.tbl > .cl:first-child { padding-right: 8px; }
-.tbl > .cl + .cl { padding-left: 8px; }
-/* Reset double padding on 2-cell rows */
-.tbl > .cl:first-child:last-child { padding-right: 0; }
-
-/* ===== PAGE BREAK CONTROL ===== */
+/* ── Portada ── */
 .cover { page-break-after: always; }
-.sh { break-after: avoid; }
+.cab-partido { border-bottom: .6mm solid var(--k-primario); padding-bottom: 3.5mm; margin-bottom: 4mm; }
+.cab-partido table { width: 100%; border-collapse: collapse; }
+.cab-partido td { vertical-align: middle; }
+.cp-escudo { width: 13mm; }
+.cp-escudo img { width: 13mm; height: 13mm; object-fit: contain; display: block; }
+.cp-texto { padding-left: 4mm; }
+.cp-club { font-size: 7.5pt; font-weight: 600; color: var(--k-tinta-suave); text-transform: uppercase; letter-spacing: .12em; }
+.cp-titulo { font-size: 18pt; font-weight: 800; letter-spacing: -.02em; line-height: 1.05; }
+.cp-sub { font-size: 8.5pt; color: var(--k-tinta-suave); margin-top: .8mm; }
+.cp-rival { text-align: right; padding: 0 3mm 0 4mm; }
+.cp-vs { font-size: 6.8pt; text-transform: uppercase; letter-spacing: .16em; color: var(--k-tinta-suave); }
+.cp-rival-nombre { font-size: 13pt; font-weight: 800; letter-spacing: -.015em; line-height: 1.1; }
+
+/* Tira de clasificación */
+.tira { background: var(--k-primario-suave); border-radius: 2.6mm; margin-bottom: 4mm; padding: 1mm 0; break-inside: avoid; }
+.tira table { width: 100%; border-collapse: collapse; }
+.tira td { padding: 1.6mm 3mm; vertical-align: top; }
+.tira .k-dato { margin-top: .6mm; }
+.tira .med { font-size: 11pt; font-weight: 700; margin-top: .9mm; }
+.tira .fila-racha td { padding-top: 0; }
+
+/* Racha */
+.racha span { display: inline-block; width: 5mm; height: 5mm; line-height: 5mm; border-radius: .8mm;
+    text-align: center; font-size: 7.5pt; font-weight: 700; margin-left: .8mm; }
+.racha .fb-v { background: #16A34A; color: #fff; }
+.racha .fb-e { background: #F59E0B; color: #0E1334; }
+.racha .fb-d { background: #DC2626; color: #fff; }
+
+/* ── Rejilla ── */
+.rejilla { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.rejilla > tbody > tr > td, .rejilla > tr > td { vertical-align: top; padding: 0 1.5mm; }
+.rejilla td:first-child { padding-left: 0; }
+.rejilla td:last-child { padding-right: 0; }
 .avoid-break { break-inside: avoid; }
 
-/* ===== COVER BAND ===== */
-.cover-band {
-    background: {{ color_primario }};
-    color: white;
-    padding: 20px 24px;
-    border-radius: 10px;
-    margin-bottom: 20px;
-}
-.cover-band-inner { display: table; width: 100%; }
-.cover-band .cb-logo { display: table-cell; vertical-align: middle; width: 56px; }
-.cover-band .cb-logo img { width: 48px; height: 48px; object-fit: contain; }
-.cover-band .cb-text { display: table-cell; vertical-align: middle; padding-left: 16px; }
-.cover-band h1 {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 22px;
-    letter-spacing: 3px;
-}
-.cover-band .cb-sub { font-size: 13px; font-weight: 500; opacity: 0.85; }
+/* Goleadores / resultados */
+.lista .k-eyebrow { margin-bottom: 1.6mm; }
+.lista table { width: 100%; border-collapse: collapse; }
+.lista td { padding: .7mm 0; vertical-align: middle; font-size: 8.2pt; }
+.gol-nombre { width: 50%; font-weight: 600; }
+.gol-barra { width: 36%; padding-right: 2mm !important; }
+.gol-barra div { height: 2.4mm; border-radius: 1mm; background: var(--k-primario); }
+.gol-num { text-align: right; font-weight: 800; color: var(--k-primario-texto); }
+.res-j { width: 11mm; color: var(--k-tinta-suave); }
+.res-s { text-align: right; font-weight: 700; white-space: nowrap; }
+.c-win { color: #15803D; }
+.c-draw { color: #B45309; }
+.c-loss { color: #B91C1C; }
 
-/* Matchup */
-.matchup {
-    text-align: center;
-    padding: 16px 0 12px;
-    margin-bottom: 14px;
-    border-bottom: 2px solid #e2e8f0;
-}
-.matchup-teams {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 30px;
-    letter-spacing: 2px;
-    color: #1a1a2e;
-}
-.matchup-vs { color: #aaa; font-size: 20px; margin: 0 8px; }
-.matchup-escudo { width: 32px; height: 32px; object-fit: contain; vertical-align: middle; margin: 0 6px; }
-.matchup-date { font-size: 11px; color: #888; margin-top: 4px; }
+/* H2H */
+.h2h { text-align: center; margin: 4mm 0; break-inside: avoid; }
+.h2h .k-eyebrow { margin-bottom: 1mm; }
+.h2h-counts { font-size: 11pt; font-weight: 800; }
+.h2h-w { color: #15803D; margin-right: 5mm; }
+.h2h-d { color: #B45309; margin-right: 5mm; }
+.h2h-l { color: #B91C1C; }
 
-/* Stats dashboard */
-.stats-dash {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    padding: 10px 14px;
-    margin-bottom: 12px;
-    text-align: center;
-    break-inside: avoid;
-}
-.stats-tbl { display: table; width: 100%; }
-.stats-tbl > div { display: table-cell; text-align: center; vertical-align: middle; }
-.stat-big {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 26px;
-    color: {{ color_primario }};
-    line-height: 1.1;
-}
-.stat-lbl { font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
-.stat-med { font-size: 15px; font-weight: 700; color: #333; }
+/* Resumen */
+.resumen { break-inside: avoid; }
+.resumen .k-eyebrow { margin-bottom: 1.4mm; }
+.resumen p { font-size: 9pt; line-height: 1.55; white-space: pre-line; }
 
-/* Form badges */
-.form-badges { margin-top: 6px; }
-.fb {
-    display: inline-block;
-    width: 22px; height: 22px;
-    border-radius: 4px;
-    color: white;
-    font-weight: 700;
-    font-size: 11px;
-    text-align: center;
-    line-height: 22px;
-    margin: 0 2px;
-}
-.fb-v { background: #16A34A; }
-.fb-e { background: #F59E0B; }
-.fb-d { background: #DC2626; }
+/* ── Secciones numeradas ── */
+.k-seccion { break-after: avoid; }
+.k-seccion .num { color: var(--k-primario-texto); font-size: 8.5pt; margin-right: 1.6mm; }
 
-/* Mini label */
-.mini-lbl {
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: #666;
-    margin-bottom: 8px;
-    padding-bottom: 4px;
-    border-bottom: 1px solid #e8e8e8;
-}
+/* ── Fases ── */
+.f-azul { --f: #2563EB; --f-suave: #EEF4FF; --f-texto: #1E40AF; }
+.f-rojo { --f: #DC2626; --f-suave: #FEF0F0; --f-texto: #991B1B; }
+.f-ambar { --f: #D97706; --f-suave: #FFF6E5; --f-texto: #92400E; }
+.f-violeta { --f: #7C3AED; --f-suave: #F4EFFF; --f-texto: #5B21B6; }
+.caja { border-left: 1mm solid var(--f); margin-bottom: 4mm; }
+.sub-fase { padding-bottom: 2.6mm; margin-bottom: 2.6mm; border-bottom: .2mm solid var(--k-linea); break-inside: avoid; }
+.sub-fase:last-child { padding-bottom: 0; margin-bottom: 0; border-bottom: none; }
+.fase-sub { font-size: 6.8pt; font-weight: 700; text-transform: uppercase; letter-spacing: .12em;
+    color: var(--f-texto); margin-bottom: 1.2mm; }
+.sub-fase p, .fase p { font-size: 8.8pt; line-height: 1.55; white-space: pre-line; }
+.sub-fase .diag { width: 27mm; padding-right: 3.5mm !important; }
+.sub-fase .diag svg { width: 24mm !important; height: auto; }
 
-/* Goleador rows */
-.gol-row { display: table; width: 100%; margin-bottom: 4px; }
-.gol-name { display: table-cell; width: 50%; vertical-align: middle; font-weight: 600; color: #333; font-size: 11px; }
-.gol-bar-c { display: table-cell; width: 34%; vertical-align: middle; }
-.gol-bar { height: 10px; background: {{ color_primario }}; border-radius: 3px; opacity: 0.75; }
-.gol-num { display: table-cell; width: 16%; vertical-align: middle; text-align: right; font-weight: 700; color: {{ color_primario }}; font-size: 12px; }
+.fase { background: #fff; border: .25mm solid var(--k-linea); border-radius: 2.6mm; overflow: hidden; }
+.fase-cab { background: var(--f-suave); border-left: 1mm solid var(--f); padding: 1.8mm 3mm;
+    font-size: 9pt; font-weight: 800; letter-spacing: -.01em; }
+.fase-cuerpo { padding: 2.6mm 3mm 3mm; }
+.fase-cuerpo .diag-centro { text-align: center; margin-bottom: 2mm; }
+.fase-cuerpo .diag-centro svg { display: inline-block !important; width: 24mm !important; height: auto; }
 
-/* Result rows */
-.res-row { display: table; width: 100%; margin-bottom: 3px; font-size: 10px; }
-.res-j { display: table-cell; width: 18%; vertical-align: middle; color: #888; font-weight: 600; }
-.res-t { display: table-cell; width: 56%; vertical-align: middle; font-weight: 500; }
-.res-s { display: table-cell; width: 26%; vertical-align: middle; text-align: right; font-weight: 700; }
-.c-win { color: #16A34A; }
-.c-draw { color: #F59E0B; }
-.c-loss { color: #DC2626; }
+/* ── Once probable ── */
+.nota { font-size: 7.5pt; color: var(--k-tinta-suave); margin: 0 0 1.6mm; }
+.k-tabla .c { text-align: center; }
+.k-tabla .dorsal { font-weight: 700; color: var(--k-primario-texto); }
+.estado { display: inline-block; padding: .3mm 1.6mm; border-radius: 9mm; font-size: 6.4pt; font-weight: 700; letter-spacing: .06em; }
+.estado-sanc { background: #FDE4E4; color: #991B1B; }
+.estado-aperc { background: #FEF3C7; color: #92400E; }
+.estado-ok { color: var(--k-tinta-suave); font-size: 7pt; }
 
-/* H2H bar */
-.h2h {
-    background: #f1f5f9;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    padding: 8px 16px;
-    margin-bottom: 12px;
-    text-align: center;
-    break-inside: avoid;
-}
-.h2h-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #555; margin-bottom: 4px; }
-.h2h-counts { font-size: 13px; font-weight: 700; }
-.h2h-w { color: #16A34A; margin-right: 14px; }
-.h2h-d { color: #F59E0B; margin-right: 14px; }
-.h2h-l { color: #DC2626; }
+/* ── Jugadores ── */
+.jugador { border-left: 1mm solid #DC2626; padding: 2.6mm 3mm; margin-bottom: 3mm; }
+.jugador.debilidad { border-left-color: #16A34A; }
+.pbadge { display: inline-block; padding: .3mm 1.6mm; border-radius: 9mm; font-size: 6.2pt; font-weight: 700;
+    letter-spacing: .08em; margin-bottom: 1mm; }
+.pbadge-d { background: #FDE4E4; color: #991B1B; }
+.pbadge-w { background: #DCF5E4; color: #166534; }
+.j-nombre { font-size: 10pt; font-weight: 800; letter-spacing: -.01em; line-height: 1.15; }
+.j-pos { font-size: 6.6pt; color: var(--k-tinta-suave); text-transform: uppercase; letter-spacing: .1em; margin: .3mm 0 1mm; }
+.jugador p { font-size: 8.2pt; line-height: 1.5; }
 
-/* Summary box */
-.summary-box {
-    border-left: 4px solid {{ color_primario }};
-    background: #f8fafc;
-    padding: 12px 16px;
-    border-radius: 0 8px 8px 0;
-    break-inside: avoid;
-}
-.summary-box h3 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: {{ color_primario }}; margin-bottom: 6px; }
-.summary-box p { font-size: 11px; line-height: 1.55; color: #333; white-space: pre-line; }
+/* ── Debilidades ── */
+.debilidades { border-left: 1mm solid #16A34A; margin-top: 2mm; break-inside: avoid; }
+.debilidades .k-eyebrow { color: #166534; margin-bottom: 1.4mm; }
+.debilidades ul { list-style: none; }
+.debilidades li { position: relative; padding-left: 3.4mm; margin-bottom: 1mm; font-size: 8.6pt; line-height: 1.5; }
+.debilidades li::before { content: ''; position: absolute; left: 0; top: 1.8mm; width: 1.4mm; height: 1.4mm;
+    border-radius: 50%; background: #16A34A; }
 
-/* ===== SECTION HEADERS ===== */
-.sh {
-    padding: 8px 14px;
-    border-radius: 6px;
-    margin: 18px 0 10px 0;
-}
-.sh h2 {
-    font-size: 14px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-.sh .sn {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 18px;
-    margin-right: 6px;
-}
-
-.sh-off { background: #EFF6FF; border-left: 4px solid #3B82F6; }
-.sh-off h2 { color: #1E40AF; }
-.sh-def { background: #FEF2F2; border-left: 4px solid #EF4444; }
-.sh-def h2 { color: #991B1B; }
-.sh-tra { background: #FFFBEB; border-left: 4px solid #F59E0B; }
-.sh-tra h2 { color: #92400E; }
-.sh-abp { background: #F5F3FF; border-left: 4px solid #8B5CF6; }
-.sh-abp h2 { color: #5B21B6; }
-.sh-for { background: #f0f9ff; border-left: 4px solid {{ color_primario }}; }
-.sh-for h2 { color: {{ color_primario }}; }
-.sh-pla { background: #F0FDFA; border-left: 4px solid #14B8A6; }
-.sh-pla h2 { color: #0F766E; }
-
-/* ===== PHASE BOXES (contain sub-phases) ===== */
-.phase-box {
-    border-radius: 8px;
-    padding: 12px 16px;
-    margin-bottom: 14px;
-}
-.pb-off { background: #FAFCFF; border: 1.5px solid #DBEAFE; }
-.pb-def { background: #FFFBFB; border: 1.5px solid #FECACA; }
-.pb-tra { background: #FFFEF8; border: 1.5px solid #FDE68A; }
-.pb-abp { background: #FDFAFF; border: 1.5px solid #DDD6FE; }
-
-.sub-phase {
-    margin-bottom: 10px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #f0f0f0;
-}
-.sub-phase:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
-
-.sub-phase h4 {
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    margin-bottom: 5px;
-}
-.sp-off h4 { color: #1E40AF; }
-.sp-def h4 { color: #991B1B; }
-.sp-tra h4 { color: #92400E; }
-.sp-abp h4 { color: #5B21B6; }
-
-.sub-phase p {
-    font-size: 11px;
-    line-height: 1.55;
-    color: #333;
-    white-space: pre-line;
-}
-
-/* Phase cards (for 2-column layouts: transitions, ABP) */
-.phase-card {
-    border-radius: 8px;
-    padding: 10px 12px;
-    min-height: 60px;
-}
-.pc-tra { background: #FFFEF8; border: 1.5px solid #FDE68A; }
-.pc-abp { background: #FDFAFF; border: 1.5px solid #DDD6FE; }
-
-.phase-card h4 {
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    margin-bottom: 5px;
-    padding-bottom: 4px;
-    border-bottom: 1px solid #eee;
-}
-.phase-card p {
-    font-size: 11px;
-    line-height: 1.55;
-    color: #333;
-    white-space: pre-line;
-}
-
-/* ===== FORMATION ===== */
-.formation-wrap {
-    text-align: center;
-    margin: 8px 0 14px;
-    break-inside: avoid;
-}
-
-/* ===== PLAYER CARDS ===== */
-.player-card {
-    border-radius: 8px;
-    padding: 10px 12px;
-    min-height: 50px;
-}
-.player-card.peligroso {
-    background: #FEF2F2;
-    border: 1.5px solid #FECACA;
-    border-left: 4px solid #DC2626;
-}
-.player-card.debilidad {
-    background: #F0FDF4;
-    border: 1.5px solid #BBF7D0;
-    border-left: 4px solid #16A34A;
-}
-.pbadge {
-    display: inline-block;
-    font-size: 8px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    padding: 2px 6px;
-    border-radius: 3px;
-    color: white;
-    margin-bottom: 3px;
-}
-.pbadge-d { background: #DC2626; }
-.pbadge-w { background: #16A34A; }
-
-.player-card h4 { font-size: 12px; font-weight: 700; color: #1a1a2e; margin-bottom: 1px; }
-.player-card .ppos { font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
-.player-card p { font-size: 10px; line-height: 1.5; color: #444; }
-
-/* ===== WEAKNESSES BOX ===== */
-.weak-box {
-    background: #F0FDF4;
-    border: 1.5px solid #BBF7D0;
-    border-left: 4px solid #16A34A;
-    border-radius: 0 8px 8px 0;
-    padding: 12px 16px;
-    margin-top: 14px;
-    break-inside: avoid;
-}
-.weak-box h3 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #16A34A; margin-bottom: 6px; }
-.weak-box ul { list-style: none; padding: 0; }
-.weak-box li {
-    font-size: 10px; line-height: 1.55; color: #333;
-    padding-left: 16px; position: relative; margin-bottom: 3px;
-}
-.weak-box li::before { content: "\2714"; position: absolute; left: 0; color: #16A34A; font-size: 10px; }
-
-/* ===== EMPTY STATE ===== */
-.empty {
-    text-align: center;
-    padding: 16px;
-    color: #bbb;
-    font-style: italic;
-    font-size: 11px;
-}
+/* ── Vacío ── */
+.empty { text-align: center; padding: 4mm; color: var(--k-tinta-suave); font-style: italic; font-size: 8.5pt; }
 </style>
 </head>
 <body>
 
-<!-- ===== RUNNING HEADER (pages 2+) ===== -->
+<!-- ===== CABECERA CORRIDA (páginas 2+) ===== -->
 <div class="rh">
-    <div class="rh-l">
-        {% if organizacion.get('logo_url') %}<img src="{{ organizacion.get('logo_url') }}" alt="">{% endif %}
-        <span class="rh-club">{{ organizacion.get('nombre', '') }}</span>
-        <span class="rh-sep">|</span>
-        <span class="rh-name">Informe: {{ rival.get('nombre', 'Rival') }}</span>
-    </div>
-    <div class="rh-r">{{ created_at }}</div>
-</div>
-
-<!-- ===== RUNNING FOOTER ===== -->
-<div class="rf">
-    <div class="rf-l">
-        {% if organizacion.get('logo_url') %}<img src="{{ organizacion.get('logo_url') }}" alt="">{% endif %}
-        Kabin-e
-    </div>
-    <div class="rf-r">Informe de Análisis de Rival</div>
+    <table><tr>
+        <td style="width:6mm;"><img src="{{ tema.logo_url or marca_data_uri(tema.primario) }}" alt=""></td>
+        <td class="rh-titulo"><span class="rh-club">{{ organizacion.get('nombre', '') }}</span>Informe: {{ rival.get('nombre', 'Rival') }}</td>
+        <td class="rh-meta k-mono">{{ created_at }}</td>
+    </tr></table>
 </div>
 
 
 <!-- =========================================================
-     PAGE 1: COVER + OVERVIEW
+     PÁGINA 1: PORTADA + RESUMEN
      ========================================================= -->
 <div class="cover">
 
-    <!-- Header band -->
-    <div class="cover-band">
-        <div class="cover-band-inner">
-            {% if organizacion.get('logo_url') %}
-            <div class="cb-logo"><img src="{{ organizacion.get('logo_url') }}" alt=""></div>
-            {% endif %}
-            <div class="cb-text">
-                <h1>INFORME DE ANÁLISIS DE RIVAL</h1>
-                <div class="cb-sub">{{ organizacion.get('nombre', 'Club') }}</div>
-            </div>
-        </div>
+    <div class="cab-partido">
+        <table><tr>
+            <td class="cp-escudo"><img src="{{ equipo_escudo_url or tema.logo_url or marca_data_uri(tema.primario) }}" alt=""></td>
+            <td class="cp-texto">
+                <div class="cp-club">{{ organizacion.get('nombre', 'Club') }}</div>
+                <div class="cp-titulo">Informe de análisis de rival</div>
+                <div class="cp-sub">{{ equipo_nombre or organizacion.get('nombre', 'Equipo') }}{% if created_at %} · {{ created_at }}{% endif %}</div>
+            </td>
+            <td class="cp-rival">
+                <div class="cp-vs k-mono">vs</div>
+                <div class="cp-rival-nombre">{{ rival.get('nombre', 'Rival') }}</div>
+            </td>
+            {% if rival.get('escudo_url') %}<td class="cp-escudo"><img src="{{ rival.get('escudo_url') }}" alt=""></td>{% endif %}
+        </tr></table>
     </div>
 
-    <!-- Matchup -->
-    <div class="matchup">
-        <div class="matchup-teams">
-            {% if rival.get('escudo_url') %}<img src="{{ rival.get('escudo_url') }}" alt="" class="matchup-escudo">{% endif %}
-            {{ rival.get('nombre', 'RIVAL') }}
-            <span class="matchup-vs">vs</span>
-            {{ equipo_nombre or organizacion.get('nombre', 'EQUIPO') }}
-            {% if equipo_escudo_url %}<img src="{{ equipo_escudo_url }}" alt="" class="matchup-escudo">{% endif %}
-        </div>
-        <div class="matchup-date">{{ created_at }}</div>
-    </div>
-
-    <!-- Stats Dashboard -->
+    <!-- Clasificación -->
     {% set clas = intel.get('clasificacion') or {} %}
     {% if clas %}
-    <div class="stats-dash">
-        <div class="stats-tbl">
-            <div><div class="stat-big">{{ clas.get('posicion', '-') }}º</div><div class="stat-lbl">Posición</div></div>
-            <div><div class="stat-big">{{ clas.get('puntos', '-') }}</div><div class="stat-lbl">Puntos</div></div>
-            <div><div class="stat-med">{{ clas.get('pj', '-') }}</div><div class="stat-lbl">PJ</div></div>
-            <div><div class="stat-med">{{ clas.get('pg', '-') }}</div><div class="stat-lbl">PG</div></div>
-            <div><div class="stat-med">{{ clas.get('pe', '-') }}</div><div class="stat-lbl">PE</div></div>
-            <div><div class="stat-med">{{ clas.get('pp', '-') }}</div><div class="stat-lbl">PP</div></div>
-            <div><div class="stat-med">{{ clas.get('gf', '-') }}</div><div class="stat-lbl">GF</div></div>
-            <div><div class="stat-med">{{ clas.get('gc', '-') }}</div><div class="stat-lbl">GC</div></div>
-        </div>
-        {% set form = clas.get('ultimos_5') or [] %}
-        {% if form %}
-        <div class="form-badges">
-            <span class="stat-lbl" style="margin-right:8px;">Racha:</span>
-            {% for r in form %}
-            <span class="fb fb-{{ r|lower }}">{{ r }}</span>
-            {% endfor %}
-        </div>
-        {% endif %}
+    <div class="tira">
+        <table>
+            <tr>
+                <td><div class="k-dato-label">Posición</div><div class="k-dato">{{ clas.get('posicion', '-') }}º</div></td>
+                <td><div class="k-dato-label">Puntos</div><div class="k-dato">{{ clas.get('puntos', '-') }}</div></td>
+                <td><div class="k-dato-label">PJ</div><div class="med">{{ clas.get('pj', '-') }}</div></td>
+                <td><div class="k-dato-label">PG</div><div class="med">{{ clas.get('pg', '-') }}</div></td>
+                <td><div class="k-dato-label">PE</div><div class="med">{{ clas.get('pe', '-') }}</div></td>
+                <td><div class="k-dato-label">PP</div><div class="med">{{ clas.get('pp', '-') }}</div></td>
+                <td><div class="k-dato-label">GF</div><div class="med">{{ clas.get('gf', '-') }}</div></td>
+                <td><div class="k-dato-label">GC</div><div class="med">{{ clas.get('gc', '-') }}</div></td>
+            </tr>
+            {% set form = clas.get('ultimos_5') or [] %}
+            {% if form %}
+            <tr class="fila-racha">
+                <td colspan="8"><span class="k-dato-label">Racha</span> <span class="racha">{% for r in form %}<span class="fb-{{ r|lower }}">{{ r }}</span>{% endfor %}</span></td>
+            </tr>
+            {% endif %}
+        </table>
     </div>
     {% endif %}
 
-    <!-- Goleadores + Últimos Resultados — TABLE layout (no floats!) -->
-    <div class="tbl" style="margin-bottom:12px;">
-        <div class="cl">
-            <div class="mini-lbl">Goleadores</div>
-            {% set goleadores = intel.get('goleadores_rival') or [] %}
-            {% if goleadores %}
-                {% set max_goles = goleadores[0].get('goles', 1) if goleadores else 1 %}
-                {% for g in goleadores[:6] %}
-                <div class="gol-row">
-                    <div class="gol-name">{{ g.get('jugador', '') }}</div>
-                    <div class="gol-bar-c"><div class="gol-bar" style="width:{{ (g.get('goles', 0) / max_goles * 100)|int }}%;"></div></div>
-                    <div class="gol-num">{{ g.get('goles', 0) }}</div>
-                </div>
-                {% endfor %}
-            {% else %}
-                <div class="empty">Sin datos de goleadores</div>
-            {% endif %}
-        </div>
-        <div class="cl">
-            <div class="mini-lbl">Últimos Resultados</div>
-            {% set resultados = intel.get('ultimos_resultados') or [] %}
-            {% if resultados %}
-                {% set rival_lower = (rival.get('nombre', '')|lower) %}
-                {% for r in resultados[:6] %}
-                    {% set local_lower = (r.get('local', '')|lower) %}
-                    {% set is_local = rival_lower in local_lower or local_lower in rival_lower %}
-                    {% set rg = r.get('goles_local', 0) if is_local else r.get('goles_visitante', 0) %}
-                    {% set og = r.get('goles_visitante', 0) if is_local else r.get('goles_local', 0) %}
-                    {% if rg > og %}{% set rc = 'c-win' %}{% elif rg == og %}{% set rc = 'c-draw' %}{% else %}{% set rc = 'c-loss' %}{% endif %}
-                <div class="res-row">
-                    <div class="res-j">J{{ r.get('jornada', '') }}</div>
-                    <div class="res-t">{{ r.get('local', '') }} - {{ r.get('visitante', '') }}</div>
-                    <div class="res-s {{ rc }}">{{ r.get('goles_local', 0) }}-{{ r.get('goles_visitante', 0) }}</div>
-                </div>
-                {% endfor %}
-            {% else %}
-                <div class="empty">Sin resultados recientes</div>
-            {% endif %}
-        </div>
-    </div>
+    <!-- Goleadores + Últimos resultados -->
+    <table class="rejilla" style="margin-bottom:1mm;"><tr>
+        <td>
+            <div class="k-tarjeta lista">
+                <div class="k-eyebrow">Goleadores</div>
+                {% set goleadores = intel.get('goleadores_rival') or [] %}
+                {% if goleadores %}
+                    {% set max_goles = goleadores[0].get('goles', 1) if goleadores else 1 %}
+                    <table>
+                    {% for g in goleadores[:6] %}
+                        <tr>
+                            <td class="gol-nombre">{{ g.get('jugador', '') }}</td>
+                            <td class="gol-barra"><div style="width:{{ (g.get('goles', 0) / max_goles * 100)|int }}%;"></div></td>
+                            <td class="gol-num">{{ g.get('goles', 0) }}</td>
+                        </tr>
+                    {% endfor %}
+                    </table>
+                {% else %}
+                    <div class="empty">Sin datos de goleadores</div>
+                {% endif %}
+            </div>
+        </td>
+        <td>
+            <div class="k-tarjeta lista">
+                <div class="k-eyebrow">Últimos resultados</div>
+                {% set resultados = intel.get('ultimos_resultados') or [] %}
+                {% if resultados %}
+                    {% set rival_lower = (rival.get('nombre', '')|lower) %}
+                    <table>
+                    {% for r in resultados[:6] %}
+                        {% set local_lower = (r.get('local', '')|lower) %}
+                        {% set is_local = rival_lower in local_lower or local_lower in rival_lower %}
+                        {% set rg = r.get('goles_local', 0) if is_local else r.get('goles_visitante', 0) %}
+                        {% set og = r.get('goles_visitante', 0) if is_local else r.get('goles_local', 0) %}
+                        {% if rg > og %}{% set rc = 'c-win' %}{% elif rg == og %}{% set rc = 'c-draw' %}{% else %}{% set rc = 'c-loss' %}{% endif %}
+                        <tr>
+                            <td class="res-j k-mono">J{{ r.get('jornada', '') }}</td>
+                            <td>{{ r.get('local', '') }} - {{ r.get('visitante', '') }}</td>
+                            <td class="res-s {{ rc }}">{{ r.get('goles_local', 0) }}-{{ r.get('goles_visitante', 0) }}</td>
+                        </tr>
+                    {% endfor %}
+                    </table>
+                {% else %}
+                    <div class="empty">Sin resultados recientes</div>
+                {% endif %}
+            </div>
+        </td>
+    </tr></table>
 
-    <!-- H2H Bar -->
+    <!-- Historial directo -->
     {% if h2h_stats %}
-    <div class="h2h">
-        <div class="h2h-title">Historial Directo</div>
+    <div class="k-tarjeta h2h">
+        <div class="k-eyebrow">Historial directo</div>
         <div class="h2h-counts">
             <span class="h2h-w">V: {{ h2h_stats.wins }}</span>
             <span class="h2h-d">E: {{ h2h_stats.draws }}</span>
@@ -503,10 +266,10 @@ body {
     </div>
     {% endif %}
 
-    <!-- Resumen General -->
+    <!-- Resumen general -->
     {% if informe.get('resumen_general') %}
-    <div class="summary-box">
-        <h3>Resumen General</h3>
+    <div class="k-tarjeta-suave resumen" {% if not h2h_stats %}style="margin-top:4mm;"{% endif %}>
+        <div class="k-eyebrow">Resumen general</div>
         <p>{{ informe.get('resumen_general', '') }}</p>
     </div>
     {% endif %}
@@ -515,39 +278,39 @@ body {
 
 
 <!-- =========================================================
-     PAGES 2+: TACTICAL ANALYSIS (natural flow, no forced breaks)
+     PÁGINAS 2+: ANÁLISIS TÁCTICO (flujo natural)
      ========================================================= -->
 
-<!-- ▌1 — FASE OFENSIVA -->
+<!-- 1 — FASE OFENSIVA -->
 {% set fase_o = informe.get('fase_ofensiva') or {} %}
-<div class="sh sh-off"><h2><span class="sn">1</span> Fase Ofensiva (Con Balón)</h2></div>
+<div class="k-seccion" style="margin-top:0;"><span class="num k-mono">01</span>Fase ofensiva (con balón)</div>
 {% if fase_o %}
-<div class="phase-box pb-off">
+<div class="k-tarjeta caja f-azul">
     {% if fase_o.get('salida_balon') %}
-    <div class="sub-phase sp-off">
-        <h4>Salida de Balón</h4>
-        <div class="tbl">
-            <div class="cl" style="width:100px;padding-right:10px;">{{ phase_svgs.salida_balon }}</div>
-            <div class="cl"><p>{{ fase_o.get('salida_balon', '')|highlight_tactical }}</p></div>
-        </div>
+    <div class="sub-fase">
+        <div class="fase-sub">Salida de balón</div>
+        <table class="rejilla"><tr>
+            <td class="diag">{{ phase_svgs.salida_balon }}</td>
+            <td><p>{{ fase_o.get('salida_balon', '')|highlight_tactical }}</p></td>
+        </tr></table>
     </div>
     {% endif %}
     {% if fase_o.get('construccion') %}
-    <div class="sub-phase sp-off">
-        <h4>Construcción</h4>
-        <div class="tbl">
-            <div class="cl" style="width:100px;padding-right:10px;">{{ phase_svgs.construccion }}</div>
-            <div class="cl"><p>{{ fase_o.get('construccion', '')|highlight_tactical }}</p></div>
-        </div>
+    <div class="sub-fase">
+        <div class="fase-sub">Construcción</div>
+        <table class="rejilla"><tr>
+            <td class="diag">{{ phase_svgs.construccion }}</td>
+            <td><p>{{ fase_o.get('construccion', '')|highlight_tactical }}</p></td>
+        </tr></table>
     </div>
     {% endif %}
     {% if fase_o.get('finalizacion') %}
-    <div class="sub-phase sp-off">
-        <h4>Finalización</h4>
-        <div class="tbl">
-            <div class="cl" style="width:100px;padding-right:10px;">{{ phase_svgs.finalizacion }}</div>
-            <div class="cl"><p>{{ fase_o.get('finalizacion', '')|highlight_tactical }}</p></div>
-        </div>
+    <div class="sub-fase">
+        <div class="fase-sub">Finalización</div>
+        <table class="rejilla"><tr>
+            <td class="diag">{{ phase_svgs.finalizacion }}</td>
+            <td><p>{{ fase_o.get('finalizacion', '')|highlight_tactical }}</p></td>
+        </tr></table>
     </div>
     {% endif %}
 </div>
@@ -555,36 +318,36 @@ body {
 <div class="empty">Sin análisis ofensivo disponible</div>
 {% endif %}
 
-<!-- ▌2 — FASE DEFENSIVA -->
+<!-- 2 — FASE DEFENSIVA -->
 {% set fase_d = informe.get('fase_defensiva') or {} %}
-<div class="sh sh-def"><h2><span class="sn">2</span> Fase Defensiva (Sin Balón)</h2></div>
+<div class="k-seccion"><span class="num k-mono">02</span>Fase defensiva (sin balón)</div>
 {% if fase_d %}
-<div class="phase-box pb-def">
+<div class="k-tarjeta caja f-rojo">
     {% if fase_d.get('pressing') %}
-    <div class="sub-phase sp-def">
-        <h4>Pressing</h4>
-        <div class="tbl">
-            <div class="cl" style="width:100px;padding-right:10px;">{{ phase_svgs.pressing }}</div>
-            <div class="cl"><p>{{ fase_d.get('pressing', '')|highlight_tactical }}</p></div>
-        </div>
+    <div class="sub-fase">
+        <div class="fase-sub">Pressing</div>
+        <table class="rejilla"><tr>
+            <td class="diag">{{ phase_svgs.pressing }}</td>
+            <td><p>{{ fase_d.get('pressing', '')|highlight_tactical }}</p></td>
+        </tr></table>
     </div>
     {% endif %}
     {% if fase_d.get('bloque_medio') %}
-    <div class="sub-phase sp-def">
-        <h4>Bloque Medio</h4>
-        <div class="tbl">
-            <div class="cl" style="width:100px;padding-right:10px;">{{ phase_svgs.bloque_medio }}</div>
-            <div class="cl"><p>{{ fase_d.get('bloque_medio', '')|highlight_tactical }}</p></div>
-        </div>
+    <div class="sub-fase">
+        <div class="fase-sub">Bloque medio</div>
+        <table class="rejilla"><tr>
+            <td class="diag">{{ phase_svgs.bloque_medio }}</td>
+            <td><p>{{ fase_d.get('bloque_medio', '')|highlight_tactical }}</p></td>
+        </tr></table>
     </div>
     {% endif %}
     {% if fase_d.get('bloque_bajo') %}
-    <div class="sub-phase sp-def">
-        <h4>Bloque Bajo</h4>
-        <div class="tbl">
-            <div class="cl" style="width:100px;padding-right:10px;">{{ phase_svgs.bloque_bajo }}</div>
-            <div class="cl"><p>{{ fase_d.get('bloque_bajo', '')|highlight_tactical }}</p></div>
-        </div>
+    <div class="sub-fase">
+        <div class="fase-sub">Bloque bajo</div>
+        <table class="rejilla"><tr>
+            <td class="diag">{{ phase_svgs.bloque_bajo }}</td>
+            <td><p>{{ fase_d.get('bloque_bajo', '')|highlight_tactical }}</p></td>
+        </tr></table>
     </div>
     {% endif %}
 </div>
@@ -592,55 +355,59 @@ body {
 <div class="empty">Sin análisis defensivo disponible</div>
 {% endif %}
 
-<!-- ▌3 — TRANSICIONES (2 columns via table) -->
+<!-- 3 — TRANSICIONES -->
 {% set trans = informe.get('transiciones') or {} %}
-<div class="sh sh-tra"><h2><span class="sn">3</span> Transiciones</h2></div>
+<div class="k-seccion"><span class="num k-mono">03</span>Transiciones</div>
 {% if trans %}
-<div class="tbl avoid-break" style="margin-bottom:14px;">
-    <div class="cl">
-        <div class="phase-card pc-tra">
-            <h4 style="color:#92400E;">Transición Ofensiva</h4>
-            <div style="text-align:center;margin-bottom:6px;">{{ phase_svgs.trans_ofensiva }}</div>
-            <p>{{ trans.get('ofensiva', '')|highlight_tactical }}</p>
+<table class="rejilla avoid-break" style="margin-bottom:2mm;"><tr>
+    <td>
+        <div class="fase f-ambar">
+            <div class="fase-cab">Transición ofensiva</div>
+            <div class="fase-cuerpo">
+                <div class="diag-centro">{{ phase_svgs.trans_ofensiva }}</div>
+                <p>{{ trans.get('ofensiva', '')|highlight_tactical }}</p>
+            </div>
         </div>
-    </div>
-    <div class="cl">
-        <div class="phase-card pc-tra">
-            <h4 style="color:#92400E;">Transición Defensiva</h4>
-            <div style="text-align:center;margin-bottom:6px;">{{ phase_svgs.trans_defensiva }}</div>
-            <p>{{ trans.get('defensiva', '')|highlight_tactical }}</p>
+    </td>
+    <td>
+        <div class="fase f-ambar">
+            <div class="fase-cab">Transición defensiva</div>
+            <div class="fase-cuerpo">
+                <div class="diag-centro">{{ phase_svgs.trans_defensiva }}</div>
+                <p>{{ trans.get('defensiva', '')|highlight_tactical }}</p>
+            </div>
         </div>
-    </div>
-</div>
+    </td>
+</tr></table>
 {% else %}
 <div class="empty">Sin análisis de transiciones disponible</div>
 {% endif %}
 
 
-<!-- ▌4 — BALÓN PARADO (2 columns via table) -->
+<!-- 4 — BALÓN PARADO -->
 {% set abp = informe.get('balon_parado') or {} %}
-<div class="sh sh-abp"><h2><span class="sn">4</span> Balón Parado</h2></div>
+<div class="k-seccion"><span class="num k-mono">04</span>Balón parado</div>
 {% if abp %}
-<div class="tbl avoid-break" style="margin-bottom:14px;">
-    <div class="cl">
-        <div class="phase-card pc-abp">
-            <h4 style="color:#5B21B6;">Cómo Atacan</h4>
-            <p>{{ abp.get('atacando', '')|highlight_tactical }}</p>
+<table class="rejilla avoid-break" style="margin-bottom:2mm;"><tr>
+    <td>
+        <div class="fase f-violeta">
+            <div class="fase-cab">Cómo atacan</div>
+            <div class="fase-cuerpo"><p>{{ abp.get('atacando', '')|highlight_tactical }}</p></div>
         </div>
-    </div>
-    <div class="cl">
-        <div class="phase-card pc-abp">
-            <h4 style="color:#5B21B6;">Cómo Defienden</h4>
-            <p>{{ abp.get('defendiendo', '')|highlight_tactical }}</p>
+    </td>
+    <td>
+        <div class="fase f-violeta">
+            <div class="fase-cab">Cómo defienden</div>
+            <div class="fase-cuerpo"><p>{{ abp.get('defendiendo', '')|highlight_tactical }}</p></div>
         </div>
-    </div>
-</div>
+    </td>
+</tr></table>
 {% else %}
 <div class="empty">Sin análisis de balón parado disponible</div>
 {% endif %}
 
 
-<!-- ▌5 — ONCE PROBABLE -->
+<!-- 5 — ONCE PROBABLE -->
 {% set once_data = intel.get('once_probable') or {} %}
 {% if once_data is mapping %}
     {% set once_jugadores = once_data.get('jugadores', []) %}
@@ -653,82 +420,84 @@ body {
     {% set once_jugadores = informe.get('once_probable', []) %}
 {% endif %}
 
-<div class="sh sh-for"><h2><span class="sn">5</span> Once Probable{% if sistema_juego %} ({{ sistema_juego }}){% endif %}</h2></div>
+<div style="break-inside:avoid;">
+<div class="k-seccion"><span class="num k-mono">05</span>Once probable{% if sistema_juego %} ({{ sistema_juego }}){% endif %}</div>
 
 {% if once_jugadores %}
 {% set actas_n = once_data.get('actas_analizadas', 0) if once_data is mapping else 0 %}
 {% if actas_n %}
-<p style="font-size:9px;color:#888;margin:0 0 6px 0;">Basado en {{ actas_n }} acta{{ 's' if actas_n != 1 else '' }} analizada{{ 's' if actas_n != 1 else '' }}</p>
+<p class="nota">Basado en {{ actas_n }} acta{{ 's' if actas_n != 1 else '' }} analizada{{ 's' if actas_n != 1 else '' }}</p>
 {% endif %}
-<div style="margin-bottom:14px;break-inside:avoid;">
-    <table style="width:100%;border-collapse:collapse;font-size:11px;">
+<div style="margin-bottom:4mm;break-inside:avoid;">
+    <table class="k-tabla">
         <thead>
-            <tr style="border-bottom:2px solid {{ color_primario }};font-size:9px;color:#666;text-transform:uppercase;">
-                <th style="padding:4px 8px;text-align:center;width:40px;">#</th>
-                <th style="padding:4px 8px;text-align:left;">Jugador</th>
-                <th style="padding:4px 8px;text-align:center;width:50px;">Titularidades</th>
-                <th style="padding:4px 8px;text-align:center;width:50px;">Estado</th>
+            <tr>
+                <th class="c" style="width:12mm;">#</th>
+                <th>Jugador</th>
+                <th class="c" style="width:26mm;">Titularidades</th>
+                <th class="c" style="width:22mm;">Estado</th>
             </tr>
         </thead>
         <tbody>
         {% for j in once_jugadores[:11] %}
-            <tr style="border-bottom:1px solid #f0f0f0;{% if loop.index <= 11 and j.get('apariciones', 0) >= 3 %}background:#f9fafb;{% endif %}">
-                <td style="padding:4px 8px;font-weight:700;color:{{ color_primario }};text-align:center;">{{ j.get('dorsal', '') or '-' }}</td>
-                <td style="padding:4px 8px;font-weight:600;">{{ j.get('nombre', '') }}</td>
-                <td style="padding:4px 8px;text-align:center;color:#555;">{{ j.get('apariciones', '') }}/{{ actas_n or '?' }}</td>
+            <tr>
+                <td class="c dorsal k-mono">{{ j.get('dorsal', '') or '-' }}</td>
+                <td style="font-weight:{% if j.get('apariciones', 0) >= 3 %}700{% else %}400{% endif %};">{{ j.get('nombre', '') }}</td>
+                <td class="c k-mono">{{ j.get('apariciones', '') }}/{{ actas_n or '?' }}</td>
                 {% if j.get('sancionado') %}
-                <td style="padding:4px 8px;text-align:center;"><span style="background:#FEE2E2;color:#DC2626;font-weight:700;font-size:8px;padding:2px 6px;border-radius:3px;">SANC.</span></td>
+                <td class="c"><span class="estado estado-sanc">SANC.</span></td>
                 {% elif j.get('amarillas_ciclo', 0) >= 4 %}
-                <td style="padding:4px 8px;text-align:center;"><span style="background:#FEF3C7;color:#92400E;font-weight:700;font-size:8px;padding:2px 6px;border-radius:3px;">APERC.</span></td>
+                <td class="c"><span class="estado estado-aperc">APERC.</span></td>
                 {% else %}
-                <td style="padding:4px 8px;text-align:center;font-size:9px;color:#aaa;">OK</td>
+                <td class="c"><span class="estado-ok">OK</span></td>
                 {% endif %}
             </tr>
         {% endfor %}
         </tbody>
     </table>
     {% if once_jugadores|length > 11 %}
-    <p style="font-size:9px;color:#888;margin:4px 0 0 8px;">+ {{ once_jugadores|length - 11 }} jugadores más registrados</p>
+    <p class="nota" style="margin:1.4mm 0 0 2mm;">+ {{ once_jugadores|length - 11 }} jugadores más registrados</p>
     {% endif %}
 </div>
 {% else %}
 <div class="empty">Sin datos de alineación disponibles</div>
 {% endif %}
+</div>
 
 
-<!-- ▌6 — JUGADORES DESTACADOS -->
+<!-- 6 — JUGADORES DESTACADOS -->
 {% set jugadores_clave = informe.get('jugadores_clave') or [] %}
 {% if jugadores_clave %}
-<div class="sh sh-pla"><h2><span class="sn">6</span> Jugadores Destacados</h2></div>
+<div class="k-seccion"><span class="num k-mono">06</span>Jugadores destacados</div>
 
 {% for pair in jugadores_clave|batch(2) %}
-<div class="tbl avoid-break" style="margin-bottom:8px;">
+<table class="rejilla avoid-break"><tr>
     {% for j in pair %}
-    <div class="cl">
-        <div class="player-card {{ j.get('tipo', 'peligroso') }}">
+    <td>
+        <div class="k-tarjeta jugador {{ j.get('tipo', 'peligroso') }}">
             {% if j.get('tipo') == 'debilidad' %}
             <span class="pbadge pbadge-w">DEBILIDAD</span>
             {% else %}
             <span class="pbadge pbadge-d">PELIGRO</span>
             {% endif %}
-            <h4>{{ j.get('nombre', '') }}</h4>
-            <div class="ppos">{{ j.get('posicion', '') }}</div>
+            <div class="j-nombre">{{ j.get('nombre', '') }}</div>
+            <div class="j-pos">{{ j.get('posicion', '') }}</div>
             <p>{{ j.get('analisis', '') }}</p>
         </div>
-    </div>
+    </td>
     {% endfor %}
     {% if pair|length == 1 %}
-    <div class="cl"></div>
+    <td></td>
     {% endif %}
-</div>
+</tr></table>
 {% endfor %}
 {% endif %}
 
 
 <!-- DEBILIDADES EXPLOTABLES -->
 {% if informe.get('debilidades_explotables') %}
-<div class="weak-box">
-    <h3>Debilidades Explotables</h3>
+<div class="k-tarjeta debilidades">
+    <div class="k-eyebrow">Debilidades explotables</div>
     <ul>
     {% for b in informe.get('debilidades_explotables', '')|to_bullets(8, 300) %}
         <li>{{ b }}</li>

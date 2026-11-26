@@ -1,330 +1,178 @@
+{% from "_marca/cabecera.html" import cabecera -%}
+{%- set tema_c = dict(tema, logo_url=(logo_url or tema.logo_url), club=(org_nombre or tema.club)) -%}
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&display=swap');
-
-        @page {
-            size: A4;
-            margin: 20mm 15mm 18mm 15mm;
-            @top-center { content: element(page-header); }
-            @bottom-center { content: element(page-footer); }
-        }
-        @page :first {
-            margin-top: 15mm;
-            @top-center { content: none; }
-        }
+        @page { size: A4; margin: 14mm 14mm 15mm 14mm; }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Barlow Condensed', 'Helvetica Neue', Arial, sans-serif;
-            color: #1a1a2e;
-            font-size: 13px;
-            line-height: 1.4;
-        }
+        body { font-size: 9.5pt; line-height: 1.4; }
 
-        .running-header {
-            position: running(page-header);
-            display: table;
-            width: 100%;
-            padding-bottom: 6px;
-            border-bottom: 2px solid {{ color_primario or '#1a365d' }};
-            font-size: 10px;
-            color: #555;
+        /* ── Portada ── */
+        .cover { page-break-after: always; }
+        .cover-banda {
+            background: var(--k-primario); color: var(--k-sobre-primario);
+            border-radius: 2.6mm; padding: 5mm 6mm; margin-bottom: 6mm;
         }
-        .running-header .hdr-left,
-        .running-header .hdr-right {
-            display: table-cell;
-            vertical-align: middle;
-        }
-        .running-header .hdr-left { text-align: left; white-space: nowrap; }
-        .running-header .hdr-right { text-align: right; color: #aaa; font-size: 9px; }
-        .running-header img {
-            width: 18px; height: 18px; object-fit: contain;
-            vertical-align: middle; margin-right: 8px;
-        }
-        .running-header .hdr-club {
-            font-weight: 700;
-            color: {{ color_primario or '#1a365d' }};
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            vertical-align: middle;
-        }
-        .running-header .hdr-sep { color: #ccc; margin: 0 6px; vertical-align: middle; }
-        .running-header .hdr-team { font-weight: 600; color: #333; vertical-align: middle; }
-        .running-header .hdr-season { color: #888; vertical-align: middle; }
+        .cover-banda .k-eyebrow { color: var(--k-sobre-primario); opacity: .8; }
+        .cover-banda .cb-titulo { font-size: 22pt; font-weight: 800; letter-spacing: -.02em; line-height: 1.05; margin-top: 1mm; }
+        .cover-banda .cb-sub { font-size: 10pt; font-weight: 600; margin-top: 1.2mm; }
+        .cover-banda .cb-meta { font-size: 8pt; opacity: .8; margin-top: 1mm; }
 
-        .running-footer {
-            position: running(page-footer);
-            display: table;
-            width: 100%;
-            padding-top: 6px;
-            border-top: 1px solid #e2e8f0;
-            font-size: 9px;
-            color: #aaa;
-        }
-        .running-footer .ft-left,
-        .running-footer .ft-right { display: table-cell; vertical-align: middle; }
-        .running-footer .ft-left { text-align: left; white-space: nowrap; }
-        .running-footer .ft-right { text-align: right; }
-        .running-footer img {
-            width: 12px; height: 12px; object-fit: contain;
-            vertical-align: middle; margin-right: 6px; opacity: 0.5;
-        }
+        .toc-tipo { margin-top: 4mm; }
+        .toc-tipo:first-child { margin-top: 0; }
+        .toc-tabla td { vertical-align: middle; }
+        .toc-tabla .c-code { width: 18mm; }
+        .toc-tabla .c-lado { width: 26mm; text-align: right; }
+        .toc-name { font-weight: 600; }
+        .generado { margin-top: 5mm; font-size: 7pt; color: var(--k-tinta-suave); }
 
-        .cover { page-break-after: always; min-height: 100%; }
+        /* ── Chips ── */
+        .code {
+            display: inline-block; padding: .3mm 1.6mm; border-radius: 1mm;
+            background: var(--k-primario-suave); color: var(--k-primario-texto);
+            font-size: 7pt; font-weight: 700; letter-spacing: .04em;
+        }
+        .k-chip.chip-of { background: var(--k-primario); color: var(--k-sobre-primario); }
+        .k-chip.chip-df { background: var(--k-secundario); color: var(--k-sobre-secundario); }
+        .k-chip.chip-neutro { background: #F1F3F8; color: var(--k-tinta-suave); }
+        .k-chip.chip-senal { background: #fff; color: var(--k-primario-texto); border: .25mm solid var(--k-primario-medio); }
+        .k-chip { margin: 0 1mm .8mm 0; }
 
-        .cover-header {
-            background: {{ color_primario or '#1a365d' }};
-            color: white;
-            padding: 24px 28px;
-            border-radius: 10px;
-            margin-bottom: 24px;
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-        .cover-header .cover-logo {
-            width: 64px; height: 64px; object-fit: contain; flex-shrink: 0;
-        }
-        .cover-header .cover-info { flex: 1; }
-        .cover-header h1 {
-            font-size: 28px; font-weight: 800;
-            text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;
-        }
-        .cover-header .subtitle { font-size: 16px; font-weight: 500; opacity: 0.85; }
-        .cover-header .team-meta {
-            font-size: 11px; opacity: 0.55; margin-top: 6px;
-        }
+        /* ── Fichas de jugada ── */
+        .k-seccion { page-break-after: avoid; margin-top: 2mm; }
+        .play-card { margin-bottom: 5mm; }
+        .phase, .bloque, .roles-campo { page-break-inside: avoid; }
+        .play-title-row { margin-bottom: 1.5mm; }
+        .play-name { font-size: 12.5pt; font-weight: 800; letter-spacing: -.015em; margin-right: 2mm; }
+        .play-meta { margin-bottom: 2mm; }
+        .play-desc { font-size: 9pt; color: var(--k-tinta); margin-bottom: 2.5mm; }
 
-        .summary {
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 10px;
-            padding: 16px 18px;
-        }
-        .summary h3 {
-            font-size: 13px; font-weight: 700; text-transform: uppercase;
-            letter-spacing: 0.5px; color: {{ color_primario or '#1a365d' }};
-            margin-bottom: 12px;
-        }
-        .toc-tipo {
-            font-size: 12px; font-weight: 700; color: #64748b;
-            text-transform: uppercase; letter-spacing: 0.4px;
-            margin: 10px 0 4px;
-        }
-        .toc-play {
-            display: flex; align-items: baseline; gap: 8px;
-            padding: 4px 0; border-bottom: 1px solid #eef2f6; font-size: 12px;
-        }
-        .toc-play:last-child { border-bottom: none; }
-        .toc-code {
-            font-family: monospace; font-size: 10px; font-weight: 700;
-            padding: 1px 5px; border-radius: 3px; background: #f1f5f9; color: #334155;
-        }
-        .toc-name { font-weight: 600; color: #333; }
-        .badge {
-            display: inline-block; padding: 2px 8px; border-radius: 4px;
-            font-size: 10px; font-weight: 600; margin-right: 4px;
-        }
-        .badge-of { background: #DBEAFE; color: #1E40AF; }
-        .badge-df { background: #FEE2E2; color: #991B1B; }
-        .badge-sub { background: #F3F4F6; color: #374151; }
-        .badge-tipo {
-            background: {{ color_primario or '#1a365d' }}; color: white;
-        }
-        .badge-senal { background: #FEF3C7; color: #92400E; }
+        .diagram-container { text-align: center; margin: 2mm 0; }
+        .diagram-container svg { display: block; margin: 0 auto; max-width: 100%; max-height: 112mm; }
 
-        .section-title {
-            font-size: 18px; font-weight: 800; text-transform: uppercase;
-            letter-spacing: 1px; padding: 8px 14px; border-radius: 6px;
-            margin: 0 0 16px; page-break-after: avoid;
-            background: {{ color_primario or '#1a365d' }}; color: white;
-        }
+        .phase { margin-top: 2mm; }
+        .phase-name { margin-bottom: 1mm; }
 
-        .play-card {
-            border: 2px solid #e2e8f0;
-            border-radius: 10px;
-            padding: 16px;
-            margin-bottom: 20px;
-            page-break-inside: avoid;
-        }
-        .play-title-row {
-            display: flex; align-items: center; gap: 8px; margin-bottom: 4px;
-        }
-        .play-name { font-size: 16px; font-weight: 700; color: #1a1a2e; }
-        .play-code {
-            font-size: 11px; font-family: monospace; padding: 2px 6px;
-            background: #f1f5f9; border-radius: 4px; font-weight: 700;
-        }
-        .play-meta { font-size: 11px; color: #666; margin-bottom: 8px; }
-        .play-desc { font-size: 12px; color: #444; margin-bottom: 10px; }
-
-        .diagram-container { text-align: center; margin: 10px 0; }
-        .diagram-container svg {
-            max-width: 100%;
-            max-height: 420px;
-        }
-
-        .phase { margin-top: 8px; }
-        .phase-name {
-            font-size: 12px; font-weight: 700;
-            color: {{ color_primario or '#1a365d' }};
-            margin-bottom: 4px;
-        }
-
-        .roles-campo { margin: 6px 0 10px; }
-        .rol-row {
-            display: flex;
-            gap: 8px;
-            align-items: flex-start;
-            margin: 4px 0;
-            font-size: 13px;
-        }
-        .rol-nums { display: flex; flex-wrap: wrap; gap: 4px; min-width: 72px; }
+        .roles-campo { margin: 1.5mm 0 3mm; }
+        .rol-tabla { width: 100%; border-collapse: collapse; }
+        .rol-tabla td { vertical-align: top; padding: .8mm 0; font-size: 9pt; }
+        .rol-tabla .rol-nums { width: 22mm; padding-right: 2mm; }
         .rol-num {
-            display: inline-block;
-            min-width: 18px;
-            padding: 1px 5px;
-            border-radius: 99px;
-            background: #1a1a2e;
-            color: white;
-            font-weight: 800;
-            font-size: 12px;
-            text-align: center;
+            display: inline-block; min-width: 5mm; padding: .2mm 1.2mm; margin: 0 .8mm .8mm 0;
+            border-radius: 9mm; background: var(--k-tinta); color: #fff;
+            font-weight: 700; font-size: 7.5pt; text-align: center;
         }
-        .rol-texto { flex: 1; line-height: 1.35; }
+        .rol-texto { line-height: 1.35; }
 
-        .asignaciones, .directrices {
-            margin-top: 10px;
-            padding: 10px 12px;
-            background: #f8fafc;
-            border-radius: 8px;
-            border: 1px solid #e2e8f0;
-        }
-        .asignaciones h4, .directrices h4 {
-            font-size: 11px; font-weight: 700; text-transform: uppercase;
-            letter-spacing: 0.4px; color: {{ color_primario or '#1a365d' }};
-            margin-bottom: 6px;
-        }
-        .asig-row, .dir-row {
-            font-size: 12px; padding: 2px 0; color: #333;
-        }
-        .asig-num {
-            font-family: monospace; font-weight: 700; margin-right: 6px;
-            color: {{ color_primario or '#1a365d' }};
-        }
-        .asig-rol { color: #64748b; margin-right: 6px; }
+        .bloque { margin-top: 3mm; padding: 2.6mm 3.2mm; }
+        .bloque .k-eyebrow { margin-bottom: 1.2mm; }
+        .asig-row, .dir-row { font-size: 8.8pt; padding: .5mm 0; }
+        .asig-num { font-weight: 700; margin-right: 1.6mm; color: var(--k-primario-texto); }
+        .asig-rol { color: var(--k-tinta-suave); margin-right: 1.6mm; }
         .notes {
-            font-size: 11px; color: #555; margin-top: 10px;
-            padding-top: 8px; border-top: 1px solid #eee;
+            font-size: 8.5pt; color: var(--k-tinta-suave); margin-top: 3mm;
+            padding-top: 2mm; border-top: .25mm solid var(--k-linea);
         }
     </style>
 </head>
 <body>
-    <div class="running-header">
-        <div class="hdr-left">
-            {% if logo_url %}<img src="{{ logo_url }}" alt="">{% endif %}
-            {% if org_nombre %}<span class="hdr-club">{{ org_nombre }}</span><span class="hdr-sep">|</span>{% endif %}
-            <span class="hdr-team">{{ equipo_nombre }}</span>
-            {% if equipo_temporada %}<span class="hdr-sep">|</span><span class="hdr-season">{{ equipo_temporada }}</span>{% endif %}
-        </div>
-        <div class="hdr-right">Playbook ABP</div>
-    </div>
-
-    <div class="running-footer">
-        <div class="ft-left">
-            {% if logo_url %}<img src="{{ logo_url }}" alt="">{% endif %}
-            <span>{% if org_nombre %}{{ org_nombre }} · {% endif %}Generado con Kabin-e</span>
-        </div>
-        <div class="ft-right">{{ equipo_nombre }}{% if equipo_temporada %} · {{ equipo_temporada }}{% endif %}</div>
-    </div>
-
     <div class="cover">
-        <div class="cover-header">
-            {% if logo_url %}<img class="cover-logo" src="{{ logo_url }}" alt="">{% endif %}
-            <div class="cover-info">
-                <h1>Playbook ABP</h1>
-                <div class="subtitle">{{ equipo_nombre or 'Equipo' }}</div>
-                {% if equipo_temporada or equipo_categoria %}
-                <div class="team-meta">
-                    {% if equipo_categoria %}{{ equipo_categoria }}{% endif %}
-                    {% if equipo_categoria and equipo_temporada %} · {% endif %}
-                    {% if equipo_temporada %}Temporada {{ equipo_temporada }}{% endif %}
-                    {% if total_jugadas %} · {{ total_jugadas }} jugadas{% endif %}
-                </div>
-                {% endif %}
+        {{ cabecera(tema_c, titulo="Playbook ABP", subtitulo="Acciones a balón parado", meta=((total_jugadas ~ ' jugadas') if total_jugadas else '')) }}
+
+        <div class="cover-banda">
+            <div class="k-eyebrow">Equipo</div>
+            <div class="cb-titulo">{{ equipo_nombre or 'Equipo' }}</div>
+            {% if equipo_temporada or equipo_categoria or total_jugadas %}
+            <div class="cb-sub">
+                {% if equipo_categoria %}{{ equipo_categoria }}{% endif %}
+                {% if equipo_categoria and equipo_temporada %} · {% endif %}
+                {% if equipo_temporada %}Temporada {{ equipo_temporada }}{% endif %}
+                {% if total_jugadas %} · {{ total_jugadas }} jugadas{% endif %}
             </div>
+            {% endif %}
         </div>
 
-        <div class="summary">
-            <h3>Índice de jugadas</h3>
+        <div class="k-seccion">Índice de jugadas</div>
+        <div class="k-tarjeta">
             {% for tipo_code, plays in grouped.items() %}
-            <div class="toc-tipo">{{ tipo_labels.get(tipo_code, tipo_code) }}</div>
-            {% for play in plays %}
-            <div class="toc-play">
-                {% if play.codigo %}<span class="toc-code">{{ play.codigo }}</span>{% endif %}
-                <span class="toc-name">{{ play.nombre }}</span>
-                <span class="badge {% if play.lado == 'ofensivo' %}badge-of{% else %}badge-df{% endif %}">
-                    {{ lado_labels.get(play.lado, play.lado) }}
-                </span>
+            <div class="toc-tipo">
+                <div class="k-eyebrow" style="margin-bottom:1.2mm">{{ tipo_labels.get(tipo_code, tipo_code) }}</div>
+                <table class="k-tabla toc-tabla">
+                    {% for play in plays %}
+                    <tr>
+                        <td class="c-code">{% if play.codigo %}<span class="code k-mono">{{ play.codigo }}</span>{% endif %}</td>
+                        <td><span class="toc-name">{{ play.nombre }}</span></td>
+                        <td class="c-lado">
+                            <span class="k-chip {% if play.lado == 'ofensivo' %}chip-of{% else %}chip-df{% endif %}">{{ lado_labels.get(play.lado, play.lado) }}</span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </table>
             </div>
             {% endfor %}
-            {% endfor %}
         </div>
+        <div class="generado">{% if org_nombre %}{{ org_nombre }} · {% endif %}Generado con Kabin-e</div>
     </div>
 
     {% for tipo_code, plays in grouped.items() %}
-    <div class="section-title">{{ tipo_labels.get(tipo_code, tipo_code) }}</div>
+    <div class="k-seccion">{{ tipo_labels.get(tipo_code, tipo_code) }}</div>
 
     {% for play in plays %}
-    <div class="play-card">
+    <div class="k-tarjeta play-card">
+        {% set play_head %}
+        <div class="play-head">
         <div class="play-title-row">
             <span class="play-name">{{ play.nombre }}</span>
-            {% if play.codigo %}<span class="play-code">{{ play.codigo }}</span>{% endif %}
+            {% if play.codigo %}<span class="code k-mono">{{ play.codigo }}</span>{% endif %}
         </div>
         <div class="play-meta">
-            <span class="badge badge-tipo">{{ tipo_labels.get(play.tipo, play.tipo) }}</span>
-            <span class="badge {% if play.lado == 'ofensivo' %}badge-of{% else %}badge-df{% endif %}">
-                {{ lado_labels.get(play.lado, play.lado) }}
-            </span>
-            {% if play.subtipo %}<span class="badge badge-sub">{{ play.subtipo }}</span>{% endif %}
-            {% if play.sistema_marcaje %}<span class="badge badge-sub">{{ play.sistema_marcaje }}</span>{% endif %}
-            {% if play.senal_codigo %}<span class="badge badge-senal">Señal: {{ play.senal_codigo }}</span>{% endif %}
+            <span class="k-chip">{{ tipo_labels.get(play.tipo, play.tipo) }}</span>
+            <span class="k-chip {% if play.lado == 'ofensivo' %}chip-of{% else %}chip-df{% endif %}">{{ lado_labels.get(play.lado, play.lado) }}</span>
+            {% if play.subtipo %}<span class="k-chip chip-neutro">{{ play.subtipo }}</span>{% endif %}
+            {% if play.sistema_marcaje %}<span class="k-chip chip-neutro">{{ play.sistema_marcaje }}</span>{% endif %}
+            {% if play.senal_codigo %}<span class="k-chip chip-senal">Señal: {{ play.senal_codigo }}</span>{% endif %}
         </div>
 
         {% if play.descripcion %}
         <div class="play-desc">{{ play.descripcion }}</div>
         {% endif %}
+        </div>
 
+        {% endset %}
+        {% if not play.rendered_fases %}{{ play_head }}{% endif %}
         {% for fase in play.rendered_fases %}
         <div class="phase">
+            {% if loop.first %}{{ play_head }}{% endif %}
             {% if play.rendered_fases | length > 1 %}
-            <div class="phase-name">{{ fase.nombre }}</div>
+            <div class="phase-name k-eyebrow">{{ fase.nombre }}</div>
             {% endif %}
             {% if fase.svg %}
             <div class="diagram-container">{{ fase.svg }}</div>
             {% endif %}
             {% if loop.first and play.roles_campo %}
             <div class="roles-campo">
+                <table class="rol-tabla">
                 {% for rol in play.roles_campo %}
-                <div class="rol-row">
-                    <span class="rol-nums">{% for d in rol.dorsales %}<span class="rol-num">{{ d }}</span>{% endfor %}</span>
-                    <span class="rol-texto">{{ rol.texto }}</span>
-                </div>
+                <tr>
+                    <td class="rol-nums">{% for d in rol.dorsales %}<span class="rol-num k-mono">{{ d }}</span>{% endfor %}</td>
+                    <td class="rol-texto">{{ rol.texto }}</td>
+                </tr>
                 {% endfor %}
+                </table>
             </div>
             {% endif %}
         </div>
         {% endfor %}
 
         {% if play.resolved_asignaciones %}
-        <div class="asignaciones">
-            <h4>Jugadores</h4>
+        <div class="k-tarjeta-suave bloque">
+            <div class="k-eyebrow">Jugadores</div>
             {% for asig in play.resolved_asignaciones %}
             <div class="asig-row">
-                {% if asig.label %}<span class="asig-num">{{ asig.label }}</span>{% endif %}
+                {% if asig.label %}<span class="asig-num k-mono">{{ asig.label }}</span>{% endif %}
                 {% if asig.rol %}<span class="asig-rol">{{ asig.rol }}</span>{% endif %}
                 <span>{{ asig.nombre }}</span>
             </div>
@@ -333,8 +181,8 @@
         {% endif %}
 
         {% if play.play_directrices %}
-        <div class="directrices">
-            <h4>Directrices</h4>
+        <div class="k-tarjeta-suave bloque">
+            <div class="k-eyebrow">Directrices</div>
             {% for d in play.play_directrices %}
             <div class="dir-row">· {{ d }}</div>
             {% endfor %}

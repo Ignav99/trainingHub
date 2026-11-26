@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { KabineLogo } from '@/components/brand/KabineLogo'
 
 export default function LegalLayout({
   children,
@@ -10,8 +11,7 @@ export default function LegalLayout({
       <header className="border-b border-gray-200 bg-white sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 text-gray-900 hover:text-gray-700">
-            <img src="/logo-icon.png" alt="Kabin-e" className="w-8 h-8" />
-            <span className="font-semibold">Kabin-e</span>
+            <KabineLogo markClassName="w-8 h-8" wordClassName="text-xl" />
           </Link>
           <nav className="flex gap-6 text-sm">
             <Link href="/legal/privacidad" className="text-gray-600 hover:text-gray-900">

@@ -9,6 +9,7 @@ import { getSupabaseClient } from '@/lib/supabase/client'
 import type { InvitacionVerify } from '@/types'
 import { PorAspecto } from '@/components/appearance/PorAspecto'
 import { PuertaCal } from '@/components/puerta/PuertaCal'
+import { KabineLogo, KabineMark, KabineWordmark } from '@/components/brand/KabineLogo'
 
 const STADIUM_BG = 'https://images.unsplash.com/photo-1522778119026-d647f0596c20?w=1920&q=80'
 
@@ -236,7 +237,7 @@ export default function JoinPage() {
             <div className="w-full max-w-md space-y-8">
               {/* Logo */}
               <div className="text-center">
-                <Image src="/logo.png" alt="Kabin-e" width={120} height={80} className="mx-auto mb-3" />
+                <KabineLogo className="mx-auto mb-3 text-foreground" markClassName="h-10 w-10" wordClassName="text-[2rem]" />
               </div>
 
               {cuerpo}
@@ -256,8 +257,8 @@ export default function JoinPage() {
             <div className="relative z-10 flex flex-col items-center justify-center p-12 text-white">
               <div className="max-w-md text-center">
                 <div className="inline-flex items-center gap-3 mb-6 px-5 py-3 rounded-2xl backdrop-blur-sm bg-white/10">
-                  <Image src="/logo-icon.png" alt="Kabin-e" width={40} height={40} className="drop-shadow-lg" />
-                  <span className="text-2xl font-extrabold tracking-tight">Kabin-e</span>
+                  <KabineMark className="h-10 w-10 drop-shadow-lg" />
+                  <KabineWordmark className="text-2xl" />
                 </div>
                 <h2
                   className="text-3xl font-extrabold mb-4"
