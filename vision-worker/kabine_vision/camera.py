@@ -4,8 +4,8 @@ Veo y la tele graban desde un punto fijo que gira y hace zoom. La primera vez se
 busca una cámara aproximada (sitio, giro, inclinación, zoom, ladeo) y las
 medidas del campo, que en los campos municipales no suelen ser 105×68. Desde
 ahí, y en cada fotograma siguiente, se afina una homografía libre emparejando
-cada punto del dibujo con la línea vista más cercana (ICP). Las líneas
-amarillas o naranjas de fútbol 7 no cuentan.
+cada punto del dibujo con la línea vista más cercana (ICP). La línea de juego
+cuenta aunque al sol o con focos salga cálida; el naranja apagado, no.
 """
 
 from __future__ import annotations
@@ -29,6 +29,10 @@ ACCEPT_INLIERS = 0.6
 MIN_SPREAD_M = 3.0
 ACCEPT_EXPLAINED = 0.5
 ACCEPT_COVERED = 0.8
+# Si el círculo central cae en el césped, tiene que sentarse en la línea. Un ajuste
+# movido pasa el resto de puertas y pinta el campo al lado de las rayas.
+ACCEPT_RING_PX = 6.0
+RING_RADIUS_M = 9.15
 GRASS_MARGIN_M = 8.0
 GRASS_SAMPLE = 500
 GRASS_PIECE_SHARE = 0.2
@@ -169,28 +173,29 @@ def grass_region(frame: np.ndarray) -> np.ndarray:
 
 
 def _bright_thin(frame: np.ndarray) -> np.ndarray:
-    """Más claro que lo que lo rodea y no amarillo: las líneas de fútbol 7 son amarillas o naranjas."""
+    """Más claro que lo que lo rodea.
+
+    La línea del campo, al sol y con focos, sale cálida: tono amarillo y saturación
+    alta. En los partidos grabados esa es la línea de juego, no una marca de
+    fútbol 7 aparte, así que no se tira por ser amarilla. Se queda fuera la franja
+    de césped al sol (el verde sube más que el azul) y el naranja apagado.
+    """
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     side = 2 * int(round(4.5 * frame.shape[1] / 1280.0)) + 1
-    tophat = cv2.morphologyEx(gray, cv2.MORPH_TOPHAT, cv2.getStructuringElement(cv2.MORPH_RECT, (side, side)))
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    # A la sombra la línea blanca refleja el cielo: azul claro (tono 100-110, saturación hasta ~160).
-    pale = cv2.bitwise_or(cv2.inRange(hsv, (0, 0, 0), (180, 150, 255)), cv2.inRange(hsv, (92, 0, 120), (125, 200, 255)))
-    # A la sombra el naranja se apaga (saturación 35-60); el blanco al sol no pasa de ~15.
-    yellow = cv2.inRange(hsv, (5, 28, 0), (33, 255, 255))
-    # Entre sombras largas, las franjas de césped al sol también son finas y claras, pero verdes: sobre
-    # lo que las rodea suben el verde el doble que el azul. Una línea blanca sube los dos por igual o más
-    # el azul, de día y con focos.
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (side, side))
+    tophat = cv2.morphologyEx(gray, cv2.MORPH_TOPHAT, kernel)
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    # A la sombra la línea refleja el cielo y puede pasar de saturación 150, en azul claro.
+    pale = cv2.bitwise_or(cv2.inRange(hsv, (0, 0, 0), (180, 180, 255)), cv2.inRange(hsv, (92, 0, 120), (125, 220, 255)))
+    # Entre sombras largas, las franjas de césped al sol también son finas y claras, pero verdes: sobre
+    # lo que las rodea el verde sube mucho más que el azul. La línea cálida del campo no baja de dos tercios.
     blue, green, red = (frame[:, :, i].astype(np.int16) for i in range(3))
     rise_blue = cv2.morphologyEx(frame[:, :, 0], cv2.MORPH_TOPHAT, kernel).astype(np.int16)
     rise_green = cv2.morphologyEx(frame[:, :, 1], cv2.MORPH_TOPHAT, kernel).astype(np.int16)
-    # El naranja a la sombra queda gris verdoso y apagado, pero con más rojo que azul; el blanco a la
-    # sombra refleja el cielo y tiene más azul.
+    # El naranja a la sombra queda apagado y con más rojo que azul. La línea iluminada no.
     faded_orange = (hsv[:, :, 2] < 150) & (red > blue + 3)
-    whitish = np.where((10 * rise_blue >= 8 * rise_green) & ~faded_orange, 255, 0).astype(np.uint8)
-    keep = cv2.bitwise_and(cv2.bitwise_and(cv2.inRange(tophat, 22, 255), pale), whitish)
-    return cv2.bitwise_and(keep, cv2.bitwise_not(yellow))
+    whitish = np.where((3 * rise_blue >= 2 * rise_green) & ~faded_orange, 255, 0).astype(np.uint8)
+    return cv2.bitwise_and(cv2.bitwise_and(cv2.inRange(tophat, 22, 255), pale), whitish)
 
 
 def line_mask(
@@ -287,6 +292,7 @@ class Fit:
     spread: float
     explained: float = 0.0
     covered: float = 1.0
+    ring: float = 0.0
 
     @property
     def good(self) -> bool:
@@ -297,6 +303,7 @@ class Fit:
             and self.spread >= MIN_SPREAD_M
             and self.explained >= ACCEPT_EXPLAINED
             and self.covered >= ACCEPT_COVERED
+            and self.ring <= ACCEPT_RING_PX
         )
 
 
@@ -353,7 +360,24 @@ def measure(obs: Observed, h: np.ndarray, pitch: Pitch = STANDARD) -> Fit:
     covered = 1.0
     if len(obs.grass):
         covered = float(_lands_on_pitch(h, obs.grass, pitch, template[inside][0], GRASS_MARGIN_M).mean())
-    return Fit(h, float(np.minimum(near, DIST_CAP_PX).mean()), float((near <= INLIER_PX).mean()), visible, spread, explained, covered)
+    center = np.array([pitch.length / 2.0, pitch.width / 2.0])
+    ring_ids = np.nonzero(np.abs(np.linalg.norm(template - center, axis=1) - RING_RADIUS_M) <= 1.0)[0]
+    ring = 0.0
+    if len(ring_ids) >= 12:
+        ring_uv, ring_on = _visible(obs, h, template[ring_ids])
+        if float(ring_on.mean()) >= 0.45:
+            ij = ring_uv[ring_on].astype(int)
+            ring = float(np.minimum(obs.dist[ij[:, 1], ij[:, 0]], DIST_CAP_PX).mean())
+    return Fit(
+        h,
+        float(np.minimum(near, DIST_CAP_PX).mean()),
+        float((near <= INLIER_PX).mean()),
+        visible,
+        spread,
+        explained,
+        covered,
+        ring,
+    )
 
 
 PITCH_MARGIN_M = 2.0
