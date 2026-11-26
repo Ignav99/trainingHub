@@ -1,12 +1,35 @@
 # Visión — memoria para otra IA
 
-Consulta rápida. El chat largo no hace falta. Última pasada: 4 nov 2026, Europe/Madrid.
+Consulta rápida. El chat largo no hace falta. Última pasada: 26 nov 2026, 18:53 Europe/Madrid.
 
 Producto: **Kabine / TrainingHub**. Módulo **Visión**, dentro de Video Análisis (`/video-analisis`). No es una ruta nueva.
 
 Los módulos 2 (dibujo tipo Sportscode) y 3 (eventos y recortes automáticos) están descritos en `docs/VISION_PLAN.md` y **no se construyen** hasta que un partido real de noche deje jugadores, equipos, balón y homografía creíbles.
 
 El partido completo (4–5 GB, Veo) se queda en el Mac. Desde el 2 nov 2026 las pruebas se hacen en una GPU alquilada (RunPod), con un recorte de 6 minutos, por decisión del usuario.
+
+---
+
+## Retomar aquí (26 nov 2026) — homografía
+
+**Nota de la homografía, lista para pintar: 4/10.**
+
+Un 10 es un clip real, de día y de noche, con la raya blanca clavando el campo (banda de fondo incluida), la puerta numérica abierta y un rectángulo dibujado que se queda en el césped mientras la cámara se mueve. Los jugadores de los dos equipos salen en caja para que no tiren de las líneas.
+
+| Pieza | Nota | Qué se midió |
+| --- | --- | --- |
+| Raya blanca de noche | 7/10 | `prueba2.mp4`: círculo, medular, área y las dos bandas. El naranja del fútbol 7, la grada y los carteles quedan fuera. |
+| Raya blanca de día | 3/10 | En «Inicio» la blanca casi no sale. En «Bloque bajo» salen el círculo y la medular a trozos. El amarillo del fútbol 7 ya no entra. |
+| Cámara, un fotograma de noche | 5/10 | El mejor ajuste (ancho estimado 60,5 m) sienta círculo, medular, banda cercana y el área. La banda de fondo queda alta: error hacia delante 3,9 px (la puerta pide ≤ 3,0) y anillo del círculo 6,9 px (la puerta pide ≤ 6,0). |
+| Aguantar un tramo | sin medir | Este ajuste se ha mirado en fotogramas sueltos. La última lectura de un partido entero es la del 4 nov (abajo): cámara en el 0 % de la 1ª parte y el 13 % de la 2ª. Ese código es anterior a la máscara blanca. |
+| Pintar en perspectiva | 0 | La puerta no abre, así que no se dibuja encima de los jugadores. |
+| Jugadores de los dos equipos | 3/10 | De noche salen unos pocos de cerca. Faltan los lejanos y la camiseta que se confunde con el verde. Árbitro, equipos y balón van después. |
+
+Orden que pidió el entrenador el 26 nov, y que no se salta: (1) homografía sola y poder pintar en perspectiva, (2) tracking, (3) cortes por fases, (4) eventing general, (5) asociarlo a jugadores, (6) recortes automáticos. Seguimos en el 1.
+
+Código en `main`: PR #512, merge `86b7aad4` a las 18:53 Europe/Madrid. La máscara vive en `vision-worker/kabine_vision/camera.py` (`_bright_thin`, `_pitch_turf`, `_thin_lines`, `pitch_people`). Pruebas: `python3 -m unittest tests.test_broadcast tests.test_field tests.test_stable` dentro de `vision-worker`.
+
+La nota Kabine del 4 nov (4,5/100) mide otra cosa: jugadores, identidad, balón, árbitro y equipo en una prueba de 3 minutos. No es la nota de la homografía de hoy.
 
 ---
 
