@@ -97,13 +97,27 @@ class CameraTests(unittest.TestCase):
         self.assertEqual(int(np.count_nonzero(lines[220:261, 680:940])), 0)
         self.assertEqual(int(np.count_nonzero(lines[460:620, 1000:1260])), 0)
 
-    def test_warm_pitch_line_under_floodlights_is_kept(self) -> None:
-        """La línea de juego al sol y con focos sale amarilla. Tiene que contar."""
+    def test_white_eleven_a_side_lines_stay_and_seven_a_side_paint_does_not(self) -> None:
+        """El fútbol 11 es la raya blanca. El amarillo y el naranja de un fútbol 7 no cuentan."""
         frame = np.zeros((720, 1280, 3), np.uint8)
         frame[:, :] = (49, 93, 73)
-        cv2.line(frame, (200, 80), (1100, 640), (101, 162, 181), 3)
+        cv2.line(frame, (200, 80), (1100, 640), (175, 231, 211), 3)
+        cv2.line(frame, (80, 200), (80, 640), (115, 168, 181), 3)
+        cv2.line(frame, (1200, 80), (1200, 640), (71, 192, 167), 3)
         lines = C.line_mask(frame)
-        self.assertGreater(int(np.count_nonzero(lines)), 800)
+        self.assertGreater(int(np.count_nonzero(lines[100:600, 400:700])), 400)
+        self.assertLess(int(np.count_nonzero(lines[:, 70:95])), 40)
+        self.assertLess(int(np.count_nonzero(lines[:, 1188:1212])), 40)
+
+    def test_two_shirts_on_the_pitch_are_boxed(self) -> None:
+        frame = np.zeros((720, 1280, 3), np.uint8)
+        frame[:, :] = (40, 140, 50)
+        cv2.line(frame, (640, 40), (640, 680), (230, 240, 235), 4)
+        cv2.rectangle(frame, (300, 180), (348, 340), (240, 240, 240), -1)
+        cv2.rectangle(frame, (860, 200), (908, 370), (30, 40, 170), -1)
+        people = C.pitch_people(frame)
+        self.assertGreaterEqual(len(people), 2)
+        self.assertLessEqual(len(people), 4)
 
 
 class KeypointTests(unittest.TestCase):

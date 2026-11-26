@@ -20,7 +20,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "vision-worker"))
 
-from kabine_vision.camera import WORK_WIDTH, PitchCamera, pitch_template, work_masks  # noqa: E402
+from kabine_vision.camera import WORK_WIDTH, PitchCamera, pitch_people, pitch_template, work_masks  # noqa: E402
 from kabine_vision.homography import apply_h  # noqa: E402
 
 
@@ -41,12 +41,25 @@ def _frames(path: Path, count: int) -> list[tuple[float, np.ndarray]]:
     return out
 
 
-def _draw(frame: np.ndarray, homography: np.ndarray | None, lines: np.ndarray) -> np.ndarray:
+def _draw(
+    frame: np.ndarray,
+    homography: np.ndarray | None,
+    lines: np.ndarray,
+    people: list[tuple[float, float, float, float]],
+) -> np.ndarray:
     height, width = frame.shape[:2]
     scale = WORK_WIDTH / float(width)
     small = cv2.resize(frame, (WORK_WIDTH, int(round(height * scale))))
     painted = small.copy()
     painted[lines > 0] = (0, 255, 255)
+    for x, y, w, h in people:
+        cv2.rectangle(
+            painted,
+            (int(x * scale), int(y * scale)),
+            (int((x + w) * scale), int((y + h) * scale)),
+            (255, 0, 255),
+            1,
+        )
     if homography is None:
         return painted
     # La homografía devuelta lleva el píxel original al campo de 105×68.
@@ -71,18 +84,20 @@ def bench(path: Path, out: Path, frames: int) -> dict:
         height, width = frame.shape[:2]
         scale = WORK_WIDTH / float(width)
         size = (WORK_WIDTH, int(round(height * scale)))
-        lines, _grass = work_masks(frame, size, None)
+        people = pitch_people(frame)
+        lines, _grass = work_masks(frame, size, people)
         camera = PitchCamera()
-        homography = camera.fit(frame)
+        homography = camera.fit(frame, people)
         pitch = [camera.pitch.length, camera.pitch.width]
         fit = camera.last
         stem = f"{path.stem}-{second:06.1f}s"
-        cv2.imwrite(str(out / f"{stem}.jpg"), _draw(frame, homography, lines), [int(cv2.IMWRITE_JPEG_QUALITY), 84])
+        cv2.imwrite(str(out / f"{stem}.jpg"), _draw(frame, homography, lines, people), [int(cv2.IMWRITE_JPEG_QUALITY), 84])
         rows.append(
             {
                 "t": round(second, 2),
                 "accepted": homography is not None,
                 "lines": int(np.count_nonzero(lines)),
+                "people": len(people),
                 "forward": None if fit is None else round(float(fit.forward), 2),
                 "inliers": None if fit is None else round(float(fit.inliers), 2),
                 "explained": None if fit is None else round(float(fit.explained), 2),
