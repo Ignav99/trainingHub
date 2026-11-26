@@ -4,8 +4,8 @@ Veo y la tele graban desde un punto fijo que gira y hace zoom. La primera vez se
 busca una cámara aproximada (sitio, giro, inclinación, zoom, ladeo) y las
 medidas del campo, que en los campos municipales no suelen ser 105×68. Desde
 ahí, y en cada fotograma siguiente, se afina una homografía libre emparejando
-cada punto del dibujo con la línea vista más cercana (ICP). La línea de juego
-cuenta aunque al sol o con focos salga cálida; el naranja apagado, no.
+cada punto del dibujo con la línea vista más cercana (ICP). La línea de juego del fútbol 11 es la blanca. Aunque al sol o con focos
+salga cálida, el naranja y el amarillo de un fútbol 7 pintado encima no cuentan.
 """
 
 from __future__ import annotations
@@ -173,29 +173,66 @@ def grass_region(frame: np.ndarray) -> np.ndarray:
 
 
 def _bright_thin(frame: np.ndarray) -> np.ndarray:
-    """Más claro que lo que lo rodea.
+    """Pintura blanca del fútbol 11, más clara que lo que la rodea.
 
-    La línea del campo, al sol y con focos, sale cálida: tono amarillo y saturación
-    alta. En los partidos grabados esa es la línea de juego, no una marca de
-    fútbol 7 aparte, así que no se tira por ser amarilla. Se queda fuera la franja
-    de césped al sol (el verde sube más que el azul) y el naranja apagado.
+    Con focos el blanco sale cálido, pero los tres canales siguen altos y la
+    saturación baja. El naranja y el amarillo de un fútbol 7 pintado encima no
+    entran: ahí el azul se hunde o el rojo pasa al verde. La franja de césped al
+    sol tampoco: el verde sube más que el azul.
     """
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     side = 2 * int(round(4.5 * frame.shape[1] / 1280.0)) + 1
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (side, side))
     tophat = cv2.morphologyEx(gray, cv2.MORPH_TOPHAT, kernel)
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    # A la sombra la línea refleja el cielo y puede pasar de saturación 150, en azul claro.
-    pale = cv2.bitwise_or(cv2.inRange(hsv, (0, 0, 0), (180, 180, 255)), cv2.inRange(hsv, (92, 0, 120), (125, 220, 255)))
-    # Entre sombras largas, las franjas de césped al sol también son finas y claras, pero verdes: sobre
-    # lo que las rodea el verde sube mucho más que el azul. La línea cálida del campo no baja de dos tercios.
     blue, green, red = (frame[:, :, i].astype(np.int16) for i in range(3))
     rise_blue = cv2.morphologyEx(frame[:, :, 0], cv2.MORPH_TOPHAT, kernel).astype(np.int16)
     rise_green = cv2.morphologyEx(frame[:, :, 1], cv2.MORPH_TOPHAT, kernel).astype(np.int16)
-    # El naranja a la sombra queda apagado y con más rojo que azul. La línea iluminada no.
-    faded_orange = (hsv[:, :, 2] < 150) & (red > blue + 3)
-    whitish = np.where((3 * rise_blue >= 2 * rise_green) & ~faded_orange, 255, 0).astype(np.uint8)
-    return cv2.bitwise_and(cv2.bitwise_and(cv2.inRange(tophat, 22, 255), pale), whitish)
+    hue, sat, val = hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2]
+    sun_grass = 3 * rise_blue < 2 * rise_green
+    orange = (green > blue + 70) & (sat >= 100)
+    yellow = (hue <= 32) & (sat >= 78) & (red + 4 >= green) & (green > blue + 20)
+    # A la sombra la línea copia el cielo y se va al azul, sin dejar de ser clara.
+    sky = (hue >= 90) & (hue <= 130) & (val >= 140)
+    faded = (val < 150) & (red > blue + 3) & (sat >= 20) & (hue <= 50)
+    white = (tophat >= 14) & ~sun_grass & ~orange & ~yellow & ~faded & ((sat <= 110) | sky)
+    return np.where(white, 255, 0).astype(np.uint8)
+
+
+def _pitch_turf(frame: np.ndarray) -> np.ndarray:
+    """Césped de juego, verde y saturado. La valla, la grada y los carteles no lo son."""
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    turf = cv2.inRange(hsv, (28, 90, 28), (105, 255, 255))
+    turf = cv2.morphologyEx(turf, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(turf, 8)
+    if count <= 1:
+        return turf
+    areas = stats[1:, cv2.CC_STAT_AREA]
+    keep = 1 + np.flatnonzero(areas >= GRASS_PIECE_SHARE * float(areas.max()))
+    region = np.where(np.isin(labels, keep), 255, 0).astype(np.uint8)
+    region = cv2.morphologyEx(region, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15)))
+    filled = region.copy()
+    contours, _ = cv2.findContours(region, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    cv2.drawContours(filled, contours, -1, 255, -1)
+    return filled
+
+
+def _thin_lines(lines: np.ndarray, min_len: int) -> np.ndarray:
+    """Trazo fino y largo. Un jugador, un cartel o el logo son más gordos."""
+    if int(cv2.countNonZero(lines)) == 0:
+        return lines
+    dist = cv2.distanceTransform(lines, cv2.DIST_L2, 3)
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(lines, 8)
+    keep = np.zeros_like(lines)
+    max_radius = 4.2 * lines.shape[1] / 1280.0
+    for index in range(1, count):
+        width, height, area = int(stats[index, 2]), int(stats[index, 3]), int(stats[index, 4])
+        if max(width, height) < min_len or area < min_len:
+            continue
+        if float(dist[labels == index].max()) > max_radius:
+            continue
+        keep[labels == index] = 255
+    return keep
 
 
 def line_mask(
@@ -203,7 +240,7 @@ def line_mask(
     boxes: list[tuple[float, float, float, float]] | None = None,
     min_len: int = 14,
 ) -> np.ndarray:
-    """Líneas blancas finas sobre césped, sin personas encima."""
+    """Líneas blancas finas del fútbol 11, sobre el césped y sin personas encima."""
     return _lines_and_grass(frame, boxes, min_len)[0]
 
 
@@ -212,21 +249,78 @@ def _lines_and_grass(
     boxes: list[tuple[float, float, float, float]] | None,
     min_len: int,
 ) -> tuple[np.ndarray, np.ndarray]:
-    grass = grass_region(frame)
-    # La banda cercana suele ser el borde de abajo de la mancha de césped: se mira un ancho de línea
-    # más abajo. Hacia arriba no, que el borde de arriba son los carteles.
-    reach = 2 * int(round(6 * frame.shape[1] / 1280.0)) + 1
-    below = cv2.dilate(grass, np.ones((reach, 1), np.uint8), anchor=(0, reach - 1))
-    lines = cv2.bitwise_and(_bright_thin(frame), below)
+    turf = _pitch_turf(frame)
+    # La banda cercana es el borde de abajo del césped: se mira un ancho de línea
+    # más abajo. Hacia arriba no, que ahí están la valla y los carteles.
+    reach = 2 * int(round(5 * frame.shape[1] / 1280.0)) + 1
+    near = cv2.dilate(turf, np.ones((reach, 1), np.uint8), anchor=(0, reach - 1))
+    near = cv2.dilate(near, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
+    lines = cv2.bitwise_and(_bright_thin(frame), near)
     for x, y, w, h in boxes or []:
         cv2.rectangle(lines, (int(x) - 2, int(y) - 2), (int(x + w) + 2, int(y + h) + 2), 0, -1)
-    count, labels, stats, _ = cv2.connectedComponentsWithStats(lines, 8)
-    keep = np.zeros_like(lines)
+    return _thin_lines(lines, min_len), turf
+
+
+def pitch_people(frame: np.ndarray) -> list[tuple[float, float, float, float]]:
+    """Cajas de quien pisa el césped, de los dos equipos a la vez.
+
+    Todavía no separa árbitro ni camiseta. El hueco en el verde que tiene forma
+    de persona cuenta. Una camiseta del mismo tono que el césped puede no salir.
+    """
+    height, width = frame.shape[:2]
+    turf = _pitch_turf(frame)
+    if int(cv2.countNonZero(turf)) < 0.05 * height * width:
+        return []
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    green = cv2.dilate(cv2.inRange(hsv, (32, 45, 25), (100, 255, 255)), np.ones((3, 3), np.uint8))
+    holes = cv2.bitwise_and(turf, cv2.bitwise_not(green))
+    holes[hsv[:, :, 2] < 40] = 0
+    lines = cv2.dilate(line_mask(frame), np.ones((7, 7), np.uint8))
+    holes = cv2.bitwise_and(holes, cv2.bitwise_not(lines))
+    opened = cv2.morphologyEx(holes, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 7)))
+    count, _labels, stats, _ = cv2.connectedComponentsWithStats(opened, 8)
+    boxes: list[tuple[float, float, float, float]] = []
+    area = float(height * width)
     for index in range(1, count):
-        w, h, area = stats[index, 2], stats[index, 3], stats[index, 4]
-        if max(w, h) >= min_len and area >= min_len:
-            keep[labels == index] = 255
-    return keep, grass
+        x, y, w, h, blob = (int(stats[index, i]) for i in range(5))
+        if blob < area * 0.000035 or blob > area * 0.012:
+            continue
+        if w < 4 or h < 10 or h < w * 0.85 or h > w * 5.5:
+            continue
+        if blob < 0.28 * w * h:
+            continue
+        # Una sombra es césped más oscuro. Una camiseta tiene un trozo claro o de otro tono.
+        patch = hsv[y : y + h, x : x + w]
+        bright = int((patch[:, :, 2] >= 150).sum())
+        hue = patch[:, :, 0]
+        other = int(((hue <= 20) | (hue >= 105)).sum())
+        if bright < 0.12 * w * h and other < 0.2 * w * h:
+            continue
+        foot = min(height - 1, y + int(h * 0.85))
+        if float(turf[foot, max(0, x) : min(width, x + w)].mean()) < 80:
+            continue
+        boxes.append((float(x), float(y), float(w), float(h)))
+    return _merge_boxes(boxes)
+
+
+def _merge_boxes(boxes: list[tuple[float, float, float, float]]) -> list[tuple[float, float, float, float]]:
+    """Une trozos de la misma persona (camiseta y pantalón) si se solapan."""
+    kept: list[tuple[float, float, float, float]] = []
+    for box in sorted(boxes, key=lambda item: item[2] * item[3], reverse=True):
+        x, y, w, h = box
+        absorbed = False
+        for index, (ox, oy, ow, oh) in enumerate(kept):
+            ix = max(0.0, min(x + w, ox + ow) - max(x, ox))
+            iy = max(0.0, min(y + h, oy + oh) - max(y, oy))
+            if ix * iy < 0.25 * min(w * h, ow * oh):
+                continue
+            nx, ny = min(x, ox), min(y, oy)
+            kept[index] = (nx, ny, max(x + w, ox + ow) - nx, max(y + h, oy + oh) - ny)
+            absorbed = True
+            break
+        if not absorbed:
+            kept.append(box)
+    return kept
 
 
 def work_mask(frame: np.ndarray, size: tuple[int, int], boxes: list[tuple[float, float, float, float]] | None = None) -> np.ndarray:
@@ -242,10 +336,11 @@ def work_masks(
     scale = big[0] / float(width)
     sharp = cv2.resize(frame, big, interpolation=cv2.INTER_AREA) if big != (width, height) else frame
     big_boxes = [(x * scale, y * scale, w * scale, h * scale) for x, y, w, h in (boxes or [])]
-    lines, grass = _lines_and_grass(sharp, big_boxes, int(14 * big[0] / size[0]))
+    # A tamaño real una raya del fondo mide pocos píxeles y, al bajarla, se queda por debajo de 50.
+    lines, grass = _lines_and_grass(sharp, big_boxes, max(12, int(8 * big[0] / size[0])))
     small = cv2.resize(lines, size, interpolation=cv2.INTER_AREA)
     grass_small = cv2.resize(grass, size, interpolation=cv2.INTER_NEAREST)
-    return np.where(small >= 50, 255, 0).astype(np.uint8), grass_small
+    return np.where(small >= 24, 255, 0).astype(np.uint8), grass_small
 
 
 @dataclass
