@@ -36,6 +36,7 @@ from app.services.informe_spec import (
     spec_from_tipo,
 )
 from app.services.partido_ambito import AMBITO_LABELS, filtrar_por_ambito
+from app.services.pdf_marca import html_a_pdf, tema_pdf
 from app.services.pdf_service import _get_jinja_env_v2, _url_to_data_uri
 
 logger = logging.getLogger(__name__)
@@ -447,9 +448,9 @@ async def generate_informe_pdf(
 
     def _render() -> bytes:
         env = _get_jinja_env_v2()
-        html = env.get_template("informe_dossier.html").render(**ctx)
-        from weasyprint import HTML
-        return HTML(string=html).write_pdf()
+        org = ctx.get("organizacion") or {}
+        html = env.get_template("informe_dossier.html").render(tema=tema_pdf(org), **ctx)
+        return html_a_pdf(html, org, "Informe")
 
     pdf = await asyncio.to_thread(_render)
     stamp = datetime.now().strftime("%Y%m%d")
@@ -472,7 +473,7 @@ def _build_context(
     supabase = get_supabase()
     org = (
         supabase.table("organizaciones")
-        .select("id, nombre, logo_url, color_primario")
+        .select("id, nombre, logo_url, color_primario, color_secundario")
         .eq("id", organizacion_id)
         .maybe_single()
         .execute()

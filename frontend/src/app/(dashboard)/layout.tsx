@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, memo, useCallback } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard,
@@ -56,6 +55,7 @@ import { cn } from '@/lib/utils'
 import { useAppearance } from '@/lib/useAppearance'
 import { isClubAdminRole, isSuperadminRole } from '@/lib/roles'
 import type { Equipo, Usuario } from '@/types'
+import { KabineMark } from '@/components/brand/KabineLogo'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -472,7 +472,7 @@ const SidebarContent = memo(function SidebarContent({
                 {user?.organizacion?.nombre || 'Kabin-e'}
               </p>
               <p className="no-cal text-[10px] text-white/60 uppercase tracking-wider flex items-center gap-1">
-                <Image src="/logo-icon.png" alt="Kabin-e" width={14} height={14} className="h-3.5 w-3.5" />
+                <KabineMark variant="mono" className="h-3.5 w-3.5" />
                 Kabin-e
               </p>
             </div>

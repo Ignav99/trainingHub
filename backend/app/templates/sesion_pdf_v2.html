@@ -1,410 +1,315 @@
-<!DOCTYPE html>
+{% from "_marca/cabecera.html" import cabecera %}<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <title>{{ org_nombre }} — {{ sesion.get('match_day','') }} Sesion {{ sesion.get('fecha','') }}</title>
 <style>
-/* Sesión PDF extendido — mismo lenguaje visual que reducido (claro, Helvetica, acento primario) */
+/* Sesión PDF extendido — diseño normalizado Kabin-e.
+   Portada A4 apaisada (resumen) + páginas A4 verticales de detalle.
+   Los @page con nombre deben repetir margin-bottom: 15mm (pie de marca),
+   porque una regla @page con nombre pisa a la @page base. */
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
-  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-  color: #111;
   font-size: 9px;
   line-height: 1.35;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
-@page cover { size: A4 landscape; margin: 3mm 4mm; }
-@page detail { size: A4 portrait; margin: 4mm; }
+@page cover { size: A4 landscape; margin: 8mm 9mm 15mm 9mm; }
+@page detail { size: A4 portrait; margin: 10mm 10mm 15mm 10mm; }
 
 .page-landscape {
   page: cover;
-  width: 289mm;
-  height: 200mm;
-  display: flex;
-  flex-direction: column;
+  width: 279mm;
+  height: 186mm;
   overflow: hidden;
-  background: #fff;
 }
 .page-portrait {
   page: detail;
-  width: 202mm;
-  height: 289mm;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: #fff;
+  width: 190mm;
   page-break-before: always;
 }
 
-/* Header landscape (igual espíritu que reducido) */
-.lh {
-  background: #fff;
-  min-height: 18mm;
-  display: flex;
-  align-items: center;
-  padding: 2px 0 4px;
-  gap: 10px;
-  flex-shrink: 0;
-  position: relative;
-  border-bottom: 2px solid {{ color_primario }};
-}
-.lh::after { display: none; }
-.lh-logo { width: 36px; height: 36px; flex-shrink: 0; }
-.lh-logo img { width: 100%; height: 100%; object-fit: contain; }
-.lh-logo svg { width: 100%; height: 100%; }
-.lh-divider { width: 1px; height: 28px; background: #e2e8f0; flex-shrink: 0; }
-.lh-title { flex: 1; min-width: 0; }
-.lh-title-club {
-  font-size: 7px; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600;
-}
-.lh-title-name {
-  font-size: 16px; color: {{ color_primario }}; font-weight: 800; line-height: 1.15;
-  max-height: 2.3em; overflow: hidden;
-}
-.lh-title-sub { font-size: 8px; color: #475569; margin-top: 1px; }
-.lh-info { display: flex; gap: 14px; flex-shrink: 0; align-items: center; }
-.lh-info-item { text-align: center; }
-.lh-info-val { font-size: 16px; color: #111; font-weight: 800; }
-.lh-info-label { font-size: 6.5px; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; }
-.lh-badges { display: flex; gap: 5px; flex-shrink: 0; }
-.lh-badge {
-  padding: 4px 8px; border-radius: 3px;
-  background: {{ color_primario }}; color: #fff;
-  font-size: 10px; font-weight: 800; text-transform: uppercase;
-}
+/* Cabecera de marca */
+body .k-cabecera { margin-bottom: 3mm; }
+body .k-cab-titulo { max-height: 2.2em; overflow: hidden; }
+.cab-stats { border-collapse: collapse; margin-left: auto; }
+.cab-stats td { padding: 0 0 0 4.5mm; vertical-align: middle; text-align: right; }
+.cab-stats .k-dato { font-size: 15pt; }
+.cab-chips { margin-top: 1.2mm; text-align: right; white-space: nowrap; }
+.cab-chips .k-chip { margin-left: 1mm; }
+.carga { font-weight: 600; color: var(--k-tinta); text-transform: uppercase; letter-spacing: .04em; }
 
-/* Roster */
-.asistencia-roster {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 2px;
-  padding: 4px 8px;
-  margin: 3px 0;
-  flex-shrink: 0;
-  display: flex;
-  gap: 12px;
-}
-.asistencia-group { flex: 1; min-width: 0; }
-.asistencia-group-ausentes { flex: 0 0 auto; min-width: 110px; }
-.asistencia-group-label {
-  font-size: 7px; text-transform: uppercase; letter-spacing: 0.05em;
-  font-weight: 800; margin-bottom: 2px; padding-bottom: 2px;
-  border-bottom: 1px solid #e2e8f0; color: #334155;
-}
-.asistencia-group-label-sesion { color: #2563eb; }
-.asistencia-group-label-fisio { color: #7c3aed; }
-.asistencia-group-label-margen { color: #b45309; }
-.asistencia-group-label-ausentes { color: #dc2626; }
-.asistencia-list { font-size: 7.5px; line-height: 1.35; }
-.asistencia-item { color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.asistencia-item-ausente { color: #94a3b8; }
-.asistencia-dorsal { color: #64748b; font-weight: 700; margin-right: 2px; }
-.asistencia-badge {
-  display: inline-block; font-size: 5.5px; font-weight: 800;
-  padding: 0 3px; border-radius: 2px; margin-left: 2px;
-  background: #ede9fe; color: #6d28d9;
-}
-.badge-fisio { background: #ede9fe; color: #6d28d9; }
-.asistencia-motivo { color: #94a3b8; font-size: 6.5px; margin-left: 2px; }
-
+/* Conceptos + objetivo */
 .concepts {
-  font-size: 8px; color: #1e293b; background: #f1f5f9;
-  border-left: 2.5px solid {{ color_primario }};
-  padding: 2px 5px; margin: 3px 0 2px; line-height: 1.3;
+  font-size: 8px; background: var(--k-primario-suave);
+  border-radius: 1.6mm; padding: 1.4mm 2.6mm; margin: 0 0 2mm; line-height: 1.3;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.concepts strong {
-  color: {{ color_primario }}; font-size: 7px; text-transform: uppercase;
-  letter-spacing: 0.03em; margin-right: 4px;
-}
+.concepts .k-eyebrow, .objetivo-bar .k-eyebrow { margin-right: 2mm; }
 .objetivo-bar {
-  border: 1px solid #e2e8f0; border-radius: 2px;
-  padding: 3px 6px; margin: 2px 0 3px; flex-shrink: 0;
+  border: .25mm solid var(--k-linea); border-left: 1mm solid var(--k-primario);
+  border-radius: 1.6mm; padding: 1.6mm 2.6mm; margin: 0 0 2.5mm;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.objetivo-label {
-  font-size: 6.5px; font-weight: 800; color: {{ color_primario }};
-  text-transform: uppercase; letter-spacing: 0.04em;
-}
-.objetivo-text { font-size: 9px; font-weight: 600; color: #111; }
-.objetivo-sep { color: #cbd5e1; margin: 0 4px; }
+.objetivo-text { font-size: 9px; font-weight: 600; }
+.objetivo-sep { color: #B5BAD0; margin: 0 1.5mm; }
 
-/* Exercise grid cover */
-.ex-table-wrap { flex: 1; min-height: 0; overflow: hidden; }
-.ex-table { width: 100%; height: 100%; border-collapse: collapse; table-layout: fixed; }
+/* Convocatoria */
+.asistencia-roster {
+  width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed;
+  margin: 0 0 2.5mm;
+}
+.asistencia-roster td.asistencia-group {
+  vertical-align: top; padding: 1.8mm 2.4mm;
+  border: .25mm solid var(--k-linea); border-left: none;
+}
+.asistencia-roster td.asistencia-group:first-child { border-left: .25mm solid var(--k-linea); border-radius: 2.6mm 0 0 2.6mm; }
+.asistencia-roster td.asistencia-group:last-child { border-radius: 0 2.6mm 2.6mm 0; }
+.asistencia-roster td.asistencia-group:first-child:last-child { border-radius: 2.6mm; }
+.asistencia-group-label {
+  font-size: 6.8px; text-transform: uppercase; letter-spacing: .12em;
+  font-weight: 600; margin-bottom: 1mm;
+}
+/* Estado de disponibilidad (semántico) */
+.asistencia-group-label-sesion { color: var(--k-primario-texto); }
+.asistencia-group-label-fisio { color: #6D28D9; }
+.asistencia-group-label-margen { color: #B45309; }
+.asistencia-group-label-ausentes { color: #B91C1C; }
+.asistencia-list { font-size: 7.5px; line-height: 1.45; }
+.asistencia-item { display: inline-block; white-space: nowrap; margin-right: 2.6mm; }
+.asistencia-item-ausente { color: var(--k-tinta-suave); }
+.asistencia-dorsal { font-size: 6.5px; color: var(--k-tinta-suave); margin-right: .6mm; }
+.asistencia-badge {
+  display: inline-block; font-size: 5.5px; font-weight: 600;
+  padding: 0 1mm; border-radius: 9mm; margin-left: .6mm;
+}
+.badge-fisio { background: #EDE9FE; color: #6D28D9; }
+.asistencia-motivo { color: #B91C1C; font-size: 6.5px; margin-left: .6mm; }
+
+/* Rejilla de ejercicios de la portada */
+.ex-table { width: 100%; border-collapse: separate; border-spacing: 0 2mm; table-layout: fixed; margin-top: -2mm; }
 .ex-table td {
-  vertical-align: top; padding: 2px;
-  border: 1px solid #e2e8f0; background: #fff;
+  vertical-align: top; padding: 0;
+  border: .25mm solid var(--k-linea); border-radius: 2.6mm; background: #fff;
 }
-.ex-card { padding: 3px 4px; height: 100%; }
+.ex-table td.ex-gap { border: none; width: 2.5mm; }
+.ex-card { padding: 2.2mm 2.6mm; }
 .ex-table td.ex-empty {
-  background: #f8fafc; color: #94a3b8; text-align: center; vertical-align: middle;
+  background: transparent; border: .25mm dashed var(--k-linea);
+  color: #B5BAD0; text-align: center; vertical-align: middle;
 }
-.ex-card-header { display: flex; align-items: baseline; gap: 4px; margin-bottom: 2px; }
-.ex-num { color: {{ color_primario }}; font-weight: 800; font-size: 9px; }
-.ex-type-badge {
-  display: inline-block; background: #f1f5f9; color: #334155;
-  font-size: 6px; font-weight: 700; padding: 0 3px; border-radius: 2px;
-}
-.ex-name { font-size: 8.5px; font-weight: 700; color: #0f172a; flex: 1; min-width: 0;
+.ex-card-header { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 1mm; }
+.ex-card-header td { border: none !important; border-radius: 0 !important; padding: 0; vertical-align: baseline; }
+.ex-num { color: var(--k-primario-texto); font-size: 8px; }
+.ex-type-badge { margin: 0 1mm; }
+.ex-name { font-size: 9px; font-weight: 800; letter-spacing: -.01em;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ex-dur { font-size: 7px; color: #64748b; font-weight: 600; }
+.ex-dur { font-size: 7.5px; color: var(--k-tinta-suave); text-align: right; }
 .ex-objetivo {
-  font-size: 7px; color: #475569; margin-bottom: 2px;
+  font-size: 7px; color: var(--k-tinta-suave); margin-bottom: 1mm;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .campo-mini-wrap {
-  background: #fff; border: 1px solid #e2e8f0; border-radius: 2px;
-  padding: 1px; margin: 2px 0; overflow: hidden; text-align: center;
+  border-radius: 1.6mm; margin: 1mm 0; overflow: hidden; text-align: center;
 }
-.campo-mini-wrap img { max-width: 100%; max-height: 38mm; object-fit: contain; }
-.campo-mini-wrap svg { width: 100%; height: auto; display: block; max-height: 38mm; }
-.ex-no-diagram {
-  background: #f8fafc; border: 1px dashed #cbd5e1; color: #94a3b8;
-  text-align: center; padding: 8px 4px; font-size: 7px; margin: 2px 0;
-}
-.ex-no-diagram-fase { font-weight: 700; color: #64748b; }
-.ex-no-diagram-info { margin-top: 2px; }
-.ex-petos { margin-top: 2px; }
+.campo-mini-wrap img { max-width: 100%; object-fit: contain; }
+.campo-mini-wrap svg { width: 100%; height: 100%; display: block; }
+.ex-petos { margin-top: 1mm; }
 .ex-petos-grid { font-size: 6.5px; }
-.ex-peto-row { margin-bottom: 1px; }
+.ex-peto-row { margin-bottom: .4mm; }
+.ex-peto-row > div { display: inline; }
+.ex-peto-row > div.ex-peto-dot { display: inline-block; }
 .ex-peto-dot {
-  display: inline-block; width: 6px; height: 6px; border-radius: 50%;
-  margin-right: 2px; vertical-align: middle; border: 1px solid #94a3b8;
+  display: inline-block; width: 2mm; height: 2mm; border-radius: 50%;
+  margin-right: 1mm; vertical-align: middle; border: .25mm solid #94A3B8;
 }
-.ex-peto-label { font-weight: 700; color: #334155; margin-right: 3px; }
-.ex-peto-players { color: #64748b; }
+/* Colores de peto (semánticos: coinciden con la leyenda) */
+.peto-negro { background: #111827; border-color: #111827; }
+.peto-blanco { background: #fff; border-color: #94A3B8; }
+.peto-gris { background: #9CA3AF; border-color: #9CA3AF; }
+.peto-verde { background: #22C55E; border-color: #16A34A; }
+.ex-peto-label { display: inline; font-weight: 600; margin-right: 1mm; }
+.ex-peto-players { display: inline; color: var(--k-tinta-suave); }
 .ex-info {
-  display: flex; justify-content: space-between; gap: 4px;
-  font-size: 6.5px; color: #64748b; margin-top: 2px;
+  width: 100%; border-collapse: collapse; table-layout: fixed;
+  font-size: 6.8px; color: var(--k-tinta-suave); margin-top: 1mm;
+  border-top: .2mm solid var(--k-linea);
 }
+.ex-info td { border: none !important; border-radius: 0 !important; padding: 1mm 0 0; }
 .ex-tiempo, .ex-espacio, .ex-fase { font-weight: 600; }
+.ex-espacio { text-align: center; }
+.ex-fase { text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.lf {
-  flex-shrink: 0; display: flex; justify-content: space-between; align-items: center;
-  padding-top: 3px; margin-top: 2px; border-top: 1px solid #e2e8f0;
-  font-size: 6.5px; color: #64748b;
+.leyenda {
+  font-size: 6.8px; color: var(--k-tinta-suave); margin-top: 1.5mm;
 }
-.lf-text { color: #64748b; }
-.lf-legend { display: flex; gap: 8px; }
-.lf-legend-item { display: inline-flex; align-items: center; gap: 3px; }
-.lf-legend-dot {
-  display: inline-block; width: 7px; height: 7px; border-radius: 50%;
-}
+.leyenda-item { display: inline-block; margin-right: 4mm; }
+.leyenda-dot { display: inline-block; width: 2.2mm; height: 2.2mm; border-radius: 50%; vertical-align: -.3mm; margin-right: 1mm; }
+.leyenda-nota { float: right; }
 
-/* Portrait detail header */
-.ph {
-  background: #fff;
-  display: flex; align-items: center; gap: 8px;
-  padding: 0 0 4px; margin-bottom: 4px;
-  border-bottom: 2px solid {{ color_primario }};
-  flex-shrink: 0;
-}
-.ph::after { display: none; }
-.ph-logo { width: 28px; height: 28px; flex-shrink: 0; }
-.ph-logo img { width: 100%; height: 100%; object-fit: contain; }
-.ph-divider { width: 1px; height: 24px; background: #e2e8f0; flex-shrink: 0; }
-.ph-left { flex: 1; min-width: 0; }
-.ph-breadcrumb { font-size: 7px; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; }
-.ph-title { font-size: 15px; font-weight: 800; color: {{ color_primario }}; line-height: 1.15; }
-.ph-subtitle { font-size: 8px; color: #475569; margin-top: 1px; }
-.ph-right { text-align: right; flex-shrink: 0; }
-.ph-num { font-size: 18px; font-weight: 800; color: #111; }
-.ph-type {
-  display: inline-block; background: {{ color_primario }}; color: #fff;
-  font-size: 8px; font-weight: 700; padding: 2px 6px; border-radius: 3px;
-  text-transform: uppercase;
-}
+/* ── Detalle vertical ── */
+.ph-num { font-size: 20pt; line-height: 1; color: var(--k-primario-texto); }
+.ph-type { margin-top: 1.2mm; }
 
 .quick-bar {
-  display: flex; gap: 0; border: 1px solid #e2e8f0; border-radius: 2px;
-  margin-bottom: 4px; flex-shrink: 0; overflow: hidden;
+  width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed;
+  margin-bottom: 3mm;
 }
-.qb-cell {
-  flex: 1; text-align: center; padding: 4px 2px;
-  border-right: 1px solid #e2e8f0; background: #f8fafc;
-}
-.qb-cell:last-child { border-right: none; }
-.qb-val { font-size: 12px; font-weight: 800; color: #111; }
-.qb-label { font-size: 6px; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; }
+.qb-cell { background: var(--k-primario-suave); padding: 2mm 3mm; border-left: .6mm solid #fff; }
+.qb-cell:first-child { border-left: none; border-radius: 2.6mm 0 0 2.6mm; }
+.qb-cell:last-child { border-radius: 0 2.6mm 2.6mm 0; }
+body .qb-val { font-size: 13pt; }
 
-.material-bar {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
-  margin-bottom: 4px; font-size: 7.5px;
-}
-.material-label { font-weight: 800; color: {{ color_primario }}; text-transform: uppercase; font-size: 6.5px; margin-right: 2px; }
-.material-pill {
-  background: #f1f5f9; color: #334155; border-radius: 2px;
-  padding: 1px 5px; font-weight: 600;
-}
+.material-bar { margin-bottom: 2.5mm; font-size: 7.5px; }
+.material-bar .k-eyebrow { margin-right: 1.5mm; }
+.material-pill { margin: 0 1mm 1mm 0; }
 
-.detail-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 4px; }
-.detail-board {
-  background: #fff; border: 1px solid #e2e8f0; border-radius: 2px;
-  padding: 4px; text-align: center; overflow: hidden;
-}
-.detail-board img { max-width: 100%; max-height: 95mm; object-fit: contain; }
-.detail-board svg { width: 100%; height: auto; max-height: 95mm; display: block; margin: 0 auto; }
-
-.section-block {
-  border: 1px solid #e2e8f0; border-radius: 2px; padding: 4px 6px; margin-bottom: 3px;
-}
-.section-title {
-  font-size: 7px; font-weight: 800; color: {{ color_primario }};
-  text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 2px;
-}
-.section-text { font-size: 8.5px; color: #1e293b; line-height: 1.35; }
-.section-list { margin: 0; padding-left: 12px; font-size: 8px; color: #334155; }
-.section-list li { margin-bottom: 1px; }
-
-.pf {
-  flex-shrink: 0; margin-top: auto; padding-top: 3px;
-  border-top: 1px solid #e2e8f0; font-size: 6.5px; color: #64748b;
-  display: flex; justify-content: space-between;
-}
-
-/* Keep leftover v2 utility classes readable on light theme */
-.two-col { display: flex; gap: 6px; }
-.two-col > * { flex: 1; min-width: 0; }
-.chip, .tag {
-  display: inline-block; background: #f1f5f9; color: #334155;
-  font-size: 6.5px; font-weight: 700; padding: 1px 4px; border-radius: 2px; margin: 1px;
-}
-
-/* Detail / sections (light theme matching reducido) */
 .coach-note {
-  font-size: 8px; color: #334155; background: #f8fafc; border: 1px solid #e2e8f0;
-  border-radius: 2px; padding: 3px 6px; margin-bottom: 4px;
+  font-size: 8px; background: var(--k-primario-suave);
+  border-radius: 1.6mm; padding: 1.6mm 2.6mm; margin-bottom: 3mm;
 }
-.campo-section { margin-bottom: 4px; }
-.campo-section-title {
-  font-size: 7px; font-weight: 800; color: {{ color_primario }};
-  text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 2px;
-}
+.coach-note strong { font-weight: 600; }
+.campo-section { margin-bottom: 3mm; }
+body .campo-section-title { margin-top: 0; }
 .campo-grande-wrap {
-  border: 1px solid #e2e8f0; border-radius: 2px; padding: 4px;
-  background: #fff; text-align: center; overflow: hidden;
+  border: .25mm solid var(--k-linea); border-radius: 2.6mm; padding: 2mm;
+  text-align: center; overflow: hidden;
 }
 .campo-grande-wrap img { max-width: 100%; max-height: 100mm; object-fit: contain; }
 .campo-grande-wrap svg { width: 100%; height: auto; max-height: 100mm; display: block; margin: 0 auto; }
 
-.info-section { display: flex; gap: 6px; margin-top: 3px; }
-.info-col { flex: 1; min-width: 0; }
-.info-col-title {
-  font-size: 7px; font-weight: 800; color: {{ color_primario }};
-  text-transform: uppercase; letter-spacing: 0.04em; margin: 4px 0 2px;
-  border-bottom: 1px solid #e2e8f0; padding-bottom: 1px;
+.info-section { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.info-section td.info-col { vertical-align: top; padding: 0; }
+.info-section td.info-gap { width: 6mm; }
+body .info-col-title { margin: 1mm 0 2mm; font-size: 9.5pt; }
+.info-text { font-size: 8px; line-height: 1.45; margin-bottom: 2mm; }
+.info-text strong { font-weight: 600; }
+.info-label {
+  font-size: 6.5px; font-weight: 600; color: var(--k-primario-texto);
+  text-transform: uppercase; letter-spacing: .12em; margin: 1.5mm 0 .8mm;
 }
-.info-text { font-size: 8px; color: #1e293b; line-height: 1.35; margin-bottom: 3px; }
-.info-label { font-weight: 700; color: #475569; font-size: 7px; }
-
-.rules-list { margin: 0 0 3px 12px; padding: 0; font-size: 8px; color: #334155; }
-.rules-list li { margin-bottom: 1px; }
-.consigna-item, .consigna-bullet { font-size: 8px; color: #334155; margin-bottom: 1px; }
-.consigna-text { color: #1e293b; }
+.rules-list { list-style: none; margin: 0 0 2mm; padding: 0; font-size: 8px; }
+.rules-list li { padding: .6mm 0 .6mm 3mm; border-bottom: .2mm solid var(--k-linea); position: relative; }
+.rules-list li:last-child { border-bottom: none; }
+.rules-list li::before {
+  content: ''; position: absolute; left: 0; top: 1.9mm;
+  width: 1.1mm; height: 1.1mm; border-radius: 50%; background: var(--k-primario);
+}
+.consigna-item { font-size: 8px; margin-bottom: 1mm; }
+.consigna-bullet {
+  display: inline-block; min-width: 4.4mm; text-align: center;
+  font-size: 6.5px; padding: .2mm .8mm; margin-right: 1.2mm; border-radius: 9mm;
+  background: var(--k-primario); color: var(--k-sobre-primario);
+}
+.consigna-text { display: inline; }
 .nota-tactica {
-  font-size: 8px; background: #f1f5f9; border-left: 2px solid {{ color_primario }};
-  padding: 3px 5px; margin: 3px 0;
+  font-size: 8px; background: var(--k-primario-suave); border-left: .8mm solid var(--k-primario);
+  border-radius: 1mm; padding: 1.4mm 2.2mm; margin: 1mm 0 2mm;
 }
-.errores-box, .variante-box {
-  border: 1px solid #e2e8f0; border-radius: 2px; padding: 3px 5px; margin: 3px 0;
-  background: #fff;
-}
-.errores-title, .variante-title {
-  font-size: 7px; font-weight: 800; color: {{ color_primario }};
-  text-transform: uppercase; margin-bottom: 2px;
-}
-.errores-text, .variante-text { font-size: 8px; color: #334155; }
+.errores-box, .variante-box { margin: 1mm 0 2.5mm; }
+.errores-title, .variante-title { margin-bottom: 1.2mm; }
+.errores-text, .variante-text { font-size: 8px; padding: .6mm 0; border-bottom: .2mm solid var(--k-linea); }
 
-.pf, .pf-center, .pf-text {
-  font-size: 6.5px; color: #64748b;
-}
-.pf {
-  flex-shrink: 0; margin-top: auto; padding-top: 3px;
-  border-top: 1px solid #e2e8f0;
-  display: flex; justify-content: space-between; align-items: center;
-}
+.equipo-block { margin-bottom: 1.2mm; font-size: 8px; }
+.equipo-name { font-weight: 600; }
+.equipo-dot { display: inline-block; width: 2.2mm; height: 2.2mm; border-radius: 50%; margin-right: 1.2mm; vertical-align: -.2mm; }
+.equipo-jugadores { color: var(--k-tinta-suave); font-size: 7.5px; padding-left: 3.4mm; }
 
-.section-header-bar {
-  display: flex; align-items: center; gap: 6px;
-  border-bottom: 2px solid {{ color_primario }}; padding-bottom: 3px; margin-bottom: 4px;
+/* ── Porteros / ABP ── */
+.section-stats { border-collapse: collapse; margin-left: auto; }
+.section-stats td { padding: 0 0 0 5mm; text-align: right; }
+.scaled-grid table { width: 100%; border-collapse: separate; border-spacing: 0 3mm; table-layout: fixed; }
+.sg-diagram-cell {
+  width: 46%; vertical-align: top; padding: 2mm;
+  border: .25mm solid var(--k-linea); border-radius: 2.6mm; text-align: center;
 }
-.section-icon { color: {{ color_primario }}; font-weight: 800; }
-.section-subtitle { font-size: 8px; color: #64748b; }
-.section-stats { display: flex; gap: 8px; }
-.section-stat-val { font-size: 12px; font-weight: 800; color: #111; }
-.section-stat-label { font-size: 6px; color: #64748b; text-transform: uppercase; }
+.sg-diagram-cell svg { width: 100%; height: auto; max-height: 72mm; display: block; }
+.sg-info-cell { vertical-align: top; padding-left: 4mm; }
+.sg-row-header {
+  border-bottom: .6mm solid var(--k-primario); padding-bottom: 1.4mm; margin-bottom: 2mm;
+}
+.sg-row-num { color: var(--k-primario-texto); font-size: 8px; margin-right: 1.2mm; }
+.sg-badge { margin-right: 1mm; }
+/* Semánticos: portero verde, ABP ofensiva verde / defensiva roja */
+body .badge-por { background: #DCFCE7; color: #166534; }
+body .badge-abp-of { background: #DCFCE7; color: #166534; }
+body .badge-abp-def { background: #FEE2E2; color: #B91C1C; }
+.sg-name { font-size: 11pt; font-weight: 800; letter-spacing: -.015em; margin-top: 1mm; }
+.sg-dur { font-size: 8px; color: var(--k-tinta-suave); }
+.sg-desc { font-size: 8.5px; line-height: 1.45; margin-bottom: 2mm; }
+.sg-meta { font-size: 7.5px; color: var(--k-tinta-suave); margin-bottom: 1.5mm; }
+.sg-meta-item { margin-right: 4mm; }
+.sg-meta strong { color: var(--k-tinta); font-weight: 600; }
+.sg-notas { font-size: 8px; background: var(--k-primario-suave); border-radius: 1.6mm; padding: 1.4mm 2.2mm; }
+.sg-no-diagram { display: block; color: var(--k-tinta-suave); font-size: 7.5px; text-align: center; padding: 20mm 4mm; }
 
-.fase-badge, .tipo-pill, .sg-badge {
-  display: inline-block; background: #f1f5f9; color: #334155;
-  font-size: 6.5px; font-weight: 700; padding: 1px 4px; border-radius: 2px;
+/* ── Trabajo al margen ── */
+.margen-card { margin-bottom: 4mm; page-break-inside: avoid; }
+.margen-card-header {
+  padding-bottom: 2mm; margin-bottom: 2mm; border-bottom: .25mm solid var(--k-linea);
 }
-
-/* Secondary grids (portero / ABP / margen) */
-.sg-row-header, .margen-header-bar, .margen-card-header {
-  background: #f8fafc; border: 1px solid #e2e8f0; padding: 3px 5px;
-  font-weight: 700; color: #0f172a;
+.margen-player-name { font-size: 11pt; font-weight: 800; letter-spacing: -.015em; vertical-align: middle; margin-right: 1.5mm; }
+.margen-player-dorsal {
+  display: inline-block; width: 6.4mm; height: 6.4mm; line-height: 6.4mm; text-align: center;
+  background: var(--k-primario); color: var(--k-sobre-primario);
+  border-radius: 50%; font-size: 8px; vertical-align: middle; margin-right: 1.6mm;
 }
-.sg-row-num { color: {{ color_primario }}; font-weight: 800; }
-.sg-body, .margen-card {
-  border: 1px solid #e2e8f0; border-top: none; padding: 4px; margin-bottom: 4px;
+.margen-card-header .k-chip { margin-right: 1mm; vertical-align: middle; text-transform: capitalize; }
+.margen-meta { font-size: 7.5px; color: var(--k-tinta-suave); margin-bottom: 2mm; }
+.margen-meta span { margin-right: 4mm; }
+.margen-meta strong { color: var(--k-tinta); font-weight: 600; }
+.margen-objetivo { font-size: 9px; margin-bottom: 1.5mm; }
+.margen-objetivo strong { font-weight: 600; }
+.margen-table td { vertical-align: top; }
+.tipo-pill {
+  display: inline-block; padding: .2mm 1.6mm; border-radius: 9mm;
+  font-size: 6.5px; font-weight: 600; color: #fff;
 }
-.sg-name, .margen-player-name { font-weight: 700; color: #0f172a; }
-.sg-dur, .sg-meta, .sg-meta-item, .margen-meta { font-size: 7px; color: #64748b; }
-.sg-desc, .sg-notas, .margen-notas, .margen-objetivo { font-size: 8px; color: #334155; }
-.sg-diagram-cell, .sg-info-cell { vertical-align: top; }
-.sg-no-diagram { color: #94a3b8; font-size: 7px; text-align: center; padding: 8px; }
-.margen-table { width: 100%; border-collapse: collapse; }
-.margen-player-dorsal { color: #64748b; font-weight: 700; }
-.scaled-grid { width: 100%; }
-.portero, .abp { margin-top: 4px; }
-
+.margen-notas { font-size: 8px; color: var(--k-tinta-suave); font-style: italic; margin-top: 2mm; }
 </style>
 </head>
 <body>
 
+{% set cab_tema = dict(tema, logo_url=logo_url) %}
+
 <!-- ==================== PAGE 1: LANDSCAPE RESUMEN ==================== -->
 <div class="page-landscape">
 
-    <!-- Header -->
-    <div class="lh">
-        <div class="lh-logo">
-            {% if logo_url %}
-            <img src="{{ logo_url }}" alt="Logo"/>
-            {% else %}
-            <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="19" fill="#222" stroke="{{ color_primario }}" stroke-width="2"/><text x="20" y="25" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-size="16" fill="white" font-weight="900">{{ org_nombre[:1] }}</text></svg>
-            {% endif %}
+    {% set cab_sub %}{{ sesion.get('fecha', '') }}{% if sesion.get('hora') %} · {{ sesion.get('hora')[:5] }}h{% endif %}{% if lugar %} · {{ lugar }}{% endif %}{% if sesion.get('rival') %} · Rival: {{ sesion.get('rival') }}{% endif %}{% if sesion.get('carga_fisica_objetivo') %} · <span class="carga">{{ sesion.get('carga_fisica_objetivo','').replace('_',' ') }}</span>{% endif %}{% endset %}
+    {% set cab_meta %}
+        <table class="cab-stats"><tr>
+            <td><div class="k-dato">{{ duracion_total }}'</div><div class="k-dato-label">Duracion</div></td>
+            <td><div class="k-dato">{{ num_ejercicios }}</div><div class="k-dato-label">Ejercicios</div></td>
+        </tr></table>
+        <div class="cab-chips">
+            {% if sesion.get('intensidad_objetivo') %}<span class="k-chip">{{ sesion.get('intensidad_objetivo', '').replace('_', ' ').upper() }}</span>{% endif %}
+            {% if microciclo_nombre %}<span class="k-chip">{{ microciclo_nombre[:30] }}</span>{% endif %}
+            <span class="k-chip k-chip-solido">{{ sesion.get('match_day', '') }}</span>
         </div>
-        <div class="lh-divider"></div>
-        <div class="lh-title">
-            <div class="lh-title-club">{{ org_nombre }} · {{ equipo_categoria }} · Temporada 2025-26</div>
-            <div class="lh-title-name">{{ sesion.get('titulo', 'Sesion de Entrenamiento') }}</div>
-            <div class="lh-title-sub">{{ sesion.get('fecha', '') }}{% if sesion.get('hora') %} · {{ sesion.get('hora')[:5] }}h{% endif %}{% if lugar %} · {{ lugar }}{% endif %}{% if sesion.get('rival') %} · Rival: {{ sesion.get('rival') }}{% endif %}{% if sesion.get('carga_fisica_objetivo') %} · <span style="color:#111;font-weight:700;font-size:9px;text-transform:uppercase;">{{ sesion.get('carga_fisica_objetivo','').replace('_',' ') }}</span>{% endif %}</div>
-        </div>
-        <div class="lh-info">
-            <div class="lh-info-item">
-                <div class="lh-info-val">{{ duracion_total }}'</div>
-                <div class="lh-info-label">Duracion</div>
-            </div>
-            <div class="lh-info-item">
-                <div class="lh-info-val">{{ num_ejercicios }}</div>
-                <div class="lh-info-label">Ejercicios</div>
-            </div>
-        </div>
-        <div class="lh-divider"></div>
-        <div class="lh-badges">
-            {% if sesion.get('intensidad_objetivo') %}
-            <div class="lh-badge">{{ sesion.get('intensidad_objetivo', '').replace('_', ' ').upper() }}</div>
-            {% endif %}
-            <div class="lh-badge">{{ sesion.get('match_day', '') }}</div>
-            {% if microciclo_nombre %}
-            <div class="lh-badge" style="font-size:8px;">{{ microciclo_nombre[:30] }}</div>
-            {% endif %}
-        </div>
-    </div>
+    {% endset %}
+    {{ cabecera(cab_tema, titulo=sesion.get('titulo', 'Sesion de Entrenamiento'), subtitulo=cab_sub, meta=cab_meta, eyebrow=[tema.club, equipo_categoria, 'Temporada 2025-26']|select|join(' · ')) }}
 
     {% if conceptos_line %}
-    <div class="concepts"><strong>Conceptos</strong>{{ conceptos_line }}</div>
+    <div class="concepts"><span class="k-eyebrow">Conceptos</span>{{ conceptos_line }}</div>
+    {% endif %}
+
+    <!-- Objetivo Bar -->
+    {% if objetivo_principal or fase_juego_principal or principio_tactico_principal %}
+    <div class="objetivo-bar">
+        <span class="k-eyebrow">Objetivo</span>
+        {% if objetivo_principal %}
+        <span class="objetivo-text">{{ objetivo_principal }}</span>
+        {% endif %}
+        {% if fase_juego_principal %}
+        <span class="objetivo-sep">·</span>
+        <span class="objetivo-text">{{ fase_juego_principal }}</span>
+        {% endif %}
+        {% if principio_tactico_principal %}
+        <span class="objetivo-sep">·</span>
+        <span class="objetivo-text">{{ principio_tactico_principal }}</span>
+        {% endif %}
+    </div>
     {% endif %}
 
     <!-- Asistencia Roster (4 groups by tipo membership) -->
@@ -420,115 +325,100 @@ body {
         {% if 'margen' in p.tipos %}{% if g_margen.append(p) %}{% endif %}{% endif %}
         {% if p.sort_key == 'ausente' %}{% if g_ausentes.append(p) %}{% endif %}{% endif %}
     {% endfor %}
-    <div class="asistencia-roster">
+    <table class="asistencia-roster"><tr>
         <!-- Group 1: Sesion (with badges showing all tipos) -->
         {% if g_sesion %}
-        <div class="asistencia-group">
+        <td class="asistencia-group" style="width:52%">
             <div class="asistencia-group-label asistencia-group-label-sesion">Sesion ({{ g_sesion|length }})</div>
             <div class="asistencia-list">
                 {% for p in g_sesion %}
-                <div class="asistencia-item">
-                    <span class="asistencia-dorsal">{% if p.dorsal %}#{{ p.dorsal }}{% endif %}</span>
+                <span class="asistencia-item">
+                    <span class="asistencia-dorsal k-mono">{% if p.dorsal %}{{ p.dorsal }}{% endif %}</span>
                     <span>{{ p.nombre }} {{ p.apellidos[:1] }}.</span>
                     {% if 'fisio' in p.tipos %}<span class="asistencia-badge badge-fisio">FISIO</span>{% endif %}
-                </div>
+                </span>
                 {% endfor %}
             </div>
-        </div>
+        </td>
         {% endif %}
         <!-- Group 2: Fisio (plain list, all who have fisio) -->
         {% if g_fisio %}
-        <div class="asistencia-group">
+        <td class="asistencia-group">
             <div class="asistencia-group-label asistencia-group-label-fisio">Fisio ({{ g_fisio|length }})</div>
             <div class="asistencia-list">
                 {% for p in g_fisio %}
-                <div class="asistencia-item">
-                    <span class="asistencia-dorsal">{% if p.dorsal %}#{{ p.dorsal }}{% endif %}</span>
+                <span class="asistencia-item">
+                    <span class="asistencia-dorsal k-mono">{% if p.dorsal %}{{ p.dorsal }}{% endif %}</span>
                     <span>{{ p.nombre }} {{ p.apellidos[:1] }}.</span>
-                </div>
+                </span>
                 {% endfor %}
             </div>
-        </div>
+        </td>
         {% endif %}
         <!-- Group 3: Margen (with badges showing all tipos) -->
         {% if g_margen %}
-        <div class="asistencia-group">
+        <td class="asistencia-group">
             <div class="asistencia-group-label asistencia-group-label-margen">Margen ({{ g_margen|length }})</div>
             <div class="asistencia-list">
                 {% for p in g_margen %}
-                <div class="asistencia-item">
-                    <span class="asistencia-dorsal">{% if p.dorsal %}#{{ p.dorsal }}{% endif %}</span>
+                <span class="asistencia-item">
+                    <span class="asistencia-dorsal k-mono">{% if p.dorsal %}{{ p.dorsal }}{% endif %}</span>
                     <span>{{ p.nombre }} {{ p.apellidos[:1] }}.</span>
                     {% if 'fisio' in p.tipos %}<span class="asistencia-badge badge-fisio">FISIO</span>{% endif %}
-                </div>
+                </span>
                 {% endfor %}
             </div>
-        </div>
+        </td>
         {% endif %}
         <!-- Group 4: Ausentes (red with reason) -->
         {% if g_ausentes %}
-        <div class="asistencia-group asistencia-group-ausentes">
+        <td class="asistencia-group">
             <div class="asistencia-group-label asistencia-group-label-ausentes">Ausentes ({{ g_ausentes|length }})</div>
             <div class="asistencia-list">
                 {% for p in g_ausentes %}
-                <div class="asistencia-item asistencia-item-ausente">
-                    <span class="asistencia-dorsal">{% if p.dorsal %}#{{ p.dorsal }}{% endif %}</span>
+                <span class="asistencia-item asistencia-item-ausente">
+                    <span class="asistencia-dorsal k-mono">{% if p.dorsal %}{{ p.dorsal }}{% endif %}</span>
                     <span>{{ p.nombre }} {{ p.apellidos[:1] }}.</span>
                     <span class="asistencia-motivo">{{ p.tipo_display|replace('Ausente — ','') }}</span>
-                </div>
+                </span>
                 {% endfor %}
             </div>
-        </div>
+        </td>
         {% endif %}
-    </div>
-    {% endif %}
-
-    <!-- Objetivo Bar -->
-    {% if objetivo_principal or fase_juego_principal or principio_tactico_principal %}
-    <div class="objetivo-bar">
-        <span class="objetivo-label">Objetivo</span>
-        {% if objetivo_principal %}
-        <span class="objetivo-text">{{ objetivo_principal }}</span>
-        {% endif %}
-        {% if fase_juego_principal %}
-        <span class="objetivo-sep">·</span>
-        <span class="objetivo-text">{{ fase_juego_principal }}</span>
-        {% endif %}
-        {% if principio_tactico_principal %}
-        <span class="objetivo-sep">·</span>
-        <span class="objetivo-text">{{ principio_tactico_principal }}</span>
-        {% endif %}
-    </div>
+    </tr></table>
     {% endif %}
 
     <!-- Exercise Table (HTML table for bulletproof WeasyPrint layout) -->
     {% set num_tareas = cover_tareas|length %}
     {% set grid_cols = 3 if num_tareas >= 2 else 1 %}
     {% set grid_rows = (num_tareas + grid_cols - 1) // grid_cols %}
+    {# Alto de la pizarra según filas: la portada debe caber en un folio (overflow:hidden no evita el salto en WeasyPrint) #}
+    {% set mini_h = 75 if grid_rows <= 1 else (34 if grid_rows == 2 else (18 if grid_rows == 3 else 9)) %}
     <div class="ex-table-wrap">
     <table class="ex-table">
         {% for row_idx in range(grid_rows) %}
         <tr>
             {% for col_idx in range(grid_cols) %}
             {% set tarea_idx = row_idx * grid_cols + col_idx %}
+            {% if not loop.first %}<td class="ex-gap"></td>{% endif %}
             {% if tarea_idx < num_tareas %}
             {% set tarea = cover_tareas[tarea_idx] %}
             <td>
               <div class="ex-card">
                 <!-- Card Header -->
-                <div class="ex-card-header">
-                    <span class="ex-num">{{ '%02d' % (tarea_idx + 1) }}</span>
-                    <span class="ex-type-badge badge-{{ tarea.badge_class }}">{{ tarea.categoria_codigo or 'EJ' }}</span>
-                    <div class="ex-name">{{ tarea.titulo }}</div>
-                    <span class="ex-dur">{% if tarea.num_series %}{{ tarea.num_series }}x{% endif %}{{ tarea.duracion }}'</span>
-                </div>
+                <table class="ex-card-header"><tr>
+                    <td style="width:auto">
+                        <div class="ex-name"><span class="ex-num k-mono">{{ '%02d' % (tarea_idx + 1) }}</span><span class="k-chip ex-type-badge badge-{{ tarea.badge_class }}">{{ tarea.categoria_codigo or 'EJ' }}</span>{{ tarea.titulo }}</div>
+                    </td>
+                    <td class="ex-dur k-mono" style="width:13mm">{% if tarea.num_series %}{{ tarea.num_series }}x{% endif %}{{ tarea.duracion }}'</td>
+                </tr></table>
                 <!-- Objective -->
                 {% if tarea.objetivo_tactico %}
                 <div class="ex-objetivo">{{ tarea.objetivo_tactico }}</div>
                 {% endif %}
                 <!-- Diagram -->
                 <div class="campo-mini-wrap">
-                    {% if tarea.preview_img %}<img src="{{ tarea.preview_img }}" alt="" />{% else %}{{ tarea.svg_thumbnail }}{% endif %}
+                    {% if tarea.preview_img %}<img src="{{ tarea.preview_img }}" alt="" style="max-height:{{ mini_h }}mm" />{% else %}<div style="max-height:{{ mini_h }}mm;height:{{ mini_h }}mm">{{ tarea.svg_thumbnail }}</div>{% endif %}
                 </div>
                 <!-- Petos -->
                 {% if tarea.petos_html %}
@@ -537,11 +427,11 @@ body {
                 </div>
                 {% endif %}
                 <!-- Bottom info -->
-                <div class="ex-info">
-                    <span class="ex-tiempo">{% if tarea.num_series %}{{ tarea.num_series }}x{% endif %}{{ tarea.duracion }}'</span>
-                    <span class="ex-espacio">{% if tarea.espacio_largo and tarea.espacio_ancho %}{{ tarea.espacio_largo|int }}x{{ tarea.espacio_ancho|int }}m{% endif %} · {{ tarea.num_jugadores_min }}{% if tarea.num_jugadores_max %}-{{ tarea.num_jugadores_max }}{% endif %}j</span>
-                    <span class="ex-fase">{{ tarea.fase_label }}</span>
-                </div>
+                <table class="ex-info"><tr>
+                    <td class="ex-tiempo">{% if tarea.num_series %}{{ tarea.num_series }}x{% endif %}{{ tarea.duracion }}'</td>
+                    <td class="ex-espacio">{% if tarea.espacio_largo and tarea.espacio_ancho %}{{ tarea.espacio_largo|int }}x{{ tarea.espacio_ancho|int }}m{% endif %} · {{ tarea.num_jugadores_min }}{% if tarea.num_jugadores_max %}-{{ tarea.num_jugadores_max }}{% endif %}j</td>
+                    <td class="ex-fase">{{ tarea.fase_label }}</td>
+                </tr></table>
               </div>
             </td>
             {% else %}
@@ -553,16 +443,13 @@ body {
     </table>
     </div>
 
-    <!-- Footer -->
-    <div class="lf">
-        <div class="lf-text">{{ org_nombre }} · {{ equipo_nombre }} · {{ sesion.get('fecha', '') }}{% if sesion.get('hora') %} · {{ sesion.get('hora')[:5] }}{% endif %}</div>
-        <div class="lf-legend">
-            <span class="lf-legend-item"><span class="lf-legend-dot" style="background:#111;border:1px solid #555;"></span> Equipo</span>
-            <span class="lf-legend-item"><span class="lf-legend-dot" style="background:#fff;border:1px solid #888;"></span> Rival</span>
-            <span class="lf-legend-item"><span class="lf-legend-dot" style="background:#2ecc71;border:1px solid #27ae60;"></span> Portero</span>
-            <span class="lf-legend-item"><span class="lf-legend-dot" style="background:#888;border:1px solid #aaa;"></span> Comodin</span>
-        </div>
-        <div class="lf-text">Documento interno · No distribuir</div>
+    <!-- Leyenda de la pizarra -->
+    <div class="leyenda">
+        <span class="leyenda-item"><span class="leyenda-dot" style="background:#111;border:.25mm solid #555;"></span>Equipo</span>
+        <span class="leyenda-item"><span class="leyenda-dot" style="background:#fff;border:.25mm solid #888;"></span>Rival</span>
+        <span class="leyenda-item"><span class="leyenda-dot" style="background:#2ecc71;border:.25mm solid #27ae60;"></span>Portero</span>
+        <span class="leyenda-item"><span class="leyenda-dot" style="background:#888;border:.25mm solid #aaa;"></span>Comodin</span>
+        <span class="leyenda-nota">Documento interno · No distribuir</span>
     </div>
 </div>
 
@@ -570,57 +457,41 @@ body {
 {% for tarea in all_tareas %}
 <div class="page-portrait">
 
-    <!-- Header -->
-    <div class="ph">
-        <div class="ph-logo">
-            {% if logo_url %}
-            <img src="{{ logo_url }}" alt="Logo"/>
-            {% else %}
-            <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="19" fill="#222" stroke="{{ color_primario }}" stroke-width="2"/><text x="20" y="25" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-size="16" fill="white" font-weight="900">{{ org_nombre[:1] }}</text></svg>
-            {% endif %}
-        </div>
-        <div class="ph-divider"></div>
-        <div class="ph-left">
-            <div class="ph-breadcrumb">{{ org_nombre }} · {{ sesion.get('match_day','') }} · {{ sesion.get('fecha','') }}{% if sesion.get('hora') %} · {{ sesion.get('hora')[:5] }}{% endif %}</div>
-            <div class="ph-title">{{ tarea.titulo }}</div>
-            <div class="ph-subtitle">{{ tarea.fase_label }}{% if tarea.fase_juego %} · {{ tarea.fase_juego.replace('_', ' ').title() }}{% endif %}{% if tarea.principio_tactico %} · {{ tarea.principio_tactico }}{% endif %}</div>
-        </div>
-        <div class="ph-right">
-            <div class="ph-num">{{ '%02d' % loop.index }}</div>
-            <div class="ph-type">{{ tarea.categoria or 'Ejercicio' }}</div>
-        </div>
-    </div>
+    {% set ph_meta %}<div class="ph-num k-dato k-mono">{{ '%02d' % loop.index }}</div><div class="ph-type"><span class="k-chip k-chip-solido">{{ tarea.categoria or 'Ejercicio' }}</span></div>{% endset %}
+    {% set ph_sub %}{{ tarea.fase_label }}{% if tarea.fase_juego %} · {{ tarea.fase_juego.replace('_', ' ').title() }}{% endif %}{% if tarea.principio_tactico %} · {{ tarea.principio_tactico }}{% endif %}{% endset %}
+    {% set ph_eyebrow %}{{ [tema.club, sesion.get('match_day',''), sesion.get('fecha','')]|select|join(' · ') }}{% if sesion.get('hora') %} · {{ sesion.get('hora')[:5] }}{% endif %}{% endset %}
+    {{ cabecera(cab_tema, titulo=tarea.titulo, subtitulo=ph_sub, meta=ph_meta, eyebrow=ph_eyebrow) }}
 
     <!-- Quick Bar -->
-    <div class="quick-bar">
-        <div class="qb-cell">
-            <div class="qb-val">{{ tarea.duracion }}'</div>
-            <div class="qb-label">Duracion</div>
-        </div>
-        <div class="qb-cell">
-            <div class="qb-val">{{ tarea.num_series or '-' }}</div>
-            <div class="qb-label">Series</div>
-        </div>
-        <div class="qb-cell">
-            <div class="qb-val">{{ tarea.num_jugadores_min }}{% if tarea.num_jugadores_max %}-{{ tarea.num_jugadores_max }}{% endif %}</div>
-            <div class="qb-label">Jugadores</div>
-        </div>
-        <div class="qb-cell">
-            <div class="qb-val">{% if tarea.espacio_largo and tarea.espacio_ancho %}{{ tarea.espacio_largo|int }}x{{ tarea.espacio_ancho|int }}m{% else %}-{% endif %}</div>
-            <div class="qb-label">Espacio</div>
-        </div>
-        <div class="qb-cell">
-            <div class="qb-val">{% if tarea.densidad %}{{ tarea.densidad.title() }}{% else %}-{% endif %}</div>
-            <div class="qb-label">Intensidad</div>
-        </div>
-    </div>
+    <table class="quick-bar"><tr>
+        <td class="qb-cell">
+            <div class="k-dato-label">Duracion</div>
+            <div class="k-dato qb-val">{{ tarea.duracion }}'</div>
+        </td>
+        <td class="qb-cell">
+            <div class="k-dato-label">Series</div>
+            <div class="k-dato qb-val">{{ tarea.num_series or '-' }}</div>
+        </td>
+        <td class="qb-cell">
+            <div class="k-dato-label">Jugadores</div>
+            <div class="k-dato qb-val">{{ tarea.num_jugadores_min }}{% if tarea.num_jugadores_max %}-{{ tarea.num_jugadores_max }}{% endif %}</div>
+        </td>
+        <td class="qb-cell">
+            <div class="k-dato-label">Espacio</div>
+            <div class="k-dato qb-val">{% if tarea.espacio_largo and tarea.espacio_ancho %}{{ tarea.espacio_largo|int }}x{{ tarea.espacio_ancho|int }}m{% else %}-{% endif %}</div>
+        </td>
+        <td class="qb-cell">
+            <div class="k-dato-label">Intensidad</div>
+            <div class="k-dato qb-val">{% if tarea.densidad %}{{ tarea.densidad.title() }}{% else %}-{% endif %}</div>
+        </td>
+    </tr></table>
 
     <!-- Material pills -->
     {% if tarea.material %}
     <div class="material-bar">
-        <span class="material-label">Material</span>
+        <span class="k-eyebrow">Material</span>
         {% for m in tarea.material %}
-        <span class="material-pill">{{ m }}</span>
+        <span class="k-chip material-pill">{{ m }}</span>
         {% endfor %}
     </div>
     {% endif %}
@@ -634,18 +505,18 @@ body {
 
     <!-- Large Field (always show — empty pitch if no diagram data) -->
     <div class="campo-section">
-        <div class="campo-section-title">Descripcion Grafica</div>
+        <div class="k-seccion campo-section-title">Descripcion Grafica</div>
         <div class="campo-grande-wrap">
             {% if tarea.preview_img %}<img src="{{ tarea.preview_img }}" alt="" />{% else %}{{ tarea.svg_large }}{% endif %}
         </div>
     </div>
 
     <!-- Info Section (2 columns) -->
-    <div class="info-section">
+    <table class="info-section"><tr>
         <!-- Left Column: Description, Tactical, Teams -->
-        <div class="info-col">
+        <td class="info-col">
             {% if tarea.descripcion %}
-            <div class="info-col-title">Desarrollo</div>
+            <div class="k-seccion info-col-title">Desarrollo</div>
             <div class="info-text">{{ tarea.descripcion }}</div>
             {% endif %}
 
@@ -684,22 +555,23 @@ body {
             <div class="nota-tactica">{{ tarea.subprincipio_tactico }}</div>
             {% endif %}
             {% endif %}
-        </div>
+        </td>
+        <td class="info-gap"></td>
 
         <!-- Right Column: Consignas, Rules, Variants -->
-        <div class="info-col">
+        <td class="info-col">
             {% if tarea.consignas_ofensivas or tarea.consignas_defensivas %}
-            <div class="info-col-title">Consignas</div>
+            <div class="k-seccion info-col-title">Consignas</div>
             {% for c in tarea.consignas_ofensivas %}
             <div class="consigna-item">
-                <div class="consigna-bullet">{{ loop.index }}</div>
-                <div class="consigna-text">{{ c }}</div>
+                <span class="consigna-bullet k-mono">{{ loop.index }}</span>
+                <span class="consigna-text">{{ c }}</span>
             </div>
             {% endfor %}
             {% for c in tarea.consignas_defensivas %}
             <div class="consigna-item">
-                <div class="consigna-bullet">D{{ loop.index }}</div>
-                <div class="consigna-text">{{ c }}</div>
+                <span class="consigna-bullet k-mono">D{{ loop.index }}</span>
+                <span class="consigna-text">{{ c }}</span>
             </div>
             {% endfor %}
             {% endif %}
@@ -714,7 +586,7 @@ body {
 
             {% if tarea.variantes or tarea.progresiones %}
             <div class="variante-box">
-                <div class="variante-title">Variante · Progresion</div>
+                <div class="info-label variante-title">Variante · Progresion</div>
                 {% for v in (tarea.variantes or []) %}
                 <div class="variante-text">{{ v }}</div>
                 {% endfor %}
@@ -726,45 +598,25 @@ body {
 
             {% if tarea.errores_comunes %}
             <div class="errores-box">
-                <div class="errores-title">Errores Comunes</div>
+                <div class="info-label errores-title">Errores Comunes</div>
                 {% for e in tarea.errores_comunes %}
                 <div class="errores-text">· {{ e }}</div>
                 {% endfor %}
             </div>
             {% endif %}
-        </div>
-    </div>
-
-    <!-- Footer -->
-    <div class="pf">
-        <div class="pf-text">{{ org_nombre }} · {{ sesion.get('match_day','') }} · {{ sesion.get('titulo','') }} · {{ sesion.get('fecha','') }}</div>
-        <div class="pf-center">{{ org_nombre }}</div>
-        <div class="pf-text">Pag. {{ loop.index + 1 }}</div>
-    </div>
+        </td>
+    </tr></table>
 </div>
 {% endfor %}
 
 <!-- ==================== PORTERO TRAINING — SINGLE PAGE ==================== -->
 {% if portero_tareas %}
 <div class="page-portrait">
-    <!-- Section Header -->
-    <div class="section-header-bar portero">
-        <span class="section-icon">🧤</span>
-        <div>
-            <div class="section-title">Entrenamiento de Porteros</div>
-            <div class="section-subtitle">{{ org_nombre }} · {{ sesion.get('match_day','') }} · {{ sesion.get('fecha','') }}</div>
-        </div>
-        <div class="section-stats">
-            <div>
-                <div class="section-stat-val" style="color:#22C55E;">{{ portero_tareas|length }}</div>
-                <div class="section-stat-label">Ejercicios</div>
-            </div>
-            <div>
-                <div class="section-stat-val" style="color:#22C55E;">{{ portero_duracion }}'</div>
-                <div class="section-stat-label">Duracion</div>
-            </div>
-        </div>
-    </div>
+    {% set pt_meta %}<table class="section-stats"><tr>
+        <td><div class="k-dato">{{ portero_tareas|length }}</div><div class="k-dato-label">Ejercicios</div></td>
+        <td><div class="k-dato">{{ portero_duracion }}'</div><div class="k-dato-label">Duracion</div></td>
+    </tr></table>{% endset %}
+    {{ cabecera(cab_tema, titulo='Entrenamiento de Porteros', subtitulo=[tema.club, sesion.get('match_day',''), sesion.get('fecha','')]|select|join(' · '), meta=pt_meta) }}
 
     <!-- Scaled Grid: 1 row per exercise -->
     <div class="scaled-grid">
@@ -780,11 +632,11 @@ body {
             </td>
             <td class="sg-info-cell">
                 <div class="sg-row-header">
-                    <span class="sg-row-num">P{{ '%02d' % loop.index }}</span>
-                    <span class="sg-badge badge-por">POR</span>
-                    {% if pt.tipo %}<span class="sg-badge badge-abp-tipo">{{ pt.tipo.replace('_', ' ') }}</span>{% endif %}
+                    <span class="sg-row-num k-mono">P{{ '%02d' % loop.index }}</span>
+                    <span class="k-chip sg-badge badge-por">POR</span>
+                    {% if pt.tipo %}<span class="k-chip sg-badge badge-abp-tipo">{{ pt.tipo.replace('_', ' ') }}</span>{% endif %}
+                    <span class="sg-dur portero k-mono">{{ pt.duracion }}'</span>
                     <div class="sg-name">{{ pt.nombre }}</div>
-                    <span class="sg-dur portero">{{ pt.duracion }}'</span>
                 </div>
                 <div class="sg-body">
                     {% if pt.descripcion %}
@@ -803,43 +655,19 @@ body {
         {% endfor %}
     </table>
     </div>
-
-    <!-- Footer -->
-    <div class="pf">
-        <div class="pf-text">{{ org_nombre }} · {{ sesion.get('match_day','') }} · PORTEROS · {{ sesion.get('fecha','') }}</div>
-        <div class="pf-center">{{ org_nombre }}</div>
-        <div class="pf-text">Entrenamiento de Porteros</div>
-    </div>
 </div>
 {% endif %}
 
 <!-- ==================== ABP SET PIECES — SINGLE PAGE ==================== -->
 {% if abp_jugadas %}
 <div class="page-portrait">
-    <!-- Section Header -->
-    <div class="section-header-bar abp">
-        <span class="section-icon">⚽</span>
-        <div>
-            <div class="section-title">Jugadas a Balon Parado</div>
-            <div class="section-subtitle">{{ org_nombre }} · {{ sesion.get('match_day','') }} · {{ abp_jugadas|length }} jugada{{ 's' if abp_jugadas|length > 1 else '' }}</div>
-        </div>
-        <div class="section-stats">
-            {% set n_of = abp_jugadas|selectattr('lado','equalto','ofensivo')|list|length %}
-            {% set n_def = abp_jugadas|selectattr('lado','equalto','defensivo')|list|length %}
-            {% if n_of %}
-            <div>
-                <div class="section-stat-val" style="color:#22C55E;">{{ n_of }}</div>
-                <div class="section-stat-label">Ofensivas</div>
-            </div>
-            {% endif %}
-            {% if n_def %}
-            <div>
-                <div class="section-stat-val" style="color:#EF4444;">{{ n_def }}</div>
-                <div class="section-stat-label">Defensivas</div>
-            </div>
-            {% endif %}
-        </div>
-    </div>
+    {% set n_of = abp_jugadas|selectattr('lado','equalto','ofensivo')|list|length %}
+    {% set n_def = abp_jugadas|selectattr('lado','equalto','defensivo')|list|length %}
+    {% set abp_meta %}<table class="section-stats"><tr>
+        {% if n_of %}<td><div class="k-dato" style="color:#15803D;">{{ n_of }}</div><div class="k-dato-label">Ofensivas</div></td>{% endif %}
+        {% if n_def %}<td><div class="k-dato" style="color:#B91C1C;">{{ n_def }}</div><div class="k-dato-label">Defensivas</div></td>{% endif %}
+    </tr></table>{% endset %}
+    {{ cabecera(cab_tema, titulo='Jugadas a Balon Parado', subtitulo=[tema.club, sesion.get('match_day',''), abp_jugadas|length ~ ' jugada' ~ ('s' if abp_jugadas|length > 1 else '')]|select|join(' · '), meta=abp_meta) }}
 
     <!-- Scaled Grid: 1 row per play -->
     <div class="scaled-grid">
@@ -855,15 +683,15 @@ body {
             </td>
             <td class="sg-info-cell">
                 <div class="sg-row-header">
-                    <span class="sg-row-num">{{ '%02d' % loop.index }}</span>
+                    <span class="sg-row-num k-mono">{{ '%02d' % loop.index }}</span>
                     {% if play.lado == 'ofensivo' %}
-                    <span class="sg-badge badge-abp-of">OF</span>
+                    <span class="k-chip sg-badge badge-abp-of">OF</span>
                     {% elif play.lado == 'defensivo' %}
-                    <span class="sg-badge badge-abp-def">DEF</span>
+                    <span class="k-chip sg-badge badge-abp-def">DEF</span>
                     {% endif %}
-                    <span class="sg-badge badge-abp-tipo">{{ play.tipo }}</span>
+                    <span class="k-chip sg-badge badge-abp-tipo">{{ play.tipo }}</span>
+                    {% if play.codigo %}<span class="sg-dur abp k-mono">{{ play.codigo }}</span>{% endif %}
                     <div class="sg-name">{{ play.nombre }}</div>
-                    {% if play.codigo %}<span class="sg-dur abp">{{ play.codigo }}</span>{% endif %}
                 </div>
                 <div class="sg-body">
                     {% if play.descripcion %}
@@ -882,157 +710,28 @@ body {
         {% endfor %}
     </table>
     </div>
-
-    <!-- Footer -->
-    <div class="pf">
-        <div class="pf-text">{{ org_nombre }} · {{ sesion.get('match_day','') }} · ABP · {{ sesion.get('fecha','') }}</div>
-        <div class="pf-center">{{ org_nombre }}</div>
-        <div class="pf-text">Jugadas a Balon Parado</div>
-    </div>
 </div>
 {% endif %}
 
 <!-- ==================== MARGEN — TRABAJO AL MARGEN ==================== -->
 {% if margen_entrenamientos %}
 <div class="page-portrait">
-    <style>
-        .margen-header-bar {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
-            color: #fff;
-            padding: 14px 20px;
-            border-radius: 10px;
-            margin-bottom: 16px;
-        }
-        .margen-header-bar .section-icon { font-size: 22px; }
-        .margen-header-bar .section-title { font-size: 16px; font-weight: 700; letter-spacing: 0.5px; }
-        .margen-header-bar .section-subtitle { font-size: 10px; opacity: 0.85; margin-top: 1px; }
-        .margen-header-bar .section-stats { margin-left: auto; display: flex; gap: 18px; text-align: center; }
-        .margen-header-bar .section-stat-val { font-size: 20px; font-weight: 800; }
-        .margen-header-bar .section-stat-label { font-size: 8px; text-transform: uppercase; opacity: 0.8; }
-        .margen-card {
-            border: 1px solid #FCD34D;
-            border-left: 4px solid #F59E0B;
-            border-radius: 8px;
-            padding: 12px 14px;
-            margin-bottom: 12px;
-            background: #FFFBEB;
-            page-break-inside: avoid;
-        }
-        .margen-card-header {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 8px;
-            padding-bottom: 6px;
-            border-bottom: 1px solid #FDE68A;
-        }
-        .margen-player-name {
-            font-size: 13px;
-            font-weight: 700;
-            color: #92400E;
-        }
-        .margen-player-dorsal {
-            display: inline-block;
-            width: 22px;
-            height: 22px;
-            line-height: 22px;
-            text-align: center;
-            background: #F59E0B;
-            color: #fff;
-            border-radius: 50%;
-            font-size: 10px;
-            font-weight: 700;
-        }
-        .fase-badge {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 8px;
-            font-weight: 600;
-            text-transform: uppercase;
-            background: #FEF3C7;
-            color: #92400E;
-            border: 1px solid #FCD34D;
-        }
-        .margen-meta {
-            display: flex;
-            gap: 16px;
-            font-size: 9px;
-            color: #78716C;
-            margin-bottom: 6px;
-        }
-        .margen-meta strong { color: #44403C; }
-        .margen-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 9px;
-        }
-        .margen-table th {
-            background: #FEF3C7;
-            color: #92400E;
-            padding: 4px 6px;
-            text-align: left;
-            font-weight: 600;
-            border-bottom: 1px solid #FCD34D;
-            font-size: 8px;
-            text-transform: uppercase;
-        }
-        .margen-table td {
-            padding: 4px 6px;
-            border-bottom: 1px solid #FDE68A;
-            vertical-align: top;
-        }
-        .margen-table tr:last-child td { border-bottom: none; }
-        .tipo-pill {
-            display: inline-block;
-            padding: 1px 6px;
-            border-radius: 8px;
-            font-size: 7px;
-            font-weight: 600;
-            color: #fff;
-        }
-        .margen-objetivo {
-            font-size: 10px;
-            color: #44403C;
-            margin-bottom: 4px;
-        }
-        .margen-notas {
-            font-size: 8px;
-            color: #78716C;
-            font-style: italic;
-            margin-top: 4px;
-        }
-    </style>
-
-    <!-- Section Header -->
-    <div class="margen-header-bar">
-        <span class="section-icon">🏋️</span>
-        <div>
-            <div class="section-title">Trabajo al Margen</div>
-            <div class="section-subtitle">{{ org_nombre }} · {{ sesion.get('match_day','') }} · {{ margen_entrenamientos|length }} jugador{{ 'es' if margen_entrenamientos|length > 1 else '' }}</div>
-        </div>
-        <div class="section-stats">
-            <div>
-                <div class="section-stat-val">{{ margen_entrenamientos|length }}</div>
-                <div class="section-stat-label">Jugadores</div>
-            </div>
-        </div>
-    </div>
+    {% set mg_meta %}<table class="section-stats"><tr>
+        <td><div class="k-dato">{{ margen_entrenamientos|length }}</div><div class="k-dato-label">Jugadores</div></td>
+    </tr></table>{% endset %}
+    {{ cabecera(cab_tema, titulo='Trabajo al Margen', subtitulo=[tema.club, sesion.get('match_day',''), margen_entrenamientos|length ~ ' jugador' ~ ('es' if margen_entrenamientos|length > 1 else '')]|select|join(' · '), meta=mg_meta) }}
 
     <!-- Per-player cards -->
     {% for ent in margen_entrenamientos %}
-    <div class="margen-card">
+    <div class="k-tarjeta margen-card">
         <div class="margen-card-header">
-            {% if ent.dorsal %}<span class="margen-player-dorsal">{{ ent.dorsal }}</span>{% endif %}
+            {% if ent.dorsal %}<span class="margen-player-dorsal k-mono">{{ ent.dorsal }}</span>{% endif %}
             <span class="margen-player-name">{{ ent.nombre }} {{ ent.apellidos }}</span>
             {% if ent.fase_recuperacion %}
-            <span class="fase-badge">{{ ent.fase_recuperacion | replace('_', ' ') | replace('fase ', 'F') }}</span>
+            <span class="k-chip fase-badge">{{ ent.fase_recuperacion | replace('_', ' ') | replace('fase ', 'F') }}</span>
             {% endif %}
             {% if ent.estado and ent.estado != 'planificado' %}
-            <span class="fase-badge" style="background:#DBEAFE;color:#1E40AF;border-color:#93C5FD;">{{ ent.estado }}</span>
+            <span class="k-chip">{{ ent.estado }}</span>
             {% endif %}
         </div>
 
@@ -1048,7 +747,7 @@ body {
         </div>
 
         {% if ent.tareas %}
-        <table class="margen-table">
+        <table class="k-tabla margen-table">
             <thead>
                 <tr>
                     <th style="width:5%;">#</th>
@@ -1065,7 +764,7 @@ body {
             <tbody>
                 {% for t in ent.tareas %}
                 <tr>
-                    <td>{{ loop.index }}</td>
+                    <td class="k-mono">{{ loop.index }}</td>
                     <td><strong>{{ t.titulo or '' }}</strong>{% if t.descripcion %}<br>{{ t.descripcion[:80] }}{% if t.descripcion|length > 80 %}...{% endif %}{% endif %}</td>
                     <td>{% if t.tipo_ejercicio %}<span class="tipo-pill" style="background:{{ t.tipo_color or '#6B7280' }}">{{ t.tipo_ejercicio }}</span>{% endif %}</td>
                     <td>{% if t.duracion %}{{ t.duracion }}'{% endif %}</td>
@@ -1085,13 +784,6 @@ body {
         {% endif %}
     </div>
     {% endfor %}
-
-    <!-- Footer -->
-    <div class="pf">
-        <div class="pf-text">{{ org_nombre }} · {{ sesion.get('match_day','') }} · MARGEN · {{ sesion.get('fecha','') }}</div>
-        <div class="pf-center">{{ org_nombre }}</div>
-        <div class="pf-text">Trabajo al Margen</div>
-    </div>
 </div>
 {% endif %}
 

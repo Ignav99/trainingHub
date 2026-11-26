@@ -1,343 +1,272 @@
-<!DOCTYPE html>
+{% from "_marca/cabecera.html" import cabecera %}<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="utf-8" />
   <title>{{ sesion.titulo }} — Vestuario</title>
   <style>
     /*
-      PDF reducido — 1 folio A4 landscape.
+      PDF reducido — 1 folio A4 landscape, diseño normalizado Kabin-e.
       WeasyPrint: TABLE + alturas fijas (flex:1 colapsa).
-      Celdas: pizarra IZQUIERDA + texto DERECHA. Sin fondo verde.
+      Alto útil: 210 − 6 (arriba) − 15 (pie de marca) = 189 mm.
     */
-    @page { size: A4 landscape; margin: 2.5mm 3.5mm 2mm 3.5mm; }
+    @page { size: A4 landscape; margin: 6mm 7mm 15mm 7mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; }
     body {
-      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-      color: #111;
       font-size: 8px;
       line-height: 1.2;
-      width: 290mm;
-      height: 205.5mm;
+      width: 283mm;
+      height: 188mm;
       overflow: hidden;
     }
 
-    .hdr {
-      width: 100%;
-      border-collapse: collapse;
-      table-layout: fixed;
-      border-bottom: 2px solid {{ color_primario }};
-      margin-bottom: 1px;
-    }
-    .hdr td { vertical-align: middle; padding: 0 0 1.5px; }
-    .logo { height: 24px; width: auto; max-width: 42px; }
-    .hdr-title {
-      font-size: 14px;
-      font-weight: 800;
-      color: {{ color_primario }};
-      line-height: 1.1;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .hdr-meta {
-      font-size: 8px;
-      color: #444;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      margin-top: 1px;
-    }
-    .hdr-meta strong { color: #111; }
-    .sep { color: #bbb; margin: 0 3px; }
-    .badge {
-      background: {{ color_primario }};
-      color: #fff;
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-weight: 800;
-      font-size: 11px;
-      white-space: nowrap;
-      text-align: center;
-    }
+    /* Cabecera de marca, versión compacta para que quepa en un folio */
+    body .k-cabecera { padding-bottom: 1.6mm; margin-bottom: 1.8mm; gap: 3mm; }
+    body .k-cabecera .k-escudo { width: 9mm; height: 9mm; }
+    body .k-cabecera .k-cab-titulo { font-size: 14pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    body .k-cabecera .k-cab-club { font-size: 6.5pt; }
+    body .k-cabecera .k-cab-sub { font-size: 7.5pt; margin-top: .4mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .md { font-size: 11pt; font-weight: 800; padding: 1.2mm 3.2mm; border-radius: 1.6mm;
+      background: var(--k-primario); color: var(--k-sobre-primario); white-space: nowrap; }
+    .sep { color: #B5BAD0; margin: 0 1mm; }
 
     .concepts {
-      font-size: 8px;
-      color: #1e293b;
-      background: #f1f5f9;
-      border-left: 2.5px solid {{ color_primario }};
-      padding: 2px 5px;
-      margin-bottom: 1px;
+      font-size: 7.5px;
+      background: var(--k-primario-suave);
+      border-radius: 1.6mm;
+      padding: 1.2mm 2.4mm;
+      margin-bottom: 1.5mm;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       line-height: 1.3;
     }
-    .concepts strong {
-      color: {{ color_primario }};
-      font-size: 7px;
-      text-transform: uppercase;
-      letter-spacing: 0.03em;
-      margin-right: 4px;
-    }
+    .concepts .k-eyebrow { font-size: 6px; margin-right: 1.6mm; }
 
     .objetivo {
-      border: 1px solid #e2e8f0;
-      border-radius: 2px;
-      padding: 2px 5px;
-      margin-bottom: 1.5px;
-      max-height: 8mm;
+      border: .25mm solid var(--k-linea);
+      border-left: 1mm solid var(--k-primario);
+      border-radius: 1.6mm;
+      padding: 1.2mm 2.4mm;
+      max-height: 10mm;
       overflow: hidden;
     }
-    .objetivo .lbl {
-      font-size: 6.5px;
-      font-weight: 800;
-      color: {{ color_primario }};
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-    }
+    .objetivo .k-eyebrow { font-size: 6px; }
     .objetivo .txt {
       font-size: 9px;
       font-weight: 600;
-      color: #111;
-      line-height: 1.2;
+      line-height: 1.25;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .objetivo .extra {
       font-size: 7px;
-      color: #555;
+      color: var(--k-tinta-suave);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    .objetivo .extra strong { color: var(--k-tinta); font-weight: 600; }
 
-    .roster-lbl {
-      font-size: 6px;
+    .lbl {
+      font-size: 7.5pt;
       font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: #555;
-      margin-bottom: 1px;
+      letter-spacing: -.01em;
+      padding-left: 1.8mm;
+      border-left: .8mm solid var(--k-primario);
+      margin-bottom: 1mm;
+      line-height: 1.15;
     }
-    .roster-lbl .leg {
+    .lbl .leg {
       display: inline-block;
-      font-size: 5.5px;
-      font-weight: 700;
-      padding: 0 3px;
-      border-radius: 2px;
-      margin-left: 4px;
-      text-transform: none;
-      letter-spacing: 0;
+      font-size: 5.8px;
+      font-weight: 600;
+      padding: 0 1.4mm;
+      border-radius: 9mm;
+      margin-left: 1.2mm;
+      vertical-align: 1px;
     }
-    .leg-s { background: #dbeafe; color: #1e40af; }
-    .leg-f { background: #f3e8ff; color: #6b21a8; }
-    .leg-m { background: #fef3c7; color: #92400e; }
-    .leg-a { background: #fee2e2; color: #991b1b; }
+    /* Estado de disponibilidad (semántico) */
+    .leg-s { background: var(--k-primario-suave); color: var(--k-primario-texto); }
+    .leg-f { background: #F3E8FF; color: #6B21A8; }
+    .leg-m { background: #FEF3C7; color: #92400E; }
+    .leg-a { background: #FEE2E2; color: #991B1B; }
 
     .roster {
       width: 100%;
       border-collapse: collapse;
       table-layout: fixed;
-      margin-bottom: 2px;
-      max-height: 14mm;
-      overflow: hidden;
+      margin-bottom: 1.5mm;
     }
     .roster td {
       vertical-align: top;
-      padding: 0 2px 0 0;
+      padding: 0 1mm 0 0;
       overflow: hidden;
     }
     .player {
       font-size: 7px;
-      line-height: 1.25;
-      padding: 0 2px;
-      border-radius: 2px;
+      line-height: 1.3;
+      padding: 0 1mm;
+      margin-bottom: .3mm;
+      border-radius: .8mm;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .p-sesion { background: #eff6ff; }
-    .p-fisio { background: #faf5ff; }
-    .p-margen { background: #fffbeb; }
-    .p-ausente { background: #fef2f2; color: #7f1d1d; }
-    .dorsal { font-weight: 800; color: #475569; margin-right: 1px; }
+    .p-sesion { background: var(--k-primario-suave); }
+    .p-fisio { background: #FAF5FF; }
+    .p-margen { background: #FFFBEB; }
+    .p-ausente { background: #FEF2F2; color: #7F1D1D; }
+    .dorsal { font-size: 6.2px; color: var(--k-tinta-suave); margin-right: .6mm; }
     .chip {
       display: inline-block;
       font-size: 5px;
       font-weight: 800;
-      padding: 0 2px;
-      border-radius: 2px;
-      margin-left: 1px;
+      padding: 0 .6mm;
+      border-radius: .6mm;
+      margin-left: .4mm;
     }
-    .chip-f { background: #e9d5ff; color: #6b21a8; }
-    .chip-m { background: #fde68a; color: #92400e; }
-    .motivo { color: #b91c1c; font-size: 6px; }
+    .chip-f { background: #E9D5FF; color: #6B21A8; }
+    .chip-m { background: #FDE68A; color: #92400E; }
+    .motivo { color: #B91C1C; font-size: 6px; }
 
     /* —— Tareas 2×2: pizarra IZQ + texto DER —— */
-    .tasks-lbl {
-      font-size: 6px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: #555;
-      margin-bottom: 1px;
-    }
     .tasks {
-      width: 100%;
-      height: 155mm;
-      border-collapse: collapse;
+      width: 278mm; /* 283mm − 3 huecos de 1.6mm: WeasyPrint suma el border-spacing fuera del 100% */
+      border-collapse: separate;
+      border-spacing: 1.6mm 1.4mm;
+      margin-top: -1.4mm;
       table-layout: fixed;
     }
     .tasks > tbody > tr > td,
     .tasks > tr > td {
       width: 50%;
-      height: 77.5mm;
+      height: 61mm;
       vertical-align: top;
-      padding: 1px;
-      border: 1px solid #e2e8f0;
+      padding: 0;
+      border: .25mm solid var(--k-linea);
+      border-radius: 2.6mm;
       overflow: hidden;
       background: #fff;
     }
 
     .task-inner {
       width: 100%;
-      height: 75.5mm;
+      height: 61mm;
       border-collapse: collapse;
       table-layout: fixed;
     }
     .task-board {
-      width: 70%;
-      height: 75.5mm;
-      background: #fff;
+      width: 68%;
+      height: 61mm;
       text-align: left;
       vertical-align: middle;
       overflow: hidden;
-      padding: 0;
+      padding: 1mm;
     }
     .task-board img,
     .task-board svg {
       display: block;
       width: 100% !important;
-      height: 75.5mm !important;
+      height: 59mm !important;
       max-width: none !important;
       object-fit: contain;
       object-position: left center;
       margin: 0;
     }
     .task-board .empty {
-      color: #94a3b8;
+      color: var(--k-tinta-suave);
       font-size: 8px;
-      padding-left: 8px;
+      padding-left: 3mm;
     }
     .task-info {
-      width: 30%;
-      height: 75.5mm;
+      width: 32%;
+      height: 61mm;
       vertical-align: top;
-      padding: 3px 5px 3px 6px;
-      background: #fff;
+      padding: 2.2mm 2.4mm 2mm 2.4mm;
       overflow: hidden;
-      border-left: 1px solid #f1f5f9;
+      border-left: .25mm solid var(--k-linea);
     }
     .task-top {
-      font-size: 8.5px;
+      font-size: 9px;
       font-weight: 800;
-      color: #111;
+      letter-spacing: -.01em;
       line-height: 1.2;
-      margin-bottom: 2px;
+      margin-bottom: 1mm;
     }
-    .task-top .ord { color: {{ color_primario }}; }
+    .task-top .ord { color: var(--k-primario-texto); font-size: 7.5px; margin-right: .6mm; }
     .task-min {
-      display: block;
-      color: #64748b;
-      font-weight: 600;
+      display: inline-block;
       font-size: 7px;
-      margin-bottom: 2px;
+      color: var(--k-tinta-suave);
+      margin-bottom: 1mm;
+      margin-right: 1mm;
     }
     .task-desc {
-      font-size: 6.5px;
-      color: #475569;
-      line-height: 1.25;
+      font-size: 6.8px;
+      color: var(--k-tinta-suave);
+      line-height: 1.3;
       max-height: 18mm;
       overflow: hidden;
-      margin-bottom: 2px;
+      margin-bottom: 1mm;
     }
     .task-cat {
       display: inline-block;
-      margin-top: 1px;
-      background: #f1f5f9;
-      color: #334155;
+      background: var(--k-primario-suave);
+      color: var(--k-primario-texto);
       font-size: 6px;
-      font-weight: 700;
-      padding: 0 3px;
-      border-radius: 2px;
+      font-weight: 600;
+      padding: .2mm 1.6mm;
+      border-radius: 9mm;
+      vertical-align: 1px;
     }
-    .task-teams { margin-top: 3px; }
+    .task-teams { margin-top: 1.2mm; }
     .task-team {
-      margin-bottom: 2px;
-      padding: 1.5px 3px;
-      border-radius: 2px;
-      border-left: 2.5px solid #94a3b8;
-      background: #f8fafc;
+      margin-bottom: .8mm;
+      padding: .6mm 1.4mm;
+      border-radius: 1mm;
+      border-left: .8mm solid #94a3b8;
+      background: #F7F8FB;
       overflow: hidden;
     }
     .task-team-name {
       font-size: 6.5px;
       font-weight: 800;
-      color: #0f172a;
       line-height: 1.2;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .task-team-players {
-      font-size: 5.5px;
-      color: #475569;
-      line-height: 1.2;
+      font-size: 5.8px;
+      color: var(--k-tinta-suave);
+      line-height: 1.25;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .task-empty-cell {
-      background: #f8fafc;
-      color: #94a3b8;
+      background: var(--k-primario-suave);
+      color: var(--k-tinta-suave);
       text-align: center;
       font-size: 8px;
-      height: 75.5mm;
-      line-height: 75.5mm;
+      height: 61mm;
+      line-height: 61mm;
     }
   </style>
 </head>
 <body>
-  <table class="hdr">
-    <tr>
-      {% if logo_url %}
-      <td style="width:44px"><img class="logo" src="{{ logo_url }}" alt="" /></td>
-      {% endif %}
-      <td>
-        <div class="hdr-title">{{ sesion.titulo }}</div>
-        <div class="hdr-meta">
-          <strong>{{ org_nombre or "TrainingHub" }}</strong>
-          {% if equipo_nombre %}<span class="sep">·</span>{{ equipo_nombre }}{% endif %}
-          {% if rival %}<span class="sep">·</span>vs {{ rival }}{% endif %}
-          <span class="sep">·</span>{{ sesion.fecha }}{% if sesion.hora %} {{ sesion.hora }}{% endif %}
-          {% if lugar or sesion.lugar %}<span class="sep">·</span>{{ lugar or sesion.lugar }}{% endif %}
-          <span class="sep">·</span>{{ duracion_total or 0 }}′{% if intensidad %} · {{ intensidad }}{% endif %}
-        </div>
-      </td>
-      <td style="width:48px"><div class="badge">{{ match_day or "—" }}</div></td>
-    </tr>
-  </table>
+  {% set subtitulo %}{% if equipo_nombre %}{{ equipo_nombre }}<span class="sep">·</span>{% endif %}{% if rival %}vs {{ rival }}<span class="sep">·</span>{% endif %}{{ sesion.fecha }}{% if sesion.hora %} {{ sesion.hora }}{% endif %}{% if lugar or sesion.lugar %}<span class="sep">·</span>{{ lugar or sesion.lugar }}{% endif %}<span class="sep">·</span><span class="k-mono">{{ duracion_total or 0 }}′</span>{% if intensidad %}<span class="sep">·</span>{{ intensidad }}{% endif %}{% endset %}
+  {{ cabecera(dict(tema, logo_url=logo_url), titulo=sesion.titulo, subtitulo=subtitulo, meta='<span class="md">' ~ (match_day or "—") ~ '</span>', eyebrow=org_nombre) }}
 
   {% if conceptos_line %}
   <div class="concepts">
-    <strong>Conceptos</strong>{{ conceptos_line }}
+    <span class="k-eyebrow">Conceptos</span>{{ conceptos_line }}
   </div>
   {% endif %}
 
-  <div class="objetivo">
-    <div class="lbl">Objetivo de la sesión</div>
+  <div class="objetivo" style="margin-bottom:1.5mm">
+    <div class="k-eyebrow">Objetivo de la sesión</div>
     <div class="txt">{{ objetivo_principal or sesion.objetivo_principal or "—" }}</div>
     {% if objetivo_fisico or objetivo_psicologico %}
     <div class="extra">
@@ -348,7 +277,7 @@
     {% endif %}
   </div>
 
-  <div class="roster-lbl">
+  <div class="lbl">
     Convocatoria
     <span class="leg leg-s">Sesión {{ g_sesion|length }}</span>
     <span class="leg leg-f">Fisio {{ g_fisio|length }}</span>
@@ -362,7 +291,7 @@
       <td>
         {% for p in col %}
         <div class="player p-{{ p.grupo }}">
-          <span class="dorsal">{% if p.dorsal %}#{{ p.dorsal }}{% endif %}</span>
+          <span class="dorsal k-mono">{% if p.dorsal %}{{ p.dorsal }}{% endif %}</span>
           {{ p.nombre }} {{ (p.apellidos or '')[:1] }}.
           {% if p.grupo == 'sesion' %}
             {% if 'fisio' in p.tipos %}<span class="chip chip-f">F</span>{% endif %}
@@ -378,7 +307,7 @@
   </table>
   {% endif %}
 
-  <div class="tasks-lbl">Ejercicios{% if tareas_total > 4 %} (4 de {{ tareas_total }}){% else %} ({{ tareas_corta|length }}){% endif %}</div>
+  <div class="lbl">Ejercicios{% if tareas_total > 4 %} (4 de {{ tareas_total }}){% else %} ({{ tareas_corta|length }}){% endif %}</div>
   <table class="tasks">
     {% for row in task_rows %}
     <tr>
@@ -398,13 +327,12 @@
             </td>
             <td class="task-info">
               <div class="task-top">
-                <span class="ord">{{ t.orden }}.</span> {{ t.titulo }}
+                <span class="ord k-mono">{{ t.orden }}</span>{{ t.titulo }}
               </div>
-              <span class="task-min">{{ t.duracion }}′</span>
+              <span class="task-min k-mono">{{ t.duracion }}′</span>{% if t.categoria %}<span class="task-cat">{{ t.categoria }}</span>{% endif %}
               {% if t.descripcion %}
               <div class="task-desc">{{ t.descripcion }}</div>
               {% endif %}
-              {% if t.categoria %}<span class="task-cat">{{ t.categoria }}</span>{% endif %}
               {% if t.equipos %}
               <div class="task-teams">
                 {% for eq in t.equipos[:4] %}

@@ -238,7 +238,7 @@ from app.database import get_supabase
 from app.dependencies import require_permission, require_any_permission, AuthContext
 from app.security.dependencies import cached_team_ids
 from app.security.permissions import Permission
-from app.services.pdf_service import generate_sesion_pdf, generate_sesion_pdf_v2
+from app.services.pdf_service import generate_sesion_pdf_v2
 from app.services.storage_service import upload_file
 from app.services.audit_service import log_create, log_update, log_delete
 from app.services.notification_service import notify_sesion_created

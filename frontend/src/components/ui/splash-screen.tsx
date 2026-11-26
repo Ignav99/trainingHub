@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { ArranqueCal } from './arranque-cal'
+import { KabineMark } from '@/components/brand/KabineLogo'
 
 const FOOTBALL_FACTS = [
   // ── Records & Stats ──
@@ -447,11 +448,8 @@ export function SplashScreen() {
             }}
           />
           <div className="absolute -inset-4 rounded-full border border-purple-500/20 animate-kabine-ping" />
-          <img
-            src="/logo-icon.png"
-            alt="Kabin-e"
-            className="relative w-20 h-20 drop-shadow-2xl animate-kabine-spin"
-            style={{ filter: 'drop-shadow(0 0 20px rgba(124, 58, 237, 0.5))' }}
+          <KabineMark
+            className="relative w-20 h-20 animate-kabine-spin drop-shadow-[0_0_20px_rgba(124,58,237,0.5)]"
           />
         </div>
 

@@ -3,6 +3,7 @@
 import { startTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import * as Sentry from '@sentry/nextjs'
+import { KabineMark } from '@/components/brand/KabineLogo'
 
 export default function GlobalError({
   error,
@@ -29,11 +30,7 @@ export default function GlobalError({
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0f0a1e] px-6">
       <div className="text-center max-w-md">
-        <img
-          src="/logo-icon.png"
-          alt="Kabin-e"
-          className="w-16 h-16 mx-auto mb-6 opacity-60"
-        />
+        <KabineMark className="w-16 h-16 mx-auto mb-6 opacity-60" />
         <h2 className="text-xl font-semibold text-white mb-2">
           Algo salió mal
         </h2>

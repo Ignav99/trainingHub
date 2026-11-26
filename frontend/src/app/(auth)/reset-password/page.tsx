@@ -1,15 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Loader2, CheckCircle2 } from 'lucide-react'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { PorAspecto } from '@/components/appearance/PorAspecto'
 import { PuertaCal } from '@/components/puerta/PuertaCal'
+import { AuthShell, authButton, authInput, authLabel } from '@/components/auth/AuthShell'
 
-const STADIUM_BG = 'https://images.unsplash.com/photo-1522778119026-d647f0596c20?w=1920&q=80'
 
 export default function ResetPasswordPage() {
   const router = useRouter()
@@ -80,7 +79,7 @@ export default function ResetPasswordPage() {
       )}
 
       <div>
-        <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="password" className={authLabel}>
           Nueva contraseña
         </label>
         <div className="relative">
@@ -104,7 +103,7 @@ export default function ResetPasswordPage() {
       </div>
 
       <div>
-        <label htmlFor="confirm" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="confirm" className={authLabel}>
           Repetir contraseña
         </label>
         <input
@@ -121,7 +120,7 @@ export default function ResetPasswordPage() {
       <button
         type="submit"
         disabled={loading}
-        className="w-full py-3 px-4 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2"
+        className={authButton}
       >
         {loading && <Loader2 className="h-5 w-5 animate-spin" />}
         Guardar contraseña
@@ -154,23 +153,9 @@ export default function ResetPasswordPage() {
   return (
     <PorAspecto
       resto={
-        <div className="min-h-screen flex">
-          <div className="flex-1 flex items-center justify-center p-8">
-            <div className="w-full max-w-md space-y-8">
-              <div className="text-center">
-                <Image src="/logo.png" alt="Kabin-e" width={120} height={80} className="mx-auto mb-3" />
-                <h1 className="text-xl font-semibold text-gray-900">Nueva contraseña</h1>
-              </div>
-
-              {cuerpo}
-            </div>
-          </div>
-
-          <div className="hidden lg:flex lg:flex-1 relative overflow-hidden">
-            <Image src={STADIUM_BG} alt="" fill className="object-cover" unoptimized />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/60 to-black/70" />
-          </div>
-        </div>
+        <AuthShell titulo="Nueva contraseña" subtitulo="Elige una contraseña que no uses en otros sitios.">
+          {cuerpo}
+        </AuthShell>
       }
       cal={
         <PuertaCal rotulo="Acceso" titulo="Elige una contraseña nueva">

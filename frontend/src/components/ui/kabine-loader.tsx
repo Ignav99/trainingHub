@@ -1,6 +1,7 @@
 'use client'
 
 import { cn } from '@/lib/utils'
+import { KabineMark } from '@/components/brand/KabineLogo'
 
 interface KabineLoaderProps {
   size?: 'sm' | 'md' | 'lg'
@@ -26,9 +27,7 @@ export function KabineLoader({ size = 'md', text, className, fullScreen = false 
           sizes[size],
         )} />
         {/* Logo with custom spin animation */}
-        <img
-          src="/logo-icon.png"
-          alt="Kabin-e"
+        <KabineMark
           className={cn(
             'relative animate-kabine-spin drop-shadow-lg',
             sizes[size],

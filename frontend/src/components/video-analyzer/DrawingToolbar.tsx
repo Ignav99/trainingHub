@@ -18,6 +18,7 @@ import {
 import type { DrawingTool } from './types'
 import type { DrawingElement } from '@/types'
 import { DRAWING_COLORS, STROKE_WIDTHS } from './types'
+import { KabineMark } from '@/components/brand/KabineLogo'
 
 const TOOLS: { tool: DrawingTool; icon: React.ElementType; label: string }[] = [
   { tool: 'select', icon: MousePointer2, label: 'Seleccionar (V)' },
@@ -215,12 +216,7 @@ export function DrawingToolbar({
 
       {/* Spacer + Kabine logo */}
       <div className="flex-1" />
-      <img
-        src="/logo-icon.png"
-        alt="Kabin-e"
-        className="h-4 w-4 opacity-30 select-none"
-        draggable={false}
-      />
+      <KabineMark variant="mono" className="h-4 w-4 opacity-30 select-none text-white" />
     </div>
   )
 }

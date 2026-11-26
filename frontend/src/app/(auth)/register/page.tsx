@@ -1,15 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Loader2, Building2 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { PorAspecto } from '@/components/appearance/PorAspecto'
 import { PuertaCal } from '@/components/puerta/PuertaCal'
+import { AuthShell, authButton, authInput, authLabel } from '@/components/auth/AuthShell'
 
-const STADIUM_BG = 'https://images.unsplash.com/photo-1522778119026-d647f0596c20?w=1920&q=80'
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -68,7 +67,7 @@ export default function RegisterPage() {
         <>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="nombre" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="nombre" className={authLabel}>
                 Nombre *
               </label>
               <input
@@ -77,12 +76,12 @@ export default function RegisterPage() {
                 required
                 value={formData.nombre}
                 onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+                className={`${authInput}`}
                 placeholder="Juan"
               />
             </div>
             <div>
-              <label htmlFor="apellidos" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="apellidos" className={authLabel}>
                 Apellidos
               </label>
               <input
@@ -90,14 +89,14 @@ export default function RegisterPage() {
                 type="text"
                 value={formData.apellidos}
                 onChange={(e) => setFormData({ ...formData, apellidos: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+                className={`${authInput}`}
                 placeholder="García"
               />
             </div>
           </div>
 
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="email" className={authLabel}>
               Email *
             </label>
             <input
@@ -106,13 +105,13 @@ export default function RegisterPage() {
               required
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+              className={`${authInput}`}
               placeholder="tu@email.com"
             />
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="password" className={authLabel}>
               Contraseña *
             </label>
             <div className="relative">
@@ -123,7 +122,7 @@ export default function RegisterPage() {
                 minLength={8}
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all pr-10"
+                className={`${authInput} pr-12`}
                 placeholder="Mínimo 8 caracteres"
               />
               <button
@@ -140,7 +139,7 @@ export default function RegisterPage() {
             type="button"
             onClick={() => setStep(2)}
             disabled={!formData.nombre || !formData.email || formData.password.length < 8}
-            className="w-full py-3 px-4 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 focus:ring-4 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            className={authButton}
           >
             Continuar
           </button>
@@ -189,7 +188,7 @@ export default function RegisterPage() {
 
           {formData.crear_organizacion && (
             <div>
-              <label htmlFor="organizacion" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="organizacion" className={authLabel}>
                 Nombre del club/organización *
               </label>
               <div className="relative">
@@ -264,78 +263,10 @@ export default function RegisterPage() {
   return (
     <PorAspecto
       resto={
-        <div className="min-h-screen flex">
-          {/* Panel izquierdo - Formulario */}
-          <div className="flex-1 flex items-center justify-center p-8">
-            <div className="w-full max-w-md space-y-8">
-              {/* Logo */}
-              <div className="text-center">
-                <Image src="/logo.png" alt="Kabin-e" width={120} height={80} className="mx-auto mb-3" />
-                <p className="text-gray-500">Crea tu cuenta</p>
-              </div>
-
-              {/* Indicador de pasos */}
-              {indicador}
-
-              {/* Formulario */}
-              {formulario}
-
-              {pie}
-            </div>
-          </div>
-
-          {/* Panel derecho - Imagen de estadio */}
-          <div className="hidden lg:flex lg:flex-1 relative overflow-hidden">
-            <Image
-              src={STADIUM_BG}
-              alt="Estadio de fútbol"
-              fill
-              className="object-cover"
-              unoptimized
-            />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/70" />
-            <div className="relative z-10 flex flex-col items-center justify-center p-12 text-white">
-              <div className="max-w-md text-center">
-                <div className="inline-flex items-center gap-3 mb-6 px-5 py-3 rounded-2xl backdrop-blur-sm bg-white/10">
-                  <Image src="/logo-icon.png" alt="Kabin-e" width={40} height={40} className="drop-shadow-lg" />
-                  <span className="text-2xl font-extrabold tracking-tight">Kabin-e</span>
-                </div>
-                <h2
-                  className="text-3xl font-extrabold mb-4"
-                  style={{ textShadow: '0 2px 8px rgba(0,0,0,0.4)' }}
-                >
-                  Únete a Kabin-e
-                </h2>
-                <p
-                  className="text-white/90 text-lg mb-8"
-                  style={{ textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}
-                >
-                  Crea tu organización, gestiona tus equipos y lleva tus entrenamientos al siguiente nivel.
-                </p>
-                <div className="space-y-3 text-left">
-                  <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-3">
-                    <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center shrink-0">
-                      <span className="text-sm font-bold">1</span>
-                    </div>
-                    <span style={{ textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>Crea tareas con metodología UEFA</span>
-                  </div>
-                  <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-3">
-                    <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center shrink-0">
-                      <span className="text-sm font-bold">2</span>
-                    </div>
-                    <span style={{ textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>Planifica sesiones inteligentes</span>
-                  </div>
-                  <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-3">
-                    <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center shrink-0">
-                      <span className="text-sm font-bold">3</span>
-                    </div>
-                    <span style={{ textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>Genera PDFs profesionales</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <AuthShell titulo="Crea tu cuenta" subtitulo="Configura tu club en un par de minutos." pie={pie}>
+          <div className="mb-8">{indicador}</div>
+          {formulario}
+        </AuthShell>
       }
       cal={
         <PuertaCal rotulo="Alta" titulo="Crea tu cuenta" pie={pie}>

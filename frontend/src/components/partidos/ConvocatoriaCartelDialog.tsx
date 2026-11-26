@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import useSWR, { mutate } from 'swr'
 import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
+import { cerrarPdf, prepararPdf } from '@/lib/pdf/marca'
 import {
   Dialog,
   DialogContent,
@@ -204,12 +205,20 @@ export function ConvocatoriaCartelDialog({
       const canvas = await posterToCanvas(el)
       const img = canvas.toDataURL('image/jpeg', 0.92)
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+      const tema = await prepararPdf(pdf)
       const pageW = pdf.internal.pageSize.getWidth()
       const pageH = pdf.internal.pageSize.getHeight()
-      const ratio = Math.min(pageW / canvas.width, pageH / canvas.height)
+      // El cartel es una pieza ya diseñada: se coloca tal cual dentro de los
+      // márgenes, dejando abajo el hueco del pie normalizado de Kabin-e.
+      const margen = 10
+      const reservaPie = 14
+      const areaW = pageW - margen * 2
+      const areaH = pageH - margen - reservaPie
+      const ratio = Math.min(areaW / canvas.width, areaH / canvas.height)
       const imgW = canvas.width * ratio
       const imgH = canvas.height * ratio
-      pdf.addImage(img, 'JPEG', (pageW - imgW) / 2, (pageH - imgH) / 2, imgW, imgH)
+      pdf.addImage(img, 'JPEG', (pageW - imgW) / 2, margen + (areaH - imgH) / 2, imgW, imgH)
+      await cerrarPdf(pdf, tema, 'Convocatoria', { marcaAgua: false })
       pdf.save(`${filenameBase}.pdf`)
       toast.success('PDF descargado')
     } catch (e) {

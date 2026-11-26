@@ -1,16 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { isClubAdminRole, isSuperadminRole } from '@/lib/roles'
 import { PorAspecto } from '@/components/appearance/PorAspecto'
 import { PuertaCal } from '@/components/puerta/PuertaCal'
-
-const STADIUM_BG = 'https://images.unsplash.com/photo-1522778119026-d647f0596c20?w=1920&q=80'
+import { AuthShell, authButton, authInput, authLabel, authLink } from '@/components/auth/AuthShell'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -44,83 +42,93 @@ export default function LoginPage() {
   const loading = isLoading
 
   const formulario = (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-5">
       {error && (
-        <div data-aviso="error" className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+        <div
+          data-aviso="error"
+          role="alert"
+          className="flex gap-3 rounded-xl border border-[#F4C7CC] bg-[#FDF2F3] px-4 py-3 text-[14px] text-[#A3162B]"
+        >
+          <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#D92D43]" />
           {error}
         </div>
       )}
 
       <div>
-        <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="email" className={authLabel}>
           Usuario o email
         </label>
         <input
           id="email"
           type="text"
           required
+          autoComplete="username"
           autoCapitalize="none"
           autoCorrect="off"
           value={formData.email}
           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+          className={authInput}
           placeholder="tu@email.com o tu usuario"
         />
       </div>
 
       <div>
-        <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-          Contraseña
-        </label>
+        <div className="flex items-baseline justify-between">
+          <label htmlFor="password" className={authLabel}>
+            Contraseña
+          </label>
+          <Link href="/forgot-password" className={`text-[13px] ${authLink}`}>
+            ¿La olvidaste?
+          </Link>
+        </div>
         <div className="relative">
           <input
             id="password"
             type={showPassword ? 'text' : 'password'}
             required
+            autoComplete="current-password"
             value={formData.password}
             onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all pr-10"
+            className={`${authInput} pr-12`}
             placeholder="••••••••"
           />
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 grid h-9 w-9 place-items-center rounded-lg text-[#9AA0BF] hover:bg-[#EEF1FF] hover:text-[#3346E0] transition-colors"
           >
-            {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+            {showPassword ? <EyeOff className="h-[18px] w-[18px]" /> : <Eye className="h-[18px] w-[18px]" />}
           </button>
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
-          />
-          <span className="text-sm text-gray-600">Recordarme</span>
-        </label>
-        <Link href="/forgot-password" className="text-sm text-primary hover:text-primary/80">
-          ¿Olvidaste tu contraseña?
-        </Link>
-      </div>
+      <label className="flex w-fit cursor-pointer select-none items-center gap-2.5 text-[14px] text-[#5A618C]">
+        <input type="checkbox" className="h-4 w-4 rounded border-[#C3CAEB] accent-[#3346E0]" />
+        Recordarme en este dispositivo
+      </label>
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full py-3 px-4 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 focus:ring-4 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
-      >
-        {loading && <Loader2 className="h-5 w-5 animate-spin" />}
-        {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
+      <button type="submit" disabled={loading} className={authButton}>
+        {loading ? (
+          <>
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Entrando…
+          </>
+        ) : (
+          <>
+            Iniciar sesión
+            <ArrowRight className="h-[18px] w-[18px] transition-transform duration-200 group-hover:translate-x-0.5" />
+          </>
+        )}
       </button>
     </form>
   )
 
   const pie = (
-    <p className="text-center text-sm text-gray-600">
-      ¿No tienes cuenta?{' '}
-      <Link href="/register" className="text-primary font-medium hover:text-primary/80">
-        Regístrate
+    <p>
+      ¿Tu club aún no usa Kabin-e?{' '}
+      <Link href="/register" className={authLink}>
+        Crea una cuenta
       </Link>
     </p>
   )
@@ -128,55 +136,9 @@ export default function LoginPage() {
   return (
     <PorAspecto
       resto={
-        <div className="min-h-screen flex">
-          {/* Panel izquierdo - Formulario */}
-          <div className="flex-1 flex items-center justify-center p-8">
-            <div className="w-full max-w-md space-y-8">
-              {/* Logo */}
-              <div className="text-center">
-                <Image src="/logo.png" alt="Kabin-e" width={120} height={80} className="mx-auto mb-3" />
-                <p className="text-gray-500">Accede a tu cuenta</p>
-              </div>
-
-              {/* Formulario */}
-              {formulario}
-
-              {pie}
-            </div>
-          </div>
-
-          {/* Panel derecho - Imagen de estadio */}
-          <div className="hidden lg:flex lg:flex-1 relative overflow-hidden">
-            <Image
-              src={STADIUM_BG}
-              alt="Estadio de fútbol"
-              fill
-              className="object-cover"
-              unoptimized
-            />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/70" />
-            <div className="relative z-10 flex flex-col items-center justify-center p-12 text-white">
-              <div className="max-w-md text-center">
-                <div className="inline-flex items-center gap-3 mb-6 px-5 py-3 rounded-2xl backdrop-blur-sm bg-white/10">
-                  <Image src="/logo-icon.png" alt="Kabin-e" width={40} height={40} className="drop-shadow-lg" />
-                  <span className="text-2xl font-extrabold tracking-tight">Kabin-e</span>
-                </div>
-                <h2
-                  className="text-3xl font-extrabold mb-4"
-                  style={{ textShadow: '0 2px 8px rgba(0,0,0,0.4)' }}
-                >
-                  Gestiona tus entrenamientos como un profesional
-                </h2>
-                <p
-                  className="text-white/90 text-lg"
-                  style={{ textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}
-                >
-                  Crea sesiones, planifica con metodología UEFA, y genera PDFs profesionales con tu marca.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
+        <AuthShell titulo="Hola de nuevo" subtitulo="Entra con tu cuenta del club." pie={pie}>
+          {formulario}
+        </AuthShell>
       }
       cal={
         <PuertaCal rotulo="Acceso" titulo="Accede a tu cuenta" pie={pie}>

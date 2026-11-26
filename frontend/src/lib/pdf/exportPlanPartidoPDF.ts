@@ -25,12 +25,28 @@ import {
   formatPlanFecha,
   formatPlanHora,
   formatPlanTramo,
-  hexToRgb,
   PITCH_PDF_MAX_MM,
   pitchDisplaySize,
   planPdfFilename,
 } from './planPartidoPdfLayout'
 import { resolvePizarraPng } from './capturePizarraForPdf'
+import {
+  bandaPdf,
+  cabeceraPdf,
+  cerrarPdf,
+  colorTexto,
+  etiquetaPdf,
+  fuente,
+  LINEA,
+  prepararPdf,
+  rgbHex,
+  temaDelClub,
+  tinta,
+  TINTA,
+  TINTA_SUAVE,
+  trazo,
+  type TemaPdf,
+} from './marca'
 
 const FASE_LABELS: Record<FasePlanPartido, string> = {
   ataque_organizado: 'Ataque organizado',
@@ -100,6 +116,7 @@ function jugadaDisplayName(info: JugadaInfo | undefined): string {
 
 let lockPage = false
 
+/** Deja ~16 mm libres abajo para el pie normalizado de cerrarPdf. */
 function pageFloor(doc: jsPDF): number {
   return doc.internal.pageSize.getHeight() - 16
 }
@@ -163,12 +180,9 @@ function writeRoles(
   if (!roles.length) return y
   const options = getRolesForContext(context)
   y = ensureSpace(doc, y, 10 + roles.length * 5, margin)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
-  doc.setTextColor(100, 116, 139)
-  doc.text('ROLES', margin, y)
+  etiquetaPdf(doc, 'ROLES', margin, y)
   y += 4.5
-  doc.setFont('helvetica', 'normal')
+  fuente(doc)
   doc.setFontSize(9)
   const colW = (contentWidth - 4) / 2
   let col = 0
@@ -177,7 +191,7 @@ function writeRoles(
   for (const r of roles) {
     const label = `${rolLabel(r.rol, options)}  ·  ${r.jugador}`
     const x = margin + col * (colW + 4)
-    doc.setTextColor(30, 41, 59)
+    tinta(doc, TINTA)
     const next = writeWrapped(doc, label, x, rowY, colW, 4)
     maxY = Math.max(maxY, next)
     col += 1
@@ -204,8 +218,8 @@ function addPizarraImage(
     const props = doc.getImageProperties(png)
     const { w, h } = pitchDisplaySize(contentWidth, props.width, props.height, room)
     const x = margin + (contentWidth - w) / 2
-    doc.setDrawColor(226, 232, 240)
-    doc.setFillColor(15, 40, 12)
+    trazo(doc, LINEA)
+    doc.setFillColor(15, 40, 12) // fondo de césped tras la pizarra
     doc.roundedRect(x - 1, y - 1, w + 2, h + 2, 1.5, 1.5, 'FD')
     const format = png.includes('image/jpeg') ? 'JPEG' : 'PNG'
     const alias = `pz-${doc.getNumberOfPages()}-${Math.round(y)}-${png.length}`
@@ -279,88 +293,27 @@ function phaseHasContent(phase: PlanPartidoPhase | undefined): boolean {
   return false
 }
 
+/** Cabecera normalizada: escudo propio · "Plan de partido" · vs rival · meta del partido · escudo rival. */
 function drawHeader(
   doc: jsPDF,
+  tema: TemaPdf,
   meta: PlanPartidoPdfMeta,
   logos: { club?: string | null; rival?: string | null }
-) {
-  const pageWidth = doc.internal.pageSize.getWidth()
-  const [pr, pg, pb] = hexToRgb(meta.colorPrimario || '#0d1117')
-  doc.setFillColor(pr, pg, pb)
-  doc.rect(0, 0, pageWidth, 36, 'F')
-  doc.setFillColor(16, 185, 129)
-  doc.rect(0, 36, pageWidth, 2.2, 'F')
-
-  let x = 12
-  if (logos.club?.startsWith('data:image')) {
-    try {
-      doc.addImage(logos.club, logos.club.includes('jpeg') ? 'JPEG' : 'PNG', x, 8, 18, 18)
-      x += 22
-    } catch {
-      /* skip broken crest */
-    }
-  }
-
-  doc.setTextColor(226, 232, 240)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  const club = (meta.clubNombre || '').toUpperCase()
-  if (club) doc.text(club, x, 10)
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(18)
-  doc.setTextColor(255, 255, 255)
-  doc.text('PLAN DE PARTIDO', x, 20)
-
-  const rival = (meta.rivalNombre || '').trim()
-  if (rival) {
-    doc.setFontSize(11)
-    doc.setTextColor(252, 165, 165)
-    const vs = `vs  ${rival.toUpperCase()}`
-    const vsW = doc.getTextWidth(vs)
-    const rivalX = pageWidth - 12 - vsW - (logos.rival ? 16 : 0)
-    doc.text(vs, rivalX, 16, { align: 'left' })
-    if (logos.rival?.startsWith('data:image')) {
-      try {
-        doc.addImage(logos.rival, logos.rival.includes('jpeg') ? 'JPEG' : 'PNG', pageWidth - 28, 8, 16, 18)
-      } catch {
-        /* skip */
-      }
-    }
-  }
-
-  const chips: string[] = []
+): Promise<number> {
   const fecha = formatPlanFecha(meta.fecha)
   const hora = formatPlanHora(meta.hora)
   const localia = formatLocalia(meta.localia)
   const tramo = formatPlanTramo(meta.tramo)
-  if (tramo) chips.push(tramo)
-  if (fecha) chips.push(fecha)
-  if (hora) chips.push(hora)
-  if (meta.campo?.trim()) chips.push(meta.campo.trim())
-  if (localia) chips.push(localia)
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8.5)
-  doc.setTextColor(203, 213, 225)
-  if (chips.length) doc.text(chips.join('   ·  '), x, 28)
-}
-
-function drawFooters(doc: jsPDF, clubNombre?: string) {
-  const total = doc.getNumberOfPages()
-  const pageWidth = doc.internal.pageSize.getWidth()
-  const pageHeight = doc.internal.pageSize.getHeight()
-  for (let i = 1; i <= total; i++) {
-    doc.setPage(i)
-    doc.setDrawColor(226, 232, 240)
-    doc.line(12, pageHeight - 10, pageWidth - 12, pageHeight - 10)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7.5)
-    doc.setTextColor(148, 163, 184)
-    const left = clubNombre || 'Plan de Partido'
-    doc.text(left, 12, pageHeight - 6)
-    doc.text(`${i} / ${total}`, pageWidth - 12, pageHeight - 6, { align: 'right' })
-  }
+  const linea1 = [fecha, hora].filter(Boolean).join(' · ')
+  const linea2 = [meta.campo?.trim(), localia, tramo].filter(Boolean).join(' · ')
+  const rival = (meta.rivalNombre || '').trim()
+  return cabeceraPdf(doc, tema, {
+    titulo: 'Plan de partido',
+    subtitulo: rival ? `vs ${rival}` : undefined,
+    meta: [linea1, linea2].filter(Boolean).join('\n') || undefined,
+    escudo: logos.club?.startsWith('data:image') ? logos.club : null,
+    escudoDerecha: logos.rival?.startsWith('data:image') ? logos.rival : null,
+  })
 }
 
 async function writeAbpItems(
@@ -368,17 +321,14 @@ async function writeAbpItems(
   items: NonNullable<PlanPartidoPhase['jugadas_abp']>,
   jugadas: Map<string, JugadaInfo>,
   title: string,
-  accent: [number, number, number],
+  accent: string,
   margin: number,
   y: number,
   contentWidth: number,
   imageMax?: number,
 ): Promise<number> {
   y = ensureSpace(doc, y, 12, margin)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
-  doc.setTextColor(...accent)
-  doc.text(title.toUpperCase(), margin, y)
+  etiquetaPdf(doc, title, margin, y, accent)
   y += 5
   for (const item of items) {
     const info = jugadas.get(item.jugada_id)
@@ -386,22 +336,22 @@ async function writeAbpItems(
     const tipoLabel = jugadaTipoLabel(info?.tipo)
     const preview = await resolvePizarraPng(info?.preview, info?.diagrama)
     y = ensureSpace(doc, y, 12, margin)
-    doc.setFont('helvetica', 'bold')
+    fuente(doc, 'bold')
     doc.setFontSize(10)
-    doc.setTextColor(15, 23, 42)
+    tinta(doc, TINTA)
     doc.text(nombre, margin, y)
     y += 4.5
     if (tipoLabel && tipoLabel !== nombre) {
-      doc.setFont('helvetica', 'normal')
+      fuente(doc)
       doc.setFontSize(8)
-      doc.setTextColor(100, 116, 139)
+      tinta(doc, TINTA_SUAVE)
       doc.text(tipoLabel, margin, y)
       y += 4
     }
     if (item.comentario?.trim()) {
-      doc.setFont('helvetica', 'italic')
+      fuente(doc)
       doc.setFontSize(9)
-      doc.setTextColor(51, 65, 85)
+      tinta(doc, TINTA_SUAVE)
       y = writeWrapped(doc, item.comentario.trim(), margin, y, contentWidth)
       y += 2
     }
@@ -479,13 +429,21 @@ export async function exportPlanPartidoPDF(
     hora: metaInput?.hora,
     campo: metaInput?.campo,
     localia: metaInput?.localia,
+    tramo: metaInput?.tramo,
   }
 
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const tema = await prepararPdf(
+    doc,
+    temaDelClub({
+      colorPrimario: meta.colorPrimario ?? null,
+      club: meta.clubNombre ?? null,
+      logoUrl: meta.clubLogoUrl ?? null,
+    }),
+  )
   const pageWidth = doc.internal.pageSize.getWidth()
   const margin = 12
   const contentWidth = pageWidth - margin * 2
-  let y = 42
 
   const jugadas = new Map<string, JugadaInfo>()
   if (equipoId) {
@@ -510,7 +468,7 @@ export async function exportPlanPartidoPDF(
     loadImageDataUrl(meta.rivalEscudoUrl),
   ])
 
-  drawHeader(doc, meta, { club: clubLogo, rival: rivalLogo })
+  let y = await drawHeader(doc, tema, meta, { club: clubLogo, rival: rivalLogo })
 
   const fases = data.fases ?? []
 
@@ -531,27 +489,24 @@ export async function exportPlanPartidoPDF(
       y = margin + 6
     }
     lockPage = true
-    const accent = FASE_COLORS[faseKey]
-    doc.setFillColor(accent[0], accent[1], accent[2])
-    doc.roundedRect(margin, y, contentWidth, 10, 1.2, 1.2, 'F')
-    doc.setTextColor(255, 255, 255)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(13)
-    doc.text(FASE_LABELS[faseKey], margin + 3, y + 6.8)
+    // Color de fase = código semántico (se mantiene); el texto elige contraste.
+    const faseHex = rgbHex(FASE_COLORS[faseKey])
+    const accent = colorTexto(faseHex)
+    bandaPdf(doc, faseHex, FASE_LABELS[faseKey], margin, y, contentWidth, 10)
     y += 14
 
-    doc.setFont('helvetica', 'normal')
+    fuente(doc)
     doc.setFontSize(9.5)
-    doc.setTextColor(51, 65, 85)
+    tinta(doc, TINTA)
 
     if (isOrganizedPlan(phase?.fase) && phase?.comentario_general?.trim()) {
-      doc.setFont('helvetica', 'bold')
+      fuente(doc, 'media')
       doc.setFontSize(9.5)
-      doc.setTextColor(15, 23, 42)
+      tinta(doc, TINTA)
       doc.text('Objetivo', margin, y)
       y += 4.5
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(51, 65, 85)
+      fuente(doc)
+      tinta(doc, TINTA)
       y = writeWrapped(doc, phase.comentario_general.trim(), margin, y, contentWidth)
       y += 3
     }
@@ -560,23 +515,23 @@ export async function exportPlanPartidoPDF(
       for (const [key, sub] of eachPlanSubfase(phase)) {
         if (!planSubHasContent(sub)) continue
         y = ensureSpace(doc, y, 16, margin)
-        doc.setFont('helvetica', 'bold')
+        fuente(doc, 'bold')
         doc.setFontSize(11.5)
-        doc.setTextColor(146, 64, 14)
+        tinta(doc, tema.primarioTexto)
         doc.text(SUBFASE_LABELS[key] ?? key, margin, y)
         y += 6.2
-        doc.setFont('helvetica', 'normal')
+        fuente(doc)
         doc.setFontSize(9.5)
-        doc.setTextColor(51, 65, 85)
+        tinta(doc, TINTA)
         if (sub.notas?.trim()) {
           y = writeWrapped(doc, sub.notas.trim(), margin, y, contentWidth)
           y += 3
         }
         if (sub.sistema?.trim()) {
-          doc.setFont('helvetica', 'bold')
+          fuente(doc, 'media')
           doc.text(`Sistema  ${sub.sistema}`, margin, y)
           y += 5
-          doc.setFont('helvetica', 'normal')
+          fuente(doc)
         }
         const ctx =
           phase.fase === 'ataque_organizado' || phase.fase === 'defensa_organizada'
@@ -624,22 +579,19 @@ export async function exportPlanPartidoPDF(
       const visibles = phase.estructuras_rival.filter((item) => estructuraTieneContenido(item))
       if (visibles.length > 0) {
         y = ensureSpace(doc, y, 12, margin)
-        doc.setFont('helvetica', 'bold')
-        doc.setFontSize(8)
-        doc.setTextColor(...accent)
-        doc.text('ESTRUCTURA DEFENSIVA DEL RIVAL', margin, y)
+        etiquetaPdf(doc, 'ESTRUCTURA DEFENSIVA DEL RIVAL', margin, y, accent)
         y += 5
         for (const item of visibles) {
           y = ensureSpace(doc, y, 12, margin)
-          doc.setFont('helvetica', 'bold')
+          fuente(doc, 'bold')
           doc.setFontSize(10)
-          doc.setTextColor(15, 23, 42)
+          tinta(doc, TINTA)
           doc.text(item.titulo.trim() || 'Estructura defensiva', margin, y)
           y += 4.5
           if (item.notas?.trim()) {
-            doc.setFont('helvetica', 'normal')
+            fuente(doc)
             doc.setFontSize(9)
-            doc.setTextColor(51, 65, 85)
+            tinta(doc, TINTA)
             y = writeWrapped(doc, item.notas.trim(), margin, y, contentWidth)
             y += 2
           }
@@ -658,14 +610,11 @@ export async function exportPlanPartidoPDF(
 
     if (phase?.clips?.length) {
       y = ensureSpace(doc, y, 10, margin)
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(8)
-      doc.setTextColor(100, 116, 139)
-      doc.text('CLIPS', margin, y)
+      etiquetaPdf(doc, 'CLIPS', margin, y)
       y += 5
-      doc.setFont('helvetica', 'normal')
+      fuente(doc)
       doc.setFontSize(9)
-      doc.setTextColor(51, 65, 85)
+      tinta(doc, TINTA)
       for (const clip of phase.clips) {
         y = writeWrapped(doc, `•  ${clip.titulo}`, margin, y, contentWidth)
       }
@@ -684,16 +633,11 @@ export async function exportPlanPartidoPDF(
         doc.addPage()
         y = margin + 6
       }
-      doc.setFillColor(5, 150, 105)
-      doc.roundedRect(margin, y, contentWidth, 10, 1.2, 1.2, 'F')
-      doc.setTextColor(255, 255, 255)
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(13)
-      doc.text('Nutrición', margin + 3, y + 6.8)
+      bandaPdf(doc, tema.primario, 'Nutrición', margin, y, contentWidth, 10)
       y += 14
-      doc.setFont('helvetica', 'normal')
+      fuente(doc)
       doc.setFontSize(9.5)
-      doc.setTextColor(51, 65, 85)
+      tinta(doc, TINTA)
       for (const line of lineas) {
         y = writeWrapped(doc, line, margin, y, contentWidth)
         y += 2
@@ -701,7 +645,7 @@ export async function exportPlanPartidoPDF(
     }
   }
 
-  drawFooters(doc, meta.clubNombre)
+  await cerrarPdf(doc, tema, 'Plan de partido')
   doc.save(planPdfFilename(meta.rivalNombre, meta.fecha, meta.tramo))
 }
 

@@ -13,6 +13,8 @@ from typing import Optional
 import httpx
 from jinja2 import Environment, FileSystemLoader
 
+from app.services.pdf_marca import html_a_pdf, jinja_globals, tema_pdf
+
 from app.services.tarea_descanso import format_descanso
 from app.services.partido_campo import clean_estadio_nombre, format_kit_convocatoria_label, split_campo_arbitro
 from app.services.duracion_efectiva import (
@@ -284,10 +286,12 @@ def _generate_formation_svg(sistema_juego: str, jugadores: list) -> str:
 
 def _get_jinja_env() -> Environment:
     """Obtiene el entorno Jinja2 configurado."""
-    return Environment(
+    env = Environment(
         loader=FileSystemLoader(str(TEMPLATES_DIR)),
         autoescape=True,
     )
+    env.globals.update(jinja_globals())
+    return env
 
 
 def _highlight_tactical(text: str) -> str:
@@ -426,82 +430,8 @@ def _get_jinja_env_v2() -> Environment:
     env.filters['to_bullets'] = _text_to_bullets
     env.filters['first_sentence'] = _first_sentence
     env.filters['highlight_tactical'] = _highlight_tactical
+    env.globals.update(jinja_globals())
     return env
-
-
-async def generate_sesion_pdf(
-    sesion_data: dict,
-    tareas: list,
-    organizacion: dict,
-) -> bytes:
-    """
-    Genera un PDF profesional de una sesión de entrenamiento.
-
-    Args:
-        sesion_data: Datos de la sesión (dict de BD)
-        tareas: Lista de tareas de la sesión (sesion_tareas con tareas nested)
-        organizacion: Datos de la organización
-
-    Returns:
-        PDF como bytes
-    """
-    env = _get_jinja_env()
-    template = env.get_template("sesion_pdf.html")
-
-    # Preparar fases agrupadas
-    fases = {
-        "activacion": {"nombre": "Activación", "tareas": []},
-        "desarrollo_1": {"nombre": "Desarrollo 1", "tareas": []},
-        "desarrollo_2": {"nombre": "Desarrollo 2", "tareas": []},
-        "vuelta_calma": {"nombre": "Vuelta a calma", "tareas": []},
-    }
-
-    for tarea_sesion in tareas:
-        tarea = tarea_sesion.get("tareas", {}) or {}
-        categoria = tarea.get("categorias_tarea", {}) or {}
-        fase_key = tarea_sesion.get("fase_sesion", "desarrollo_1")
-
-        if fase_key not in fases:
-            fases[fase_key] = {
-                "nombre": FASE_NOMBRES.get(fase_key, str(fase_key).replace("_", " ").title()),
-                "tareas": [],
-            }
-        if fase_key in fases:
-            fases[fase_key]["tareas"].append({
-                "titulo": tarea.get("titulo", ""),
-                "descripcion": tarea.get("descripcion", ""),
-                "duracion": tarea_sesion.get("duracion_override") or tarea.get("duracion_total", 0),
-                "categoria": categoria.get("nombre", ""),
-                "categoria_codigo": categoria.get("codigo", ""),
-                "num_jugadores_min": tarea.get("num_jugadores_min", 0),
-                "num_jugadores_max": tarea.get("num_jugadores_max"),
-                "espacio_largo": tarea.get("espacio_largo"),
-                "espacio_ancho": tarea.get("espacio_ancho"),
-                "nivel_cognitivo": tarea.get("nivel_cognitivo"),
-                "densidad": tarea.get("densidad"),
-                "reglas_tecnicas": tarea.get("reglas_tecnicas", []) or [],
-                "consignas_ofensivas": tarea.get("consignas_ofensivas", []) or [],
-                "consignas_defensivas": tarea.get("consignas_defensivas", []) or [],
-                "grafico_url": tarea.get("grafico_url"),
-                "grafico_svg": tarea.get("grafico_svg"),
-                "notas": tarea_sesion.get("notas", ""),
-            })
-
-    def _render() -> bytes:
-        html_content = template.render(
-            sesion=sesion_data,
-            fases=fases,
-            organizacion=organizacion,
-            equipo=sesion_data.get("equipos", {}),
-        )
-        try:
-            from weasyprint import HTML
-            return HTML(string=html_content).write_pdf()
-        except ImportError:
-            logger.warning("WeasyPrint not available, returning HTML as bytes")
-            return html_content.encode("utf-8")
-
-    return await asyncio.to_thread(_render)
 
 
 async def generate_informe_partido_pdf(
@@ -538,6 +468,7 @@ async def generate_informe_partido_pdf(
 
     def _render() -> bytes:
         html_content = template.render(
+            tema=tema_pdf(organizacion),
             partido=partido,
             rival=rival,
             convocatoria=convocatoria,
@@ -545,8 +476,7 @@ async def generate_informe_partido_pdf(
             equipo_nombre=equipo_nombre,
         )
         try:
-            from weasyprint import HTML
-            return HTML(string=html_content).write_pdf()
+            return html_a_pdf(html_content, organizacion, "Informe de partido")
         except ImportError:
             logger.warning("WeasyPrint not available, returning HTML as bytes")
             return html_content.encode("utf-8")
@@ -585,6 +515,7 @@ async def generate_convocatoria_pdf(
 
     def _render() -> bytes:
         html_content = template.render(
+            tema=tema_pdf(organizacion),
             color_primario=color,
             org_nombre=organizacion.get("nombre", "TrainingHub Pro"),
             equipo_nombre=equipo_nombre,
@@ -604,8 +535,7 @@ async def generate_convocatoria_pdf(
             total_convocados=len(convocados),
         )
         try:
-            from weasyprint import HTML
-            return HTML(string=html_content).write_pdf()
+            return html_a_pdf(html_content, organizacion, "Convocatoria")
         except ImportError:
             logger.warning("WeasyPrint not available, returning HTML as bytes")
             return html_content.encode("utf-8")
@@ -1148,6 +1078,7 @@ async def generate_sesion_pdf_v2(
 
     def _render() -> bytes:
         html_content = template.render(
+            tema=tema_pdf(organizacion),
             sesion=sesion_data,
             fases=fases,
             all_tareas=all_tareas,
@@ -1174,8 +1105,7 @@ async def generate_sesion_pdf_v2(
             margen_entrenamientos=margen_entrenamientos or [],
         )
         try:
-            from weasyprint import HTML
-            return HTML(string=html_content).write_pdf()
+            return html_a_pdf(html_content, organizacion, "Sesión")
         except ImportError:
             logger.warning("WeasyPrint not available, returning HTML as bytes")
             return html_content.encode("utf-8")
@@ -1199,6 +1129,7 @@ async def generate_informe_rival_pdf(
 
     def _render() -> bytes:
         html_content = template.render(
+            tema=tema_pdf(organizacion),
             informe=informe,
             partido=partido,
             rival=rival,
@@ -1208,8 +1139,7 @@ async def generate_informe_rival_pdf(
             intel=intel or {},
         )
         try:
-            from weasyprint import HTML
-            return HTML(string=html_content).write_pdf()
+            return html_a_pdf(html_content, organizacion, "Informe rival")
         except ImportError:
             logger.warning("WeasyPrint not available, returning HTML as bytes")
             return html_content.encode("utf-8")
@@ -1268,6 +1198,7 @@ async def generate_informe_rival_standalone_pdf(
 
     def _render() -> bytes:
         html_content = template.render(
+            tema=tema_pdf(organizacion),
             informe=informe,
             rival=rival,
             organizacion=organizacion,
@@ -1282,8 +1213,7 @@ async def generate_informe_rival_standalone_pdf(
             phase_svgs=phase_svgs,
         )
         try:
-            from weasyprint import HTML
-            return HTML(string=html_content).write_pdf()
+            return html_a_pdf(html_content, organizacion, "Informe rival")
         except ImportError:
             logger.warning("WeasyPrint not available, returning HTML as bytes")
             return html_content.encode("utf-8")
@@ -1306,6 +1236,7 @@ async def generate_plan_partido_pdf(
 
     def _render() -> bytes:
         html_content = template.render(
+            tema=tema_pdf(organizacion),
             plan=plan,
             partido=partido,
             rival=rival,
@@ -1314,8 +1245,7 @@ async def generate_plan_partido_pdf(
             color_primario=color_primario,
         )
         try:
-            from weasyprint import HTML
-            return HTML(string=html_content).write_pdf()
+            return html_a_pdf(html_content, organizacion, "Plan de partido")
         except ImportError:
             logger.warning("WeasyPrint not available, returning HTML as bytes")
             return html_content.encode("utf-8")
@@ -1338,6 +1268,7 @@ async def generate_plan_partido_jugadores_pdf(
 
     def _render() -> bytes:
         html_content = template.render(
+            tema=tema_pdf(organizacion),
             plan=plan,
             partido=partido,
             rival=rival,
@@ -1346,8 +1277,7 @@ async def generate_plan_partido_jugadores_pdf(
             color_primario=color_primario,
         )
         try:
-            from weasyprint import HTML
-            return HTML(string=html_content).write_pdf()
+            return html_a_pdf(html_content, organizacion, "Plan de partido · Jugadores")
         except ImportError:
             logger.warning("WeasyPrint not available, returning HTML as bytes")
             return html_content.encode("utf-8")
@@ -1386,6 +1316,7 @@ async def generate_tarea_pdf(
 
     def _render() -> bytes:
         html_content = template.render(
+            tema=tema_pdf(organizacion),
             tarea=tarea,
             color_primario=color,
             org_nombre=organizacion.get("nombre", "TrainingHub Pro"),
@@ -1398,8 +1329,7 @@ async def generate_tarea_pdf(
             descanso_label=format_descanso(tarea.get("tiempo_descanso")),
         )
         try:
-            from weasyprint import HTML
-            return HTML(string=html_content).write_pdf()
+            return html_a_pdf(html_content, organizacion, "Tarea")
         except ImportError:
             logger.warning("WeasyPrint not available, returning HTML as bytes")
             return html_content.encode("utf-8")
@@ -1626,6 +1556,7 @@ async def generate_abp_playbook_pdf(
 
     def _render() -> bytes:
         html_content = template.render(
+            tema=tema_pdf(organizacion),
             grouped=grouped,
             toc=toc,
             equipo_nombre=equipo_nombre,
@@ -1640,8 +1571,7 @@ async def generate_abp_playbook_pdf(
             total_jugadas=len(jugadas),
         )
         try:
-            from weasyprint import HTML
-            return HTML(string=html_content).write_pdf()
+            return html_a_pdf(html_content, organizacion, "Playbook ABP")
         except ImportError:
             logger.warning("WeasyPrint not available, returning HTML as bytes")
             return html_content.encode("utf-8")
@@ -1740,6 +1670,7 @@ async def generate_abp_partido_pdf(
 
     def _render() -> bytes:
         html_content = template.render(
+            tema=tema_pdf(organizacion),
             jugadas_partido=jugadas_partido,
             ofensivas=ofensivas,
             defensivas=defensivas,
@@ -1760,8 +1691,7 @@ async def generate_abp_partido_pdf(
             total_defensivas=len(defensivas),
         )
         try:
-            from weasyprint import HTML
-            return HTML(string=html_content).write_pdf()
+            return html_a_pdf(html_content, organizacion, "ABP · Plan de partido")
         except ImportError:
             logger.warning("WeasyPrint not available, returning HTML as bytes")
             return html_content.encode("utf-8")
@@ -1924,8 +1854,8 @@ async def generate_sesion_pdf_reducido(
     conceptos_line = build_conceptos_line(sesion_data)
 
     def _render() -> bytes:
-        from weasyprint import HTML
         html_content = template.render(
+            tema=tema_pdf(organizacion),
             sesion=sesion_data,
             objetivo_principal=(sesion_data.get("objetivo_principal") or "").strip(),
             org_nombre=organizacion.get("nombre", ""),
@@ -1950,6 +1880,6 @@ async def generate_sesion_pdf_reducido(
             objetivo_fisico=sesion_data.get("objetivo_fisico") or "",
             objetivo_psicologico=sesion_data.get("objetivo_psicologico") or "",
         )
-        return HTML(string=html_content, base_url=str(TEMPLATES_DIR)).write_pdf()
+        return html_a_pdf(html_content, organizacion, "Sesión")
 
     return await asyncio.to_thread(_render)

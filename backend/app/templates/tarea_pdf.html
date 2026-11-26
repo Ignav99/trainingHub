@@ -3,174 +3,69 @@
 <head>
 <meta charset="UTF-8">
 <style>
-@page { size: A4 landscape; margin: 0; }
+/* Ficha de tarea — A4 apaisado, diseño normalizado Kabin-e.
+   Alto útil: 210 − 9 − 15 (pie de marca) = 186 mm; ancho útil 277 mm. */
+@page { size: A4 landscape; margin: 9mm 10mm 15mm 10mm; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
-    font-family: 'Helvetica Neue', Arial, sans-serif;
-    color: #0f172a;
     font-size: 8.5px;
     line-height: 1.3;
     background: #fff;
 }
 
 .page {
-    width: 297mm;
-    height: 210mm;
+    width: 277mm;
+    height: 185mm;
     overflow: hidden;
 }
 
-/* ═══ HEADER 13mm ═══ */
-.hdr {
-    height: 13mm;
-    background: {{ color_primario }};
-    width: 100%;
-    overflow: hidden;
-    padding: 0 13px;
-}
-.hdr-inner {
-    height: 13mm;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-.hdr-left { display: flex; align-items: center; }
-.hdr-logo {
-    width: 28px;
-    height: 28px;
-    object-fit: contain;
-    margin-right: 9px;
-    border-radius: 3px;
-}
-.hdr-initial {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.2);
-    color: white;
-    font-size: 12px;
-    font-weight: 800;
-    text-align: center;
-    line-height: 28px;
-    margin-right: 9px;
-    display: inline-block;
-}
-.hdr-org {
-    color: rgba(255,255,255,0.6);
-    font-size: 7px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 1.2px;
-}
-.hdr-team {
-    color: white;
-    font-size: 12px;
-    font-weight: 800;
-    margin-top: 2px;
-}
-.hdr-right { display: flex; align-items: center; flex-shrink: 0; }
-.hdr-meta { text-align: right; margin-left: 16px; min-width: 0; }
-.hdr-meta-lbl {
-    color: rgba(255,255,255,0.55);
-    font-size: 7px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-}
-.hdr-meta-val {
-    color: white;
-    font-size: 11px;
-    font-weight: 700;
-    margin-top: 1px;
-    white-space: nowrap;
-}
+body .k-cabecera { margin-bottom: 3mm; }
+body .k-cab-titulo { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cab-meta { border-collapse: collapse; }
+.cab-meta td { padding: 0 0 0 5mm; text-align: right; vertical-align: top; }
+.cab-meta .lbl { font-size: 6.5px; color: var(--k-tinta-suave); text-transform: uppercase; letter-spacing: .12em; }
+.cab-meta .val { font-size: 9.5px; font-weight: 600; color: var(--k-tinta); white-space: nowrap; margin-top: .3mm; }
 
-/* ═══ TITLE BAND 11mm ═══ */
-.ttl {
-    height: 11mm;
-    background: #f8fafc;
-    border-bottom: 2.5px solid {{ color_primario }};
-    width: 100%;
-    overflow: hidden;
-    padding: 0 13px;
-    display: flex;
-    align-items: center;
-}
-.ttl-name {
-    font-size: 15px;
-    font-weight: 900;
-    color: #0f172a;
-    letter-spacing: -0.3px;
-    line-height: 1;
-    flex: 1;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-}
-.ttl-badges {
-    display: flex;
-    align-items: center;
-    margin-left: 10px;
-}
-.badge {
-    padding: 2px 7px;
-    border-radius: 3px;
-    font-size: 6.5px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    white-space: nowrap;
-    margin-left: 4px;
-}
-.badge-outline { border: 1.5px solid {{ color_primario }}; color: {{ color_primario }}; }
-.badge-solid   { background: {{ color_primario }}; color: white; }
-.d-alta        { background: #fee2e2; color: #dc2626; }
-.d-media       { background: #fef3c7; color: #d97706; }
-.d-baja        { background: #dcfce7; color: #16a34a; }
-.cog-badge     { background: #6366f1; color: white; }
+/* Chips de la cabecera */
+.badges { margin-top: 1.4mm; }
+.badges .k-chip { margin-right: 1.2mm; }
+/* Densidad: semáforo (semántico) */
+body .k-chip.d-alta  { background: #FEE2E2; color: #B91C1C; }
+body .k-chip.d-media { background: #FEF3C7; color: #92400E; }
+body .k-chip.d-baja  { background: #DCFCE7; color: #166534; }
 
-/* ═══ METRICS STRIP 13mm ═══ */
+/* ═══ MÉTRICAS ═══ */
 .mtr-strip {
-    height: 13mm;
-    background: #0f172a;
     width: 100%;
-    overflow: hidden;
-    display: flex;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: fixed;
+    margin-bottom: 3mm;
 }
 .mtr-cell {
-    flex: 1;
-    border-right: 1px solid rgba(255,255,255,0.07);
-    text-align: center;
-    padding: 3px 4px;
+    background: var(--k-primario-suave);
+    text-align: left;
+    padding: 2.2mm 3.2mm;
+    border-left: .6mm solid #fff;
+    vertical-align: top;
 }
-.mtr-cell:last-child { border-right: none; }
-.mtr-lbl {
-    font-size: 7px;
-    font-weight: 700;
-    color: rgba(255,255,255,0.5);
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    margin-bottom: 2px;
-}
-.mtr-val {
-    font-size: 15px;
-    font-weight: 900;
-    color: white;
-    line-height: 1;
-}
+.mtr-cell.first { border-left: none; border-radius: 2.6mm 0 0 2.6mm; }
+.mtr-cell.last  { border-radius: 0 2.6mm 2.6mm 0; }
+.mtr-cell.first.last { border-radius: 2.6mm; }
+body .mtr-val { font-size: 14pt; }
+body .mtr-val.sm { font-size: 11pt; }
 .mtr-sub {
-    font-size: 7px;
-    color: rgba(255,255,255,0.45);
-    margin-top: 1px;
+    font-size: 6.8px;
+    color: var(--k-tinta-suave);
+    margin-top: .6mm;
 }
 
-/* ═══ BODY TABLE 165mm ═══
-   Table layout is 100% WeasyPrint-safe.
-   Flexbox col fill (flex:1) collapses in WeasyPrint — table-layout:fixed does not.
-   ═══ */
+/* ═══ CUERPO ═══
+   Table layout es lo más fiable en WeasyPrint para 3 columnas de igual alto. */
 .body-tbl {
-    width: 297mm;
-    height: 165mm;
+    width: 277mm;
+    height: 140mm;
     border-collapse: collapse;
     table-layout: fixed;
 }
@@ -180,258 +75,209 @@ body {
     overflow: hidden;
 }
 
-/* ─── Col 1: Campograma 40% ─── */
-.td-campo {
-    width: 40%;
-    border-right: 2px solid #d1d5db;
-}
+/* ─── Col 1: Campograma 42% ─── */
+.td-campo { width: 42%; padding-right: 4mm !important; }
 .campo-diagram-wrap {
-    height: 137mm;
-    background: #173d1a;
+    height: 104mm;
+    border: .25mm solid var(--k-linea);
+    border-radius: 2.6mm;
     overflow: hidden;
     text-align: center;
+    background: #fff;
 }
-/* Force SVG to fill the container — WeasyPrint ignores max-width on SVG */
+/* Forzar al SVG a llenar el contenedor — WeasyPrint ignora max-width en SVG */
 .campo-diagram-wrap svg {
     display: block;
     width: 100% !important;
-    height: 137mm !important;
+    height: 104mm !important;
     max-width: none !important;
 }
 .campo-diagram-wrap img {
     display: block;
     width: 100%;
-    height: auto;
-    max-height: 137mm;
+    height: 104mm;
+    object-fit: contain;
 }
 .campo-empty {
-    color: rgba(255,255,255,0.2);
+    color: var(--k-tinta-suave);
     font-size: 9px;
-    line-height: 3;
-    padding-top: 55mm;
+    padding-top: 48mm;
 }
 .campo-desc {
-    height: 28mm;
-    background: #f1f5f9;
-    border-top: 1px solid #e2e8f0;
-    padding: 5px 10px;
+    height: 33mm;
+    margin-top: 3mm;
     overflow: hidden;
-}
-.campo-desc-lbl {
-    font-size: 7px;
-    font-weight: 800;
-    color: {{ color_primario }};
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-bottom: 3px;
 }
 .campo-desc-text {
     font-size: 8px;
-    color: #374151;
     line-height: 1.5;
+    margin-top: 1mm;
 }
 
-/* ─── Col 2: Tactical 30% ─── */
+/* ─── Col 2 y 3 ─── */
 .td-info {
-    width: 30%;
-    border-right: 1px solid #e2e8f0;
-    padding: 7px 9px;
-    overflow: hidden;
-    height: 165mm;
+    width: 29%;
+    padding: 0 4mm !important;
+    border-left: .25mm solid var(--k-linea);
+    height: 140mm;
 }
-
-/* ─── Col 3: Rules 30% ─── */
 .td-rules {
-    width: 30%;
-    padding: 7px 9px;
-    overflow: hidden;
-    height: 165mm;
+    width: 29%;
+    padding: 0 0 0 4mm !important;
+    border-left: .25mm solid var(--k-linea);
+    height: 140mm;
 }
 
-/* ─── Section headers ─── */
-.sec-hdr {
-    font-size: 8px;
-    font-weight: 800;
-    color: {{ color_primario }};
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    padding-bottom: 3px;
-    border-bottom: 1.5px solid {{ color_primario }};
-    margin-bottom: 6px;
-    margin-top: 10px;
-}
-.sec-hdr.first { margin-top: 0; }
+/* ─── Secciones ─── */
+body .sec-hdr { margin: 4mm 0 2mm; font-size: 9.5pt; }
+body .sec-hdr.first { margin-top: 0; }
+.sec-hdr.vacia { opacity: .35; }
 
-/* ─── Data rows ─── */
-.ic-row { margin-bottom: 4px; }
+/* ─── Datos ─── */
+.ic-row { margin-bottom: 1.6mm; }
 .ic-lbl {
-    font-size: 7px;
-    font-weight: 700;
-    color: #9ca3af;
+    font-size: 6.5px;
+    color: var(--k-tinta-suave);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: .1em;
 }
 .ic-val {
     font-size: 9px;
-    color: #0f172a;
     font-weight: 600;
-    line-height: 1.4;
+    line-height: 1.35;
 }
 
-/* ─── Lists ─── */
+/* ─── Listas ─── */
 .sub-lbl {
-    font-size: 7px;
-    font-weight: 700;
-    color: #6b7280;
+    font-size: 6.5px;
+    font-weight: 600;
+    color: var(--k-primario-texto);
     text-transform: uppercase;
-    letter-spacing: 0.6px;
-    margin-top: 6px;
-    margin-bottom: 3px;
+    letter-spacing: .12em;
+    margin-top: 2mm;
+    margin-bottom: .8mm;
 }
 .rule-list { list-style: none; padding: 0; margin: 0; }
 .rule-list li {
     font-size: 8px;
-    color: #374151;
     line-height: 1.45;
-    padding: 2px 0 2px 10px;
-    border-bottom: 1px dotted #f0f4f8;
+    padding: .7mm 0 .7mm 3.2mm;
+    border-bottom: .2mm solid var(--k-linea);
     position: relative;
 }
 .rule-list li:last-child { border-bottom: none; }
 .rule-list li::before {
-    content: '›';
+    content: '';
     position: absolute;
     left: 0;
-    color: {{ color_primario }};
-    font-weight: 900;
-    font-size: 9px;
-    line-height: 1.1;
+    top: 2.1mm;
+    width: 1.2mm;
+    height: 1.2mm;
+    border-radius: 50%;
+    background: var(--k-primario);
 }
-.mat-item { font-size: 8px; color: #374151; padding: 2px 0; line-height: 1.4; }
-
-/* ═══ FOOTER 8mm ═══ */
-.ftr {
-    height: 8mm;
-    background: #f1f5f9;
-    border-top: 1px solid #e2e8f0;
-    width: 100%;
-    padding: 0 13px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-.ftr-brand { font-weight: 800; color: {{ color_primario }}; font-size: 7px; }
-.ftr-meta  { font-size: 6px; color: #9ca3af; }
+.rule-list li strong { font-weight: 600; }
+.mat-list { margin-top: .5mm; }
+.mat-list .k-chip { margin: 0 1mm 1mm 0; }
 </style>
 </head>
 <body>
 <div class="page">
 
-<!-- ═══ HEADER ═══ -->
-<div class="hdr">
-  <div class="hdr-inner">
-    <div class="hdr-left">
-      {% if org_logo_url %}
-      <img class="hdr-logo" src="{{ org_logo_url }}" alt="{{ org_nombre }}">
-      {% else %}
-      <div class="hdr-initial">{{ (org_nombre[0]|upper) if org_nombre else 'K' }}</div>
+<!-- ═══ CABECERA ═══ -->
+{% set fecha = (tarea.get('created_at') or '')[:10] %}
+{% set eyebrow_txt = [tema.club, equipo_nombre]|select|join(' · ') %}
+<div class="k-cabecera">
+  {% if org_logo_url %}<img class="k-escudo" src="{{ org_logo_url }}" alt="">{% else %}<img class="k-escudo" src="{{ marca_data_uri(tema.primario) }}" alt="">{% endif %}
+  <div class="k-cab-texto">
+    <div class="k-cab-club">{{ eyebrow_txt }}</div>
+    <div class="k-cab-titulo">{{ tarea.get('titulo', 'Tarea de Entrenamiento') }}</div>
+    {% if tarea.get('fase_juego') or tarea.get('densidad') or tarea.get('nivel_cognitivo') %}
+    <div class="badges">
+      {% if tarea.get('fase_juego') %}
+      <span class="k-chip">{{ tarea.get('fase_juego').replace('_', ' ') | title }}</span>
       {% endif %}
-      <div>
-        <div class="hdr-org">{{ org_nombre }}</div>
-        {% if equipo_nombre %}<div class="hdr-team">{{ equipo_nombre }}</div>{% endif %}
-      </div>
+      {% if tarea.get('densidad') %}
+      {% set d = tarea.get('densidad') | lower %}
+      <span class="k-chip {{ 'd-alta' if d=='alta' else 'd-media' if d=='media' else 'd-baja' }}">{{ d | capitalize }}</span>
+      {% endif %}
+      {% if tarea.get('nivel_cognitivo') %}
+      <span class="k-chip k-chip-solido">COG {{ tarea.get('nivel_cognitivo') }}/3</span>
+      {% endif %}
     </div>
-    <div class="hdr-right">
+    {% endif %}
+  </div>
+  {% if tarea.get('codigo') or categoria_nombre or fecha %}
+  <div class="k-cab-meta">
+    <table class="cab-meta"><tr>
       {% if tarea.get('codigo') %}
-      <div class="hdr-meta">
-        <div class="hdr-meta-lbl">Código</div>
-        <div class="hdr-meta-val">{{ tarea.get('codigo') }}</div>
-      </div>
+      <td><div class="lbl">Código</div><div class="val k-mono">{{ tarea.get('codigo') }}</div></td>
       {% endif %}
       {% if categoria_nombre %}
-      <div class="hdr-meta">
-        <div class="hdr-meta-lbl">Categoría</div>
-        <div class="hdr-meta-val">{% if categoria_codigo %}{{ categoria_codigo }} — {% endif %}{{ categoria_nombre }}</div>
-      </div>
+      <td><div class="lbl">Categoría</div><div class="val">{% if categoria_codigo %}{{ categoria_codigo }} — {% endif %}{{ categoria_nombre }}</div></td>
       {% endif %}
-      {% set fecha = tarea.get('created_at', '')[:10] %}
       {% if fecha %}
-      <div class="hdr-meta">
-        <div class="hdr-meta-lbl">Fecha</div>
-        <div class="hdr-meta-val">{{ fecha }}</div>
-      </div>
+      <td><div class="lbl">Fecha</div><div class="val k-mono">{{ fecha }}</div></td>
       {% endif %}
-    </div>
-  </div>
-</div>
-
-<!-- ═══ TITLE BAND ═══ -->
-<div class="ttl">
-  <div class="ttl-name">{{ tarea.get('titulo', 'Tarea de Entrenamiento') }}</div>
-  <div class="ttl-badges">
-    {% if tarea.get('fase_juego') %}
-    <span class="badge badge-outline">{{ tarea.get('fase_juego').replace('_', ' ') | title }}</span>
-    {% endif %}
-    {% if tarea.get('densidad') %}
-    {% set d = tarea.get('densidad') | lower %}
-    <span class="badge {{ 'd-alta' if d=='alta' else 'd-media' if d=='media' else 'd-baja' }}">{{ d | capitalize }}</span>
-    {% endif %}
-    {% if tarea.get('nivel_cognitivo') %}
-    <span class="badge cog-badge">COG {{ tarea.get('nivel_cognitivo') }}/3</span>
-    {% endif %}
-  </div>
-</div>
-
-<!-- ═══ METRICS STRIP ═══ -->
-<div class="mtr-strip">
-  {% if tarea.get('duracion_total') %}
-  <div class="mtr-cell">
-    <div class="mtr-lbl">Duración</div>
-    <div class="mtr-val">{{ tarea.get('duracion_total') }}'</div>
+    </tr></table>
   </div>
   {% endif %}
-  {% if tarea.get('num_series') %}
-  <div class="mtr-cell">
-    <div class="mtr-lbl">Series</div>
-    <div class="mtr-val">{{ tarea.get('num_series') }}{% if tarea.get('duracion_serie') %}×{{ tarea.get('duracion_serie') }}'{% endif %}</div>
+</div>
+
+<!-- ═══ MÉTRICAS ═══ -->
+{% set metricas = [] %}
+{% if tarea.get('duracion_total') %}{% set _ = metricas.append('dur') %}{% endif %}
+{% if tarea.get('num_series') %}{% set _ = metricas.append('series') %}{% endif %}
+{% set _ = metricas.append('jug') %}
+{% if tarea.get('espacio_largo') and tarea.get('espacio_ancho') %}{% set _ = metricas.append('esp') %}{% endif %}
+{% if tarea.get('estructura_equipos') %}{% set _ = metricas.append('est') %}{% endif %}
+{% if tarea.get('m2_por_jugador') %}{% set _ = metricas.append('m2') %}{% endif %}
+<table class="mtr-strip"><tr>
+  {% for m in metricas %}
+  {% set cls = 'mtr-cell' ~ (' first' if loop.first else '') ~ (' last' if loop.last else '') %}
+  {% if m == 'dur' %}
+  <td class="{{ cls }}">
+    <div class="k-dato-label">Duración</div>
+    <div class="k-dato mtr-val">{{ tarea.get('duracion_total') }}'</div>
+  </td>
+  {% elif m == 'series' %}
+  <td class="{{ cls }}">
+    <div class="k-dato-label">Series</div>
+    <div class="k-dato mtr-val">{{ tarea.get('num_series') }}{% if tarea.get('duracion_serie') %}×{{ tarea.get('duracion_serie') }}'{% endif %}</div>
     {% if descanso_label %}<div class="mtr-sub">desc {{ descanso_label }}</div>{% endif %}
-  </div>
-  {% endif %}
-  <div class="mtr-cell">
-    <div class="mtr-lbl">Jugadores</div>
-    <div class="mtr-val">{{ tarea.get('num_jugadores_min', '—') }}{% if tarea.get('num_jugadores_max') and tarea.get('num_jugadores_max') != tarea.get('num_jugadores_min') %}–{{ tarea.get('num_jugadores_max') }}{% endif %}</div>
+  </td>
+  {% elif m == 'jug' %}
+  <td class="{{ cls }}">
+    <div class="k-dato-label">Jugadores</div>
+    <div class="k-dato mtr-val">{{ tarea.get('num_jugadores_min', '—') }}{% if tarea.get('num_jugadores_max') and tarea.get('num_jugadores_max') != tarea.get('num_jugadores_min') %}–{{ tarea.get('num_jugadores_max') }}{% endif %}</div>
     {% if tarea.get('num_porteros', 0) > 0 %}<div class="mtr-sub">+{{ tarea.get('num_porteros') }} POR</div>{% endif %}
-  </div>
-  {% if tarea.get('espacio_largo') and tarea.get('espacio_ancho') %}
-  <div class="mtr-cell">
-    <div class="mtr-lbl">Espacio</div>
-    <div class="mtr-val" style="font-size:12px;">{{ tarea.get('espacio_largo')|int }}×{{ tarea.get('espacio_ancho')|int }}m</div>
+  </td>
+  {% elif m == 'esp' %}
+  <td class="{{ cls }}">
+    <div class="k-dato-label">Espacio</div>
+    <div class="k-dato mtr-val sm">{{ tarea.get('espacio_largo')|int }}×{{ tarea.get('espacio_ancho')|int }}m</div>
     {% if tarea.get('espacio_forma') %}<div class="mtr-sub">{{ tarea.get('espacio_forma') }}</div>{% endif %}
-  </div>
+  </td>
+  {% elif m == 'est' %}
+  <td class="{{ cls }}">
+    <div class="k-dato-label">Estructura</div>
+    <div class="k-dato mtr-val sm">{{ tarea.get('estructura_equipos') }}</div>
+  </td>
+  {% elif m == 'm2' %}
+  <td class="{{ cls }}">
+    <div class="k-dato-label">m²/jug</div>
+    <div class="k-dato mtr-val sm">{{ tarea.get('m2_por_jugador') }}</div>
+  </td>
   {% endif %}
-  {% if tarea.get('estructura_equipos') %}
-  <div class="mtr-cell">
-    <div class="mtr-lbl">Estructura</div>
-    <div class="mtr-val" style="font-size:11px;">{{ tarea.get('estructura_equipos') }}</div>
-  </div>
-  {% endif %}
-  {% if tarea.get('m2_por_jugador') %}
-  <div class="mtr-cell">
-    <div class="mtr-lbl">m²/jug</div>
-    <div class="mtr-val" style="font-size:12px;">{{ tarea.get('m2_por_jugador') }}</div>
-  </div>
-  {% endif %}
-</div>
+  {% endfor %}
+</tr></table>
 
-<!-- ═══ BODY TABLE ═══
-     Table layout is the only WeasyPrint-safe way to get 3 equal-height columns.
-     flex:1 to fill remaining height collapses silently in WeasyPrint.
-     ═══ -->
+<!-- ═══ CUERPO: 3 columnas (tabla = alto igual fiable en WeasyPrint) ═══ -->
 <table class="body-tbl">
   <colgroup>
-    <col style="width:40%;">
-    <col style="width:30%;">
-    <col style="width:30%;">
+    <col style="width:42%;">
+    <col style="width:29%;">
+    <col style="width:29%;">
   </colgroup>
   <tbody>
   <tr>
@@ -449,7 +295,7 @@ body {
       </div>
       <div class="campo-desc">
         {% if tarea.get('descripcion') %}
-        <div class="campo-desc-lbl">Descripción</div>
+        <div class="k-eyebrow">Descripción</div>
         <div class="campo-desc-text">{{ tarea.get('descripcion') }}</div>
         {% endif %}
       </div>
@@ -459,7 +305,7 @@ body {
     <td class="td-info">
 
       {% if tarea.get('fase_juego') or tarea.get('principio_tactico') or tarea.get('intencion_tactica') or tarea.get('accion_tecnica') %}
-      <div class="sec-hdr first">Contenido Táctico</div>
+      <div class="k-seccion sec-hdr first">Contenido Táctico</div>
       {% if tarea.get('fase_juego') %}
       <div class="ic-row">
         <div class="ic-lbl">Fase de juego</div>
@@ -492,11 +338,11 @@ body {
       {% endif %}
       {% else %}
       <!-- No tactical data — show placeholder so column isn't blank -->
-      <div class="sec-hdr first" style="opacity:0.3;">Contenido Táctico</div>
+      <div class="k-seccion sec-hdr first vacia">Contenido Táctico</div>
       {% endif %}
 
       {% if tarea.get('objetivo_fisico') or tarea.get('objetivo_psicologico') %}
-      <div class="sec-hdr">Objetivos</div>
+      <div class="k-seccion sec-hdr">Objetivos</div>
       {% if tarea.get('objetivo_fisico') %}
       <div class="ic-row">
         <div class="ic-lbl">Físico</div>
@@ -512,7 +358,7 @@ body {
       {% endif %}
 
       {% if tarea.get('tipo_esfuerzo') or tarea.get('fc_esperada_min') or tarea.get('ratio_trabajo_descanso') %}
-      <div class="sec-hdr">Carga Física</div>
+      <div class="k-seccion sec-hdr">Carga Física</div>
       {% if tarea.get('tipo_esfuerzo') %}
       <div class="ic-row">
         <div class="ic-lbl">Tipo de esfuerzo</div>
@@ -534,10 +380,8 @@ body {
       {% endif %}
 
       {% if tarea.get('material') %}
-      <div class="sec-hdr">Material</div>
-      {% for m in tarea.get('material', []) %}
-      <div class="mat-item">• {{ m }}</div>
-      {% endfor %}
+      <div class="k-seccion sec-hdr">Material</div>
+      <div class="mat-list">{% for m in tarea.get('material', []) %}<span class="k-chip">{{ m }}</span>{% endfor %}</div>
       {% endif %}
 
     </td>
@@ -549,7 +393,7 @@ body {
       {% set reg_tac = tarea.get('reglas_tacticas', []) or [] %}
       {% set reg_psi = tarea.get('reglas_psicologicas', []) or [] %}
       {% if reg_tec or reg_tac or reg_psi %}
-      <div class="sec-hdr first">Reglas</div>
+      <div class="k-seccion sec-hdr first">Reglas</div>
       {% if reg_tec %}
       <div class="sub-lbl">Técnicas</div>
       <ul class="rule-list">{% for r in reg_tec %}<li>{{ r }}</li>{% endfor %}</ul>
@@ -563,13 +407,13 @@ body {
       <ul class="rule-list">{% for r in reg_psi %}<li>{{ r }}</li>{% endfor %}</ul>
       {% endif %}
       {% else %}
-      <div class="sec-hdr first" style="opacity:0.3;">Reglas</div>
+      <div class="k-seccion sec-hdr first vacia">Reglas</div>
       {% endif %}
 
       {% set cons_of  = tarea.get('consignas_ofensivas', [])  or [] %}
       {% set cons_def = tarea.get('consignas_defensivas', []) or [] %}
       {% if cons_of or cons_def %}
-      <div class="sec-hdr">Consignas</div>
+      <div class="k-seccion sec-hdr">Consignas</div>
       {% if cons_of %}
       <div class="sub-lbl">Ofensivas</div>
       <ul class="rule-list">{% for c in cons_of %}<li>{{ c }}</li>{% endfor %}</ul>
@@ -585,11 +429,11 @@ body {
       {% set progresiones = tarea.get('progresiones', [])   or [] %}
       {% set regresiones  = tarea.get('regresiones', [])    or [] %}
       {% if errores %}
-      <div class="sec-hdr">Errores Comunes</div>
+      <div class="k-seccion sec-hdr">Errores Comunes</div>
       <ul class="rule-list">{% for e in errores %}<li>{{ e }}</li>{% endfor %}</ul>
       {% endif %}
       {% if variantes or progresiones or regresiones %}
-      <div class="sec-hdr">Variantes</div>
+      <div class="k-seccion sec-hdr">Variantes</div>
       <ul class="rule-list">
         {% for v in variantes %}<li>{{ v }}</li>{% endfor %}
         {% if progresiones %}<li><strong>Prog:</strong> {{ progresiones | join(' / ') }}</li>{% endif %}
@@ -602,13 +446,6 @@ body {
   </tr>
   </tbody>
 </table>
-
-<!-- ═══ FOOTER ═══ -->
-<div class="ftr">
-  <span class="ftr-brand">Kabin-e</span>
-  <span class="ftr-meta">{{ org_nombre }}{% if equipo_nombre %} · {{ equipo_nombre }}{% endif %}</span>
-  <span class="ftr-meta">{{ tarea.get('created_at', '')[:10] if tarea.get('created_at') else '' }}</span>
-</div>
 
 </div>
 </body>

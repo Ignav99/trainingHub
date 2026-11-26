@@ -25,6 +25,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ColorPicker } from '@/components/ui/color-picker'
 import { EscudoUploadField } from '@/components/ui/escudo-upload-field'
+import { VistaPreviaDocumento } from '@/components/configuracion/VistaPreviaDocumento'
 import { toast } from 'sonner'
 import { Estado } from '@/components/ui/estado'
 import { useAppearance } from '@/lib/useAppearance'
@@ -273,17 +274,32 @@ export default function ConfiguracionPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <ColorPicker label="Color primario" value={colorPrimario} onChange={setColorPrimario} />
-                <ColorPicker label="Color secundario" value={colorSecundario} onChange={setColorSecundario} />
-              </div>
+              <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,300px)]">
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <ColorPicker label="Color primario" value={colorPrimario} onChange={setColorPrimario} />
+                    <ColorPicker label="Color secundario" value={colorSecundario} onChange={setColorSecundario} />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Estos colores y el escudo se aplican a todo lo que exportas: sesiones, tareas, convocatorias,
+                    informes de partido y de rival, plan de partido, ABP, informes y calendario.
+                  </p>
 
-              <EscudoUploadField
-                value={theme.logoUrl}
-                name={clubName || 'Club'}
-                disabled={uploadingLogo}
-                onFileSelect={handleLogoUpload}
-              />
+                  <EscudoUploadField
+                    value={theme.logoUrl}
+                    name={clubName || 'Club'}
+                    disabled={uploadingLogo}
+                    onFileSelect={handleLogoUpload}
+                  />
+                </div>
+
+                <VistaPreviaDocumento
+                  colorPrimario={colorPrimario}
+                  colorSecundario={colorSecundario}
+                  club={clubName}
+                  logoUrl={theme.logoUrl}
+                />
+              </div>
 
               <Separator />
 
