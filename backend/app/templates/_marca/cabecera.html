@@ -1,14 +1,15 @@
-{# Cabecera normalizada de los PDF de Kabin-e.
+{# Cabecera Cal (papel) de los PDF de Kabin-e.
    Uso: {% from "_marca/cabecera.html" import cabecera %}
-        {{ cabecera(tema, titulo="Sesión 12", subtitulo="Microciclo 4 · MD-3", meta="Lunes 3 nov · 19:00") }} #}
+        {{ cabecera(tema, titulo="Sesión 12", subtitulo="Microciclo 4 · MD-3", meta="Lunes 3 nov · 19:00") }}
+   Escudo · club en rótulo · título en Encode Sans ancha · meta a la derecha · una línea de tinta. #}
 {% macro cabecera(tema, titulo, subtitulo="", meta="", eyebrow="") -%}
-<div class="k-cabecera">
-  {% if tema.logo_url %}<img class="k-escudo" src="{{ tema.logo_url }}" alt="">{% else %}<img class="k-escudo" src="{{ marca_data_uri(tema.primario) }}" alt="">{% endif %}
-  <div class="k-cab-texto">
-    <div class="k-cab-club">{{ eyebrow or tema.club }}</div>
-    <div class="k-cab-titulo">{{ titulo }}</div>
-    {% if subtitulo %}<div class="k-cab-sub">{{ subtitulo }}</div>{% endif %}
+<div class="c-cabecera">
+  {% if tema.logo_url %}<img class="c-escudo" src="{{ tema.logo_url }}" alt="">{% else %}<img class="c-escudo" src="{{ marca_data_uri(tema.color_club) }}" alt="">{% endif %}
+  <div class="c-cab-texto">
+    <div class="c-cab-club">{{ eyebrow or tema.club }}</div>
+    <div class="c-cab-titulo">{{ titulo }}</div>
+    {% if subtitulo %}<div class="c-cab-sub">{{ subtitulo }}</div>{% endif %}
   </div>
-  {% if meta %}<div class="k-cab-meta">{{ meta }}</div>{% endif %}
+  {% if meta %}<div class="c-cab-meta">{{ meta }}</div>{% endif %}
 </div>
 {%- endmacro %}
