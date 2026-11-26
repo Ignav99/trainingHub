@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
-import { applyAppearance, nextAppearance, readAppearance } from '@/lib/appearance'
 import { apiKey } from '@/lib/swr'
 import { filtrarComandos, type Comando } from '@/lib/comandos'
 import { useMontado } from '@/lib/useAppearance'
@@ -73,18 +72,7 @@ export function PaletaComandos() {
     }
   )
 
-  const cambiarAspecto = useCallback(() => {
-    applyAppearance(nextAppearance(readAppearance()))
-  }, [])
-
   const todos = useMemo<Item[]>(() => {
-    const aspecto: Item = {
-      id: 'acc:aspecto',
-      titulo: 'Cambiar aspecto',
-      grupo: GRUPO_ACCIONES,
-      palabras: ['tema', 'cal', 'acta', 'clasico', 'oscuro', 'visual'],
-      accion: cambiarAspecto,
-    }
     const jugadores: Item[] = (respuesta?.data ?? []).map((j) => ({
       id: `jug:${j.id}`,
       titulo: `${j.nombre} ${j.apellidos}`.trim(),
@@ -93,8 +81,8 @@ export function PaletaComandos() {
       palabras: [j.apodo ?? '', j.dorsal != null ? String(j.dorsal) : '', j.posicion_principal ?? ''].filter(Boolean),
     }))
     // Con la consulta vacía no se vuelca toda la plantilla en la lista.
-    return consulta.trim() ? [...NAVEGACION, aspecto, ...jugadores] : [...NAVEGACION, aspecto]
-  }, [respuesta, consulta, cambiarAspecto])
+    return consulta.trim() ? [...NAVEGACION, ...jugadores] : [...NAVEGACION]
+  }, [respuesta, consulta])
 
   const visibles = useMemo(() => agrupar(filtrarComandos(todos, consulta)), [todos, consulta])
 

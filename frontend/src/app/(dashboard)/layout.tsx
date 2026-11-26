@@ -46,7 +46,6 @@ import { LimiteError } from '@/components/errores/LimiteError'
 import { SemanaTira } from '@/components/semana/SemanaTira'
 import { Toaster } from '@/components/ui/toast'
 import { MobileBottomNav } from '@/components/ui/mobile-nav'
-import { AppearanceToggle } from '@/components/appearance/AppearanceToggle'
 import { InstallPrompt } from '@/components/ui/install-prompt'
 import { PaletaComandos, PaletaBoton } from '@/components/comandos/PaletaComandos'
 import { registerServiceWorker } from '@/lib/register-sw'
@@ -705,7 +704,6 @@ const SidebarContent = memo(function SidebarContent({
 
           <li className={cn((isClubOnlyRole || equipos.length <= 1) && 'mt-auto')}>
             {!collapsed && <PaletaBoton className="mb-1 w-full" />}
-            <AppearanceToggle collapsed={collapsed} />
             <button
               onClick={onLogout}
               title={collapsed ? 'Cerrar sesión' : undefined}

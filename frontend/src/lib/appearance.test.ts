@@ -1,26 +1,17 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { appearanceBootScript, appearanceLabel, nextAppearance, parseAppearance } from './appearance.ts'
+import { appearanceBootScript, appearanceLabel, parseAppearance, readAppearance } from './appearance.ts'
 
 describe('appearance', () => {
-  it('desconocido o vacío es acta', () => {
-    assert.equal(parseAppearance(null), 'acta')
-    assert.equal(parseAppearance('otro'), 'acta')
-    assert.equal(parseAppearance('clasico'), 'clasico')
-    assert.equal(parseAppearance('cal'), 'cal')
+  it('Cal es el único aspecto: cualquier valor guardado resuelve a cal', () => {
+    for (const v of [null, undefined, '', 'acta', 'clasico', 'otro', 'cal']) {
+      assert.equal(parseAppearance(v), 'cal')
+    }
+    assert.equal(readAppearance(), 'cal')
+    assert.equal(appearanceLabel(), 'Cal')
   })
-  it('rota acta → cal → clasico → acta', () => {
-    assert.equal(nextAppearance('acta'), 'cal')
-    assert.equal(nextAppearance('cal'), 'clasico')
-    assert.equal(nextAppearance('clasico'), 'acta')
-  })
-  it('tiene nombre en español', () => {
-    assert.equal(appearanceLabel('clasico'), 'Clásico')
-    assert.equal(appearanceLabel('cal'), 'Cal')
-    assert.equal(appearanceLabel('acta'), 'Acta')
-  })
-  it('el arranque aplica cal y clasico, nunca acta', () => {
-    assert.match(appearanceBootScript, /v==='clasico'\|\|v==='cal'/)
-    assert.match(appearanceBootScript, /kabine-appearance:v1/)
+  it('el arranque fija cal y borra la preferencia antigua', () => {
+    assert.match(appearanceBootScript, /setAttribute\('data-appearance','cal'\)/)
+    assert.match(appearanceBootScript, /removeItem\('kabine-appearance:v1'\)/)
   })
 })

@@ -6,8 +6,6 @@ import { useRouter } from 'next/navigation'
 import { ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { isClubAdminRole, isSuperadminRole } from '@/lib/roles'
-import { PorAspecto } from '@/components/appearance/PorAspecto'
-import { PuertaCal } from '@/components/puerta/PuertaCal'
 import { AuthShell, authButton, authInput, authLabel, authLink } from '@/components/auth/AuthShell'
 
 export default function LoginPage() {
@@ -134,17 +132,8 @@ export default function LoginPage() {
   )
 
   return (
-    <PorAspecto
-      resto={
-        <AuthShell titulo="Hola de nuevo" subtitulo="Entra con tu cuenta del club." pie={pie}>
-          {formulario}
-        </AuthShell>
-      }
-      cal={
-        <PuertaCal rotulo="Acceso" titulo="Accede a tu cuenta" pie={pie}>
-          {formulario}
-        </PuertaCal>
-      }
-    />
+    <AuthShell titulo="Hola de nuevo" subtitulo="Entra con tu cuenta del club." pie={pie}>
+      {formulario}
+    </AuthShell>
   )
 }

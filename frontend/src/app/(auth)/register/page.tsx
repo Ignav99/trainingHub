@@ -5,8 +5,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Loader2, Building2 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
-import { PorAspecto } from '@/components/appearance/PorAspecto'
-import { PuertaCal } from '@/components/puerta/PuertaCal'
 import { AuthShell, authButton, authInput, authLabel } from '@/components/auth/AuthShell'
 
 
@@ -261,21 +259,9 @@ export default function RegisterPage() {
   )
 
   return (
-    <PorAspecto
-      resto={
-        <AuthShell titulo="Crea tu cuenta" subtitulo="Configura tu club en un par de minutos." pie={pie}>
-          <div className="mb-8">{indicador}</div>
-          {formulario}
-        </AuthShell>
-      }
-      cal={
-        <PuertaCal rotulo="Alta" titulo="Crea tu cuenta" pie={pie}>
-          <div className="space-y-6">
-            {indicador}
-            {formulario}
-          </div>
-        </PuertaCal>
-      }
-    />
+    <AuthShell titulo="Crea tu cuenta" subtitulo="Configura tu club en un par de minutos." pie={pie}>
+      <div className="mb-8">{indicador}</div>
+      {formulario}
+    </AuthShell>
   )
 }
