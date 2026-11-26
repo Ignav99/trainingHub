@@ -1,5 +1,9 @@
 # TrainingHub — estado actual
 
+## Homografía, solo raya blanca (26 nov 2026, PR #512 mergeada ~18:53 Madrid)
+Nota de la homografía lista para pintar: 4/10. Detalle y desglose en `docs/VISION_MEMORIA.md` (sección del 26 nov). El fútbol 11 es la pintura blanca. `_bright_thin` tira el naranja (azul hundido, sat>=100) y el amarillo de fútbol 7 (tono<=32, sat>=78, rojo por encima del verde). El césped de la máscara es verde saturado (`_pitch_turf`), así que grada y carteles salen. Trazo gordo (jugador, logo) fuera por radio. Banco: prueba2 de noche marca círculo, medular, área y bandas, sin naranja ni grada. El mejor ajuste (ancho estimado 60,5 m) sienta círculo, medular, banda cercana y el área; la banda lejana queda un poco alta. Puerta: fwd 3,9 > 3 y anillo 6,9 > 6, así que no se acepta y no se pinta. De día, «Inicio» casi no ve la blanca (el amarillo de fútbol 7 ya no entra) y «Bloque bajo» marca el círculo y la medular a trozos. `pitch_people` caja a quien hace hueco claro en el césped: en prueba2 unos pocos de cerca, faltan los lejanos y los de camiseta verde-amarilla. No pasar a tracking.
+
+
 ## Bajas, ABP y presentar (13 nov 2026)
 Melchor Jiménez (14) y Alberto Heredero (20) estaban `estado=baja` sin registro médico. Quedaron `activo` / `pleno`. Joaquín Vargas y Álex Romero siguen lesionados. Trigger `jugadores_baja_requiere_lesion` (migración 093): un `estado=baja` sin lesión en reposo, margen o inicio grupo vuelve a disponible; con lesión, el estado sigue a esa fase. El panel del jugador en el editor ABP va en la columna de roles (`ElementEditPanel docked`), no encima del campo. Presentar informe/plan pregunta «Solo en este ordenador» o «Con tablet»; el QR de la charla se cierra con «Entrar sin tablet».
 
