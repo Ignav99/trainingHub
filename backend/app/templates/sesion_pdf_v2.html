@@ -2,788 +2,328 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>{{ org_nombre }} — {{ sesion.get('match_day','') }} Sesion {{ sesion.get('fecha','') }}</title>
+<title>{{ org_nombre }} — {{ sesion.get('match_day','') }} Sesión {{ sesion.get('fecha','') }}</title>
 <style>
-/* Sesión PDF extendido — diseño normalizado Kabin-e.
-   Portada A4 apaisada (resumen) + páginas A4 verticales de detalle.
-   Los @page con nombre deben repetir margin-bottom: 15mm (pie de marca),
-   porque una regla @page con nombre pisa a la @page base. */
+/* Sesión PDF extendido — Cal, papel (docs/design/pdf-marca.md).
+   Portada A4 apaisada (todas las tareas, todas las pizarras) + páginas A4 verticales de detalle:
+   pizarra grande, descripción y normas de provocación. Los @page con nombre repiten
+   margin-bottom 15mm (pie de marca) porque una @page con nombre pisa a la base. */
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-  font-size: 9px;
-  line-height: 1.35;
-  -webkit-print-color-adjust: exact;
-  print-color-adjust: exact;
-}
+body { font-size: 8.4pt; line-height: 1.35; }
 @page cover { size: A4 landscape; margin: 8mm 9mm 15mm 9mm; }
 @page detail { size: A4 portrait; margin: 10mm 10mm 15mm 10mm; }
+.page-landscape { page: cover; width: 279mm; height: 186mm; overflow: hidden; }
+.page-portrait { page: detail; width: 190mm; page-break-before: always; }
 
-.page-landscape {
-  page: cover;
-  width: 279mm;
-  height: 186mm;
-  overflow: hidden;
-}
-.page-portrait {
-  page: detail;
-  width: 190mm;
-  page-break-before: always;
-}
+.c-cabecera { margin-bottom: 2.4mm; }
+.c-cab-titulo { max-height: 2.2em; overflow: hidden; }
+.meta { white-space: nowrap; text-align: right; font-size: 8pt; line-height: 1.35; }
+.meta b { font-size: 15pt; font-weight: 800; }
+.md-sw { display: inline-block; width: 2.4mm; height: 2.4mm; margin-right: 1mm; vertical-align: -.2mm; border-radius: .3mm; }
 
-/* Cabecera de marca */
-body .k-cabecera { margin-bottom: 3mm; }
-body .k-cab-titulo { max-height: 2.2em; overflow: hidden; }
-.cab-stats { border-collapse: collapse; margin-left: auto; }
-.cab-stats td { padding: 0 0 0 4.5mm; vertical-align: middle; text-align: right; }
-.cab-stats .k-dato { font-size: 15pt; }
-.cab-chips { margin-top: 1.2mm; text-align: right; white-space: nowrap; }
-.cab-chips .k-chip { margin-left: 1mm; }
-.carga { font-weight: 600; color: var(--k-tinta); text-transform: uppercase; letter-spacing: .04em; }
+.linea { height: 6.5mm; overflow: hidden; white-space: nowrap; line-height: 6.5mm; font-size: 8.2pt; border-bottom: .25mm solid var(--c-borde); }
+.linea .c-rotulo { margin-right: 2mm; }
+.linea b { font-weight: 700; }
 
-/* Conceptos + objetivo */
-.concepts {
-  font-size: 8px; background: var(--k-primario-suave);
-  border-radius: 1.6mm; padding: 1.4mm 2.6mm; margin: 0 0 2mm; line-height: 1.3;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.concepts .k-eyebrow, .objetivo-bar .k-eyebrow { margin-right: 2mm; }
-.objetivo-bar {
-  border: .25mm solid var(--k-linea); border-left: 1mm solid var(--k-primario);
-  border-radius: 1.6mm; padding: 1.6mm 2.6mm; margin: 0 0 2.5mm;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.objetivo-text { font-size: 9px; font-weight: 600; }
-.objetivo-sep { color: #B5BAD0; margin: 0 1.5mm; }
+/* Convocatoria: una fila por grupo, fichas con dorsal */
+.rost { width: 100%; border-collapse: collapse; margin: 1mm 0; }
+.rost td { vertical-align: top; padding: .6mm 0; border-bottom: .25mm solid var(--c-borde); }
+.rost td.l { width: 20mm; padding-top: 1.6mm; }
+.rost .rj { display: inline-block; white-space: nowrap; margin: 0 2.4mm 0 0; font-size: 7.4pt; }
+.rost .fch { width: 4.6mm; height: 4.6mm; line-height: 3.8mm; font-size: 5.8pt; margin-right: .7mm; vertical-align: middle; }
+.rost .mo { color: var(--c-suave); font-size: 6.6pt; margin-left: .6mm; }
+.rost .fi { font-size: 6pt; color: var(--c-suave); margin-left: .5mm; }
 
-/* Convocatoria */
-.asistencia-roster {
-  width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed;
-  margin: 0 0 2.5mm;
-}
-.asistencia-roster td.asistencia-group {
-  vertical-align: top; padding: 1.8mm 2.4mm;
-  border: .25mm solid var(--k-linea); border-left: none;
-}
-.asistencia-roster td.asistencia-group:first-child { border-left: .25mm solid var(--k-linea); border-radius: 2.6mm 0 0 2.6mm; }
-.asistencia-roster td.asistencia-group:last-child { border-radius: 0 2.6mm 2.6mm 0; }
-.asistencia-roster td.asistencia-group:first-child:last-child { border-radius: 2.6mm; }
-.asistencia-group-label {
-  font-size: 6.8px; text-transform: uppercase; letter-spacing: .12em;
-  font-weight: 600; margin-bottom: 1mm;
-}
-/* Estado de disponibilidad (semántico) */
-.asistencia-group-label-sesion { color: var(--k-primario-texto); }
-.asistencia-group-label-fisio { color: #6D28D9; }
-.asistencia-group-label-margen { color: #B45309; }
-.asistencia-group-label-ausentes { color: #B91C1C; }
-.asistencia-list { font-size: 7.5px; line-height: 1.45; }
-.asistencia-item { display: inline-block; white-space: nowrap; margin-right: 2.6mm; }
-.asistencia-item-ausente { color: var(--k-tinta-suave); }
-.asistencia-dorsal { font-size: 6.5px; color: var(--k-tinta-suave); margin-right: .6mm; }
-.asistencia-badge {
-  display: inline-block; font-size: 5.5px; font-weight: 600;
-  padding: 0 1mm; border-radius: 9mm; margin-left: .6mm;
-}
-.badge-fisio { background: #EDE9FE; color: #6D28D9; }
-.asistencia-motivo { color: #B91C1C; font-size: 6.5px; margin-left: .6mm; }
+/* Rejilla de portada */
+table.rej { border-collapse: separate; border-spacing: 1.5mm; table-layout: fixed; width: calc(100% + 3mm); margin: 0 -1.5mm; }
+td.cel { vertical-align: top; padding: 0; border: .25mm solid var(--c-borde); border-radius: .5mm; }
+td.vacia { border: .25mm dashed var(--c-borde); }
+.in { padding: 1.2mm 1.8mm; overflow: hidden; }
+.ch { display: flex; height: 5.4mm; line-height: 5.4mm; white-space: nowrap; overflow: hidden; border-bottom: .25mm solid var(--c-borde); margin-bottom: 1mm; }
+.ch .lt { flex: 1; min-width: 0; overflow: hidden; font-weight: 800; }
+.ch .num { color: var(--c-suave); margin-right: 1.2mm; }
+.ch .sig { font-family: "Encode Sans Narrow", sans-serif !important; font-weight: 700; font-size: 6.6pt; letter-spacing: .06em; margin-right: 1.2mm; }
+.ch .dur { flex: none; margin-left: 1.5mm; font-weight: 800; }
+.bd { border: .25mm solid var(--c-borde); border-radius: .5mm; overflow: hidden; text-align: center; }
+.bd img { width: 100%; height: 100%; object-fit: contain; }
+.bd svg { width: 100%; height: 100%; }
+.inf { height: 4mm; line-height: 4mm; margin-top: .8mm; font-size: 6.8pt; color: var(--c-suave); white-space: nowrap; overflow: hidden; }
+.leyenda { font-size: 6.4pt; color: var(--c-suave); margin-top: 1mm; text-align: right; }
 
-/* Rejilla de ejercicios de la portada */
-.ex-table { width: 100%; border-collapse: separate; border-spacing: 0 2mm; table-layout: fixed; margin-top: -2mm; }
-.ex-table td {
-  vertical-align: top; padding: 0;
-  border: .25mm solid var(--k-linea); border-radius: 2.6mm; background: #fff;
-}
-.ex-table td.ex-gap { border: none; width: 2.5mm; }
-.ex-card { padding: 2.2mm 2.6mm; }
-.ex-table td.ex-empty {
-  background: transparent; border: .25mm dashed var(--k-linea);
-  color: #B5BAD0; text-align: center; vertical-align: middle;
-}
-.ex-card-header { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 1mm; }
-.ex-card-header td { border: none !important; border-radius: 0 !important; padding: 0; vertical-align: baseline; }
-.ex-num { color: var(--k-primario-texto); font-size: 8px; }
-.ex-type-badge { margin: 0 1mm; }
-.ex-name { font-size: 9px; font-weight: 800; letter-spacing: -.01em;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ex-dur { font-size: 7.5px; color: var(--k-tinta-suave); text-align: right; }
-.ex-objetivo {
-  font-size: 7px; color: var(--k-tinta-suave); margin-bottom: 1mm;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.campo-mini-wrap {
-  border-radius: 1.6mm; margin: 1mm 0; overflow: hidden; text-align: center;
-}
-.campo-mini-wrap img { max-width: 100%; object-fit: contain; }
-.campo-mini-wrap svg { width: 100%; height: 100%; display: block; }
-.ex-petos { margin-top: 1mm; }
-.ex-petos-grid { font-size: 6.5px; }
+/* Detalle */
+.ph-meta { text-align: right; white-space: nowrap; }
+.ph-num { font-size: 20pt; font-weight: 800; line-height: 1; }
+.ph-cat { font-size: 7.6pt; margin-top: 1mm; }
+.datos { width: 100%; border-collapse: collapse; table-layout: fixed; margin: 0 0 2.4mm; border-bottom: .25mm solid var(--c-borde); }
+.datos td { padding: 0 0 1.6mm; vertical-align: bottom; }
+.datos .c-dato { font-size: 13pt; }
+.matl { margin-bottom: 2.2mm; font-size: 8pt; }
+.matl .c-rotulo { margin-right: 1.6mm; }
+.coach { margin-bottom: 2.4mm; font-size: 8pt; }
+.coach b { font-weight: 700; }
+.c-seccion { margin-top: 3mm; }
+.pz { text-align: center; padding: 1.5mm; }
+.pz img { max-height: 98mm; max-width: 100%; width: auto; object-fit: contain; }
+.pz svg { width: 100%; height: auto; max-height: 98mm; }
+table.cols { width: 100%; border-collapse: collapse; table-layout: fixed; }
+table.cols td.col { vertical-align: top; padding: 0; }
+table.cols td.gap { width: 6mm; }
+.cols .c-seccion { font-size: 9.2pt; margin: 2.4mm 0 1.8mm; }
+.txt { font-size: 8.2pt; line-height: 1.42; margin-bottom: 1.8mm; }
+.rot { margin: 2mm 0 .8mm; }
+.lista { list-style: none; margin: 0 0 1.6mm; padding: 0; font-size: 8.2pt; }
+.lista li { padding: .6mm 0 .6mm 3.2mm; border-bottom: .2mm solid var(--c-borde); position: relative; }
+.lista li:last-child { border-bottom: none; }
+.lista li::before { content: ""; position: absolute; left: .2mm; top: 1.9mm; width: 1.2mm; height: 1.2mm; border-radius: 50%; background: var(--c-club); }
+.cons { font-size: 8.2pt; margin-bottom: 1mm; }
+.cons b { display: inline-block; min-width: 5mm; font-weight: 800; color: var(--c-club); }
+.equipo-block { margin-bottom: 1.2mm; font-size: 8pt; }
+.equipo-name { font-weight: 600; }
+.equipo-dot { display: inline-block; width: 2.2mm; height: 2.2mm; border-radius: 50%; margin-right: 1.2mm; vertical-align: -.2mm; border: .25mm solid var(--c-suave); }
+.equipo-jugadores { color: var(--c-suave); font-size: 7.6pt; padding-left: 3.4mm; }
+.peto-negro { background: #111827; } .peto-blanco { background: #fff; } .peto-gris { background: #9CA3AF; } .peto-verde { background: #22C55E; }
 .ex-peto-row { margin-bottom: .4mm; }
 .ex-peto-row > div { display: inline; }
-.ex-peto-row > div.ex-peto-dot { display: inline-block; }
-.ex-peto-dot {
-  display: inline-block; width: 2mm; height: 2mm; border-radius: 50%;
-  margin-right: 1mm; vertical-align: middle; border: .25mm solid #94A3B8;
-}
-/* Colores de peto (semánticos: coinciden con la leyenda) */
-.peto-negro { background: #111827; border-color: #111827; }
-.peto-blanco { background: #fff; border-color: #94A3B8; }
-.peto-gris { background: #9CA3AF; border-color: #9CA3AF; }
-.peto-verde { background: #22C55E; border-color: #16A34A; }
-.ex-peto-label { display: inline; font-weight: 600; margin-right: 1mm; }
-.ex-peto-players { display: inline; color: var(--k-tinta-suave); }
-.ex-info {
-  width: 100%; border-collapse: collapse; table-layout: fixed;
-  font-size: 6.8px; color: var(--k-tinta-suave); margin-top: 1mm;
-  border-top: .2mm solid var(--k-linea);
-}
-.ex-info td { border: none !important; border-radius: 0 !important; padding: 1mm 0 0; }
-.ex-tiempo, .ex-espacio, .ex-fase { font-weight: 600; }
-.ex-espacio { text-align: center; }
-.ex-fase { text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ex-peto-dot { display: inline-block !important; width: 2mm; height: 2mm; border-radius: 50%; margin-right: 1mm; vertical-align: middle; border: .25mm solid var(--c-suave); }
+.ex-peto-label { font-weight: 600; margin-right: 1mm; }
+.ex-peto-players { color: var(--c-suave); }
 
-.leyenda {
-  font-size: 6.8px; color: var(--k-tinta-suave); margin-top: 1.5mm;
-}
-.leyenda-item { display: inline-block; margin-right: 4mm; }
-.leyenda-dot { display: inline-block; width: 2.2mm; height: 2.2mm; border-radius: 50%; vertical-align: -.3mm; margin-right: 1mm; }
-.leyenda-nota { float: right; }
+/* Porteros / ABP */
+.sg { width: 100%; border-collapse: separate; border-spacing: 0 3mm; table-layout: fixed; }
+.sg td.d { width: 46%; vertical-align: top; padding: 1.5mm; border: .25mm solid var(--c-borde); border-radius: .5mm; text-align: center; }
+.sg td.d svg { width: 100%; height: auto; max-height: 72mm; }
+.sg td.i { vertical-align: top; padding-left: 4mm; }
+.sg .hd { border-bottom: .4mm solid var(--c-tinta); padding-bottom: 1.4mm; margin-bottom: 2mm; }
+.sg .nom { font-size: 11pt; font-weight: 800; margin-top: .8mm; }
+.sg .ds { font-size: 8.4pt; line-height: 1.42; margin-bottom: 2mm; }
+.sg .mt { font-size: 7.6pt; color: var(--c-suave); margin-bottom: 1.5mm; }
+.sg .mt b { color: var(--c-tinta); font-weight: 600; }
+.sg .nt { font-size: 8pt; border-top: .25mm solid var(--c-borde); padding-top: 1.2mm; }
+.sg .nodiag { color: var(--c-suave); font-size: 7.6pt; padding: 20mm 4mm; display: block; }
+.ofe { color: var(--c-ok); font-weight: 700; } .def { color: var(--c-baja); font-weight: 700; }
 
-/* ── Detalle vertical ── */
-.ph-num { font-size: 20pt; line-height: 1; color: var(--k-primario-texto); }
-.ph-type { margin-top: 1.2mm; }
-
-.quick-bar {
-  width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed;
-  margin-bottom: 3mm;
-}
-.qb-cell { background: var(--k-primario-suave); padding: 2mm 3mm; border-left: .6mm solid #fff; }
-.qb-cell:first-child { border-left: none; border-radius: 2.6mm 0 0 2.6mm; }
-.qb-cell:last-child { border-radius: 0 2.6mm 2.6mm 0; }
-body .qb-val { font-size: 13pt; }
-
-.material-bar { margin-bottom: 2.5mm; font-size: 7.5px; }
-.material-bar .k-eyebrow { margin-right: 1.5mm; }
-.material-pill { margin: 0 1mm 1mm 0; }
-
-.coach-note {
-  font-size: 8px; background: var(--k-primario-suave);
-  border-radius: 1.6mm; padding: 1.6mm 2.6mm; margin-bottom: 3mm;
-}
-.coach-note strong { font-weight: 600; }
-.campo-section { margin-bottom: 3mm; }
-body .campo-section-title { margin-top: 0; }
-.campo-grande-wrap {
-  border: .25mm solid var(--k-linea); border-radius: 2.6mm; padding: 2mm;
-  text-align: center; overflow: hidden;
-}
-.campo-grande-wrap img { max-width: 100%; max-height: 100mm; object-fit: contain; }
-.campo-grande-wrap svg { width: 100%; height: auto; max-height: 100mm; display: block; margin: 0 auto; }
-
-.info-section { width: 100%; border-collapse: collapse; table-layout: fixed; }
-.info-section td.info-col { vertical-align: top; padding: 0; }
-.info-section td.info-gap { width: 6mm; }
-body .info-col-title { margin: 1mm 0 2mm; font-size: 9.5pt; }
-.info-text { font-size: 8px; line-height: 1.45; margin-bottom: 2mm; }
-.info-text strong { font-weight: 600; }
-.info-label {
-  font-size: 6.5px; font-weight: 600; color: var(--k-primario-texto);
-  text-transform: uppercase; letter-spacing: .12em; margin: 1.5mm 0 .8mm;
-}
-.rules-list { list-style: none; margin: 0 0 2mm; padding: 0; font-size: 8px; }
-.rules-list li { padding: .6mm 0 .6mm 3mm; border-bottom: .2mm solid var(--k-linea); position: relative; }
-.rules-list li:last-child { border-bottom: none; }
-.rules-list li::before {
-  content: ''; position: absolute; left: 0; top: 1.9mm;
-  width: 1.1mm; height: 1.1mm; border-radius: 50%; background: var(--k-primario);
-}
-.consigna-item { font-size: 8px; margin-bottom: 1mm; }
-.consigna-bullet {
-  display: inline-block; min-width: 4.4mm; text-align: center;
-  font-size: 6.5px; padding: .2mm .8mm; margin-right: 1.2mm; border-radius: 9mm;
-  background: var(--k-primario); color: var(--k-sobre-primario);
-}
-.consigna-text { display: inline; }
-.nota-tactica {
-  font-size: 8px; background: var(--k-primario-suave); border-left: .8mm solid var(--k-primario);
-  border-radius: 1mm; padding: 1.4mm 2.2mm; margin: 1mm 0 2mm;
-}
-.errores-box, .variante-box { margin: 1mm 0 2.5mm; }
-.errores-title, .variante-title { margin-bottom: 1.2mm; }
-.errores-text, .variante-text { font-size: 8px; padding: .6mm 0; border-bottom: .2mm solid var(--k-linea); }
-
-.equipo-block { margin-bottom: 1.2mm; font-size: 8px; }
-.equipo-name { font-weight: 600; }
-.equipo-dot { display: inline-block; width: 2.2mm; height: 2.2mm; border-radius: 50%; margin-right: 1.2mm; vertical-align: -.2mm; }
-.equipo-jugadores { color: var(--k-tinta-suave); font-size: 7.5px; padding-left: 3.4mm; }
-
-/* ── Porteros / ABP ── */
-.section-stats { border-collapse: collapse; margin-left: auto; }
-.section-stats td { padding: 0 0 0 5mm; text-align: right; }
-.scaled-grid table { width: 100%; border-collapse: separate; border-spacing: 0 3mm; table-layout: fixed; }
-.sg-diagram-cell {
-  width: 46%; vertical-align: top; padding: 2mm;
-  border: .25mm solid var(--k-linea); border-radius: 2.6mm; text-align: center;
-}
-.sg-diagram-cell svg { width: 100%; height: auto; max-height: 72mm; display: block; }
-.sg-info-cell { vertical-align: top; padding-left: 4mm; }
-.sg-row-header {
-  border-bottom: .6mm solid var(--k-primario); padding-bottom: 1.4mm; margin-bottom: 2mm;
-}
-.sg-row-num { color: var(--k-primario-texto); font-size: 8px; margin-right: 1.2mm; }
-.sg-badge { margin-right: 1mm; }
-/* Semánticos: portero verde, ABP ofensiva verde / defensiva roja */
-body .badge-por { background: #DCFCE7; color: #166534; }
-body .badge-abp-of { background: #DCFCE7; color: #166534; }
-body .badge-abp-def { background: #FEE2E2; color: #B91C1C; }
-.sg-name { font-size: 11pt; font-weight: 800; letter-spacing: -.015em; margin-top: 1mm; }
-.sg-dur { font-size: 8px; color: var(--k-tinta-suave); }
-.sg-desc { font-size: 8.5px; line-height: 1.45; margin-bottom: 2mm; }
-.sg-meta { font-size: 7.5px; color: var(--k-tinta-suave); margin-bottom: 1.5mm; }
-.sg-meta-item { margin-right: 4mm; }
-.sg-meta strong { color: var(--k-tinta); font-weight: 600; }
-.sg-notas { font-size: 8px; background: var(--k-primario-suave); border-radius: 1.6mm; padding: 1.4mm 2.2mm; }
-.sg-no-diagram { display: block; color: var(--k-tinta-suave); font-size: 7.5px; text-align: center; padding: 20mm 4mm; }
-
-/* ── Trabajo al margen ── */
-.margen-card { margin-bottom: 4mm; page-break-inside: avoid; }
-.margen-card-header {
-  padding-bottom: 2mm; margin-bottom: 2mm; border-bottom: .25mm solid var(--k-linea);
-}
-.margen-player-name { font-size: 11pt; font-weight: 800; letter-spacing: -.015em; vertical-align: middle; margin-right: 1.5mm; }
-.margen-player-dorsal {
-  display: inline-block; width: 6.4mm; height: 6.4mm; line-height: 6.4mm; text-align: center;
-  background: var(--k-primario); color: var(--k-sobre-primario);
-  border-radius: 50%; font-size: 8px; vertical-align: middle; margin-right: 1.6mm;
-}
-.margen-card-header .k-chip { margin-right: 1mm; vertical-align: middle; text-transform: capitalize; }
-.margen-meta { font-size: 7.5px; color: var(--k-tinta-suave); margin-bottom: 2mm; }
-.margen-meta span { margin-right: 4mm; }
-.margen-meta strong { color: var(--k-tinta); font-weight: 600; }
-.margen-objetivo { font-size: 9px; margin-bottom: 1.5mm; }
-.margen-objetivo strong { font-weight: 600; }
-.margen-table td { vertical-align: top; }
-.tipo-pill {
-  display: inline-block; padding: .2mm 1.6mm; border-radius: 9mm;
-  font-size: 6.5px; font-weight: 600; color: #fff;
-}
-.margen-notas { font-size: 8px; color: var(--k-tinta-suave); font-style: italic; margin-top: 2mm; }
+/* Margen */
+.mg { margin-bottom: 4mm; page-break-inside: avoid; border-top: .25mm solid var(--c-borde); padding-top: 2mm; }
+.mg .nm { font-size: 11pt; font-weight: 800; vertical-align: middle; margin-right: 1.5mm; }
+.mg .fch { width: 6.4mm; height: 6.4mm; line-height: 5.6mm; vertical-align: middle; margin-right: 1.6mm; }
+.mg .mt { font-size: 7.6pt; color: var(--c-suave); margin: 1.2mm 0 1.6mm; }
+.mg .mt span { margin-right: 4mm; } .mg .mt b { color: var(--c-tinta); font-weight: 600; }
+.mg .ob { font-size: 9pt; margin-bottom: 1.4mm; }
+.mg td { vertical-align: top; }
+.mg .nota { font-size: 8pt; color: var(--c-suave); margin-top: 2mm; }
 </style>
 </head>
 <body>
 
 {% set cab_tema = dict(tema, logo_url=logo_url) %}
 
-<!-- ==================== PAGE 1: LANDSCAPE RESUMEN ==================== -->
+<!-- ==================== PORTADA: TODAS LAS TAREAS ==================== -->
 <div class="page-landscape">
+  {% set cab_sub %}{{ sesion.get('fecha', '') }}{% if sesion.get('hora') %} · {{ sesion.get('hora')[:5] }} h{% endif %}{% if lugar %} · {{ lugar }}{% endif %}{% if sesion.get('rival') %} · Rival: {{ sesion.get('rival') }}{% endif %}{% if microciclo_nombre %} · {{ microciclo_nombre[:40] }}{% endif %}{% endset %}
+  {% set cab_meta %}<div class="meta">{% if sesion.get('match_day') %}<span class="md-sw" style="background:{{ md_color }}"></span>{{ sesion.get('match_day') }}<br>{% endif %}<b>{{ duracion_total }}</b> min · {{ num_ejercicios }} ejercicios</div>{% endset %}
+  {{ cabecera(cab_tema, titulo=sesion.get('titulo', 'Sesión de entrenamiento'), subtitulo=cab_sub, meta=cab_meta, eyebrow=[tema.club, equipo_categoria]|select|join(' · ')) }}
 
-    {% set cab_sub %}{{ sesion.get('fecha', '') }}{% if sesion.get('hora') %} · {{ sesion.get('hora')[:5] }}h{% endif %}{% if lugar %} · {{ lugar }}{% endif %}{% if sesion.get('rival') %} · Rival: {{ sesion.get('rival') }}{% endif %}{% if sesion.get('carga_fisica_objetivo') %} · <span class="carga">{{ sesion.get('carga_fisica_objetivo','').replace('_',' ') }}</span>{% endif %}{% endset %}
-    {% set cab_meta %}
-        <table class="cab-stats"><tr>
-            <td><div class="k-dato">{{ duracion_total }}'</div><div class="k-dato-label">Duracion</div></td>
-            <td><div class="k-dato">{{ num_ejercicios }}</div><div class="k-dato-label">Ejercicios</div></td>
-        </tr></table>
-        <div class="cab-chips">
-            {% if sesion.get('intensidad_objetivo') %}<span class="k-chip">{{ sesion.get('intensidad_objetivo', '').replace('_', ' ').upper() }}</span>{% endif %}
-            {% if microciclo_nombre %}<span class="k-chip">{{ microciclo_nombre[:30] }}</span>{% endif %}
-            <span class="k-chip k-chip-solido">{{ sesion.get('match_day', '') }}</span>
-        </div>
-    {% endset %}
-    {{ cabecera(cab_tema, titulo=sesion.get('titulo', 'Sesion de Entrenamiento'), subtitulo=cab_sub, meta=cab_meta, eyebrow=[tema.club, equipo_categoria, 'Temporada 2025-26']|select|join(' · ')) }}
+  {% if conceptos_line %}<div class="linea"><span class="c-rotulo">Conceptos</span>{{ conceptos_line }}</div>{% endif %}
+  {% if objetivo_principal or fase_juego_principal or principio_tactico_principal %}
+  <div class="linea" style="height:8mm;line-height:8mm"><span class="c-rotulo">Objetivo</span><b>{{ [objetivo_principal, fase_juego_principal, principio_tactico_principal]|select|join(' · ') }}</b></div>
+  {% endif %}
+  {% if material_sesion %}<div class="linea" style="height:7mm;line-height:7mm"><span class="c-rotulo">Material mínimo necesario</span>{{ material_sesion|join(' · ') }}</div>{% endif %}
 
-    {% if conceptos_line %}
-    <div class="concepts"><span class="k-eyebrow">Conceptos</span>{{ conceptos_line }}</div>
-    {% endif %}
-
-    <!-- Objetivo Bar -->
-    {% if objetivo_principal or fase_juego_principal or principio_tactico_principal %}
-    <div class="objetivo-bar">
-        <span class="k-eyebrow">Objetivo</span>
-        {% if objetivo_principal %}
-        <span class="objetivo-text">{{ objetivo_principal }}</span>
-        {% endif %}
-        {% if fase_juego_principal %}
-        <span class="objetivo-sep">·</span>
-        <span class="objetivo-text">{{ fase_juego_principal }}</span>
-        {% endif %}
-        {% if principio_tactico_principal %}
-        <span class="objetivo-sep">·</span>
-        <span class="objetivo-text">{{ principio_tactico_principal }}</span>
-        {% endif %}
-    </div>
-    {% endif %}
-
-    <!-- Asistencia Roster (4 groups by tipo membership) -->
-    {% if asistencia_roster %}
-    {# Build groups by checking tipos list — players can appear in multiple groups #}
-    {% set g_sesion = [] %}
-    {% set g_fisio = [] %}
-    {% set g_margen = [] %}
-    {% set g_ausentes = [] %}
-    {% for p in asistencia_roster %}
-        {% if 'sesion' in p.tipos %}{% if g_sesion.append(p) %}{% endif %}{% endif %}
-        {% if 'fisio' in p.tipos %}{% if g_fisio.append(p) %}{% endif %}{% endif %}
-        {% if 'margen' in p.tipos %}{% if g_margen.append(p) %}{% endif %}{% endif %}
-        {% if p.sort_key == 'ausente' %}{% if g_ausentes.append(p) %}{% endif %}{% endif %}
+  {% if roster_grupos %}
+  <table class="rost">
+    {% for g in roster_grupos %}
+    <tr><td class="l"><span class="c-rotulo">{{ g.label }} ({{ g.players|length }})</span></td>
+      <td>{% for p in g.players %}<span class="rj"><span class="c-ficha fch {{ 'c-ficha-baja' if g.clave == 'ausente' else '' }}">{{ p.dorsal }}</span>{{ p.nombre }}{% if p.fisio %}<span class="fi">fisio</span>{% endif %}{% if p.motivo %}<span class="mo">{{ p.motivo }}</span>{% endif %}</span>{% endfor %}</td></tr>
     {% endfor %}
-    <table class="asistencia-roster"><tr>
-        <!-- Group 1: Sesion (with badges showing all tipos) -->
-        {% if g_sesion %}
-        <td class="asistencia-group" style="width:52%">
-            <div class="asistencia-group-label asistencia-group-label-sesion">Sesion ({{ g_sesion|length }})</div>
-            <div class="asistencia-list">
-                {% for p in g_sesion %}
-                <span class="asistencia-item">
-                    <span class="asistencia-dorsal k-mono">{% if p.dorsal %}{{ p.dorsal }}{% endif %}</span>
-                    <span>{{ p.nombre }} {{ p.apellidos[:1] }}.</span>
-                    {% if 'fisio' in p.tipos %}<span class="asistencia-badge badge-fisio">FISIO</span>{% endif %}
-                </span>
-                {% endfor %}
-            </div>
-        </td>
-        {% endif %}
-        <!-- Group 2: Fisio (plain list, all who have fisio) -->
-        {% if g_fisio %}
-        <td class="asistencia-group">
-            <div class="asistencia-group-label asistencia-group-label-fisio">Fisio ({{ g_fisio|length }})</div>
-            <div class="asistencia-list">
-                {% for p in g_fisio %}
-                <span class="asistencia-item">
-                    <span class="asistencia-dorsal k-mono">{% if p.dorsal %}{{ p.dorsal }}{% endif %}</span>
-                    <span>{{ p.nombre }} {{ p.apellidos[:1] }}.</span>
-                </span>
-                {% endfor %}
-            </div>
-        </td>
-        {% endif %}
-        <!-- Group 3: Margen (with badges showing all tipos) -->
-        {% if g_margen %}
-        <td class="asistencia-group">
-            <div class="asistencia-group-label asistencia-group-label-margen">Margen ({{ g_margen|length }})</div>
-            <div class="asistencia-list">
-                {% for p in g_margen %}
-                <span class="asistencia-item">
-                    <span class="asistencia-dorsal k-mono">{% if p.dorsal %}{{ p.dorsal }}{% endif %}</span>
-                    <span>{{ p.nombre }} {{ p.apellidos[:1] }}.</span>
-                    {% if 'fisio' in p.tipos %}<span class="asistencia-badge badge-fisio">FISIO</span>{% endif %}
-                </span>
-                {% endfor %}
-            </div>
-        </td>
-        {% endif %}
-        <!-- Group 4: Ausentes (red with reason) -->
-        {% if g_ausentes %}
-        <td class="asistencia-group">
-            <div class="asistencia-group-label asistencia-group-label-ausentes">Ausentes ({{ g_ausentes|length }})</div>
-            <div class="asistencia-list">
-                {% for p in g_ausentes %}
-                <span class="asistencia-item asistencia-item-ausente">
-                    <span class="asistencia-dorsal k-mono">{% if p.dorsal %}{{ p.dorsal }}{% endif %}</span>
-                    <span>{{ p.nombre }} {{ p.apellidos[:1] }}.</span>
-                    <span class="asistencia-motivo">{{ p.tipo_display|replace('Ausente — ','') }}</span>
-                </span>
-                {% endfor %}
-            </div>
-        </td>
-        {% endif %}
-    </tr></table>
-    {% endif %}
+  </table>
+  {% endif %}
 
-    <!-- Exercise Table (HTML table for bulletproof WeasyPrint layout) -->
-    {% set num_tareas = cover_tareas|length %}
-    {% set grid_cols = 3 if num_tareas >= 2 else 1 %}
-    {% set grid_rows = (num_tareas + grid_cols - 1) // grid_cols %}
-    {# Alto de la pizarra según filas: la portada debe caber en un folio (overflow:hidden no evita el salto en WeasyPrint) #}
-    {% set mini_h = 75 if grid_rows <= 1 else (34 if grid_rows == 2 else (18 if grid_rows == 3 else 9)) %}
-    <div class="ex-table-wrap">
-    <table class="ex-table">
-        {% for row_idx in range(grid_rows) %}
-        <tr>
-            {% for col_idx in range(grid_cols) %}
-            {% set tarea_idx = row_idx * grid_cols + col_idx %}
-            {% if not loop.first %}<td class="ex-gap"></td>{% endif %}
-            {% if tarea_idx < num_tareas %}
-            {% set tarea = cover_tareas[tarea_idx] %}
-            <td>
-              <div class="ex-card">
-                <!-- Card Header -->
-                <table class="ex-card-header"><tr>
-                    <td style="width:auto">
-                        <div class="ex-name"><span class="ex-num k-mono">{{ '%02d' % (tarea_idx + 1) }}</span><span class="k-chip ex-type-badge badge-{{ tarea.badge_class }}">{{ tarea.categoria_codigo or 'EJ' }}</span>{{ tarea.titulo }}</div>
-                    </td>
-                    <td class="ex-dur k-mono" style="width:13mm">{% if tarea.num_series %}{{ tarea.num_series }}x{% endif %}{{ tarea.duracion }}'</td>
-                </tr></table>
-                <!-- Objective -->
-                {% if tarea.objetivo_tactico %}
-                <div class="ex-objetivo">{{ tarea.objetivo_tactico }}</div>
-                {% endif %}
-                <!-- Diagram -->
-                <div class="campo-mini-wrap">
-                    {% if tarea.preview_img %}<img src="{{ tarea.preview_img }}" alt="" style="max-height:{{ mini_h }}mm" />{% else %}<div style="max-height:{{ mini_h }}mm;height:{{ mini_h }}mm">{{ tarea.svg_thumbnail }}</div>{% endif %}
-                </div>
-                <!-- Petos -->
-                {% if tarea.petos_html %}
-                <div class="ex-petos">
-                    <div class="ex-petos-grid">{{ tarea.petos_html }}</div>
-                </div>
-                {% endif %}
-                <!-- Bottom info -->
-                <table class="ex-info"><tr>
-                    <td class="ex-tiempo">{% if tarea.num_series %}{{ tarea.num_series }}x{% endif %}{{ tarea.duracion }}'</td>
-                    <td class="ex-espacio">{% if tarea.espacio_largo and tarea.espacio_ancho %}{{ tarea.espacio_largo|int }}x{{ tarea.espacio_ancho|int }}m{% endif %} · {{ tarea.num_jugadores_min }}{% if tarea.num_jugadores_max %}-{{ tarea.num_jugadores_max }}{% endif %}j</td>
-                    <td class="ex-fase">{{ tarea.fase_label }}</td>
-                </tr></table>
-              </div>
-            </td>
-            {% else %}
-            <td class="ex-empty">—</td>
-            {% endif %}
-            {% endfor %}
-        </tr>
-        {% endfor %}
-    </table>
-    </div>
-
-    <!-- Leyenda de la pizarra -->
-    <div class="leyenda">
-        <span class="leyenda-item"><span class="leyenda-dot" style="background:#111;border:.25mm solid #555;"></span>Equipo</span>
-        <span class="leyenda-item"><span class="leyenda-dot" style="background:#fff;border:.25mm solid #888;"></span>Rival</span>
-        <span class="leyenda-item"><span class="leyenda-dot" style="background:#2ecc71;border:.25mm solid #27ae60;"></span>Portero</span>
-        <span class="leyenda-item"><span class="leyenda-dot" style="background:#888;border:.25mm solid #aaa;"></span>Comodin</span>
-        <span class="leyenda-nota">Documento interno · No distribuir</span>
-    </div>
+  {% set L = portada_layout %}
+  <table class="rej">
+    {% for r in range(L.rows) %}
+    <tr>
+      {% for c in range(L.cols) %}
+      {% set i = r * L.cols + c %}
+      {% if i < cover_tareas|length %}{% set t = cover_tareas[i] %}
+      <td class="cel" style="height:{{ L.cell_h }}mm"><div class="in" style="height:{{ L.cell_h }}mm">
+        <div class="ch">
+          <div class="lt"><span class="num">{{ '%02d' % (i + 1) }}</span><span class="c-peto" style="background:{{ t.peto_color }}"></span><span class="sig">{{ t.categoria_codigo or 'EJ' }}</span>{{ t.titulo }}</div>
+          <div class="dur">{% if t.num_series and t.num_series > 1 %}{{ t.num_series }}×{% endif %}{{ t.duracion }}'</div>
+        </div>
+        <div class="bd" style="height:{{ L.board_h }}mm">{% if t.preview_img %}<img src="{{ t.preview_img }}" alt="">{% else %}{{ t.svg_thumbnail }}{% endif %}</div>
+        <div class="inf">{{ [t.fase_label, (t.espacio_largo|int ~ '×' ~ t.espacio_ancho|int ~ ' m') if (t.espacio_largo and t.espacio_ancho) else '', (t.num_jugadores_min ~ ('–' ~ t.num_jugadores_max if t.num_jugadores_max else '') ~ ' jug.') if t.num_jugadores_min else '']|select|join(' · ') }}</div>
+      </div></td>
+      {% else %}<td class="cel vacia" style="height:{{ L.cell_h }}mm"></td>{% endif %}
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </table>
+  <div class="leyenda">Documento interno · No distribuir</div>
 </div>
 
-<!-- ==================== PAGES 2+: PORTRAIT DETAIL ==================== -->
+<!-- ==================== DETALLE: UNA PÁGINA POR TAREA ==================== -->
 {% for tarea in all_tareas %}
 <div class="page-portrait">
+  {% set ph_meta %}<div class="ph-meta"><div class="ph-num">{{ '%02d' % loop.index }}</div><div class="ph-cat"><span class="c-peto" style="background:{{ tarea.peto_color }}"></span><b>{{ tarea.categoria_codigo or 'EJ' }}</b>{% if tarea.categoria %} · {{ tarea.categoria }}{% endif %}</div></div>{% endset %}
+  {% set ph_sub %}{{ tarea.fase_label }}{% if tarea.fase_juego %} · {{ tarea.fase_juego.replace('_', ' ').title() }}{% endif %}{% if tarea.principio_tactico %} · {{ tarea.principio_tactico }}{% endif %}{% endset %}
+  {% set ph_eyebrow %}{{ [tema.club, sesion.get('match_day',''), sesion.get('fecha','')]|select|join(' · ') }}{% if sesion.get('hora') %} · {{ sesion.get('hora')[:5] }}{% endif %}{% endset %}
+  {{ cabecera(cab_tema, titulo=tarea.titulo, subtitulo=ph_sub, meta=ph_meta, eyebrow=ph_eyebrow) }}
 
-    {% set ph_meta %}<div class="ph-num k-dato k-mono">{{ '%02d' % loop.index }}</div><div class="ph-type"><span class="k-chip k-chip-solido">{{ tarea.categoria or 'Ejercicio' }}</span></div>{% endset %}
-    {% set ph_sub %}{{ tarea.fase_label }}{% if tarea.fase_juego %} · {{ tarea.fase_juego.replace('_', ' ').title() }}{% endif %}{% if tarea.principio_tactico %} · {{ tarea.principio_tactico }}{% endif %}{% endset %}
-    {% set ph_eyebrow %}{{ [tema.club, sesion.get('match_day',''), sesion.get('fecha','')]|select|join(' · ') }}{% if sesion.get('hora') %} · {{ sesion.get('hora')[:5] }}{% endif %}{% endset %}
-    {{ cabecera(cab_tema, titulo=tarea.titulo, subtitulo=ph_sub, meta=ph_meta, eyebrow=ph_eyebrow) }}
+  <table class="datos"><tr>
+    <td><div class="c-dato-label">Duración</div><div class="c-dato">{{ tarea.duracion }}'</div></td>
+    <td><div class="c-dato-label">Series</div><div class="c-dato">{{ tarea.num_series or '–' }}</div></td>
+    <td><div class="c-dato-label">Jugadores</div><div class="c-dato">{{ tarea.num_jugadores_min }}{% if tarea.num_jugadores_max %}–{{ tarea.num_jugadores_max }}{% endif %}</div></td>
+    <td><div class="c-dato-label">Espacio</div><div class="c-dato">{% if tarea.espacio_largo and tarea.espacio_ancho %}{{ tarea.espacio_largo|int }}×{{ tarea.espacio_ancho|int }} m{% else %}–{% endif %}</div></td>
+    <td><div class="c-dato-label">Intensidad</div><div class="c-dato">{% if tarea.densidad %}{{ tarea.densidad.title() }}{% else %}–{% endif %}</div></td>
+  </tr></table>
 
-    <!-- Quick Bar -->
-    <table class="quick-bar"><tr>
-        <td class="qb-cell">
-            <div class="k-dato-label">Duracion</div>
-            <div class="k-dato qb-val">{{ tarea.duracion }}'</div>
-        </td>
-        <td class="qb-cell">
-            <div class="k-dato-label">Series</div>
-            <div class="k-dato qb-val">{{ tarea.num_series or '-' }}</div>
-        </td>
-        <td class="qb-cell">
-            <div class="k-dato-label">Jugadores</div>
-            <div class="k-dato qb-val">{{ tarea.num_jugadores_min }}{% if tarea.num_jugadores_max %}-{{ tarea.num_jugadores_max }}{% endif %}</div>
-        </td>
-        <td class="qb-cell">
-            <div class="k-dato-label">Espacio</div>
-            <div class="k-dato qb-val">{% if tarea.espacio_largo and tarea.espacio_ancho %}{{ tarea.espacio_largo|int }}x{{ tarea.espacio_ancho|int }}m{% else %}-{% endif %}</div>
-        </td>
-        <td class="qb-cell">
-            <div class="k-dato-label">Intensidad</div>
-            <div class="k-dato qb-val">{% if tarea.densidad %}{{ tarea.densidad.title() }}{% else %}-{% endif %}</div>
-        </td>
-    </tr></table>
+  {% if tarea.material %}<div class="matl"><span class="c-rotulo">Material</span>{{ tarea.material|join(' · ') }}</div>{% endif %}
+  {% if tarea.posicion_entrenador %}<div class="coach"><b>Posición del entrenador:</b> {{ tarea.posicion_entrenador }}</div>{% endif %}
 
-    <!-- Material pills -->
-    {% if tarea.material %}
-    <div class="material-bar">
-        <span class="k-eyebrow">Material</span>
-        {% for m in tarea.material %}
-        <span class="k-chip material-pill">{{ m }}</span>
-        {% endfor %}
-    </div>
-    {% endif %}
+  <div class="c-seccion">Pizarra</div>
+  <div class="c-pizarra pz">{% if tarea.preview_img %}<img src="{{ tarea.preview_img }}" alt="">{% else %}{{ tarea.svg_large }}{% endif %}</div>
 
-    <!-- Coach position note -->
-    {% if tarea.posicion_entrenador %}
-    <div class="coach-note">
-        <strong>Pos. Entrenador:</strong> {{ tarea.posicion_entrenador }}
-    </div>
-    {% endif %}
+  <table class="cols"><tr>
+    <td class="col">
+      {% if tarea.descripcion %}<div class="c-seccion">Descripción</div><div class="txt">{{ tarea.descripcion }}</div>{% endif %}
 
-    <!-- Large Field (always show — empty pitch if no diagram data) -->
-    <div class="campo-section">
-        <div class="k-seccion campo-section-title">Descripcion Grafica</div>
-        <div class="campo-grande-wrap">
-            {% if tarea.preview_img %}<img src="{{ tarea.preview_img }}" alt="" />{% else %}{{ tarea.svg_large }}{% endif %}
-        </div>
-    </div>
+      {% if tarea.is_partido_condicionado %}
+      <div class="c-rotulo rot">11 contra 11</div>
+      {% if tarea.partido_peto %}<div class="txt"><b>Con peto:</b> {{ tarea.partido_peto }}</div>{% endif %}
+      {% if tarea.partido_sin_peto %}<div class="txt"><b>Sin peto:</b> {{ tarea.partido_sin_peto }}</div>{% endif %}
+      {% if tarea.partido_fuera %}<div class="txt"><b>Fuera:</b> {{ tarea.partido_fuera }}</div>{% endif %}
+      {% endif %}
 
-    <!-- Info Section (2 columns) -->
-    <table class="info-section"><tr>
-        <!-- Left Column: Description, Tactical, Teams -->
-        <td class="info-col">
-            {% if tarea.descripcion %}
-            <div class="k-seccion info-col-title">Desarrollo</div>
-            <div class="info-text">{{ tarea.descripcion }}</div>
-            {% endif %}
+      {% if tarea.formation_html %}<div class="c-rotulo rot">Equipos</div>{{ tarea.formation_html }}{% endif %}
 
-            {% if tarea.reglas %}
-            <div class="info-label">Variantes / reglas</div>
-            <div class="info-text">{{ tarea.reglas }}</div>
-            {% endif %}
+      {% if tarea.fase_juego or tarea.principio_tactico or tarea.subprincipio_tactico %}
+      <div class="c-rotulo rot">Situación de juego</div>
+      {% if tarea.fase_juego %}<div class="txt" style="font-weight:700;margin-bottom:.4mm">{{ tarea.fase_juego.replace('_', ' ').title() }}</div>{% endif %}
+      {% if tarea.principio_tactico %}<div class="txt" style="margin-bottom:.4mm">{{ tarea.principio_tactico }}</div>{% endif %}
+      {% if tarea.subprincipio_tactico %}<div class="txt">{{ tarea.subprincipio_tactico }}</div>{% endif %}
+      {% endif %}
 
-            {% if tarea.is_partido_condicionado %}
-            <div class="info-label">11 vs 11</div>
-            {% if tarea.partido_peto %}
-            <div class="info-text"><strong>Con peto:</strong> {{ tarea.partido_peto }}</div>
-            {% endif %}
-            {% if tarea.partido_sin_peto %}
-            <div class="info-text"><strong>Sin peto:</strong> {{ tarea.partido_sin_peto }}</div>
-            {% endif %}
-            {% if tarea.partido_fuera %}
-            <div class="info-text"><strong>Fuera:</strong> {{ tarea.partido_fuera }}</div>
-            {% endif %}
-            {% endif %}
+      {% if tarea.errores_comunes %}
+      <div class="c-rotulo rot">Errores comunes</div>
+      <ul class="lista">{% for e in tarea.errores_comunes %}<li>{{ e }}</li>{% endfor %}</ul>
+      {% endif %}
+    </td>
+    <td class="gap"></td>
+    <td class="col">
+      {% if tarea.normas_grupos %}
+      <div class="c-seccion">Normas de provocación</div>
+      {% for label, items in tarea.normas_grupos %}
+      <div class="c-rotulo rot">{{ label }}</div>
+      <ul class="lista">{% for r in items %}<li>{{ r }}</li>{% endfor %}</ul>
+      {% endfor %}
+      {% endif %}
 
-            {% if tarea.formation_html %}
-            <div class="info-label">Equipos</div>
-            {{ tarea.formation_html }}
-            {% endif %}
+      {% if tarea.consignas_ofensivas or tarea.consignas_defensivas %}
+      <div class="c-seccion">Consignas</div>
+      {% for c in tarea.consignas_ofensivas %}<div class="cons"><b>{{ loop.index }}</b>{{ c }}</div>{% endfor %}
+      {% for c in tarea.consignas_defensivas %}<div class="cons"><b>D{{ loop.index }}</b>{{ c }}</div>{% endfor %}
+      {% endif %}
 
-            {% if tarea.fase_juego or tarea.principio_tactico or tarea.subprincipio_tactico %}
-            <div class="info-label">Situacion de Juego</div>
-            {% if tarea.fase_juego %}
-            <div class="info-text" style="font-weight:600;">{{ tarea.fase_juego.replace('_', ' ').title() }}</div>
-            {% endif %}
-            {% if tarea.principio_tactico %}
-            <div class="info-text">{{ tarea.principio_tactico }}</div>
-            {% endif %}
-            {% if tarea.subprincipio_tactico %}
-            <div class="nota-tactica">{{ tarea.subprincipio_tactico }}</div>
-            {% endif %}
-            {% endif %}
-        </td>
-        <td class="info-gap"></td>
-
-        <!-- Right Column: Consignas, Rules, Variants -->
-        <td class="info-col">
-            {% if tarea.consignas_ofensivas or tarea.consignas_defensivas %}
-            <div class="k-seccion info-col-title">Consignas</div>
-            {% for c in tarea.consignas_ofensivas %}
-            <div class="consigna-item">
-                <span class="consigna-bullet k-mono">{{ loop.index }}</span>
-                <span class="consigna-text">{{ c }}</span>
-            </div>
-            {% endfor %}
-            {% for c in tarea.consignas_defensivas %}
-            <div class="consigna-item">
-                <span class="consigna-bullet k-mono">D{{ loop.index }}</span>
-                <span class="consigna-text">{{ c }}</span>
-            </div>
-            {% endfor %}
-            {% endif %}
-
-            {% if tarea.reglas_tecnicas or tarea.reglas_tacticas %}
-            <div class="info-label">Normas</div>
-            <ul class="rules-list">
-                {% for r in tarea.reglas_tecnicas %}<li>{{ r }}</li>{% endfor %}
-                {% for r in tarea.reglas_tacticas %}<li>{{ r }}</li>{% endfor %}
-            </ul>
-            {% endif %}
-
-            {% if tarea.variantes or tarea.progresiones %}
-            <div class="variante-box">
-                <div class="info-label variante-title">Variante · Progresion</div>
-                {% for v in (tarea.variantes or []) %}
-                <div class="variante-text">{{ v }}</div>
-                {% endfor %}
-                {% for p in (tarea.progresiones or []) %}
-                <div class="variante-text">{{ p }}</div>
-                {% endfor %}
-            </div>
-            {% endif %}
-
-            {% if tarea.errores_comunes %}
-            <div class="errores-box">
-                <div class="info-label errores-title">Errores Comunes</div>
-                {% for e in tarea.errores_comunes %}
-                <div class="errores-text">· {{ e }}</div>
-                {% endfor %}
-            </div>
-            {% endif %}
-        </td>
-    </tr></table>
+      {% if tarea.variantes or tarea.progresiones %}
+      <div class="c-rotulo rot">Variante · progresión</div>
+      <ul class="lista">
+        {% for v in tarea.variantes %}<li>{{ v }}</li>{% endfor %}
+        {% for p in tarea.progresiones %}<li>{{ p }}</li>{% endfor %}
+      </ul>
+      {% endif %}
+    </td>
+  </tr></table>
 </div>
 {% endfor %}
 
-<!-- ==================== PORTERO TRAINING — SINGLE PAGE ==================== -->
+<!-- ==================== PORTEROS ==================== -->
 {% if portero_tareas %}
 <div class="page-portrait">
-    {% set pt_meta %}<table class="section-stats"><tr>
-        <td><div class="k-dato">{{ portero_tareas|length }}</div><div class="k-dato-label">Ejercicios</div></td>
-        <td><div class="k-dato">{{ portero_duracion }}'</div><div class="k-dato-label">Duracion</div></td>
-    </tr></table>{% endset %}
-    {{ cabecera(cab_tema, titulo='Entrenamiento de Porteros', subtitulo=[tema.club, sesion.get('match_day',''), sesion.get('fecha','')]|select|join(' · '), meta=pt_meta) }}
-
-    <!-- Scaled Grid: 1 row per exercise -->
-    <div class="scaled-grid">
-    <table>
-        {% for pt in portero_tareas %}
-        <tr>
-            <td class="sg-diagram-cell">
-                {% if pt.svg_large %}
-                    {{ pt.svg_large }}
-                {% else %}
-                    <span class="sg-no-diagram">Sin diagrama</span>
-                {% endif %}
-            </td>
-            <td class="sg-info-cell">
-                <div class="sg-row-header">
-                    <span class="sg-row-num k-mono">P{{ '%02d' % loop.index }}</span>
-                    <span class="k-chip sg-badge badge-por">POR</span>
-                    {% if pt.tipo %}<span class="k-chip sg-badge badge-abp-tipo">{{ pt.tipo.replace('_', ' ') }}</span>{% endif %}
-                    <span class="sg-dur portero k-mono">{{ pt.duracion }}'</span>
-                    <div class="sg-name">{{ pt.nombre }}</div>
-                </div>
-                <div class="sg-body">
-                    {% if pt.descripcion %}
-                    <div class="sg-desc">{{ pt.descripcion[:300] }}{% if pt.descripcion|length > 300 %}...{% endif %}</div>
-                    {% endif %}
-                    <div class="sg-meta">
-                        {% if pt.intensidad %}<span class="sg-meta-item"><strong>Intensidad:</strong> {{ pt.intensidad.title() }}</span>{% endif %}
-                        {% if pt.duracion %}<span class="sg-meta-item"><strong>Duracion:</strong> {{ pt.duracion }} min</span>{% endif %}
-                    </div>
-                    {% if pt.notas %}
-                    <div class="sg-notas">{{ pt.notas[:120] }}{% if pt.notas|length > 120 %}...{% endif %}</div>
-                    {% endif %}
-                </div>
-            </td>
-        </tr>
-        {% endfor %}
-    </table>
-    </div>
+  {% set pt_meta %}<div class="meta"><b>{{ portero_tareas|length }}</b> ejercicios · <b>{{ portero_duracion }}</b>'</div>{% endset %}
+  {{ cabecera(cab_tema, titulo='Entrenamiento de porteros', subtitulo=[tema.club, sesion.get('match_day',''), sesion.get('fecha','')]|select|join(' · '), meta=pt_meta) }}
+  <table class="sg">
+    {% for pt in portero_tareas %}
+    <tr>
+      <td class="d">{% if pt.svg_large %}{{ pt.svg_large }}{% else %}<span class="nodiag">Sin pizarra</span>{% endif %}</td>
+      <td class="i">
+        <div class="hd">
+          <span class="c-rotulo">P{{ '%02d' % loop.index }} · POR{% if pt.tipo %} · {{ pt.tipo.replace('_', ' ') }}{% endif %} · {{ pt.duracion }}'</span>
+          <div class="nom">{{ pt.nombre }}</div>
+        </div>
+        {% if pt.descripcion %}<div class="ds">{{ pt.descripcion[:300] }}{% if pt.descripcion|length > 300 %}…{% endif %}</div>{% endif %}
+        <div class="mt">{% if pt.intensidad %}<b>Intensidad:</b> {{ pt.intensidad.title() }}{% endif %}</div>
+        {% if pt.notas %}<div class="nt">{{ pt.notas[:160] }}{% if pt.notas|length > 160 %}…{% endif %}</div>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
 </div>
 {% endif %}
 
-<!-- ==================== ABP SET PIECES — SINGLE PAGE ==================== -->
+<!-- ==================== ABP ==================== -->
 {% if abp_jugadas %}
 <div class="page-portrait">
-    {% set n_of = abp_jugadas|selectattr('lado','equalto','ofensivo')|list|length %}
-    {% set n_def = abp_jugadas|selectattr('lado','equalto','defensivo')|list|length %}
-    {% set abp_meta %}<table class="section-stats"><tr>
-        {% if n_of %}<td><div class="k-dato" style="color:#15803D;">{{ n_of }}</div><div class="k-dato-label">Ofensivas</div></td>{% endif %}
-        {% if n_def %}<td><div class="k-dato" style="color:#B91C1C;">{{ n_def }}</div><div class="k-dato-label">Defensivas</div></td>{% endif %}
-    </tr></table>{% endset %}
-    {{ cabecera(cab_tema, titulo='Jugadas a Balon Parado', subtitulo=[tema.club, sesion.get('match_day',''), abp_jugadas|length ~ ' jugada' ~ ('s' if abp_jugadas|length > 1 else '')]|select|join(' · '), meta=abp_meta) }}
-
-    <!-- Scaled Grid: 1 row per play -->
-    <div class="scaled-grid">
-    <table>
-        {% for play in abp_jugadas %}
-        <tr>
-            <td class="sg-diagram-cell">
-                {% if play.main_svg %}
-                    {{ play.main_svg }}
-                {% else %}
-                    <span class="sg-no-diagram">Sin diagrama</span>
-                {% endif %}
-            </td>
-            <td class="sg-info-cell">
-                <div class="sg-row-header">
-                    <span class="sg-row-num k-mono">{{ '%02d' % loop.index }}</span>
-                    {% if play.lado == 'ofensivo' %}
-                    <span class="k-chip sg-badge badge-abp-of">OF</span>
-                    {% elif play.lado == 'defensivo' %}
-                    <span class="k-chip sg-badge badge-abp-def">DEF</span>
-                    {% endif %}
-                    <span class="k-chip sg-badge badge-abp-tipo">{{ play.tipo }}</span>
-                    {% if play.codigo %}<span class="sg-dur abp k-mono">{{ play.codigo }}</span>{% endif %}
-                    <div class="sg-name">{{ play.nombre }}</div>
-                </div>
-                <div class="sg-body">
-                    {% if play.descripcion %}
-                    <div class="sg-desc">{{ play.descripcion[:300] }}{% if play.descripcion|length > 300 %}...{% endif %}</div>
-                    {% endif %}
-                    <div class="sg-meta">
-                        {% if play.tipo %}<span class="sg-meta-item"><strong>Tipo:</strong> {{ play.tipo }}</span>{% endif %}
-                        {% if play.lado %}<span class="sg-meta-item"><strong>Lado:</strong> {{ play.lado_label }}</span>{% endif %}
-                    </div>
-                    {% if play.notas %}
-                    <div class="sg-notas">{{ play.notas[:120] }}{% if play.notas|length > 120 %}...{% endif %}</div>
-                    {% endif %}
-                </div>
-            </td>
-        </tr>
-        {% endfor %}
-    </table>
-    </div>
+  {% set n_of = abp_jugadas|selectattr('lado','equalto','ofensivo')|list|length %}
+  {% set n_def = abp_jugadas|selectattr('lado','equalto','defensivo')|list|length %}
+  {% set abp_meta %}<div class="meta">{% if n_of %}<b class="ofe">{{ n_of }}</b> ofensivas{% endif %}{% if n_of and n_def %} · {% endif %}{% if n_def %}<b class="def">{{ n_def }}</b> defensivas{% endif %}</div>{% endset %}
+  {{ cabecera(cab_tema, titulo='Jugadas a balón parado', subtitulo=[tema.club, sesion.get('match_day',''), abp_jugadas|length ~ ' jugada' ~ ('s' if abp_jugadas|length > 1 else '')]|select|join(' · '), meta=abp_meta) }}
+  <table class="sg">
+    {% for play in abp_jugadas %}
+    <tr>
+      <td class="d">{% if play.main_svg %}{{ play.main_svg }}{% else %}<span class="nodiag">Sin pizarra</span>{% endif %}</td>
+      <td class="i">
+        <div class="hd">
+          <span class="c-rotulo">{{ '%02d' % loop.index }}{% if play.lado == 'ofensivo' %} · <span class="ofe">Ofensiva</span>{% elif play.lado == 'defensivo' %} · <span class="def">Defensiva</span>{% endif %} · {{ play.tipo }}{% if play.codigo %} · {{ play.codigo }}{% endif %}</span>
+          <div class="nom">{{ play.nombre }}</div>
+        </div>
+        {% if play.descripcion %}<div class="ds">{{ play.descripcion[:300] }}{% if play.descripcion|length > 300 %}…{% endif %}</div>{% endif %}
+        {% if play.notas %}<div class="nt">{{ play.notas[:160] }}{% if play.notas|length > 160 %}…{% endif %}</div>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
 </div>
 {% endif %}
 
-<!-- ==================== MARGEN — TRABAJO AL MARGEN ==================== -->
+<!-- ==================== TRABAJO AL MARGEN ==================== -->
 {% if margen_entrenamientos %}
 <div class="page-portrait">
-    {% set mg_meta %}<table class="section-stats"><tr>
-        <td><div class="k-dato">{{ margen_entrenamientos|length }}</div><div class="k-dato-label">Jugadores</div></td>
-    </tr></table>{% endset %}
-    {{ cabecera(cab_tema, titulo='Trabajo al Margen', subtitulo=[tema.club, sesion.get('match_day',''), margen_entrenamientos|length ~ ' jugador' ~ ('es' if margen_entrenamientos|length > 1 else '')]|select|join(' · '), meta=mg_meta) }}
-
-    <!-- Per-player cards -->
-    {% for ent in margen_entrenamientos %}
-    <div class="k-tarjeta margen-card">
-        <div class="margen-card-header">
-            {% if ent.dorsal %}<span class="margen-player-dorsal k-mono">{{ ent.dorsal }}</span>{% endif %}
-            <span class="margen-player-name">{{ ent.nombre }} {{ ent.apellidos }}</span>
-            {% if ent.fase_recuperacion %}
-            <span class="k-chip fase-badge">{{ ent.fase_recuperacion | replace('_', ' ') | replace('fase ', 'F') }}</span>
-            {% endif %}
-            {% if ent.estado and ent.estado != 'planificado' %}
-            <span class="k-chip">{{ ent.estado }}</span>
-            {% endif %}
-        </div>
-
-        {% if ent.objetivo %}
-        <div class="margen-objetivo"><strong>Objetivo:</strong> {{ ent.objetivo }}</div>
-        {% endif %}
-
-        <div class="margen-meta">
-            {% if ent.responsable %}<span><strong>Responsable:</strong> {{ ent.responsable }}</span>{% endif %}
-            {% if ent.duracion_estimada %}<span><strong>Duracion:</strong> {{ ent.duracion_estimada }}min</span>{% endif %}
-            {% if ent.rpe_post %}<span><strong>RPE:</strong> {{ ent.rpe_post }}/10</span>{% endif %}
-            {% if ent.registro_medico_titulo %}<span><strong>Lesion:</strong> {{ ent.registro_medico_titulo }}</span>{% endif %}
-        </div>
-
-        {% if ent.tareas %}
-        <table class="k-tabla margen-table">
-            <thead>
-                <tr>
-                    <th style="width:5%;">#</th>
-                    <th style="width:25%;">Ejercicio</th>
-                    <th style="width:12%;">Tipo</th>
-                    <th style="width:8%;">Dur.</th>
-                    <th style="width:10%;">Series</th>
-                    <th style="width:10%;">Reps</th>
-                    <th style="width:10%;">Desc.</th>
-                    <th style="width:10%;">Carga</th>
-                    <th style="width:10%;">Notas</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for t in ent.tareas %}
-                <tr>
-                    <td class="k-mono">{{ loop.index }}</td>
-                    <td><strong>{{ t.titulo or '' }}</strong>{% if t.descripcion %}<br>{{ t.descripcion[:80] }}{% if t.descripcion|length > 80 %}...{% endif %}{% endif %}</td>
-                    <td>{% if t.tipo_ejercicio %}<span class="tipo-pill" style="background:{{ t.tipo_color or '#6B7280' }}">{{ t.tipo_ejercicio }}</span>{% endif %}</td>
-                    <td>{% if t.duracion %}{{ t.duracion }}'{% endif %}</td>
-                    <td>{{ t.series or '' }}</td>
-                    <td>{{ t.repeticiones or '' }}</td>
-                    <td>{{ t.descanso or '' }}</td>
-                    <td>{{ t.carga or '' }}</td>
-                    <td style="font-size:7px;">{{ (t.notas or '')[:60] }}{% if t.notas and t.notas|length > 60 %}...{% endif %}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% endif %}
-
-        {% if ent.notas %}
-        <div class="margen-notas">{{ ent.notas }}</div>
-        {% endif %}
+  {% set mg_meta %}<div class="meta"><b>{{ margen_entrenamientos|length }}</b> jugador{{ 'es' if margen_entrenamientos|length > 1 else '' }}</div>{% endset %}
+  {{ cabecera(cab_tema, titulo='Trabajo al margen', subtitulo=[tema.club, sesion.get('match_day',''), sesion.get('fecha','')]|select|join(' · '), meta=mg_meta) }}
+  {% for ent in margen_entrenamientos %}
+  <div class="mg">
+    <div>
+      {% if ent.dorsal %}<span class="c-ficha fch">{{ ent.dorsal }}</span>{% endif %}
+      <span class="nm">{{ ent.nombre }} {{ ent.apellidos }}</span>
+      {% if ent.fase_recuperacion %}<span class="c-rotulo">{{ ent.fase_recuperacion | replace('_', ' ') | replace('fase ', 'F') }}</span>{% endif %}
+      {% if ent.estado and ent.estado != 'planificado' %}<span class="c-rotulo"> · {{ ent.estado }}</span>{% endif %}
     </div>
-    {% endfor %}
+    {% if ent.objetivo %}<div class="ob"><b>Objetivo:</b> {{ ent.objetivo }}</div>{% endif %}
+    <div class="mt">
+      {% if ent.responsable %}<span><b>Responsable:</b> {{ ent.responsable }}</span>{% endif %}
+      {% if ent.duracion_estimada %}<span><b>Duración:</b> {{ ent.duracion_estimada }} min</span>{% endif %}
+      {% if ent.rpe_post %}<span><b>RPE:</b> {{ ent.rpe_post }}/10</span>{% endif %}
+      {% if ent.registro_medico_titulo %}<span><b>Lesión:</b> {{ ent.registro_medico_titulo }}</span>{% endif %}
+    </div>
+    {% if ent.tareas %}
+    <table class="c-tabla">
+      <thead><tr><th style="width:5%">#</th><th style="width:30%">Ejercicio</th><th style="width:13%">Tipo</th><th style="width:8%">Dur.</th><th style="width:9%">Series</th><th style="width:9%">Reps</th><th style="width:9%">Desc.</th><th style="width:9%">Carga</th></tr></thead>
+      <tbody>
+        {% for t in ent.tareas %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td><b>{{ t.titulo or '' }}</b>{% if t.descripcion %}<br>{{ t.descripcion[:80] }}{% if t.descripcion|length > 80 %}…{% endif %}{% endif %}</td>
+          <td>{% if t.tipo_ejercicio %}<span class="c-peto" style="background:{{ t.tipo_color or '#6B7280' }}"></span>{{ t.tipo_ejercicio }}{% endif %}</td>
+          <td>{% if t.duracion %}{{ t.duracion }}'{% endif %}</td>
+          <td>{{ t.series or '' }}</td><td>{{ t.repeticiones or '' }}</td><td>{{ t.descanso or '' }}</td><td>{{ t.carga or '' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+    {% if ent.notas %}<div class="nota">{{ ent.notas }}</div>{% endif %}
+  </div>
+  {% endfor %}
 </div>
 {% endif %}
 

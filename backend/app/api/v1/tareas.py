@@ -33,6 +33,7 @@ from app.database import get_supabase
 from app.dependencies import get_optional_user, require_permission, AuthContext
 from app.security.permissions import Permission
 from app.services.tarea_narrative import hydrate_tarea_narrative, sync_reglas_variantes
+from app.services.material import sincronizar_materiales_sesiones_de_tarea
 from app.services.tarea_write import (
     note_origen_query_error,
     origen_column_available,
@@ -939,6 +940,9 @@ def update_tarea(
         supabase, response, {**existing.data, **update_data}, str(tarea_id)
     )
     _schedule_tarea_embedding(background_tasks, row, str(tarea_id))
+    if "material" in update_data:
+        # El material de las sesiones que usan esta tarea se deriva de sus tareas.
+        sincronizar_materiales_sesiones_de_tarea(supabase, str(tarea_id))
     return _tarea_response(row)
 
 

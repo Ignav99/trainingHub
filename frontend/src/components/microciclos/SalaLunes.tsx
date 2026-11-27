@@ -55,12 +55,12 @@ import type { FaseTemporada, ModoPartidoMicrociclo } from '@/types'
 // ============ Constants ============
 
 const TIPO_MICROCICLO_OPTIONS: { value: TipoMicrociclo; label: string; color: string }[] = [
-  { value: 'pretemporada', label: 'Pretemporada', color: 'bg-violet-100 text-violet-700' },
-  { value: 'competicion', label: 'Competición', color: 'bg-red-100 text-red-700' },
-  { value: 'carga', label: 'Carga', color: 'bg-orange-100 text-orange-700' },
-  { value: 'choque', label: 'Choque', color: 'bg-amber-100 text-amber-700' },
-  { value: 'aproximacion', label: 'Aproximación', color: 'bg-blue-100 text-blue-700' },
-  { value: 'recuperacion', label: 'Recuperación', color: 'bg-green-100 text-green-700' },
+  { value: 'pretemporada', label: 'Pretemporada', color: 'border-[1.5px] border-border text-foreground' },
+  { value: 'competicion', label: 'Competición', color: 'border-[1.5px] border-border text-foreground' },
+  { value: 'carga', label: 'Carga', color: 'border-[1.5px] border-border text-foreground' },
+  { value: 'choque', label: 'Choque', color: 'border-[1.5px] border-border text-foreground' },
+  { value: 'aproximacion', label: 'Aproximación', color: 'border-[1.5px] border-border text-foreground' },
+  { value: 'recuperacion', label: 'Recuperación', color: 'border-[1.5px] border-border text-foreground' },
 ]
 
 const MODO_PARTIDO_OPTIONS: { value: ModoPartidoMicrociclo; label: string }[] = [
@@ -84,9 +84,9 @@ function SaveIndicator({ status }: { status: SaveStatus }) {
   if (status === 'idle') return null
 
   const configs = {
-    pending: { dot: 'bg-amber-400 animate-pulse', text: 'Guardando...' },
-    saved: { dot: 'bg-green-500', text: 'Guardado' },
-    error: { dot: 'bg-red-500', text: 'Error al guardar' },
+    pending: { dot: 'bg-warning animate-pulse', text: 'Guardando...' },
+    saved: { dot: 'bg-success', text: 'Guardado' },
+    error: { dot: 'bg-destructive', text: 'Error al guardar' },
   } as const
 
   const cfg = configs[status]
@@ -114,41 +114,41 @@ function DisponibilidadCompacta({ plantilla }: { plantilla: VistaCompletaMicroci
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <div className="rounded-lg bg-green-50 p-2 text-center">
-          <p className="text-xl font-bold tabular-nums text-green-700">{disponibles}</p>
-          <p className="text-[10px] text-green-600">Disponibles</p>
+        <div className="rounded border-[1.5px] border-border p-2 text-center">
+          <p className="text-xl font-bold tabular-nums text-success">{disponibles}</p>
+          <p className="text-[10px] text-muted-foreground">Disponibles</p>
         </div>
-        <div className="rounded-lg bg-red-50 p-2 text-center">
-          <p className="text-xl font-bold tabular-nums text-red-700">{enTratamiento}</p>
-          <p className="text-[10px] text-red-600">En tratamiento</p>
+        <div className="rounded border-[1.5px] border-border p-2 text-center">
+          <p className="text-xl font-bold tabular-nums text-destructive">{enTratamiento}</p>
+          <p className="text-[10px] text-destructive">En tratamiento</p>
         </div>
-        <div className="rounded-lg bg-amber-50 p-2 text-center">
-          <p className="text-xl font-bold tabular-nums text-amber-800">{apercibidos.length}</p>
-          <p className="text-[10px] text-amber-700">Apercibidos</p>
+        <div className="rounded border-[1.5px] border-border p-2 text-center">
+          <p className="text-xl font-bold tabular-nums text-foreground">{apercibidos.length}</p>
+          <p className="text-[10px] text-foreground">Apercibidos</p>
         </div>
-        <div className="rounded-lg bg-yellow-50 p-2 text-center">
-          <p className="text-xl font-bold tabular-nums text-yellow-800">{sancionados.length}</p>
-          <p className="text-[10px] text-yellow-700">Sancionados</p>
+        <div className="rounded border-[1.5px] border-border p-2 text-center">
+          <p className="text-xl font-bold tabular-nums text-foreground">{sancionados.length}</p>
+          <p className="text-[10px] text-foreground">Sancionados</p>
         </div>
       </div>
 
       {enTratamientoList.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-[10px] font-semibold text-red-700">En tratamiento</p>
+          <p className="text-[10px] font-semibold text-destructive">En tratamiento</p>
           {enTratamientoList.map((j) => (
             <div key={j.id} className="flex items-center justify-between gap-2 text-[11px]">
               <span className="truncate">
                 {j.dorsal ? `${j.dorsal}. ` : ''}
                 {j.nombre} {j.apellidos}
               </span>
-              <span className="text-red-600 shrink-0">{j.motivo_baja || 'Lesión'}</span>
+              <span className="text-destructive shrink-0">{j.motivo_baja || 'Lesión'}</span>
             </div>
           ))}
         </div>
       )}
       {apercibidos.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-[10px] font-semibold text-amber-800">Apercibidos</p>
+          <p className="text-[10px] font-semibold text-foreground">Apercibidos</p>
           {apercibidos.map((j) => (
             <div key={j.id} className="text-[11px] truncate">
               {j.dorsal ? `${j.dorsal}. ` : ''}{j.nombre} {j.apellidos}
@@ -158,7 +158,7 @@ function DisponibilidadCompacta({ plantilla }: { plantilla: VistaCompletaMicroci
       )}
       {sancionados.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-[10px] font-semibold text-yellow-800">Sancionados</p>
+          <p className="text-[10px] font-semibold text-foreground">Sancionados</p>
           {sancionados.map((j) => (
             <div key={j.id} className="text-[11px] truncate">
               {j.dorsal ? `${j.dorsal}. ` : ''}{j.nombre} {j.apellidos}
@@ -435,10 +435,10 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
     <div className="min-w-0 space-y-6">
       {/* Recordatorio mejora partido anterior */}
       {reflexionAnterior?.texto && (
-        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 flex gap-3 items-start">
-          <Lightbulb className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+        <div className="rounded border-[1.5px] border-warning bg-card px-4 py-3 flex gap-3 items-start">
+          <Lightbulb className="h-4 w-4 text-warning shrink-0 mt-0.5" />
           <div className="min-w-0 flex-1 space-y-1">
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-amber-900/80">
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-foreground">
               <span className="font-semibold uppercase tracking-wide">Del partido anterior</span>
               <span>·</span>
               <span className="truncate">
@@ -448,16 +448,16 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
               {reflexionAnterior.partido_id && (
                 <Link
                   href={`/partidos?match=${reflexionAnterior.partido_id}&tab=informe-partido`}
-                  className="text-amber-800 underline hover:no-underline ml-auto"
+                  className="text-foreground underline hover:no-underline ml-auto"
                 >
                   Ver informe
                 </Link>
               )}
             </div>
-            <p className="text-sm text-amber-950 leading-snug whitespace-pre-wrap">
+            <p className="text-sm text-foreground leading-snug whitespace-pre-wrap">
               {reflexionAnterior.texto}
             </p>
-            <p className="text-[10px] text-amber-800/70">
+            <p className="text-[10px] text-foreground/70">
               Tenlo en cuenta al planificar esta semana (objetivos, morfociclo, ABP…).
             </p>
           </div>
@@ -465,7 +465,7 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
       )}
 
       {/* ============ Header ============ */}
-      <div className="rounded-xl border bg-card p-5 space-y-4">
+      <div className="rounded border bg-card p-5 space-y-4">
         <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <CalendarDays className="h-5 w-5 text-primary shrink-0" />
@@ -485,7 +485,7 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
 
         {/* ============ Rival / Partido ============ */}
         {pretemporada && modoPartido === 'none' ? (
-          <div className="rounded-lg border border-violet-200 bg-violet-50/60 px-3 py-2.5 text-xs text-violet-900">
+          <div className="rounded border-[1.5px] border-border bg-muted px-3 py-2.5 text-xs text-foreground">
             Semana de <strong>pretemporada</strong> · solo sesiones (sin plan de partido ni informe rival).
             {onOpenEdit && (
               <button type="button" onClick={onOpenEdit} className="ml-2 underline hover:no-underline">
@@ -494,12 +494,12 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
             )}
           </div>
         ) : hasLinkedMatch ? (
-          <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2.5">
+          <div className="flex items-center justify-between gap-3 rounded border bg-muted/30 px-3 py-2.5">
             <div className="flex items-center gap-3 min-w-0">
               <TeamCrest src={linkedRival?.escudo_url} name={linkedRival?.nombre || 'Rival'} size="md" />
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <Swords className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                  <Swords className="h-3.5 w-3.5 text-warning shrink-0" />
                   <span className="text-sm font-semibold truncate">
                     {linkedRival?.nombre_corto || linkedRival?.nombre || 'Partido de la semana'}
                   </span>
@@ -513,7 +513,7 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
                         {' · '}
                         <Link
                           href={`/partidos?match=${micro.partido_id}&tab=plan-partido`}
-                          className="text-blue-600 hover:underline"
+                          className="text-primary hover:underline"
                         >
                           Abrir partido
                         </Link>
@@ -536,7 +536,7 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
           <button
             type="button"
             onClick={onOpenEdit}
-            className="flex items-center justify-center gap-2 w-full rounded-lg border border-dashed px-3 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:border-primary/50 hover:bg-muted/30 transition-colors"
+            className="flex items-center justify-center gap-2 w-full rounded border border-dashed px-3 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:border-primary/50 hover:bg-muted/30 transition-colors"
           >
             <Link2 className="h-3.5 w-3.5" />
             {pretemporada ? 'Vincular amistoso / rival (opcional)' : 'Sin partido esta semana — asignar si hace falta'}
@@ -722,7 +722,7 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
           </div>
         </div>
       ) : (
-        <div className="rounded-xl border border-dashed px-4 py-6 text-center text-xs text-muted-foreground">
+        <div className="rounded border border-dashed px-4 py-6 text-center text-xs text-muted-foreground">
           {pretemporada
             ? 'Modo pretemporada: el informe del rival y el plan de partido completo están ocultos. Cambia el “Modo partido” si quieres un amistoso externo.'
             : 'Sin rival/partido vinculado: el plan e informe aparecen cuando elijas un rival o un modo con partido.'}
@@ -744,7 +744,7 @@ export function SalaLunes({ microcicloId, data, jugadores, onOpenEdit }: SalaLun
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center gap-2">
-              <Users className="h-4 w-4 text-blue-600" />
+              <Users className="h-4 w-4 text-primary" />
               Disponibilidad
             </CardTitle>
           </CardHeader>

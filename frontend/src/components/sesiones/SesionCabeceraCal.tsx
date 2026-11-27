@@ -1,6 +1,9 @@
 'use client'
 
-import { ChevronDown, Download, Eye, Loader2, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+import { ChevronDown, Download, Eye, FileText, Loader2, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
+import { sesionesApi } from '@/lib/api/sesiones'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Button } from '@/components/ui/button'
@@ -66,6 +69,18 @@ export function SesionCabeceraCal({
   onDelete,
 }: Props) {
   const est = ESTADO[sesion.estado] || ESTADO.borrador
+  const [plegando, setPlegando] = useState(false)
+  const descargarPlegado = async () => {
+    setPlegando(true)
+    try {
+      await sesionesApi.generatePdf(sesion.id, 'plegado', { fecha: sesion.fecha })
+    } catch (err) {
+      console.error('Error generating PDF plegado:', err)
+      toast.error('Error al generar el PDF plegado')
+    } finally {
+      setPlegando(false)
+    }
+  }
   const fechaLarga = safe(() => format(parseISO(sesion.fecha), "EEEE d 'de' MMMM", { locale: es }), sesion.fecha)
   const esPre = !!(sesion.es_pretemporada || sesion.contexto_periodo === 'pretemporada')
   const conDiaCarga = esPre || sesion.contexto_periodo === 'transicion'
@@ -180,6 +195,14 @@ export function SesionCabeceraCal({
               <Download className="mr-2 h-4 w-4" aria-hidden="true" />
             )}
             Descargar PDF
+          </Button>
+          <Button variant="outline" className="min-h-11" onClick={descargarPlegado} disabled={plegando} title="Un folio apaisado en paneles para plegar y seguir la sesión en orden">
+            {plegando ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <FileText className="mr-2 h-4 w-4" aria-hidden="true" />
+            )}
+            Plegado (1 folio)
           </Button>
           <Button variant="outline" size="icon" className="h-11 w-11" onClick={onPreviewPdf} disabled={previewingPdf} aria-label="Vista previa del PDF reducido">
             {previewingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}

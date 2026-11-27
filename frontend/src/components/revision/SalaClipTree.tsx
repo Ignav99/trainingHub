@@ -79,13 +79,13 @@ function SalaFolderNode({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-zinc-300 hover:bg-white/10"
+        className="w-full flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-muted-foreground hover:bg-secondary"
         style={{ paddingLeft: 6 + depth * 10 }}
       >
         {open ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
-        <Folder className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
+        <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
         <span className="truncate text-left">{folder.nombre}</span>
-        <span className="ml-auto text-[10px] text-zinc-500">{clips.length}</span>
+        <span className="ml-auto text-[10px] text-muted-foreground">{clips.length}</span>
       </button>
       {open && (
         <div>
@@ -129,12 +129,12 @@ function ClipButton({
     <button
       type="button"
       onClick={() => onPick(clip)}
-      className={`w-full text-left rounded-md px-2 py-1.5 text-xs ${active ? 'bg-white/15' : 'hover:bg-white/5'}`}
+      className={`w-full text-left rounded-md px-2 py-1.5 text-xs ${active ? 'bg-border' : 'hover:bg-secondary'}`}
       style={{ paddingLeft: 18 + depth * 10 }}
     >
       <div className="font-medium truncate">{clip.titulo}</div>
-      {clip.nota && <div className="text-[10px] text-zinc-400">{clip.nota}</div>}
-      {clip.frase && <div className="text-[10px] text-zinc-400 line-clamp-2">{clip.frase}</div>}
+      {clip.nota && <div className="text-[10px] text-muted-foreground">{clip.nota}</div>}
+      {clip.frase && <div className="text-[10px] text-muted-foreground line-clamp-2">{clip.frase}</div>}
     </button>
   )
 }

@@ -6,6 +6,7 @@ import { Loader2, MonitorPlay } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { revisionApi, type RevisionClip, type RevisionPack, type RevisionSession } from '@/lib/api/revision'
 import { SalaStage } from './SalaStage'
+import { SalaMarca } from './salaCal'
 
 interface SalaHostDialogProps {
   pack: RevisionPack
@@ -61,6 +62,7 @@ export function SalaHostDialog({ pack, clip, equipoId, onClose }: SalaHostDialog
   return (
     <Dialog open onOpenChange={() => onClose()}>
       <DialogContent className="sm:max-w-md">
+        <SalaMarca />
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MonitorPlay className="h-4 w-4" />

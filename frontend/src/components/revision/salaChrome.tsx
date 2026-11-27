@@ -26,7 +26,7 @@ export function SalaFloatingChrome({ children }: { children: ReactNode }) {
       data-testid="sala-floating-chrome"
       className="pointer-events-none absolute inset-x-0 top-0 z-50"
     >
-      <div className="pointer-events-auto bg-zinc-950/95 shadow-[0_10px_28px_rgba(0,0,0,0.55)] backdrop-blur-sm">
+      <div className="pointer-events-auto border-b-[1.5px] border-border bg-background">
         {children}
       </div>
     </div>
@@ -76,10 +76,10 @@ export function SalaReviewBar({
   onToggleFullscreen?: () => void
 }) {
   return (
-    <div className="flex items-center gap-1.5 px-2 py-1.5 bg-zinc-950 border-b border-white/10 text-xs flex-wrap">
+    <div className="flex items-center gap-1.5 px-2 py-1.5 bg-background border-b-[1.5px] border-border text-xs flex-wrap">
       <button
         type="button"
-        className="h-10 px-3 rounded-md bg-white/10 active:bg-white/20"
+        className="h-10 px-3 rounded-md bg-secondary active:bg-accent"
         onClick={onJogBack}
         title="Medio segundo atrás"
       >
@@ -87,7 +87,7 @@ export function SalaReviewBar({
       </button>
       <button
         type="button"
-        className="h-10 px-3 rounded-md bg-white/10 active:bg-white/20"
+        className="h-10 px-3 rounded-md bg-secondary active:bg-accent"
         onClick={onFrameBack}
         title="Fotograma anterior"
       >
@@ -95,7 +95,7 @@ export function SalaReviewBar({
       </button>
       <button
         type="button"
-        className="h-10 px-3 rounded-md bg-white/10 active:bg-white/20 inline-flex items-center gap-1 touch-none"
+        className="h-10 px-3 rounded-md bg-secondary active:bg-accent inline-flex items-center gap-1 touch-none"
         onPointerDown={(e) => {
           e.preventDefault()
           try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* ignore */ }
@@ -110,7 +110,7 @@ export function SalaReviewBar({
       </button>
       <button
         type="button"
-        className="h-10 px-3 rounded-md bg-orange-500 text-black font-medium inline-flex items-center gap-1"
+        className="h-10 px-3 rounded-md bg-primary text-primary-foreground font-medium inline-flex items-center gap-1"
         onClick={onRepeat}
         title={`Repite los últimos ${REPEAT_SECONDS} segundos`}
       >
@@ -119,16 +119,16 @@ export function SalaReviewBar({
       </button>
       <button
         type="button"
-        className="h-10 px-3 rounded-md bg-white/10 active:bg-white/20"
+        className="h-10 px-3 rounded-md bg-secondary active:bg-accent"
         onClick={onFrameFwd}
         title="Fotograma siguiente"
       >
         +1 fot.
       </button>
-      <div className="w-px h-6 bg-white/15 mx-0.5" />
+      <div className="w-px h-6 bg-border mx-0.5" />
       <button
         type="button"
-        className={`h-10 px-3 rounded-md inline-flex items-center gap-1 ${zoomMode ? 'bg-orange-500 text-black' : 'bg-white/10'}`}
+        className={`h-10 px-3 rounded-md inline-flex items-center gap-1 ${zoomMode ? 'bg-primary text-primary-foreground' : 'bg-secondary'}`}
         onClick={zoomMode ? onExitZoom : onEnterZoom}
         title="Pellizca con dos dedos. No pinta mientras está activo."
       >
@@ -136,13 +136,13 @@ export function SalaReviewBar({
         {zoomMode ? 'Acercar ON' : 'Acercar'}
       </button>
       {zoomMode && (
-        <span className="text-[10px] text-amber-200 hidden sm:inline">
+        <span className="text-[10px] text-warning hidden sm:inline">
           Pellizca con dos dedos · un dedo arrastra
         </span>
       )}
       <button
         type="button"
-        className="h-10 w-10 rounded-md bg-white/10 inline-flex items-center justify-center"
+        className="h-10 w-10 rounded-md bg-secondary inline-flex items-center justify-center"
         onClick={onZoomIn}
         title="Acercar"
       >
@@ -150,7 +150,7 @@ export function SalaReviewBar({
       </button>
       <button
         type="button"
-        className="h-10 w-10 rounded-md bg-white/10 inline-flex items-center justify-center"
+        className="h-10 w-10 rounded-md bg-secondary inline-flex items-center justify-center"
         onClick={onZoomOut}
         title="Alejar"
       >
@@ -158,7 +158,7 @@ export function SalaReviewBar({
       </button>
       <button
         type="button"
-        className="h-10 px-3 rounded-md bg-white/10 inline-flex items-center gap-1 disabled:opacity-40"
+        className="h-10 px-3 rounded-md bg-secondary inline-flex items-center gap-1 disabled:opacity-40"
         onClick={onRestore}
         disabled={!zoomed}
         title="Tamaño original"
@@ -170,7 +170,7 @@ export function SalaReviewBar({
         <button
           type="button"
           data-testid="sala-video-fullscreen"
-          className="h-10 px-3 rounded-md bg-white/10 active:bg-white/20 inline-flex items-center gap-1"
+          className="h-10 px-3 rounded-md bg-secondary active:bg-accent inline-flex items-center gap-1"
           onClick={onToggleFullscreen}
           title={fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
         >
@@ -216,16 +216,16 @@ export function WhiteboardBar({
   onPlay: () => void
 }) {
   return (
-    <div className="flex items-center gap-2 px-2 py-1.5 bg-zinc-900 border-b border-white/10 text-xs flex-wrap">
-      <Button variant="ghost" size="sm" className="h-7 text-white hover:bg-white/15" onClick={onPlay}>
+    <div className="flex items-center gap-2 px-2 py-1.5 bg-card border-b-[1.5px] border-border text-xs flex-wrap">
+      <Button variant="ghost" size="sm" className="h-7 text-foreground hover:bg-border" onClick={onPlay}>
         {playing ? <Pause className="h-3.5 w-3.5 mr-1" /> : <Play className="h-3.5 w-3.5 mr-1" />}
         Play / pausa
       </Button>
-      <div className="w-px h-5 bg-white/15" />
+      <div className="w-px h-5 bg-border" />
       {SALA_DRAW_TOOLS.map(({ tool: t, label }) => (
         <button
           key={t}
-          className={`px-2 py-1 rounded ${tool === t ? 'bg-orange-500 text-black' : 'bg-white/10'}`}
+          className={`px-2 py-1 rounded ${tool === t ? 'bg-primary text-primary-foreground' : 'bg-secondary'}`}
           onClick={() => setTool(t)}
         >
           {t === 'rect' ? <Square className="h-3 w-3 inline mr-1" /> : null}
@@ -233,28 +233,28 @@ export function WhiteboardBar({
           {label}
         </button>
       ))}
-      <div className="w-px h-5 bg-white/15" />
+      <div className="w-px h-5 bg-border" />
       {DRAWING_COLORS.map((c) => (
         <button
           key={c}
-          className={`w-5 h-5 rounded-full border-2 ${color === c ? 'border-white scale-110' : 'border-white/30'}`}
+          className={`w-5 h-5 rounded-full border-[1.5px] ${color === c ? 'border-foreground' : 'border-border'}`}
           style={{ backgroundColor: c }}
           onClick={() => setColor(c)}
           title={c}
         />
       ))}
-      <div className="w-px h-5 bg-white/15" />
+      <div className="w-px h-5 bg-border" />
       {STROKE_WIDTHS.map((w) => (
         <button
           key={w}
-          className={`w-6 h-6 rounded ${strokeWidth === w ? 'bg-white/30' : 'hover:bg-white/15'}`}
+          className={`w-6 h-6 rounded ${strokeWidth === w ? 'bg-accent' : 'hover:bg-border'}`}
           onClick={() => setStrokeWidth(w)}
           title={`Grosor ${w}`}
         >
-          <span className="mx-auto block rounded-full bg-white" style={{ width: w + 2, height: w + 2 }} />
+          <span className="mx-auto block rounded-full bg-foreground" style={{ width: w + 2, height: w + 2 }} />
         </button>
       ))}
-      <label className="flex items-center gap-1 text-[10px] text-zinc-400">
+      <label className="flex items-center gap-1 text-[10px] text-muted-foreground">
         Opacidad
         <input
           type="range"
@@ -267,15 +267,15 @@ export function WhiteboardBar({
       </label>
       <button
         type="button"
-        className={`px-2 py-1 rounded inline-flex items-center gap-1 ${selectedForMove ? 'bg-orange-500 text-black' : 'bg-white/10'}`}
+        className={`px-2 py-1 rounded inline-flex items-center gap-1 ${selectedForMove ? 'bg-primary text-primary-foreground' : 'bg-secondary'}`}
         onClick={onMoveTool}
         title="Mover la forma seleccionada"
       >
         <Hand className="h-3.5 w-3.5" />
         Mover
       </button>
-      <button className="px-2 py-1 rounded bg-white/10" onClick={onUndo} disabled={!canUndo}>Deshacer</button>
-      <button className="px-2 py-1 rounded bg-white/10" onClick={onClearAll}>Borrar todo</button>
+      <button className="px-2 py-1 rounded bg-secondary" onClick={onUndo} disabled={!canUndo}>Deshacer</button>
+      <button className="px-2 py-1 rounded bg-secondary" onClick={onClearAll}>Borrar todo</button>
     </div>
   )
 }

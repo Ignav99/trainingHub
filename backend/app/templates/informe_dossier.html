@@ -9,199 +9,113 @@
   <title>{{ titulo }}</title>
   <style>
     /*
-      Dossier de vestuario — WeasyPrint: TABLE (flex colapsa).
-      Marca normalizada Kabin-e: colores del club vía --k-*; barra MD semántica por día.
+      Dossier de vestuario · papel Cal. WeasyPrint: TABLE (flex colapsa).
+      Una línea (.4mm tinta / .25mm borde), sin relleno decorativo. El color de MD y de
+      estado de asistencia solo aparece como muestra pequeña junto al texto.
     */
     @page { size: A4; margin: 11mm 10mm 15mm 10mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-size: 8.4pt; line-height: 1.38; background: #fff; }
 
-    .k-cabecera { margin-bottom: 4mm; }
-    .k-cab-meta .ml { color: var(--k-tinta); font-weight: 600; }
-    .meta { font-size: 7.6pt; color: var(--k-tinta-suave); margin-top: .4mm; }
-    .meta b { color: var(--k-tinta); }
+    .c-cabecera { margin-bottom: 4mm; }
+    .c-cab-meta .ml { color: var(--c-suave); font-weight: 600; }
+    .meta { font-size: 7.6pt; color: var(--c-suave); margin-top: .4mm; }
+    .meta b { color: var(--c-tinta); }
+    .muted { color: var(--c-suave); }
+    .c-seccion { page-break-after: avoid; }
 
-    /* KPIs */
+    /* Muestra de color semántico (MD, asistencia): siempre junto a texto */
+    .sw { display: inline-block; width: 2.2mm; height: 2.2mm; border-radius: .3mm; margin-right: 1.2mm; vertical-align: -.2mm; background: var(--c-borde); }
+
+    /* Datos */
     .kpis { width: 100%; border-collapse: separate; border-spacing: 2mm 0; margin: 0 -2mm 4mm; table-layout: fixed; }
-    .kpis td {
-      border: .25mm solid var(--k-linea); border-radius: 2.6mm; padding: 2.4mm 3mm;
-      background: #fff; vertical-align: top;
-    }
-    .kpis .n { font-size: 15pt; font-weight: 800; letter-spacing: -.02em; line-height: 1.05; color: var(--k-tinta); }
-    .kpis .l { font-size: 6.4pt; text-transform: uppercase; letter-spacing: .1em; color: var(--k-tinta-suave); font-weight: 600; margin-top: .8mm; }
-    .racha { letter-spacing: .14em; font-weight: 700; color: var(--k-primario-texto); }
+    .kpis td { border: .25mm solid var(--c-borde); border-radius: .5mm; padding: 2.4mm 3mm; vertical-align: top; }
+    .kpis .n { font-size: 15pt; font-weight: 700; line-height: 1.05; color: var(--c-tinta); }
+    .kpis .l { font-size: 6.6pt; text-transform: uppercase; letter-spacing: .08em; color: var(--c-suave); font-weight: 600; margin-top: .8mm; }
+    .racha { letter-spacing: .14em; font-weight: 700; color: var(--c-tinta); }
 
-    .notas {
-      margin-top: 4mm; padding: 2.8mm 3.4mm; background: var(--k-primario-suave);
-      border-radius: 2.6mm; font-size: 8.4pt; color: var(--k-tinta);
-    }
-    .notas .l { font-size: 6.4pt; text-transform: uppercase; letter-spacing: .12em; color: var(--k-primario-texto); font-weight: 700; margin-bottom: 1.2mm; }
-    .lectura {
-      border-left: 1mm solid var(--k-primario); border-radius: 0 2.6mm 2.6mm 0;
-      padding: 2.6mm 3.6mm; margin-bottom: 4mm;
-      font-size: 9.2pt; background: var(--k-primario-suave);
-    }
-    h2 {
-      margin: 5mm 0 2.5mm; padding-left: 2.6mm; border-left: 1mm solid var(--k-primario);
-      font-size: 10.5pt; font-weight: 800; color: var(--k-tinta); letter-spacing: -.01em;
-      page-break-after: avoid;
-    }
-    table.data { width: 100%; border-collapse: collapse; }
-    table.data th, table.data td { text-align: left; padding: 1.3mm 1.8mm; border-bottom: .2mm solid var(--k-linea); font-size: 7.8pt; }
-    table.data th {
-      background: var(--k-primario); color: var(--k-sobre-primario);
-      font-size: 6.4pt; text-transform: uppercase; letter-spacing: .06em; font-weight: 600;
-    }
-    table.data tr:nth-child(even) td { background: var(--k-primario-suave); }
-    table.data th.num, table.data td.num, td.num { text-align: right; }
-    .muted { color: var(--k-tinta-suave); }
+    .notas { margin-top: 4mm; padding: 2.8mm 3.4mm; background: var(--c-hundido); border-radius: .5mm; font-size: 8.4pt; color: var(--c-tinta); }
+    .notas .l { font-size: 6.6pt; text-transform: uppercase; letter-spacing: .08em; color: var(--c-suave); font-weight: 600; margin-bottom: 1.2mm; }
+    .lectura { padding: 2.6mm 3.4mm; margin-bottom: 4mm; font-size: 9.2pt; background: var(--c-hundido); border-radius: .5mm; }
 
-    /* —— Semana / microciclo —— */
-    .week-hero { width: 100%; border-collapse: collapse; margin: 5mm 0 4mm; }
-    .week-hero td { vertical-align: middle; padding: 3.6mm 4.4mm; background: var(--k-primario); color: var(--k-sobre-primario); }
-    .week-hero td:first-child { border-radius: 2.6mm 0 0 2.6mm; }
-    .week-hero td:last-child { border-radius: 0 2.6mm 2.6mm 0; }
-    .week-hero .wh-k { font-size: 6.6pt; letter-spacing: .16em; text-transform: uppercase; opacity: .8; }
-    .week-hero .wh-t { font-size: 13pt; font-weight: 800; letter-spacing: -.02em; margin-top: .6mm; }
-    .week-hero .wh-vs { font-size: 14pt; font-weight: 800; letter-spacing: -.02em; text-align: right; }
-    .week-hero .wh-sub { font-size: 7.6pt; opacity: .85; text-align: right; margin-top: .6mm; }
+    table.c-tabla td, table.c-tabla th { font-size: 7.8pt; }
+    table.c-tabla th { font-size: 6.6pt; }
+    table.c-tabla th.num, table.c-tabla td.num, td.num { text-align: right; }
 
-    .obj-grid { width: 100%; border-collapse: separate; border-spacing: 2mm 0; margin: 0 -2mm 3.5mm; table-layout: fixed; }
-    .obj-grid td { vertical-align: top; padding: 2.4mm 3mm; border: .25mm solid var(--k-linea); border-radius: 2.6mm; }
-    .ol, .obj-grid .ol, .two .ol {
-      font-size: 6.2pt; text-transform: uppercase; letter-spacing: .14em;
-      font-weight: 700; color: var(--k-primario-texto); margin-bottom: 1mm;
-    }
-    .obj-grid .ot { font-size: 8.6pt; font-weight: 600; color: var(--k-tinta); }
+    /* Semana / microciclo: cabecera tranquila con datos */
+    .week-hero { width: 100%; border-collapse: collapse; margin: 5mm 0 4mm; border: .4mm solid var(--c-tinta); border-radius: .5mm; }
+    .week-hero td { vertical-align: middle; padding: 3.2mm 4mm; }
+    .week-hero .wh-k { font-size: 6.8pt; letter-spacing: .08em; text-transform: uppercase; color: var(--c-suave); font-weight: 600; }
+    .week-hero .wh-t { font-size: 13pt; font-weight: 800; margin-top: .6mm; color: var(--c-tinta); }
+    .week-hero .wh-vs { font-size: 12pt; font-weight: 700; text-align: right; color: var(--c-tinta); }
+    .week-hero .wh-sub { font-size: 7.6pt; color: var(--c-suave); text-align: right; margin-top: .6mm; }
+
+    .obj-grid, .two { width: 100%; border-collapse: separate; border-spacing: 2mm 0; margin: 0 -2mm 3.5mm; table-layout: fixed; }
+    .obj-grid td, .two td { vertical-align: top; padding: 2.4mm 3mm; border: .25mm solid var(--c-borde); border-radius: .5mm; }
+    .ol { font-size: 6.6pt; text-transform: uppercase; letter-spacing: .08em; font-weight: 600; color: var(--c-suave); margin-bottom: 1mm; }
+    .obj-grid .ot { font-size: 8.6pt; font-weight: 600; color: var(--c-tinta); }
 
     .week-strip { width: 100%; border-collapse: separate; border-spacing: 1.4mm 0; table-layout: fixed; margin: 0 -1.4mm 4mm; }
-    .week-strip td {
-      text-align: center; padding: 2mm 1mm 2.4mm;
-      border: .25mm solid var(--k-linea); border-radius: 0 0 2mm 2mm; vertical-align: top;
-    }
-    .week-strip .md { font-size: 9.5pt; font-weight: 800; letter-spacing: .02em; }
-    .week-strip .wd { font-size: 6.8pt; text-transform: capitalize; color: var(--k-tinta-suave); margin-top: .3mm; }
-    .week-strip .nt { font-size: 6.6pt; color: var(--k-tinta-suave); margin-top: .6mm; }
+    .week-strip td { text-align: center; padding: 2mm 1mm 2.4mm; border: .25mm solid var(--c-borde); border-radius: .5mm; vertical-align: top; }
+    .week-strip .md { font-size: 9.5pt; font-weight: 700; color: var(--c-tinta); }
+    .week-strip .wd { font-size: 6.8pt; text-transform: capitalize; color: var(--c-suave); margin-top: .3mm; }
+    .week-strip .nt { font-size: 6.6pt; color: var(--c-suave); margin-top: .6mm; }
 
     .ses-sheet { margin-top: 3mm; page-break-before: always; }
     .ses-sheet.first { page-break-before: auto; margin-top: 1mm; }
-    .ses-banner { width: 100%; border-collapse: collapse; margin-bottom: 3mm; }
-    .ses-md {
-      width: 26mm; text-align: center; color: #fff; vertical-align: middle; padding: 2.6mm 1.4mm;
-      border-radius: 2.6mm 0 0 2.6mm;
-    }
-    .ses-md-code { font-size: 13pt; font-weight: 800; letter-spacing: .02em; line-height: 1.1; }
-    .ses-md-lab { font-size: 5.8pt; text-transform: uppercase; letter-spacing: .1em; opacity: .9; margin-top: .6mm; }
-    .ses-head { vertical-align: middle; padding: 2.4mm 3.6mm; border-radius: 0 2.6mm 2.6mm 0; }
-    .ses-kicker { font-size: 6.8pt; text-transform: capitalize; font-weight: 600; letter-spacing: .04em; color: var(--k-tinta-suave); }
-    .ses-title { font-size: 11.5pt; font-weight: 800; letter-spacing: -.02em; margin-top: .3mm; }
-    .ses-meta { font-size: 7.6pt; color: var(--k-tinta); margin-top: .8mm; }
-    .ses-obj {
-      font-size: 8.4pt; padding: 1.8mm 3mm; margin-bottom: 3mm;
-      border-left: 1mm solid var(--k-primario); background: var(--k-primario-suave);
-      border-radius: 0 2mm 2mm 0;
-    }
-    .ses-obj strong { font-size: 6.2pt; text-transform: uppercase; letter-spacing: .12em; color: var(--k-tinta-suave); margin-right: 1mm; }
+    .ses-banner { width: 100%; border-collapse: collapse; margin-bottom: 3mm; border-bottom: .4mm solid var(--c-tinta); }
+    .ses-md { width: 26mm; vertical-align: middle; padding: 1.6mm 3mm 2mm 0; border-right: .25mm solid var(--c-borde); }
+    .ses-md-code { font-size: 13pt; font-weight: 800; line-height: 1.1; color: var(--c-tinta); }
+    .ses-md-lab { font-size: 6.4pt; text-transform: uppercase; letter-spacing: .08em; color: var(--c-suave); font-weight: 600; margin-top: .6mm; }
+    .ses-head { vertical-align: middle; padding: 1.6mm 0 2mm 3.6mm; }
+    .ses-kicker { font-size: 6.8pt; text-transform: capitalize; font-weight: 600; color: var(--c-suave); }
+    .ses-title { font-size: 11.5pt; font-weight: 800; margin-top: .3mm; color: var(--c-tinta); }
+    .ses-meta { font-size: 7.6pt; color: var(--c-tinta); margin-top: .8mm; }
+    .ses-obj { font-size: 8.4pt; padding: 1.8mm 3mm; margin-bottom: 3mm; background: var(--c-hundido); border-radius: .5mm; }
+    .ses-obj strong { font-size: 6.6pt; text-transform: uppercase; letter-spacing: .08em; color: var(--c-suave); margin-right: 1mm; }
 
     .fase-lbl {
-      font-size: 6.6pt; font-weight: 700; text-transform: uppercase; letter-spacing: .14em;
-      color: #fff; background: var(--k-tinta); padding: 1mm 2.6mm; margin: 3mm 0 1.6mm;
-      border-radius: 1.2mm; page-break-after: avoid;
+      font-size: 6.8pt; font-weight: 600; text-transform: uppercase; letter-spacing: .08em;
+      color: var(--c-suave); padding: 0 0 1mm; margin: 3.5mm 0 1.8mm;
+      border-bottom: .4mm solid var(--c-tinta); page-break-after: avoid;
     }
 
-    .task-card {
-      width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed;
-      margin-bottom: 2.4mm; border: .25mm solid var(--k-linea); border-radius: 2.6mm;
-      page-break-inside: avoid;
-    }
-    .task-board {
-      width: 70%; height: 75.5mm; background: #2D5016;
-      vertical-align: middle; overflow: hidden; padding: 0;
-      text-align: center; border-radius: 2.4mm 0 0 2.4mm;
-    }
-    .task-board img,
-    .task-board svg {
-      display: block;
-      max-width: 100%;
-      max-height: 75.5mm;
-      width: auto;
-      height: auto;
-      object-fit: contain;
-      object-position: center;
-      margin: 0 auto;
-    }
-    .board-empty {
-      height: 75.5mm; line-height: 75.5mm; text-align: center;
-      color: var(--k-tinta-suave);
-      font-size: 6.6pt; letter-spacing: .14em; text-transform: uppercase; font-weight: 600;
-      background: var(--k-primario-suave); border-radius: 2.4mm 0 0 2.4mm;
-    }
+    .task-card { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; margin-bottom: 2.4mm; border: .25mm solid var(--c-borde); border-radius: .5mm; page-break-inside: avoid; }
+    .task-board { width: 70%; height: 75.5mm; background: var(--c-hundido); vertical-align: middle; overflow: hidden; padding: 0; text-align: center; }
+    .task-board img, .task-board svg { display: block; max-width: 100%; max-height: 75.5mm; width: auto; height: auto; object-fit: contain; object-position: center; margin: 0 auto; }
+    .board-empty { height: 75.5mm; line-height: 75.5mm; text-align: center; color: var(--c-suave); font-size: 6.8pt; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; }
     .ses-kpis { width: 100%; border-collapse: separate; border-spacing: 1.4mm 0; table-layout: fixed; margin: 0 -1.4mm 3mm; }
-    .ses-kpis td {
-      text-align: center; padding: 1.8mm 1mm; border: .25mm solid var(--k-linea);
-      border-radius: 2mm; background: #fff; vertical-align: top;
-    }
-    .ses-kpis .n { font-size: 11pt; font-weight: 800; letter-spacing: -.02em; }
-    .ses-kpis .l { font-size: 5.8pt; text-transform: uppercase; letter-spacing: .08em; color: var(--k-tinta-suave); font-weight: 600; margin-top: .4mm; }
-    /* Grupos de asistencia: colores de estado (semánticos) */
-    .rol-s { color: #15803D; font-weight: 700; }
-    .rol-f { color: #1D4ED8; font-weight: 700; }
-    .rol-m { color: #B45309; font-weight: 700; }
-    .rol-a { color: #B91C1C; font-weight: 700; }
-    .margen-card {
-      width: 100%; border-collapse: separate; margin-bottom: 2mm;
-      border: .25mm solid var(--k-linea); border-left: 1mm solid #D97706; border-radius: 2mm;
-    }
-    .margen-card td { padding: 2mm 2.8mm; vertical-align: top; background: #fff; }
-    .margen-name { font-weight: 800; font-size: 8.6pt; }
-    .margen-ex { font-size: 7.2pt; color: var(--k-tinta-suave); margin-top: .6mm; }
-    .sec-k {
-      margin: 5mm 0 2.5mm; padding-left: 2.6mm; border-left: 1mm solid var(--k-primario);
-      font-size: 10.5pt; font-weight: 800; color: var(--k-tinta); letter-spacing: -.01em;
-      page-break-after: avoid;
-    }
-    .mensaje {
-      font-size: 9.6pt; line-height: 1.45; color: var(--k-tinta); font-weight: 600;
-      background: var(--k-primario-suave); border-left: 1mm solid var(--k-primario);
-      border-radius: 0 2.6mm 2.6mm 0; padding: 3mm 3.8mm; margin-bottom: 3.5mm;
-    }
+    .ses-kpis td { text-align: center; padding: 1.8mm 1mm; border: .25mm solid var(--c-borde); border-radius: .5mm; vertical-align: top; }
+    .ses-kpis .n { font-size: 11pt; font-weight: 700; color: var(--c-tinta); }
+    .ses-kpis .l { font-size: 6.2pt; text-transform: uppercase; letter-spacing: .08em; color: var(--c-suave); font-weight: 600; margin-top: .4mm; }
+    /* Grupos de asistencia: texto + muestra semántica */
+    .rol-s, .rol-f, .rol-m, .rol-a { font-weight: 600; color: var(--c-tinta); }
+    .rol-s::before, .rol-f::before, .rol-m::before, .rol-a::before { content: ""; display: inline-block; width: 2mm; height: 2mm; margin-right: 1.4mm; vertical-align: -.2mm; border-radius: .3mm; }
+    .rol-s::before { background: var(--c-ok); }
+    .rol-f::before { background: var(--c-info); border-radius: 50%; }
+    .rol-m::before { background: var(--c-aviso); }
+    .rol-a::before { background: var(--c-baja); }
+    .margen-card { width: 100%; border-collapse: separate; margin-bottom: 2mm; border: .25mm solid var(--c-borde); border-radius: .5mm; page-break-inside: avoid; }
+    .margen-card td { padding: 2mm 2.8mm; vertical-align: top; }
+    .margen-name { font-weight: 700; font-size: 8.6pt; }
+    .margen-ex { font-size: 7.2pt; color: var(--c-suave); margin-top: .6mm; }
+    .mensaje { font-size: 9.6pt; line-height: 1.45; color: var(--c-tinta); font-weight: 600; background: var(--c-hundido); border-radius: .5mm; padding: 3mm 3.8mm; margin-bottom: 3.5mm; }
     .chip-row { margin: 0 0 3mm; }
-    .obj-chip {
-      display: inline-block; background: var(--k-primario); color: var(--k-sobre-primario);
-      font-size: 6.8pt; font-weight: 600; padding: .5mm 2.2mm; margin: 0 1.2mm 1.2mm 0; border-radius: 9mm;
-    }
-    .two { width: 100%; border-collapse: separate; border-spacing: 2mm 0; table-layout: fixed; margin: 0 -2mm 3mm; }
-    .two td { vertical-align: top; padding: 2.4mm 3mm; border: .25mm solid var(--k-linea); border-radius: 2.6mm; }
-    .list-dot { font-size: 7.8pt; color: var(--k-tinta); margin-bottom: .6mm; }
-    .task-sum { width: 30%; vertical-align: top; padding: 2.2mm 2.8mm 2.4mm; background: #fff; border-radius: 0 2.4mm 2.4mm 0; }
-    .task-ord {
-      display: inline-block; background: var(--k-primario); color: var(--k-sobre-primario);
-      font-size: 6.8pt; font-weight: 700; padding: .3mm 1.4mm; margin-right: 1mm; border-radius: 1mm;
-    }
-    .task-cat {
-      display: inline-block; background: var(--k-primario-suave); color: var(--k-primario-texto);
-      font-size: 6.2pt; font-weight: 700; letter-spacing: .06em;
-      padding: .3mm 1.6mm; text-transform: uppercase; border-radius: 9mm;
-    }
-    .task-min {
-      display: inline-block; float: right;
-      font-size: 9pt; font-weight: 700; color: var(--k-primario-texto);
-    }
-    .task-title { font-size: 9.2pt; font-weight: 800; color: var(--k-tinta); margin: 1.4mm 0 1mm; line-height: 1.2; letter-spacing: -.01em; }
-    .task-resumen { font-size: 7.2pt; color: var(--k-tinta-suave); line-height: 1.3; margin-bottom: 1.4mm; }
-    .cons { font-size: 6.8pt; color: var(--k-tinta); margin-top: .6mm; line-height: 1.3; }
-    .cons .cl {
-      font-size: 5.6pt; font-weight: 700; text-transform: uppercase; letter-spacing: .1em;
-      color: var(--k-tinta-suave); margin-right: 1mm;
-    }
-    .cons.of .cl { color: var(--k-primario-texto); }
-    .cons.df .cl { color: var(--k-secundario-texto); }
-    .chips { margin-top: 1.4mm; }
-    .chip {
-      display: inline-block; font-size: 6pt; font-weight: 600; border-radius: 9mm;
-      background: #F1F3F8; color: var(--k-tinta-suave); padding: .3mm 1.6mm; margin: 0 .8mm .6mm 0;
-    }
-    .md-cell { font-weight: 800; }
+    .obj-chip { display: inline; font-size: 8pt; font-weight: 600; color: var(--c-tinta); }
+    .obj-chip + .obj-chip::before { content: " · "; color: var(--c-suave); font-weight: 400; }
+    .list-dot { font-size: 7.8pt; color: var(--c-tinta); margin-bottom: .6mm; }
+    .task-sum { width: 30%; vertical-align: top; padding: 2.2mm 2.8mm 2.4mm; }
+    .task-ord { display: inline-block; font-size: 7.6pt; font-weight: 700; color: var(--c-tinta); margin-right: 1.4mm; }
+    .task-cat { display: inline-block; font-size: 6.6pt; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--c-suave); }
+    .task-min { display: inline-block; float: right; font-size: 9pt; font-weight: 700; color: var(--c-tinta); }
+    .task-title { font-size: 9.2pt; font-weight: 800; color: var(--c-tinta); margin: 1.4mm 0 1mm; line-height: 1.2; }
+    .task-resumen { font-size: 7.2pt; color: var(--c-suave); line-height: 1.3; margin-bottom: 1.4mm; }
+    .cons { font-size: 6.8pt; color: var(--c-tinta); margin-top: .6mm; line-height: 1.3; }
+    .cons .cl { font-size: 6pt; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--c-suave); margin-right: 1mm; }
+    .chips { margin-top: 1.4mm; font-size: 6.4pt; color: var(--c-suave); }
+    .chip { display: inline; }
+    .chip + .chip::before { content: " · "; }
+    .md-cell { font-weight: 700; }
   </style>
 </head>
 <body>
@@ -209,7 +123,7 @@
     {{ organizacion.nombre or '' }}{% if equipo.nombre %} · {{ equipo.nombre }}{% endif %}{% if equipo.temporada %} · {{ equipo.temporada }}{% endif %} · {{ periodo }}
   {%- endset -%}
   {%- set dossier_meta -%}
-    <span class="ml">Ámbito</span> {{ ambito_label }}<br><span class="ml">Profundidad</span> {{ profundidad_label }}<br><span class="k-mono" style="font-size:6.4pt">{{ generado }}</span>
+    <span class="ml">Ámbito</span> {{ ambito_label }}<br><span class="ml">Profundidad</span> {{ profundidad_label }}<br><span style="font-size:6.4pt">{{ generado }}</span>
   {%- endset %}
   {{ cabecera(tema, titulo=titulo, subtitulo=dossier_sub, meta=dossier_meta, eyebrow='Dossier · Para ' ~ audiencia_label) }}
 
@@ -249,9 +163,9 @@
   {% endif %}
 
   {% if 'resultados' in secciones %}
-    <h2>Resultados</h2>
-    <table class="data">
-      <thead><tr><th>Fecha</th><th>Rival</th><th>Loc.</th><th>Marcador</th><th>R</th></tr></thead>
+    <h2 class="c-seccion">Resultados</h2>
+    <table class="c-tabla">
+      <thead><tr><th>Fecha</th><th>Rival</th><th>Loc.</th><th class="num">Marcador</th><th>R</th></tr></thead>
       <tbody>
         {% for p in evolucion %}
         <tr>
@@ -270,8 +184,8 @@
   {% endif %}
 
   {% if 'plantilla' in secciones %}
-    <h2>Minutos y aportación</h2>
-    <table class="data">
+    <h2 class="c-seccion">Minutos y aportación</h2>
+    <table class="c-tabla">
       <thead><tr><th>#</th><th>Jugador</th><th>Pos.</th><th class="num">PJ</th><th class="num">Tit.</th><th class="num">Min</th><th class="num">G</th><th class="num">A</th>{% if 'disciplina' in secciones %}<th class="num">TA</th><th class="num">TR</th>{% endif %}</tr></thead>
       <tbody>
         {% for j in plantilla %}
@@ -293,8 +207,8 @@
       </tbody>
     </table>
   {% elif 'disciplina' in secciones %}
-    <h2>Disciplina</h2>
-    <table class="data">
+    <h2 class="c-seccion">Disciplina</h2>
+    <table class="c-tabla">
       <thead><tr><th>#</th><th>Jugador</th><th class="num">TA</th><th class="num">TR</th></tr></thead>
       <tbody>
         {% for j in plantilla %}
@@ -312,7 +226,7 @@
   {% endif %}
 
   {% if 'jugador' in secciones and jugador %}
-    <h2>Ficha</h2>
+    <h2 class="c-seccion">Ficha</h2>
     <table class="kpis">
       <tr>
         <td><div class="n">{{ jugador.stats.pj }}</div><div class="l">Partidos</div></td>
@@ -326,8 +240,8 @@
       {% if jugador.dorsal %} · {{ jugador.dorsal }}{% endif %}
       {% if jugador.posicion %} · {{ jugador.posicion }}{% endif %}
     </p>
-    <table class="data">
-      <thead><tr><th>Fecha</th><th>Rival</th><th>Min</th><th>G</th><th>A</th><th>Tit.</th><th>R</th></tr></thead>
+    <table class="c-tabla">
+      <thead><tr><th>Fecha</th><th>Rival</th><th class="num">Min</th><th class="num">G</th><th class="num">A</th><th>Tit.</th><th>R</th></tr></thead>
       <tbody>
         {% for h in jugador.historial %}
         <tr>
@@ -346,7 +260,7 @@
       </tbody>
     </table>
     {% if jugador.clinica and (jugador.clinica.valoracion or jugador.clinica.tests) %}
-    <h2>Cuaderno clínico</h2>
+    <h2 class="c-seccion">Cuaderno clínico</h2>
     <table class="kpis">
       <tr>
         {% if jugador.clinica.valoracion %}
@@ -418,11 +332,11 @@
     {% set sala = microciclo.sala %}
     {% if sala %}
       {% if sala.mensaje %}
-      <div class="sec-k">01 · Mensaje de la semana</div>
+      <div class="c-seccion">01 · Mensaje de la semana</div>
       <div class="mensaje">{{ sala.mensaje }}</div>
       {% endif %}
 
-      <div class="sec-k">02 · Objetivos</div>
+      <div class="c-seccion">02 · Objetivos</div>
       {% if sala.objetivos %}
       <div class="chip-row">
         {% for o in sala.objetivos %}<span class="obj-chip">{{ o }}</span>{% endfor %}
@@ -446,7 +360,7 @@
       </table>
 
       {% if sala.olfato or sala.observaciones or sala.reflexion %}
-      <div class="sec-k">03 · Lectura del grupo</div>
+      <div class="c-seccion">03 · Lectura del grupo</div>
       <table class="two">
         <tr>
           <td>
@@ -460,7 +374,7 @@
         </tr>
       </table>
       {% if sala.reflexion %}
-      <div class="ses-obj" style="border-left-color:var(--k-secundario);margin-bottom:8px">
+      <div class="ses-obj">
         <strong>Del partido anterior vs {{ sala.reflexion.rival }}</strong>
         {{ sala.reflexion.texto }}
       </div>
@@ -468,7 +382,7 @@
       {% endif %}
 
       {% if sala.rival and (sala.rival.sistema or sala.rival.fortalezas or sala.rival.plan or sala.once) %}
-      <div class="sec-k">04 · Rival y partido</div>
+      <div class="c-seccion">04 · Rival y partido</div>
       <table class="two">
         <tr>
           <td>
@@ -506,13 +420,13 @@
       {% endif %}
 
       {% if sala.dias %}
-      <div class="sec-k">05 · Morfociclo</div>
-      <table class="data">
+      <div class="c-seccion">05 · Morfociclo</div>
+      <table class="c-tabla">
         <thead><tr><th>MD</th><th>Foco</th><th>Objetivo del día</th><th>Táctico</th></tr></thead>
         <tbody>
           {% for d in sala.dias %}
           <tr>
-            <td class="md-cell" style="color: {{ d.ink }}">{{ d.md }}</td>
+            <td class="md-cell"><span class="sw" style="background: {{ d.ink }}"></span>{{ d.md }}</td>
             <td class="muted">{{ d.label }}</td>
             <td>{{ d.objetivo or ('Descanso' if d.descanso else '—') }}</td>
             <td>{{ d.tactico or d.notas or '—' }}</td>
@@ -523,7 +437,7 @@
       {% endif %}
 
       {% if sala.plantilla %}
-      <div class="sec-k">06 · Disponibilidad</div>
+      <div class="c-seccion">06 · Disponibilidad</div>
       <table class="kpis">
         <tr>
           <td><div class="n">{{ sala.plantilla.pleno }}</div><div class="l">Pleno</div></td>
@@ -556,8 +470,8 @@
     {% endif %}
 
     {% if microciclo.lesiones %}
-    <div class="sec-k">07 · Informe de lesiones</div>
-    <table class="data">
+    <div class="c-seccion">07 · Informe de lesiones</div>
+    <table class="c-tabla">
       <thead>
         <tr>
           <th>#</th><th>Jugador</th><th>Tipo</th><th>Cuadro</th>
@@ -581,14 +495,14 @@
     </table>
     {% endif %}
 
-    <div class="sec-k">{% if microciclo.lesiones %}08{% else %}07{% endif %} · Sesiones de la semana</div>
+    <div class="c-seccion">{% if microciclo.lesiones %}08{% else %}07{% endif %} · Sesiones de la semana</div>
 
     {% if microciclo.sesiones %}
     <table class="week-strip">
       <tr>
         {% for s in microciclo.sesiones %}
-        <td style="border-top: 5px solid {{ s.md_bar }}; background: {{ s.md_wash }};">
-          <div class="md" style="color: {{ s.md_ink }}">{{ s.md }}</div>
+        <td>
+          <div class="md"><span class="sw" style="background: {{ s.md_bar }}"></span>{{ s.md }}</div>
           <div class="wd">{{ s.weekday or s.fecha }}</div>
           <div class="nt">{{ s.min or '—' }}′ · {{ s.n_tareas or 0 }} ej.{% if s.n_sesion %} · {{ s.n_sesion }} en sesión{% endif %}</div>
         </td>
@@ -598,13 +512,13 @@
     {% endif %}
 
     {% if not microciclo.detalle %}
-    <table class="data">
+    <table class="c-tabla">
       <thead><tr><th>Fecha</th><th>MD</th><th>Sesión</th><th class="num">Min</th><th>Objetivo</th></tr></thead>
       <tbody>
         {% for s in microciclo.sesiones %}
         <tr>
           <td>{{ s.fecha }}</td>
-          <td class="md-cell" style="color: {{ s.md_ink }}">{{ s.md }}</td>
+          <td class="md-cell"><span class="sw" style="background: {{ s.md_bar }}"></span>{{ s.md }}</td>
           <td>{{ s.titulo }}</td>
           <td class="num">{{ s.min }}</td>
           <td>{{ s.objetivo }}</td>
@@ -622,13 +536,13 @@
       <div class="ses-sheet{% if loop.first %} first{% endif %}">
         <table class="ses-banner">
           <tr>
-            <td class="ses-md" style="background: {{ s.md_bar }};">
-              <div class="ses-md-code">{{ s.md }}</div>
+            <td class="ses-md">
+              <div class="ses-md-code"><span class="sw" style="background: {{ s.md_bar }}"></span>{{ s.md }}</div>
               <div class="ses-md-lab">{{ s.md_label }}</div>
             </td>
-            <td class="ses-head" style="background: {{ s.md_wash }}; border-bottom: 4px solid {{ s.md_bar }};">
+            <td class="ses-head">
               <div class="ses-kicker">{{ s.weekday }} · {{ s.fecha }}</div>
-              <div class="ses-title" style="color: {{ s.md_ink }}">{{ s.titulo }}</div>
+              <div class="ses-title">{{ s.titulo }}</div>
               <div class="ses-meta">
                 {% if s.min %}<strong>{{ s.min }}′</strong>{% endif %}
                 {% if s.carga %} · Carga {{ s.carga }}{% endif %}
@@ -641,7 +555,7 @@
           </tr>
         </table>
         {% if s.objetivo %}
-        <div class="ses-obj" style="border-left-color: {{ s.md_bar }};"><strong>Objetivo</strong> {{ s.objetivo }}</div>
+        <div class="ses-obj"><strong>Objetivo</strong> {{ s.objetivo }}</div>
         {% endif %}
         {% if s.notas %}<p class="muted" style="margin-bottom:6px">{{ s.notas }}</p>{% endif %}
 
@@ -660,8 +574,8 @@
         {% endif %}
 
         {% if s.asistencia %}
-        <div class="fase-lbl" style="background: {{ s.md_ink }};">Plantilla de la sesión</div>
-        <table class="data">
+        <div class="fase-lbl">Plantilla de la sesión</div>
+        <table class="c-tabla">
           <thead>
             <tr>
               <th>#</th><th>Jugador</th><th>Rol</th><th>Motivo / notas</th>
@@ -684,7 +598,7 @@
         {% endif %}
 
         {% if s.margen %}
-        <div class="fase-lbl" style="background: {{ s.md_ink }};">Trabajo al margen</div>
+        <div class="fase-lbl">Trabajo al margen</div>
         {% for m in s.margen %}
         <table class="margen-card">
           <tr>
@@ -715,7 +629,7 @@
 
         {% if s.bloques %}
           {% for b in s.bloques %}
-          <div class="fase-lbl" style="background: {{ s.md_ink }};">{{ b.fase }}</div>
+          <div class="fase-lbl">{{ b.fase }}</div>
           {% for t in b.tareas %}
           <table class="task-card">
             <tr>
@@ -735,10 +649,10 @@
                 <div class="task-title">{{ t.titulo }}</div>
                 {% if t.resumen %}<div class="task-resumen">{{ t.resumen }}</div>{% endif %}
                 {% if t.consignas_of %}
-                <div class="cons of"><span class="cl">Ofensivo</span>{{ t.consignas_of | join(' · ') }}</div>
+                <div class="cons"><span class="cl">Ofensivo</span>{{ t.consignas_of | join(' · ') }}</div>
                 {% endif %}
                 {% if t.consignas_df %}
-                <div class="cons df"><span class="cl">Defensivo</span>{{ t.consignas_df | join(' · ') }}</div>
+                <div class="cons"><span class="cl">Defensivo</span>{{ t.consignas_df | join(' · ') }}</div>
                 {% endif %}
                 {% if microciclo.extendido and t.detalle and not t.resumen %}
                 <div class="task-resumen">{{ t.detalle }}</div>

@@ -7,6 +7,7 @@ import { VideoPlayer, type VideoPlayerHandle } from '@/components/video-analyzer
 import {
   ClubCrest,
   DISPLAY_FONT,
+  DISPLAY_STRETCH,
   FitSlideStage,
   StaticSlideBody,
 } from '@/components/rivales/DossierSlides'
@@ -17,6 +18,7 @@ import {
   type DossierShow,
   type ShowSlide,
 } from '@/lib/dossierShow'
+import { SalaMarca, salaSuperficie } from '@/components/revision/salaCal'
 import { isSlideNavKey, isVideoSafeTarget, swipeSlideDelta } from '@/lib/presentacionGestos'
 
 interface DossierPresenterProps {
@@ -134,7 +136,7 @@ export function DossierPresenter({ show, onClose }: DossierPresenterProps) {
       data-testid="dossier-presenter"
       tabIndex={-1}
       className="fixed inset-0 z-[100] flex flex-col outline-none"
-      style={{ background: '#08110F', color: '#F3EFE6' }}
+      {...salaSuperficie}
       onTouchStart={(e) => {
         if (isVideoSafeTarget(e.target)) {
           touchStartX.current = null
@@ -155,29 +157,29 @@ export function DossierPresenter({ show, onClose }: DossierPresenterProps) {
       }}
     >
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@600;700;800&display=swap');
         @media (prefers-reduced-motion: reduce) {
           .dossier-slide { transition: none !important; }
         }
       `}</style>
 
       <header className="flex items-center gap-3 px-4 py-3 sm:px-6">
+        <SalaMarca className="shrink-0" />
         <ClubCrest src={show.clubEscudoUrl} size={32} />
         <p
-          className="text-[11px] font-semibold uppercase tracking-[0.28em]"
-          style={{ color: '#F0C35A', fontFamily: DISPLAY_FONT }}
+          className="text-[11px] font-semibold uppercase tracking-[0.08em]"
+          style={{ color: 'hsl(var(--primary))', fontFamily: DISPLAY_FONT, fontStretch: DISPLAY_STRETCH }}
         >
           {slide.kicker}
         </p>
-        <div className="h-px flex-1" style={{ background: '#2A3A34' }} />
-        <p className="tabular-nums text-xs" style={{ color: '#9AA59B' }}>
+        <div className="h-px flex-1 bg-border" />
+        <p className="tabular-nums text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
           {index + 1} / {total}
         </p>
         <button
           type="button"
           onClick={() => go(-1)}
           disabled={index === 0}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[#F3EFE6] hover:bg-white/10 disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F0C35A]"
+          className="inline-flex h-9 w-9 items-center justify-center rounded text-foreground hover:bg-accent disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           aria-label="Diapositiva anterior"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -186,7 +188,7 @@ export function DossierPresenter({ show, onClose }: DossierPresenterProps) {
           type="button"
           onClick={() => go(1)}
           disabled={index === total - 1}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[#F3EFE6] hover:bg-white/10 disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F0C35A]"
+          className="inline-flex h-9 w-9 items-center justify-center rounded text-foreground hover:bg-accent disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           aria-label="Diapositiva siguiente"
         >
           <ChevronRight className="h-4 w-4" />
@@ -194,7 +196,7 @@ export function DossierPresenter({ show, onClose }: DossierPresenterProps) {
         <button
           type="button"
           onClick={onClose}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[#F3EFE6] hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F0C35A]"
+          className="inline-flex h-9 w-9 items-center justify-center rounded text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           aria-label="Cerrar presentación"
         >
           <X className="h-4 w-4" />
@@ -235,11 +237,12 @@ export function DossierPresenter({ show, onClose }: DossierPresenterProps) {
                 role="tab"
                 aria-selected={active}
                 onClick={() => jump(chapter.startIndex)}
-                className="flex shrink-0 items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F0C35A]"
+                className="flex shrink-0 items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 style={{
-                  background: active ? '#F0C35A' : '#12201B',
-                  color: active ? '#08110F' : '#C5CDC7',
+                  background: active ? 'hsl(var(--primary))' : 'hsl(var(--secondary))',
+                  color: active ? 'hsl(var(--primary-foreground))' : 'hsl(var(--muted-foreground))',
                   fontFamily: DISPLAY_FONT,
+                  fontStretch: DISPLAY_STRETCH,
                 }}
               >
                 <span className="text-[11px] font-bold uppercase tracking-[0.12em]">{chapter.label}</span>
@@ -250,7 +253,7 @@ export function DossierPresenter({ show, onClose }: DossierPresenterProps) {
             )
           })}
         </div>
-        <div className="mt-1 flex items-center justify-between gap-3 text-[11px]" style={{ color: '#9AA59B' }}>
+        <div className="mt-1 flex items-center justify-between gap-3 text-[11px]" style={{ color: 'hsl(var(--muted-foreground))' }}>
           <span>{hint}</span>
           <span className="flex items-center gap-2">
             <ChevronLeft className="h-3 w-3" />
@@ -292,30 +295,30 @@ function VideoSlide({
         <h2 className="font-extrabold tracking-tight" style={{ fontFamily: DISPLAY_FONT, fontSize: 'clamp(1.5rem, calc(1.2rem + 1.8vh), 2.6rem)' }}>
           {slide.title}
         </h2>
-        <span className="text-[11px] uppercase tracking-[0.2em]" style={{ color: '#9AA59B' }}>
+        <span className="text-[11px] uppercase tracking-[0.2em]" style={{ color: 'hsl(var(--muted-foreground))' }}>
           {slide.kicker}
         </span>
       </div>
       <div
         data-video-safe=""
-        className="relative min-h-0 flex-1 overflow-hidden rounded-md"
-        style={{ background: '#000' }}
+        className="relative min-h-0 flex-1 overflow-hidden rounded"
+        style={{ background: 'hsl(var(--background))' }}
         onTouchStart={(e) => e.stopPropagation()}
         onTouchEnd={(e) => e.stopPropagation()}
       >
         {failed ? (
           <div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center">
-            <p className="text-xl font-bold" style={{ fontFamily: DISPLAY_FONT, color: '#E35D4A' }}>
+            <p className="text-xl font-bold" style={{ fontFamily: DISPLAY_FONT, color: 'hsl(var(--destructive))' }}>
               Clip no disponible
             </p>
-            <p className="text-sm" style={{ color: '#9AA59B' }}>
+            <p className="text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
               Este recorte no se puede reproducir. Pasa a la siguiente diapositiva.
             </p>
             <button
               type="button"
               onClick={onSkip}
-              className="rounded-md px-4 py-2 text-sm font-semibold"
-              style={{ background: '#F0C35A', color: '#08110F', fontFamily: DISPLAY_FONT }}
+              className="rounded px-4 py-2 text-sm font-semibold"
+              style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', fontFamily: DISPLAY_FONT }}
             >
               Siguiente
             </button>

@@ -57,7 +57,7 @@ def test_dossier_template_chrome():
     assert "Plantilla de la sesión" in html
     assert "75.5mm" in html
     assert 'width="520"' not in html
-    assert "2D5016" in html
+    assert "2D5016" not in html  # Cal: sin losa verde decorativa; la pizarra trae su propio campo
     assert "PREVIEW_MAX_CHARS" not in (ROOT / "app" / "services" / "informe_boards.py").read_text(encoding="utf-8")
     assert "is_poisoned_preview" in (ROOT / "app" / "services" / "informe_boards.py").read_text(encoding="utf-8")
     assert "listar_pizarras_microciclo" in (ROOT / "app" / "services" / "informe_service.py").read_text(encoding="utf-8")

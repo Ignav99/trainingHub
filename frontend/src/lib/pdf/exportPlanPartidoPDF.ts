@@ -34,12 +34,14 @@ import {
   bandaPdf,
   cabeceraPdf,
   cerrarPdf,
-  colorTexto,
   etiquetaPdf,
+  fichaPdf,
   fuente,
+  inicialesPdf,
   LINEA,
   prepararPdf,
   rgbHex,
+  temaActivo,
   temaDelClub,
   tinta,
   TINTA,
@@ -192,8 +194,15 @@ function writeRoles(
     const label = `${rolLabel(r.rol, options)}  ·  ${r.jugador}`
     const x = margin + col * (colW + 4)
     tinta(doc, TINTA)
-    const next = writeWrapped(doc, label, x, rowY, colW, 4)
-    maxY = Math.max(maxY, next)
+    const radio = 2.7
+    if (!lockPage || rowY <= pageFloor(doc)) {
+      fichaPdf(doc, temaActivo(doc), x + radio, rowY - 1.2, inicialesPdf(r.jugador), 'normal', radio)
+    }
+    fuente(doc)
+    doc.setFontSize(9)
+    tinta(doc, TINTA)
+    const next = writeWrapped(doc, label, x + radio * 2 + 2, rowY, colW - radio * 2 - 2, 4)
+    maxY = Math.max(maxY, next, rowY + radio + 1.6)
     col += 1
     if (col === 2) {
       col = 0
@@ -219,8 +228,8 @@ function addPizarraImage(
     const { w, h } = pitchDisplaySize(contentWidth, props.width, props.height, room)
     const x = margin + (contentWidth - w) / 2
     trazo(doc, LINEA)
-    doc.setFillColor(15, 40, 12) // fondo de césped tras la pizarra
-    doc.roundedRect(x - 1, y - 1, w + 2, h + 2, 1.5, 1.5, 'FD')
+    doc.setLineWidth(0.25)
+    doc.roundedRect(x - 0.6, y - 0.6, w + 1.2, h + 1.2, 0.5, 0.5, 'S')
     const format = png.includes('image/jpeg') ? 'JPEG' : 'PNG'
     const alias = `pz-${doc.getNumberOfPages()}-${Math.round(y)}-${png.length}`
     doc.addImage(png, format, x, y, w, h, alias, 'FAST')
@@ -489,9 +498,9 @@ export async function exportPlanPartidoPDF(
       y = margin + 6
     }
     lockPage = true
-    // Color de fase = código semántico (se mantiene); el texto elige contraste.
+    // Fase = muestra semántica pequeña + título ancho + línea de tinta (sin banda de color).
     const faseHex = rgbHex(FASE_COLORS[faseKey])
-    const accent = colorTexto(faseHex)
+    const accent = TINTA_SUAVE
     bandaPdf(doc, faseHex, FASE_LABELS[faseKey], margin, y, contentWidth, 10)
     y += 14
 
@@ -515,9 +524,9 @@ export async function exportPlanPartidoPDF(
       for (const [key, sub] of eachPlanSubfase(phase)) {
         if (!planSubHasContent(sub)) continue
         y = ensureSpace(doc, y, 16, margin)
-        fuente(doc, 'bold')
-        doc.setFontSize(11.5)
-        tinta(doc, tema.primarioTexto)
+        fuente(doc, 'ancha')
+        doc.setFontSize(9.5)
+        tinta(doc, TINTA)
         doc.text(SUBFASE_LABELS[key] ?? key, margin, y)
         y += 6.2
         fuente(doc)
@@ -633,7 +642,7 @@ export async function exportPlanPartidoPDF(
         doc.addPage()
         y = margin + 6
       }
-      bandaPdf(doc, tema.primario, 'Nutrición', margin, y, contentWidth, 10)
+      bandaPdf(doc, null, 'Nutrición', margin, y, contentWidth, 10)
       y += 14
       fuente(doc)
       doc.setFontSize(9.5)

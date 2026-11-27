@@ -25,7 +25,7 @@ Propuesta visual aprobada: https://claude.ai/artifact/TdohfAPPyGFWsmiLY42HVB
 |---|---|---|
 | Local (clara) | Trabajo diario, iPad al sol | `html[data-appearance="cal"]` |
 | Visitante (oscura) | Vídeo, anotador, pizarra, salas de revisión | `data-superficie="visitante"` en el contenedor |
-| Papel | PDF e informes A4 | Blanco, tinta negra, color del club |
+| Papel | PDF, informes A4 y PPTX | Blanco, tinta teñida con el tono del club, una línea, color del club como único acento. Guía: `docs/design/pdf-marca.md` |
 
 ## Color
 
@@ -79,8 +79,8 @@ quedan solo los fundidos.
 
 - Copia del estado anterior al rediseño: etiqueta `pre-rediseno-2026-11-10`,
   rama `backup/diseno-actual-2026-11-10`.
-- Tres aspectos conviven: `acta` (por defecto), `clasico` y `cal`. Se guardan en
-  `localStorage['kabine-appearance:v1']` y se cambian desde la barra lateral.
+- Desde nov-2026 Cal es el único aspecto (sin selector). `acta` y `clasico` quedan en la
+  etiqueta `aspectos-acta-clasico`.
 - Cada fase añade su propia etiqueta `cal-fase-N-antes` antes de fusionarse.
 
 ## Fases

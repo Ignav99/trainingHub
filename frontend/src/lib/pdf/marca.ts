@@ -1,37 +1,51 @@
 /**
- * Marca común de los PDF generados en el navegador (jsPDF).
+ * Marca común de los PDF generados en el navegador (jsPDF) — papel Cal.
  *
- * Espejo de backend/app/services/pdf_marca.py: misma tipografía de la app
- * (Schibsted Grotesk + IBM Plex Mono), colores del club con contraste
- * garantizado, marca de agua con el isotipo de Kabin-e y pie normalizado.
+ * Espejo de backend/app/services/pdf_marca.py + templates/_marca/base.css
+ * (docs/design/pdf-marca.md): Encode Sans (normal / estrecha / ancha) + Martian Mono,
+ * tinta y neutros teñidos con el tono del club, UNA línea de 0.4 mm en tinta,
+ * marca de agua con el isotipo (color del club, 4.5 %) y pie con logo.
  *
  * Uso:
  *   const doc = new jsPDF(...)
  *   const tema = await prepararPdf(doc)          // fuentes + tema del club
- *   doc.setFont(FUENTE, 'bold')                  // títulos (ExtraBold)
+ *   fuente(doc, 'ancha')                         // títulos
  *   ...dibujar...
  *   await cerrarPdf(doc, tema, 'Plan de partido') // marca de agua + pie en cada página
  */
 import type { jsPDF } from 'jspdf'
 import { useClubStore } from '@/stores/clubStore'
-import { crearTema, hexARgb, textoSobre, TINTA, TINTA_SUAVE, type TemaPdf } from './marcaColor'
+import {
+  crearTema,
+  HUNDIDO,
+  hexARgb,
+  LINEA,
+  TINTA,
+  TINTA_SUAVE,
+  type TemaPdf,
+} from './marcaColor'
 
 export {
   colorTexto,
   contraste,
   crearTema,
   hexARgb,
+  hslHex,
+  HUNDIDO,
   LINEA,
   mezcla,
   rgbHex,
   textoSobre,
+  tonoClub,
   TINTA,
   TINTA_SUAVE,
 } from './marcaColor'
 export type { RGB, TemaPdf } from './marcaColor'
 
-export const FUENTE = 'Kabine'          // normal = Regular · bold = ExtraBold
+export const FUENTE = 'Kabine' // normal = Encode Sans Regular · bold = Bold
 export const FUENTE_MEDIA = 'KabineSemi' // normal = SemiBold
+export const FUENTE_ESTRECHA = 'KabineEstrecha' // normal = Narrow SemiBold · bold = Narrow Bold
+export const FUENTE_ANCHA = 'KabineAncha' // Wide ExtraBold (800)
 export const FUENTE_MONO = 'KabineMono'
 
 /** Silueta del isotipo — misma geometría que public/brand/kabine-mark.svg. */
@@ -51,19 +65,73 @@ export function temaDelClub(over?: Partial<{ colorPrimario: string | null; color
 
 // ───────────────────────── atajos de color ─────────────────────────
 
-export const relleno = (doc: jsPDF, hex: string) => doc.setFillColor(...hexARgb(hex))
-export const trazo = (doc: jsPDF, hex: string) => doc.setDrawColor(...hexARgb(hex))
-export const tinta = (doc: jsPDF, hex: string) => doc.setTextColor(...hexARgb(hex))
+/**
+ * Los exportadores usan las constantes TINTA / TINTA_SUAVE / LINEA / HUNDIDO. Al
+ * pintar, se traducen a los neutros teñidos con el tono del club del PDF en curso
+ * (`prepararPdf` registra el tema de cada documento).
+ */
+const temaDeDoc = new WeakMap<jsPDF, TemaPdf>()
+
+function traduce(doc: jsPDF, hex: string): string {
+  const t = temaDeDoc.get(doc)
+  if (!t) return hex
+  if (hex === TINTA) return t.tinta
+  if (hex === TINTA_SUAVE) return t.suave
+  if (hex === LINEA) return t.borde
+  if (hex === HUNDIDO) return t.hundido
+  return hex
+}
+
+export const relleno = (doc: jsPDF, hex: string) => doc.setFillColor(...hexARgb(traduce(doc, hex)))
+export const trazo = (doc: jsPDF, hex: string) => doc.setDrawColor(...hexARgb(traduce(doc, hex)))
+export const tinta = (doc: jsPDF, hex: string) => doc.setTextColor(...hexARgb(traduce(doc, hex)))
+
+/** Tema del PDF en curso (el que registró `prepararPdf`). */
+export function temaActivo(doc: jsPDF): TemaPdf {
+  return temaDeDoc.get(doc) ?? crearTema({})
+}
+
+/** Iniciales (o dorsal numérico inicial) de una persona para la ficha redonda. */
+export function inicialesPdf(nombre: string): string {
+  const t = (nombre || '').trim()
+  const num = /^#?(\d{1,2})\b/.exec(t)
+  if (num) return num[1]
+  return (
+    t
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((w) => w[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2) || '·'
+  )
+}
+
+/** Línea de tinta de 0.4 mm (la que importa) o fina de 0.25 mm en borde. */
+export function lineaTinta(doc: jsPDF, x1: number, x2: number, y: number) {
+  trazo(doc, TINTA)
+  doc.setLineWidth(0.4)
+  doc.line(x1, y, x2, y)
+}
+export function lineaFina(doc: jsPDF, x1: number, x2: number, y: number) {
+  trazo(doc, LINEA)
+  doc.setLineWidth(0.25)
+  doc.line(x1, y, x2, y)
+}
 
 // ───────────────────────── fuentes ─────────────────────────
 
 const ARCHIVOS: Array<[string, string, 'normal' | 'bold']> = [
-  ['SchibstedGrotesk-Regular.ttf', FUENTE, 'normal'],
-  ['SchibstedGrotesk-ExtraBold.ttf', FUENTE, 'bold'],
-  ['SchibstedGrotesk-SemiBold.ttf', FUENTE_MEDIA, 'normal'],
-  ['SchibstedGrotesk-SemiBold.ttf', FUENTE_MEDIA, 'bold'],
-  ['IBMPlexMono-Medium.ttf', FUENTE_MONO, 'normal'],
-  ['IBMPlexMono-Medium.ttf', FUENTE_MONO, 'bold'],
+  ['EncodeSans-Regular.ttf', FUENTE, 'normal'],
+  ['EncodeSans-Bold.ttf', FUENTE, 'bold'],
+  ['EncodeSans-SemiBold.ttf', FUENTE_MEDIA, 'normal'],
+  ['EncodeSans-SemiBold.ttf', FUENTE_MEDIA, 'bold'],
+  ['EncodeSansNarrow-SemiBold.ttf', FUENTE_ESTRECHA, 'normal'],
+  ['EncodeSansNarrow-Bold.ttf', FUENTE_ESTRECHA, 'bold'],
+  ['EncodeSansWide-ExtraBold.ttf', FUENTE_ANCHA, 'normal'],
+  ['EncodeSansWide-ExtraBold.ttf', FUENTE_ANCHA, 'bold'],
+  ['MartianMono-Medium.ttf', FUENTE_MONO, 'normal'],
+  ['MartianMono-Medium.ttf', FUENTE_MONO, 'bold'],
 ]
 
 let cacheFuentes: Promise<Map<string, string>> | null = null
@@ -99,18 +167,27 @@ function cargarFuentes(): Promise<Map<string, string>> {
 /** true si las fuentes de la app quedaron registradas (si no, Helvetica). */
 const conFuentes = new WeakSet<jsPDF>()
 
-export function fuente(doc: jsPDF, peso: 'normal' | 'media' | 'bold' | 'mono' = 'normal') {
+export type PesoFuente = 'normal' | 'media' | 'bold' | 'estrecha' | 'ancha' | 'mono'
+
+/**
+ * normal = Encode Sans · media = SemiBold · bold = Bold · estrecha = Narrow
+ * (rótulos y cabeceras de tabla) · ancha = Wide 800 (títulos) · mono = Martian Mono.
+ */
+export function fuente(doc: jsPDF, peso: PesoFuente = 'normal') {
   if (!conFuentes.has(doc)) {
-    doc.setFont('helvetica', peso === 'normal' ? 'normal' : 'bold')
+    doc.setFont('helvetica', peso === 'normal' || peso === 'mono' ? 'normal' : 'bold')
     return
   }
   if (peso === 'media') doc.setFont(FUENTE_MEDIA, 'normal')
   else if (peso === 'mono') doc.setFont(FUENTE_MONO, 'normal')
+  else if (peso === 'estrecha') doc.setFont(FUENTE_ESTRECHA, 'normal')
+  else if (peso === 'ancha') doc.setFont(FUENTE_ANCHA, 'normal')
   else doc.setFont(FUENTE, peso)
 }
 
 /** Registra las fuentes y devuelve el tema del club. Llamar justo tras `new jsPDF()`. */
 export async function prepararPdf(doc: jsPDF, tema: TemaPdf = temaDelClub()): Promise<TemaPdf> {
+  temaDeDoc.set(doc, tema)
   try {
     const fuentes = await cargarFuentes()
     const registradas = new Set<string>()
@@ -166,9 +243,8 @@ export function marcaPng(color: string, px = 512): Promise<string | null> {
 }
 
 /**
- * Cabecera normalizada: escudo del club (o isotipo), club en versalitas,
- * título grande y meta a la derecha; filete del color del club debajo.
- * Devuelve la Y donde empieza el contenido.
+ * Cabecera Cal: escudo del club (o isotipo) · club en rótulo estrecho · título ancho ·
+ * meta a la derecha; UNA línea de tinta de 0.4 mm debajo. Devuelve la Y del contenido.
  */
 export async function cabeceraPdf(
   doc: jsPDF,
@@ -187,7 +263,7 @@ export async function cabeceraPdf(
   const m = opts.margen ?? 12
   const y = opts.y ?? 12
   const ancho = doc.internal.pageSize.getWidth()
-  const escudo = opts.escudo ?? (await marcaPng(tema.primario, 256))
+  const escudo = opts.escudo ?? (await marcaPng(tema.colorClub, 256))
   const lado = 13
   if (escudo) {
     try {
@@ -206,17 +282,17 @@ export async function cabeceraPdf(
     }
   }
   const x = m + lado + 4
-  fuente(doc, 'media')
-  doc.setFontSize(7)
+  fuente(doc, 'estrecha')
+  doc.setFontSize(7.4)
   tinta(doc, TINTA_SUAVE)
-  doc.setCharSpace(0.6)
+  doc.setCharSpace(0.55)
   doc.text((tema.club || 'Kabin-e').toUpperCase(), x, y + 3.2)
   doc.setCharSpace(0)
-  fuente(doc, 'bold')
-  // Título en una sola línea: reduce el cuerpo (17 → 12 pt) antes de partirlo.
-  let cuerpo = 17
+  fuente(doc, 'ancha')
+  // Título en una sola línea: reduce el cuerpo (16 → 11 pt) antes de partirlo.
+  let cuerpo = 16
   doc.setFontSize(cuerpo)
-  while (cuerpo > 12 && doc.getTextWidth(opts.titulo) > derecha - x - 45) {
+  while (cuerpo > 11 && doc.getTextWidth(opts.titulo) > derecha - x - 45) {
     cuerpo -= 0.5
     doc.setFontSize(cuerpo)
   }
@@ -230,49 +306,170 @@ export async function cabeceraPdf(
   }
   if (opts.meta) {
     fuente(doc)
-    doc.setFontSize(7.5)
-    tinta(doc, TINTA_SUAVE)
+    doc.setFontSize(7.8)
+    tinta(doc, TINTA)
     doc.text(opts.meta.split('\n'), derecha, y + 4, { align: 'right' })
   }
   const base = y + lado + 3.5
-  relleno(doc, tema.primario)
-  doc.rect(m, base, ancho - m * 2, 0.6, 'F')
+  lineaTinta(doc, m, ancho - m, base)
   tinta(doc, TINTA)
   return base + 5
 }
 
-/** Etiqueta de sección: barra del color del club + texto ExtraBold. */
 /**
- * Banda de título a lo ancho (p. ej. fases de juego con color semántico).
- * El texto elige blanco o tinta según contraste con el fondo.
+ * Título de fase (antes banda de color): muestra pequeña semántica + título ancho +
+ * línea de tinta debajo. Sin relleno. `fondo` solo pinta la muestra (2.4 mm).
  */
-export function bandaPdf(doc: jsPDF, fondo: string, texto: string, x: number, y: number, ancho: number, alto = 9) {
-  relleno(doc, fondo)
-  doc.roundedRect(x, y, ancho, alto, 1.3, 1.3, 'F')
-  fuente(doc, 'bold')
-  doc.setFontSize(12)
-  tinta(doc, textoSobre(fondo))
-  doc.text(texto, x + 3.2, y + alto / 2 + 1.5)
+export function bandaPdf(doc: jsPDF, fondo: string | null, texto: string, x: number, y: number, ancho: number, alto = 9) {
+  let tx = x
+  if (fondo) {
+    relleno(doc, fondo)
+    doc.roundedRect(x, y + alto / 2 - 3.2, 2.4, 2.4, 0.3, 0.3, 'F')
+    tx = x + 4.4
+  }
+  fuente(doc, 'ancha')
+  doc.setFontSize(11.5)
+  tinta(doc, TINTA)
+  doc.text(texto, tx, y + alto / 2 + 0.6)
+  lineaTinta(doc, x, x + ancho, y + alto - 1.2)
   tinta(doc, TINTA)
 }
 
-/** Eyebrow en mono versalitas (ROLES, CLIPS…). */
+/** Rótulo en estrecha, mayúsculas, tracking .08em (ROLES, CLIPS…). */
 export function etiquetaPdf(doc: jsPDF, texto: string, x: number, y: number, color: string = TINTA_SUAVE) {
-  fuente(doc, 'mono')
+  fuente(doc, 'estrecha')
   doc.setFontSize(7)
   tinta(doc, color)
-  doc.setCharSpace(0.5)
+  doc.setCharSpace(0.56)
   doc.text(texto.toUpperCase(), x, y)
   doc.setCharSpace(0)
 }
 
-export function seccionPdf(doc: jsPDF, tema: TemaPdf, texto: string, x: number, y: number) {
-  relleno(doc, tema.primario)
-  doc.rect(x, y - 3.6, 1, 4.6, 'F')
-  fuente(doc, 'bold')
-  doc.setFontSize(10.5)
+/** Sección: título ancho + línea fina en borde (sin barra de color). */
+export function seccionPdf(doc: jsPDF, _tema: TemaPdf, texto: string, x: number, y: number, ancho?: number) {
+  fuente(doc, 'ancha')
+  doc.setFontSize(10)
   tinta(doc, TINTA)
-  doc.text(texto, x + 2.8, y)
+  doc.text(texto, x, y)
+  const w = ancho ?? doc.internal.pageSize.getWidth() - x * 2
+  lineaFina(doc, x, x + w, y + 1.8)
+}
+
+/**
+ * Cabecera de tabla Cal: texto estrecho en mayúsculas apagado y línea de tinta de
+ * 0.4 mm debajo, sin relleno. `columnas`: x de cada columna (y `align`).
+ * Devuelve la Y donde empieza la primera fila.
+ */
+export function tablaCabecera(
+  doc: jsPDF,
+  columnas: Array<{ texto: string; x: number; align?: 'left' | 'right' | 'center' }>,
+  y: number,
+  x0: number,
+  ancho: number,
+): number {
+  fuente(doc, 'estrecha')
+  doc.setFontSize(6.6)
+  tinta(doc, TINTA_SUAVE)
+  doc.setCharSpace(0.52)
+  for (const c of columnas) doc.text(c.texto.toUpperCase(), c.x, y, { align: c.align ?? 'left' })
+  doc.setCharSpace(0)
+  lineaTinta(doc, x0, x0 + ancho, y + 1.6)
+  tinta(doc, TINTA)
+  return y + 5.2
+}
+
+// ───────────────────────── piezas con forma ─────────────────────────
+
+/** Persona = círculo con dorsal. `titular` rellena con el club; `duda` discontinuo; `baja` tachada. */
+export function fichaPdf(
+  doc: jsPDF,
+  tema: TemaPdf,
+  cx: number,
+  cy: number,
+  dorsal: string,
+  estado: 'normal' | 'titular' | 'duda' | 'baja' = 'normal',
+  radio = 3.1,
+) {
+  doc.setLineWidth(0.4)
+  if (estado === 'titular') {
+    relleno(doc, tema.colorClub)
+    trazo(doc, tema.colorClub)
+    doc.circle(cx, cy, radio, 'FD')
+  } else {
+    trazo(doc, estado === 'baja' ? TINTA_SUAVE : TINTA)
+    if (estado === 'duda') doc.setLineDashPattern([0.7, 0.6], 0)
+    doc.circle(cx, cy, radio, 'S')
+    doc.setLineDashPattern([], 0)
+  }
+  fuente(doc, 'bold')
+  doc.setFontSize(radio > 2.6 ? 7 : 6)
+  tinta(doc, estado === 'titular' ? '#FFFFFF' : estado === 'baja' ? TINTA_SUAVE : TINTA)
+  doc.text(dorsal, cx, cy + 0.9, { align: 'center' })
+  if (estado === 'baja') {
+    trazo(doc, TINTA_SUAVE)
+    doc.setLineWidth(0.25)
+    doc.line(cx - radio * 0.7, cy + radio * 0.7, cx + radio * 0.7, cy - radio * 0.7)
+  }
+  tinta(doc, TINTA)
+}
+
+/** Estado escrito con una forma al lado (tarjeta roja/amarilla, visto, círculo). Devuelve el ancho usado. */
+export function estadoPdf(
+  doc: jsPDF,
+  tema: TemaPdf,
+  tipo: 'baja' | 'aviso' | 'ok' | 'info',
+  texto: string,
+  x: number,
+  y: number,
+): number {
+  const color = { baja: tema.baja, aviso: tema.aviso, ok: tema.ok, info: tema.info }[tipo]
+  if (tipo === 'baja' || tipo === 'aviso') {
+    relleno(doc, color)
+    doc.roundedRect(x, y - 2.2, 1.8, 2.5, 0.2, 0.2, 'F')
+  } else if (tipo === 'ok') {
+    trazo(doc, color)
+    doc.setLineWidth(0.45)
+    doc.line(x, y - 0.9, x + 0.8, y)
+    doc.line(x + 0.8, y, x + 2.2, y - 2.1)
+  } else {
+    trazo(doc, color)
+    doc.setLineWidth(0.4)
+    doc.circle(x + 1, y - 1, 1, 'S')
+  }
+  fuente(doc, 'media')
+  doc.setFontSize(7.5)
+  tinta(doc, TINTA)
+  doc.text(texto, x + 3.4, y)
+  return 3.4 + doc.getTextWidth(texto)
+}
+
+function poligono(doc: jsPDF, x: number, y: number, k: number, pts: Array<[number, number]>, cerrar = true) {
+  const rel: number[][] = []
+  for (let i = 1; i < pts.length; i++) rel.push([(pts[i][0] - pts[i - 1][0]) * k, (pts[i][1] - pts[i - 1][1]) * k])
+  doc.lines(rel, x + pts[0][0] * k, y + pts[0][1] * k, [1, 1], 'S', cerrar)
+}
+
+/** Casa (local): glifo de trazo, como `<Localia>` de la app. (x, y) = esquina superior izquierda. */
+export function iconoCasa(doc: jsPDF, x: number, y: number, lado: number, color: string) {
+  const k = lado / 24
+  trazo(doc, color)
+  doc.setLineWidth(0.3)
+  doc.setLineJoin('round')
+  poligono(doc, x, y, k, [[3, 11], [12, 3], [21, 11]], false)
+  poligono(doc, x, y, k, [[5.5, 9], [5.5, 21], [18.5, 21], [18.5, 9]], false)
+  poligono(doc, x, y, k, [[10, 21], [10, 14], [14, 14], [14, 21]], false)
+}
+
+/** Avión (visitante): glifo de trazo. (x, y) = esquina superior izquierda. */
+export function iconoAvion(doc: jsPDF, x: number, y: number, lado: number, color: string) {
+  const k = lado / 24
+  trazo(doc, color)
+  doc.setLineWidth(0.3)
+  doc.setLineJoin('round')
+  poligono(doc, x, y, k, [
+    [12, 2], [14, 9], [22, 14], [22, 16.5], [14, 14.5], [14, 19.5], [17, 21.5], [17, 23],
+    [12, 22], [7, 23], [7, 21.5], [10, 19.5], [10, 14.5], [2, 16.5], [2, 14], [10, 9],
+  ])
 }
 
 /**
@@ -285,8 +482,8 @@ export async function cerrarPdf(
   titulo = '',
   opciones: { marcaAgua?: boolean; opacidadMarca?: number } = {},
 ): Promise<void> {
-  const marca = opciones.marcaAgua === false ? null : await marcaPng(tema.primario, 640)
-  const marcaPie = await marcaPng(tema.primario, 96)
+  const marca = opciones.marcaAgua === false ? null : await marcaPng(tema.colorClub, 640)
+  const marcaPie = await marcaPng(tema.colorClub, 96)
   const total = doc.getNumberOfPages()
   const GState = (doc as unknown as { GState: new (o: { opacity: number }) => unknown }).GState
   for (let i = 1; i <= total; i++) {
@@ -296,7 +493,7 @@ export async function cerrarPdf(
     if (marca && GState) {
       const lado = Math.min(w, h) * 0.56
       doc.saveGraphicsState()
-      doc.setGState(new GState({ opacity: opciones.opacidadMarca ?? 0.055 }) as never)
+      doc.setGState(new GState({ opacity: opciones.opacidadMarca ?? 0.045 }) as never)
       doc.addImage(marca, 'PNG', (w - lado) / 2, (h - lado) / 2, lado, lado, 'kabine-marca-agua', 'FAST', -12)
       doc.restoreGraphicsState()
     }
@@ -306,22 +503,25 @@ export async function cerrarPdf(
     if (marcaPie) doc.addImage(marcaPie, 'PNG', m, yPie - 2.6, 3.4, 3.4, 'kabine-marca-pie', 'FAST')
     fuente(doc, 'bold')
     doc.setFontSize(7)
-    tinta(doc, TINTA_SUAVE)
+    tinta(doc, TINTA)
     doc.text('Kabin-e', m + 4.6, yPie)
     let x = m + 4.6 + doc.getTextWidth('Kabin-e') + 2.4
-    fuente(doc)
-    tinta(doc, '#8A90B0')
-    for (const parte of [tema.club, titulo].filter(Boolean)) {
-      trazo(doc, '#D5D9E8')
-      doc.setLineWidth(0.3)
+    for (const [k, parte] of Array.from([tema.club, titulo].filter(Boolean).entries())) {
+      trazo(doc, LINEA)
+      doc.setLineWidth(0.25)
       doc.line(x, yPie - 2.4, x, yPie + 0.6)
       x += 2.4
+      fuente(doc, k === 0 ? 'media' : 'normal')
+      tinta(doc, k === 0 ? TINTA : TINTA_SUAVE)
       doc.text(parte, x, yPie)
       x += doc.getTextWidth(parte) + 2.4
     }
-    fuente(doc, 'mono')
-    doc.setFontSize(6.5)
+    fuente(doc, 'estrecha')
+    doc.setFontSize(7)
+    tinta(doc, TINTA_SUAVE)
+    doc.setCharSpace(0.5)
     doc.text(`${i} / ${total}`, w - m, yPie, { align: 'right' })
+    doc.setCharSpace(0)
   }
   tinta(doc, TINTA)
 }

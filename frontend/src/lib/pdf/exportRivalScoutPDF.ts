@@ -35,13 +35,17 @@ import {
   cabeceraPdf,
   cerrarPdf,
   colorTexto,
+  estadoPdf,
   etiquetaPdf,
+  fichaPdf,
   fuente,
+  inicialesPdf,
   LINEA,
   prepararPdf,
   relleno,
   rgbHex,
   seccionPdf,
+  temaActivo,
   temaDelClub,
   tinta,
   TINTA,
@@ -49,6 +53,7 @@ import {
   trazo,
   type TemaPdf,
 } from './marca'
+import { BAJA, OK } from './marcaColor'
 
 const FASE_LABELS: Record<FaseRival, string> = {
   ataque_organizado: 'Ataque organizado',
@@ -179,8 +184,15 @@ function writeRoles(
     const label = `${rolLabel(r.rol, options)}  ·  ${r.jugador}`
     const x = margin + col * (colW + 4)
     tinta(doc, TINTA)
-    const next = writeWrapped(doc, label, x, rowY, colW, 4)
-    maxY = Math.max(maxY, next)
+    const radio = 2.7
+    if (!lockPage || rowY <= pageFloor(doc)) {
+      fichaPdf(doc, temaActivo(doc), x + radio, rowY - 1.2, inicialesPdf(r.jugador), 'normal', radio)
+    }
+    fuente(doc)
+    doc.setFontSize(9)
+    tinta(doc, TINTA)
+    const next = writeWrapped(doc, label, x + radio * 2 + 2, rowY, colW - radio * 2 - 2, 4)
+    maxY = Math.max(maxY, next, rowY + radio + 1.6)
     col += 1
     if (col === 2) {
       col = 0
@@ -210,8 +222,8 @@ function addPizarraImage(
     const { w, h } = pitchDisplaySize(contentWidth, props.width, props.height, room)
     const x = margin + (contentWidth - w) / 2
     trazo(doc, LINEA)
-    doc.setFillColor(15, 40, 12) // fondo de césped tras la pizarra
-    doc.roundedRect(x - 1, y - 1, w + 2, h + 2, 1.5, 1.5, 'FD')
+    doc.setLineWidth(0.25)
+    doc.roundedRect(x - 0.6, y - 0.6, w + 1.2, h + 1.2, 0.5, 0.5, 'S')
     const format = png.includes('image/jpeg') ? 'JPEG' : 'PNG'
     const alias = `pz-${doc.getNumberOfPages()}-${Math.round(y)}-${png.length}`
     doc.addImage(png, format, x, y, w, h, alias, 'FAST')
@@ -385,16 +397,6 @@ function drawHeader(
   })
 }
 
-function fillHex(doc: jsPDF, hex: string) {
-  const raw = hex.replace('#', '')
-  const n = raw.length === 3 ? raw.split('').map((c) => c + c).join('') : raw
-  doc.setFillColor(
-    parseInt(n.slice(0, 2), 16) || 100,
-    parseInt(n.slice(2, 4), 16) || 116,
-    parseInt(n.slice(4, 6), 16) || 139,
-  )
-}
-
 function drawMatchPitch(
   doc: jsPDF,
   estrategia: RivalScoutData['estrategia'],
@@ -403,14 +405,16 @@ function drawMatchPitch(
   w: number,
   h: number,
 ) {
-  doc.setFillColor(21, 128, 61)
-  doc.roundedRect(x, y, w, h, 2, 2, 'F')
+  // Campo Cal: sin relleno, una sola línea fina de tinta.
+  trazo(doc, LINEA)
+  doc.setLineWidth(0.25)
+  doc.roundedRect(x, y, w, h, 0.5, 0.5, 'S')
   const ix = x + 5
   const iy = y + 5
   const iw = w - 10
   const ih = h - 10
-  doc.setDrawColor(255, 255, 255)
-  doc.setLineWidth(0.45)
+  trazo(doc, TINTA_SUAVE)
+  doc.setLineWidth(0.3)
   doc.rect(ix, iy, iw, ih)
   doc.line(ix + iw / 2, iy, ix + iw / 2, iy + ih)
   doc.circle(ix + iw / 2, iy + ih / 2, Math.min(iw, ih) * 0.11)
@@ -434,18 +438,19 @@ function drawMatchPitch(
     if (!token.nombre && !token.dorsal) continue
     const cx = ix + (token.leftPct / 100) * iw
     const cy = iy + (token.topPct / 100) * ih
-    fillHex(doc, token.color)
-    doc.circle(cx, cy, 4.8, 'F')
-    doc.setDrawColor(255, 255, 255)
-    doc.setLineWidth(0.35)
-    doc.circle(cx, cy, 4.8, 'S')
-    fuente(doc, 'mono')
-    doc.setFontSize(9)
+    // Persona = círculo con dorsal (titular: relleno de tinta).
+    relleno(doc, TINTA)
+    trazo(doc, TINTA)
+    doc.setLineWidth(0.4)
+    doc.circle(cx, cy, 4.2, 'FD')
+    fuente(doc, 'bold')
+    doc.setFontSize(8.5)
     doc.setTextColor(255, 255, 255)
-    doc.text(token.dorsal || token.label.slice(0, 3), cx, cy + 1.5, { align: 'center' })
+    doc.text(token.dorsal || token.label.slice(0, 3), cx, cy + 1.4, { align: 'center' })
     if (token.nombre) {
       fuente(doc, 'media')
-      doc.setFontSize(7.5)
+      doc.setFontSize(7.2)
+      tinta(doc, TINTA)
       doc.text(token.nombre, cx, cy + 8, { align: 'center' })
     }
   }
@@ -599,11 +604,11 @@ function drawIntelVisual(
     boxes.forEach((row, index) => {
       const x = margin + index * (boxW + gap)
       trazo(doc, LINEA)
-      relleno(doc, temaActual?.primarioSuave ?? '#F7F8FB')
-      doc.roundedRect(x, y, boxW, boxH, 1.5, 1.5, 'FD')
+      doc.setLineWidth(0.25)
+      doc.roundedRect(x, y, boxW, boxH, 0.5, 0.5, 'S')
       paintCrest(doc, row.localEscudo ? crests.get(row.localEscudo) : undefined, x + 1.2, y + 3.4, 9)
       paintCrest(doc, row.visitanteEscudo ? crests.get(row.visitanteEscudo) : undefined, x + boxW - 10.2, y + 3.4, 9)
-      fuente(doc, 'mono')
+      fuente(doc, 'estrecha')
       doc.setFontSize(8.5)
       tinta(doc, TINTA)
       doc.text(`${row.golesLocal} - ${row.golesVisitante}`, x + boxW / 2, y + 9.6, { align: 'center' })
@@ -622,15 +627,15 @@ function drawIntelVisual(
       doc.text(chart.label, x, y)
       const gfH = 16 * (chart.gf / max)
       const gcH = 16 * (chart.gc / max)
-      doc.setFillColor(16, 185, 129)
+      relleno(doc, OK)
       doc.rect(x, y + 18 - gfH, 6, gfH, 'F')
-      doc.setFillColor(239, 68, 68)
+      relleno(doc, BAJA)
       doc.rect(x + 8, y + 18 - gcH, 6, gcH, 'F')
-      fuente(doc, 'mono')
+      fuente(doc, 'estrecha')
       doc.setFontSize(7)
-      doc.setTextColor(5, 150, 105)
+      tinta(doc, OK)
       doc.text(String(chart.gf), x + 3, y + 22, { align: 'center' })
-      doc.setTextColor(220, 38, 38)
+      tinta(doc, BAJA)
       doc.text(String(chart.gc), x + 11, y + 22, { align: 'center' })
     })
     y += 26
@@ -638,7 +643,7 @@ function drawIntelVisual(
   if (visual.goleadores.length) {
     fuente(doc, 'media')
     doc.setFontSize(8)
-    tinta(doc, temaActual?.primarioTexto ?? TINTA)
+    tinta(doc, TINTA)
     doc.text(
       visual.goleadores.slice(0, 5).map((row) => `${row.nombre} ${row.goles}`).join('   '),
       margin,
@@ -647,23 +652,21 @@ function drawIntelVisual(
     y += 5
   }
   const cards = [
-    ...visual.sancionados.map((name) => ({ name, color: [185, 28, 28] as [number, number, number] })),
-    ...visual.apercibidos.map((name) => ({ name, color: [180, 83, 9] as [number, number, number] })),
+    ...visual.sancionados.map((name) => ({ name, tipo: 'baja' as const })),
+    ...visual.apercibidos.map((name) => ({ name, tipo: 'aviso' as const })),
   ].slice(0, 6)
-  if (cards.length) {
+  if (cards.length && temaActual) {
     let x = margin
     cards.forEach((card) => {
       fuente(doc, 'media')
-      doc.setFontSize(7)
-      doc.setTextColor(card.color[0], card.color[1], card.color[2])
-      const label = card.name
-      const width = doc.getTextWidth(label) + 3
+      doc.setFontSize(7.5)
+      const width = doc.getTextWidth(card.name) + 6
       if (x + width > margin + contentWidth) {
         x = margin
         y += 5
       }
-      doc.text(label, x, y)
-      x += width + 2
+      estadoPdf(doc, temaActual!, card.tipo, card.name, x, y)
+      x += width + 3
     })
     y += 4
   }
@@ -801,9 +804,9 @@ export async function exportRivalScoutPDF(
       for (const [key, sub] of eachScoutSubfase(phase)) {
         if (!scoutSubHasContent(sub)) continue
         y = ensureSpace(doc, y, 14, margin)
-        fuente(doc, 'bold')
-        doc.setFontSize(11.5)
-        tinta(doc, tema.primarioTexto)
+        fuente(doc, 'ancha')
+        doc.setFontSize(9.5)
+        tinta(doc, TINTA)
         doc.text(SUBFASE_LABELS[key] ?? key, margin, y)
         y += 6
         fuente(doc)

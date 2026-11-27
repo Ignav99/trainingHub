@@ -8,18 +8,13 @@
         @page { size: A4; margin: 14mm 14mm 15mm 14mm; }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-size: 9.5pt; line-height: 1.4; }
+        body { font-size: 9.5pt; line-height: 1.4; background: #fff; }
 
         /* ── Portada ── */
         .cover { page-break-after: always; }
-        .cover-banda {
-            background: var(--k-primario); color: var(--k-sobre-primario);
-            border-radius: 2.6mm; padding: 5mm 6mm; margin-bottom: 6mm;
-        }
-        .cover-banda .k-eyebrow { color: var(--k-sobre-primario); opacity: .8; }
-        .cover-banda .cb-titulo { font-size: 22pt; font-weight: 800; letter-spacing: -.02em; line-height: 1.05; margin-top: 1mm; }
-        .cover-banda .cb-sub { font-size: 10pt; font-weight: 600; margin-top: 1.2mm; }
-        .cover-banda .cb-meta { font-size: 8pt; opacity: .8; margin-top: 1mm; }
+        .equipo { margin-bottom: 5mm; }
+        .equipo .c-titulo { font-size: 20pt; margin-top: .8mm; }
+        .equipo .eq-sub { font-size: 9pt; color: var(--c-suave); margin-top: 1mm; }
 
         .toc-tipo { margin-top: 4mm; }
         .toc-tipo:first-child { margin-top: 0; }
@@ -27,28 +22,26 @@
         .toc-tabla .c-code { width: 18mm; }
         .toc-tabla .c-lado { width: 26mm; text-align: right; }
         .toc-name { font-weight: 600; }
-        .generado { margin-top: 5mm; font-size: 7pt; color: var(--k-tinta-suave); }
 
-        /* ── Chips ── */
-        .code {
-            display: inline-block; padding: .3mm 1.6mm; border-radius: 1mm;
-            background: var(--k-primario-suave); color: var(--k-primario-texto);
-            font-size: 7pt; font-weight: 700; letter-spacing: .04em;
-        }
-        .k-chip.chip-of { background: var(--k-primario); color: var(--k-sobre-primario); }
-        .k-chip.chip-df { background: var(--k-secundario); color: var(--k-sobre-secundario); }
-        .k-chip.chip-neutro { background: #F1F3F8; color: var(--k-tinta-suave); }
-        .k-chip.chip-senal { background: #fff; color: var(--k-primario-texto); border: .25mm solid var(--k-primario-medio); }
-        .k-chip { margin: 0 1mm .8mm 0; }
+        /* Código de jugada: rectángulo fino (cosa), cifra tabular */
+        .code { display: inline-block; padding: .2mm 1.4mm; border: .25mm solid var(--c-borde); border-radius: .5mm;
+            font-size: 7pt; font-weight: 700; letter-spacing: .04em; color: var(--c-tinta); }
+        /* Lado ofensivo / defensivo: se escribe; muestra mínima al lado */
+        .lado { display: inline-block; font-size: 7.5pt; font-weight: 600; color: var(--c-tinta); }
+        .lado::before { content: ""; display: inline-block; width: 2mm; height: 2mm; margin-right: 1.4mm; vertical-align: -.2mm; border-radius: .3mm; }
+        .lado.of::before { background: var(--c-club); }
+        .lado.df::before { border: .4mm solid var(--c-tinta); }
 
         /* ── Fichas de jugada ── */
-        .k-seccion { page-break-after: avoid; margin-top: 2mm; }
+        .tipo-sec { page-break-after: avoid; margin-top: 2mm; }
         .play-card { margin-bottom: 5mm; }
         .phase, .bloque, .roles-campo { page-break-inside: avoid; }
         .play-title-row { margin-bottom: 1.5mm; }
-        .play-name { font-size: 12.5pt; font-weight: 800; letter-spacing: -.015em; margin-right: 2mm; }
-        .play-meta { margin-bottom: 2mm; }
-        .play-desc { font-size: 9pt; color: var(--k-tinta); margin-bottom: 2.5mm; }
+        .play-name { font-size: 12.5pt; font-weight: 800; margin-right: 2mm; }
+        .play-meta { margin-bottom: 2mm; font-size: 8pt; color: var(--c-suave); }
+        .play-meta .sep { margin: 0 1.4mm; color: var(--c-borde); }
+        .play-meta .tag { color: var(--c-tinta); font-weight: 600; }
+        .play-desc { font-size: 9pt; color: var(--c-tinta); margin-bottom: 2.5mm; }
 
         .diagram-container { text-align: center; margin: 2mm 0; }
         .diagram-container svg { display: block; margin: 0 auto; max-width: 100%; max-height: 112mm; }
@@ -60,21 +53,17 @@
         .rol-tabla { width: 100%; border-collapse: collapse; }
         .rol-tabla td { vertical-align: top; padding: .8mm 0; font-size: 9pt; }
         .rol-tabla .rol-nums { width: 22mm; padding-right: 2mm; }
-        .rol-num {
-            display: inline-block; min-width: 5mm; padding: .2mm 1.2mm; margin: 0 .8mm .8mm 0;
-            border-radius: 9mm; background: var(--k-tinta); color: #fff;
-            font-weight: 700; font-size: 7.5pt; text-align: center;
-        }
-        .rol-texto { line-height: 1.35; }
+        .rol-tabla .c-ficha { margin: 0 .8mm .8mm 0; }
+        .rol-texto { line-height: 1.35; padding-top: .8mm; }
 
-        .bloque { margin-top: 3mm; padding: 2.6mm 3.2mm; }
-        .bloque .k-eyebrow { margin-bottom: 1.2mm; }
-        .asig-row, .dir-row { font-size: 8.8pt; padding: .5mm 0; }
-        .asig-num { font-weight: 700; margin-right: 1.6mm; color: var(--k-primario-texto); }
-        .asig-rol { color: var(--k-tinta-suave); margin-right: 1.6mm; }
+        .bloque { margin-top: 3mm; page-break-inside: avoid; }
+        .bloque .c-rotulo { margin-bottom: 1.2mm; }
+        .asig-row, .dir-row { font-size: 8.8pt; padding: .6mm 0; }
+        .asig-row .c-ficha { margin-right: 1.6mm; vertical-align: middle; }
+        .asig-rol { color: var(--c-suave); margin-right: 1.6mm; }
         .notes {
-            font-size: 8.5pt; color: var(--k-tinta-suave); margin-top: 3mm;
-            padding-top: 2mm; border-top: .25mm solid var(--k-linea);
+            font-size: 8.5pt; color: var(--c-suave); margin-top: 3mm;
+            padding-top: 2mm; border-top: .25mm solid var(--c-borde);
         }
     </style>
 </head>
@@ -82,11 +71,11 @@
     <div class="cover">
         {{ cabecera(tema_c, titulo="Playbook ABP", subtitulo="Acciones a balón parado", meta=((total_jugadas ~ ' jugadas') if total_jugadas else '')) }}
 
-        <div class="cover-banda">
-            <div class="k-eyebrow">Equipo</div>
-            <div class="cb-titulo">{{ equipo_nombre or 'Equipo' }}</div>
+        <div class="equipo c-caja-fuerte">
+            <div class="c-rotulo">Equipo</div>
+            <div class="c-titulo">{{ equipo_nombre or 'Equipo' }}</div>
             {% if equipo_temporada or equipo_categoria or total_jugadas %}
-            <div class="cb-sub">
+            <div class="eq-sub">
                 {% if equipo_categoria %}{{ equipo_categoria }}{% endif %}
                 {% if equipo_categoria and equipo_temporada %} · {% endif %}
                 {% if equipo_temporada %}Temporada {{ equipo_temporada }}{% endif %}
@@ -95,18 +84,18 @@
             {% endif %}
         </div>
 
-        <div class="k-seccion">Índice de jugadas</div>
-        <div class="k-tarjeta">
+        <div class="c-seccion">Índice de jugadas</div>
+        <div>
             {% for tipo_code, plays in grouped.items() %}
             <div class="toc-tipo">
-                <div class="k-eyebrow" style="margin-bottom:1.2mm">{{ tipo_labels.get(tipo_code, tipo_code) }}</div>
-                <table class="k-tabla toc-tabla">
+                <div class="c-rotulo" style="margin-bottom:1.2mm">{{ tipo_labels.get(tipo_code, tipo_code) }}</div>
+                <table class="c-tabla toc-tabla">
                     {% for play in plays %}
                     <tr>
-                        <td class="c-code">{% if play.codigo %}<span class="code k-mono">{{ play.codigo }}</span>{% endif %}</td>
+                        <td class="c-code">{% if play.codigo %}<span class="code">{{ play.codigo }}</span>{% endif %}</td>
                         <td><span class="toc-name">{{ play.nombre }}</span></td>
                         <td class="c-lado">
-                            <span class="k-chip {% if play.lado == 'ofensivo' %}chip-of{% else %}chip-df{% endif %}">{{ lado_labels.get(play.lado, play.lado) }}</span>
+                            <span class="lado {% if play.lado == 'ofensivo' %}of{% else %}df{% endif %}">{{ lado_labels.get(play.lado, play.lado) }}</span>
                         </td>
                     </tr>
                     {% endfor %}
@@ -114,26 +103,25 @@
             </div>
             {% endfor %}
         </div>
-        <div class="generado">{% if org_nombre %}{{ org_nombre }} · {% endif %}Generado con Kabin-e</div>
     </div>
 
     {% for tipo_code, plays in grouped.items() %}
-    <div class="k-seccion">{{ tipo_labels.get(tipo_code, tipo_code) }}</div>
+    <div class="c-seccion tipo-sec">{{ tipo_labels.get(tipo_code, tipo_code) }}</div>
 
     {% for play in plays %}
-    <div class="k-tarjeta play-card">
+    <div class="c-caja play-card">
         {% set play_head %}
         <div class="play-head">
         <div class="play-title-row">
             <span class="play-name">{{ play.nombre }}</span>
-            {% if play.codigo %}<span class="code k-mono">{{ play.codigo }}</span>{% endif %}
+            {% if play.codigo %}<span class="code">{{ play.codigo }}</span>{% endif %}
         </div>
         <div class="play-meta">
-            <span class="k-chip">{{ tipo_labels.get(play.tipo, play.tipo) }}</span>
-            <span class="k-chip {% if play.lado == 'ofensivo' %}chip-of{% else %}chip-df{% endif %}">{{ lado_labels.get(play.lado, play.lado) }}</span>
-            {% if play.subtipo %}<span class="k-chip chip-neutro">{{ play.subtipo }}</span>{% endif %}
-            {% if play.sistema_marcaje %}<span class="k-chip chip-neutro">{{ play.sistema_marcaje }}</span>{% endif %}
-            {% if play.senal_codigo %}<span class="k-chip chip-senal">Señal: {{ play.senal_codigo }}</span>{% endif %}
+            <span class="tag">{{ tipo_labels.get(play.tipo, play.tipo) }}</span>
+            <span class="sep">/</span><span class="lado {% if play.lado == 'ofensivo' %}of{% else %}df{% endif %}">{{ lado_labels.get(play.lado, play.lado) }}</span>
+            {% if play.subtipo %}<span class="sep">/</span>{{ play.subtipo }}{% endif %}
+            {% if play.sistema_marcaje %}<span class="sep">/</span>{{ play.sistema_marcaje }}{% endif %}
+            {% if play.senal_codigo %}<span class="sep">/</span><span class="tag">Señal: {{ play.senal_codigo }}</span>{% endif %}
         </div>
 
         {% if play.descripcion %}
@@ -147,7 +135,7 @@
         <div class="phase">
             {% if loop.first %}{{ play_head }}{% endif %}
             {% if play.rendered_fases | length > 1 %}
-            <div class="phase-name k-eyebrow">{{ fase.nombre }}</div>
+            <div class="phase-name c-rotulo">{{ fase.nombre }}</div>
             {% endif %}
             {% if fase.svg %}
             <div class="diagram-container">{{ fase.svg }}</div>
@@ -157,7 +145,7 @@
                 <table class="rol-tabla">
                 {% for rol in play.roles_campo %}
                 <tr>
-                    <td class="rol-nums">{% for d in rol.dorsales %}<span class="rol-num k-mono">{{ d }}</span>{% endfor %}</td>
+                    <td class="rol-nums">{% for d in rol.dorsales %}<span class="c-ficha">{{ d }}</span>{% endfor %}</td>
                     <td class="rol-texto">{{ rol.texto }}</td>
                 </tr>
                 {% endfor %}
@@ -168,11 +156,11 @@
         {% endfor %}
 
         {% if play.resolved_asignaciones %}
-        <div class="k-tarjeta-suave bloque">
-            <div class="k-eyebrow">Jugadores</div>
+        <div class="c-hundido bloque">
+            <div class="c-rotulo">Jugadores</div>
             {% for asig in play.resolved_asignaciones %}
             <div class="asig-row">
-                {% if asig.label %}<span class="asig-num k-mono">{{ asig.label }}</span>{% endif %}
+                {% if asig.label %}<span class="c-ficha">{{ asig.label }}</span>{% endif %}
                 {% if asig.rol %}<span class="asig-rol">{{ asig.rol }}</span>{% endif %}
                 <span>{{ asig.nombre }}</span>
             </div>
@@ -181,8 +169,8 @@
         {% endif %}
 
         {% if play.play_directrices %}
-        <div class="k-tarjeta-suave bloque">
-            <div class="k-eyebrow">Directrices</div>
+        <div class="c-hundido bloque">
+            <div class="c-rotulo">Directrices</div>
             {% for d in play.play_directrices %}
             <div class="dir-row">· {{ d }}</div>
             {% endfor %}

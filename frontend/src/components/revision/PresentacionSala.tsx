@@ -12,7 +12,8 @@ import { DrawingOverlay } from '@/components/video-analyzer/DrawingOverlay'
 import { useDrawingEngine } from '@/components/video-analyzer/useDrawingEngine'
 import { useUndoRedo } from '@/components/video-analyzer/useUndoRedo'
 import type { DrawingTool } from '@/components/video-analyzer/types'
-import { ClubCrest, DISPLAY_FONT, FitSlideStage, StaticSlideBody } from '@/components/rivales/DossierSlides'
+import { ClubCrest, DISPLAY_FONT, DISPLAY_STRETCH, FitSlideStage, StaticSlideBody } from '@/components/rivales/DossierSlides'
+import { SalaMarca, salaSuperficie } from '@/components/revision/salaCal'
 import { SalaFloatingChrome, SalaReviewBar, WhiteboardBar } from '@/components/revision/salaChrome'
 import { SalaZoomCatcher } from '@/components/revision/SalaZoomCatcher'
 import { useSalaVideoShare } from '@/components/revision/useSalaVideoShare'
@@ -714,9 +715,12 @@ export function PresentacionSala({
 
   if (loading && !session) {
     return createPortal(
-      <div className="fixed inset-0 z-[100] flex items-center justify-center text-zinc-300" style={{ background: '#08110F' }}>
-        <Loader2 className="h-6 w-6 animate-spin mr-2" />
-        Conectando sala {code}…
+      <div {...salaSuperficie} className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-3 text-muted-foreground">
+        <SalaMarca />
+        <span className="inline-flex items-center">
+          <Loader2 className="mr-2 h-6 w-6 animate-spin" />
+          Conectando sala {code}…
+        </span>
       </div>,
       document.body,
     )
@@ -724,7 +728,8 @@ export function PresentacionSala({
 
   if (!session && !directoLive) {
     return createPortal(
-      <div className="fixed inset-0 z-[100] flex items-center justify-center text-zinc-400" style={{ background: '#08110F' }}>
+      <div {...salaSuperficie} className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-3 text-muted-foreground">
+        <SalaMarca />
         No hay sala con el código {code}.
       </div>,
       document.body,
@@ -747,7 +752,7 @@ export function PresentacionSala({
       data-testid="presentacion-sala"
       tabIndex={-1}
       className="fixed inset-0 z-[100] flex flex-col outline-none"
-      style={{ background: '#08110F', color: '#F3EFE6' }}
+      {...salaSuperficie}
       onTouchStart={(e) => {
         if (directoLive) return
         if (videoFullscreen || isVideoSafeTarget(e.target)) {
@@ -769,23 +774,20 @@ export function PresentacionSala({
         go(delta)
       }}
     >
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@600;700;800&display=swap');
-      `}</style>
-
       <header className={
         isVideo && !toolsOpen
-          ? 'absolute inset-x-0 top-0 z-40 flex flex-wrap items-center gap-2 bg-gradient-to-b from-black/85 via-black/45 to-transparent px-3 py-2 sm:px-4'
+          ? 'absolute inset-x-0 top-0 z-40 flex flex-wrap items-center gap-2 border-b-[1.5px] border-border bg-background px-3 py-2 sm:px-4'
           : 'flex shrink-0 flex-wrap items-center gap-2 px-3 py-2 sm:px-4'
       }>
+        <SalaMarca className="shrink-0" />
         {isVideo && slide?.kind === 'video' ? (
-          <p className="min-w-0 flex-1 truncate text-xs" style={{ color: '#E7E2D6' }}>
+          <p className="min-w-0 flex-1 truncate text-xs" style={{ color: 'hsl(var(--foreground))' }}>
             {slide.title}
           </p>
         ) : directoLive ? (
           <p
-            className="text-[11px] font-semibold uppercase tracking-[0.22em]"
-            style={{ color: '#F0C35A', fontFamily: DISPLAY_FONT }}
+            className="text-[11px] font-semibold uppercase tracking-[0.08em]"
+            style={{ color: 'hsl(var(--primary))', fontFamily: DISPLAY_FONT, fontStretch: DISPLAY_STRETCH }}
           >
             Vídeo en directo
           </p>
@@ -793,29 +795,29 @@ export function PresentacionSala({
           <>
             <ClubCrest src={show?.clubEscudoUrl} size={32} />
             <p
-              className="text-[11px] font-semibold uppercase tracking-[0.28em]"
-              style={{ color: '#F0C35A', fontFamily: DISPLAY_FONT }}
+              className="text-[11px] font-semibold uppercase tracking-[0.08em]"
+              style={{ color: 'hsl(var(--primary))', fontFamily: DISPLAY_FONT, fontStretch: DISPLAY_STRETCH }}
             >
               {slide?.kicker || 'Presentación'}
             </p>
           </>
         )}
-        <span className={`text-[10px] ${wsOk ? 'text-emerald-400' : 'text-amber-400'}`}>
+        <span className={`text-[10px] ${wsOk ? 'text-success' : 'text-warning'}`}>
           {salaLinkLabel(status)}
         </span>
         {((directoHost && shareDevice) || (isHost && shareDevice && !directoLive)) && (
           <button
             type="button"
             onClick={() => (directoHost ? setQrOpen(true) : setHostQrOpen(true))}
-            className="rounded-md px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F0C35A]"
-            style={{ color: '#F0C35A' }}
+            className="rounded-md px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            style={{ color: 'hsl(var(--primary))' }}
           >
             QR sala
           </button>
         )}
-        {!isVideo && <div className="h-px flex-1" style={{ background: '#2A3A34' }} />}
+        {!isVideo && <div className="h-px flex-1" style={{ background: 'hsl(var(--border))' }} />}
         {total > 0 && (
-          <p className="tabular-nums text-xs" style={{ color: '#9AA59B' }}>
+          <p className="tabular-nums text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
             {index + 1} / {total}
           </p>
         )}
@@ -823,7 +825,7 @@ export function PresentacionSala({
           type="button"
           data-testid="presentacion-pantalla-completa"
           onClick={() => { void toggleDeckFullscreen() }}
-          className="inline-flex h-9 items-center rounded-md px-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#F3EFE6] hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F0C35A]"
+          className="inline-flex h-9 items-center rounded-md px-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           {deckFullscreen ? 'Salir' : 'Pantalla completa'}
         </button>
@@ -836,8 +838,8 @@ export function PresentacionSala({
               if (open) setZoomMode(false)
               return !open
             })}
-            className="inline-flex h-9 items-center rounded-md px-2 text-[11px] font-semibold uppercase tracking-[0.12em] hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F0C35A]"
-            style={{ color: toolsOpen ? '#08110F' : '#F3EFE6', background: toolsOpen ? '#F0C35A' : 'transparent' }}
+            className="inline-flex h-9 items-center rounded-md px-2 text-[11px] font-semibold uppercase tracking-[0.12em] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            style={{ color: toolsOpen ? 'hsl(var(--primary-foreground))' : 'hsl(var(--foreground))', background: toolsOpen ? 'hsl(var(--primary))' : 'transparent' }}
           >
             {toolsOpen ? 'Listo' : 'Herramientas'}
           </button>
@@ -848,7 +850,7 @@ export function PresentacionSala({
             data-testid="presentacion-videos"
             aria-pressed={videosOpen}
             onClick={() => setVideosOpen((open) => !open)}
-            className="inline-flex h-9 items-center rounded-md px-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#F3EFE6] hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F0C35A]"
+            className="inline-flex h-9 items-center rounded-md px-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             {videosOpen ? 'Ocultar' : 'Vídeos'}
           </button>
@@ -857,7 +859,7 @@ export function PresentacionSala({
           type="button"
           onClick={() => go(-1)}
           disabled={index === 0 || total === 0}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[#F3EFE6] hover:bg-white/10 disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F0C35A]"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground hover:bg-accent disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           aria-label={directoLive ? 'Vídeo anterior' : 'Diapositiva anterior'}
         >
           <ChevronLeft className="h-4 w-4" />
@@ -866,7 +868,7 @@ export function PresentacionSala({
           type="button"
           onClick={() => go(1)}
           disabled={index >= total - 1}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[#F3EFE6] hover:bg-white/10 disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F0C35A]"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground hover:bg-accent disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           aria-label={directoLive ? 'Vídeo siguiente' : 'Diapositiva siguiente'}
         >
           <ChevronRight className="h-4 w-4" />
@@ -875,7 +877,7 @@ export function PresentacionSala({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[#F3EFE6] hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F0C35A]"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             aria-label={directoLive ? 'Cerrar' : 'Cerrar presentación'}
           >
             <X className="h-4 w-4" />
@@ -884,7 +886,7 @@ export function PresentacionSala({
       </header>
 
       {!isHost && !isVideo && (
-        <div className="px-4 py-1 text-[11px] flex items-center gap-1" style={{ color: '#9AA59B' }}>
+        <div className="px-4 py-1 text-[11px] flex items-center gap-1" style={{ color: 'hsl(var(--muted-foreground))' }}>
           <VolumeX className="h-3 w-3" /> Audio en el PC · mute aquí también lo corta allí
         </div>
       )}
@@ -892,7 +894,7 @@ export function PresentacionSala({
       <div className="relative flex min-h-0 flex-1">
         <div className="relative min-h-0 min-w-0 flex-1">
         {!show ? (
-          <div className="flex h-full items-center justify-center px-6 text-center text-sm" style={{ color: '#9AA59B' }}>
+          <div className="flex h-full items-center justify-center px-6 text-center text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
             {directoTablet
               ? (guestPass
                 ? (wsOk ? 'Conectando con el ordenador…' : 'Reconectando con el ordenador…')
@@ -920,10 +922,10 @@ export function PresentacionSala({
                   onTouchEnd={(e) => e.stopPropagation()}
                   className={
                     videoTheater
-                      ? 'fixed inset-0 z-[120] isolate overflow-hidden bg-black'
+                      ? 'fixed inset-0 z-[120] isolate overflow-hidden bg-background'
                       : 'relative min-h-0 flex-1 isolate overflow-hidden rounded-md'
                   }
-                  style={{ background: '#000' }}
+                  style={{ background: 'hsl(var(--background))' }}
                 >
                   {pictureReady || directoTablet ? (
                     <VideoPlayer
@@ -948,7 +950,7 @@ export function PresentacionSala({
                       onError={onVideoError}
                     />
                   ) : (
-                    <div className="flex h-full items-center justify-center px-6 text-center text-sm" style={{ color: '#9AA59B' }}>
+                    <div className="flex h-full items-center justify-center px-6 text-center text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
                       Clip no disponible
                     </div>
                   )}
@@ -961,7 +963,7 @@ export function PresentacionSala({
                     />
                   )}
                   {directoTablet && !videoFrame && !relayFrame && (
-                    <div className="absolute inset-0 z-[55] flex items-center justify-center px-6 text-center text-sm" style={{ background: '#000', color: '#9AA59B' }}>
+                    <div className="absolute inset-0 z-[55] flex items-center justify-center px-6 text-center text-sm" style={{ background: 'hsl(var(--background))', color: 'hsl(var(--muted-foreground))' }}>
                       {videoSlow
                         ? 'El vídeo no llega. Ordenador y tablet tienen que estar en la misma WiFi.'
                         : 'Conectando el vídeo del ordenador…'}
@@ -969,10 +971,10 @@ export function PresentacionSala({
                   )}
                   {toolsOpen && pictureReady && (!isHost || directoHost) && (
                     <div className="absolute left-2 top-16 z-[70] flex flex-col gap-1">
-                      <button type="button" className="h-10 rounded-md bg-black/70 px-2 text-[11px] font-bold text-white" onClick={() => onFrame(-1)}>1 fot</button>
-                      <button type="button" className="h-10 rounded-md bg-black/70 px-2 text-[11px] font-bold text-white" onClick={() => onJog(-0.5)}>0,5 s</button>
-                      <button type="button" className="h-10 rounded-md bg-black/70 px-2 text-[11px] font-bold text-white" onClick={() => onJog(-1)}>1 s</button>
-                      <button type="button" className="h-10 rounded-md bg-black/70 px-2 text-[11px] font-bold text-white" onClick={() => onJog(-5)}>5 s</button>
+                      <button type="button" className="h-10 rounded-md border-[1.5px] border-border bg-card px-2 text-[11px] font-bold text-foreground" onClick={() => onFrame(-1)}>1 fot</button>
+                      <button type="button" className="h-10 rounded-md border-[1.5px] border-border bg-card px-2 text-[11px] font-bold text-foreground" onClick={() => onJog(-0.5)}>0,5 s</button>
+                      <button type="button" className="h-10 rounded-md border-[1.5px] border-border bg-card px-2 text-[11px] font-bold text-foreground" onClick={() => onJog(-1)}>1 s</button>
+                      <button type="button" className="h-10 rounded-md border-[1.5px] border-border bg-card px-2 text-[11px] font-bold text-foreground" onClick={() => onJog(-5)}>5 s</button>
                     </div>
                   )}
                   {pictureReady && (
@@ -1039,7 +1041,7 @@ export function PresentacionSala({
                   </SalaFloatingChrome>
                   )}
                   {mediaError && (
-                    <div className="absolute inset-x-4 top-24 z-[60] rounded-md bg-black/80 text-amber-200 text-xs p-3">
+                    <div className="absolute inset-x-4 top-24 z-[60] rounded-md border-[1.5px] border-border bg-card text-warning text-xs p-3">
                       Este recorte no se pudo reproducir. Pasa a la siguiente diapositiva.
                     </div>
                   )}
@@ -1052,18 +1054,18 @@ export function PresentacionSala({
         {directoLive && (!directoTablet || videosOpen) && (
           <aside
             className="flex w-44 shrink-0 flex-col border-l sm:w-60"
-            style={{ borderColor: '#2A3A34', background: '#0C1814' }}
+            style={{ borderColor: 'hsl(var(--border))', background: 'hsl(var(--card))' }}
             aria-label="Listado de vídeos"
           >
             <div className="flex items-center justify-between gap-2 px-3 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: '#F0C35A' }}>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: 'hsl(var(--primary))' }}>
                 Vídeos
               </p>
               {onAddLocalVideos && (
                 <button
                   type="button"
                   onClick={onAddLocalVideos}
-                  className="rounded-md px-2 py-1 text-[11px] font-semibold hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F0C35A]"
+                  className="rounded-md px-2 py-1 text-[11px] font-semibold hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 >
                   Añadir
                 </button>
@@ -1071,7 +1073,7 @@ export function PresentacionSala({
             </div>
             <ul className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
               {slides.length === 0 && (
-                <li className="px-2 py-2 text-sm" style={{ color: '#9AA59B' }}>
+                <li className="px-2 py-2 text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
                   La lista llega del ordenador…
                 </li>
               )}
@@ -1091,10 +1093,10 @@ export function PresentacionSala({
                         goTo(itemIndex)
                       }}
                       aria-current={active ? 'true' : undefined}
-                      className="mb-1 flex w-full items-center gap-2 rounded-md px-2 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F0C35A]"
+                      className="mb-1 flex w-full items-center gap-2 rounded-md px-2 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                       style={{
-                        background: active ? '#F0C35A' : 'transparent',
-                        color: active ? '#08110F' : '#E7E2D6',
+                        background: active ? 'hsl(var(--primary))' : 'transparent',
+                        color: active ? 'hsl(var(--primary-foreground))' : 'hsl(var(--foreground))',
                       }}
                     >
                       <span className="w-5 shrink-0 text-[11px] tabular-nums">{itemIndex + 1}</span>
@@ -1124,10 +1126,10 @@ export function PresentacionSala({
                 role="tab"
                 aria-selected={active}
                 onClick={() => goTo(chapter.startIndex)}
-                className="flex shrink-0 items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F0C35A]"
+                className="flex shrink-0 items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 style={{
-                  background: active ? '#F0C35A' : '#12201B',
-                  color: active ? '#08110F' : '#C5CDC7',
+                  background: active ? 'hsl(var(--primary))' : 'hsl(var(--secondary))',
+                  color: active ? 'hsl(var(--primary-foreground))' : 'hsl(var(--muted-foreground))',
                   fontFamily: DISPLAY_FONT,
                 }}
               >
@@ -1137,7 +1139,7 @@ export function PresentacionSala({
             )
           })}
         </div>
-        <div className="mt-1 flex items-center justify-between gap-3 text-[11px]" style={{ color: '#9AA59B' }}>
+        <div className="mt-1 flex items-center justify-between gap-3 text-[11px]" style={{ color: 'hsl(var(--muted-foreground))' }}>
           <span>{hint}</span>
           <span className="flex items-center gap-2">
             <ChevronLeft className="h-3 w-3" />
@@ -1150,8 +1152,8 @@ export function PresentacionSala({
       {directoHost && shareDevice && qrOpen && (
         <div className="absolute inset-0 z-[90] flex items-center justify-center p-6" style={{ background: 'rgba(8,17,15,0.92)' }}>
           <div className="max-w-sm w-full text-center space-y-4">
-            <h2 className="text-lg font-semibold" style={{ fontFamily: DISPLAY_FONT }}>Sala de vídeo</h2>
-            <p className="text-sm" style={{ color: '#C5CDC7' }}>
+            <h2 className="text-lg font-semibold" style={{ fontFamily: DISPLAY_FONT, fontStretch: DISPLAY_STRETCH }}>Sala de vídeo</h2>
+            <p className="text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
               Escanea el QR con la tablet. El vídeo se ve allí y podéis dibujar y saltar fotogramas a la vez. El archivo se queda en este ordenador.
             </p>
             <p className="text-4xl font-mono tracking-[0.3em] font-semibold">{code}</p>
@@ -1159,15 +1161,15 @@ export function PresentacionSala({
               // eslint-disable-next-line @next/next/no-img-element
               <img src={qrSrc} alt={`QR sala ${code}`} width={280} height={280} className="mx-auto rounded-md bg-white p-2" />
             ) : (
-              <p className="text-sm" style={{ color: '#F0C35A' }}>Preparando el QR…</p>
+              <p className="text-sm" style={{ color: 'hsl(var(--primary))' }}>Preparando el QR…</p>
             )}
-            <p className={`text-xs ${wsOk ? 'text-emerald-400' : 'text-amber-400'}`}>
+            <p className={`text-xs ${wsOk ? 'text-success' : 'text-warning'}`}>
               {peerReady ? 'Tablet conectada' : !guestPass ? 'Abriendo la sala…' : wsOk ? 'Esperando a la tablet…' : 'Reconectando la sala…'}
             </p>
             <button
               type="button"
               onClick={() => setQrOpen(false)}
-              className="inline-flex h-11 items-center justify-center rounded-md bg-[#F0C35A] px-4 text-sm font-semibold text-[#08110F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              className="inline-flex h-11 items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground"
             >
               {peerReady ? 'Cerrar' : 'Entrar sin tablet'}
             </button>
@@ -1178,7 +1180,7 @@ export function PresentacionSala({
       {isHost && !directoLive && shareDevice && hostQrOpen && (
         <div className="absolute inset-0 z-[90] flex items-center justify-center p-6" style={{ background: 'rgba(8,17,15,0.92)' }}>
           <div className="max-w-sm w-full text-center space-y-4">
-            <p className="text-sm" style={{ color: '#C5CDC7' }}>
+            <p className="text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
               Escanea el QR con la tablet. En cuanto entre, las dos pantallas muestran la misma diapositiva. Si el 5G va justo, se abre un enlace directo entre tablet y televisor: pasar diapositiva no tiene que salir a internet.
             </p>
             <p className="text-4xl font-mono tracking-[0.3em] font-semibold">{session?.code}</p>
@@ -1186,13 +1188,13 @@ export function PresentacionSala({
               // eslint-disable-next-line @next/next/no-img-element
               <img src={qrSrc} alt={`QR sala ${session?.code ?? ''}`} width={240} height={240} className="mx-auto rounded-md bg-white p-2" />
             ) : null}
-            <p className={`text-xs ${wsOk ? 'text-emerald-400' : 'text-amber-400'}`}>
+            <p className={`text-xs ${wsOk ? 'text-success' : 'text-warning'}`}>
               {peerReady ? 'Tablet conectada' : wsOk ? 'Esperando a la tablet…' : 'Reconectando la sala…'}
             </p>
             <button
               type="button"
               onClick={() => setHostQrOpen(false)}
-              className="inline-flex h-11 items-center justify-center rounded-md bg-[#F0C35A] px-4 text-sm font-semibold text-[#08110F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              className="inline-flex h-11 items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground"
             >
               {peerReady ? 'Cerrar' : 'Entrar sin tablet'}
             </button>

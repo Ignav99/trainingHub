@@ -8,62 +8,47 @@
         @page { size: A4; margin: 14mm 14mm 15mm 14mm; }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-size: 9.5pt; line-height: 1.4; }
+        body { font-size: 9.5pt; line-height: 1.4; background: #fff; }
 
         /* ── Portada ── */
         .cover { page-break-after: always; }
-        .cover-banda {
-            background: var(--k-primario); color: var(--k-sobre-primario);
-            border-radius: 2.6mm; padding: 5mm 6mm; margin-bottom: 5mm;
-        }
-        .cover-banda .k-eyebrow { color: var(--k-sobre-primario); opacity: .8; }
-        .cover-banda .cb-titulo { font-size: 20pt; font-weight: 800; letter-spacing: -.02em; line-height: 1.05; margin-top: 1mm; }
-        .cover-banda .cb-vs { font-weight: 400; opacity: .75; }
-        .cover-banda .cb-sub { font-size: 9pt; font-weight: 600; margin-top: 1.4mm; }
-        .cover-banda .cb-meta { font-size: 8pt; opacity: .8; margin-top: .6mm; }
+        .partido { margin-bottom: 5mm; }
+        .partido .c-titulo { font-size: 19pt; margin-top: .8mm; }
+        .partido .vs { font-weight: 400; color: var(--c-suave); }
+        .partido .pt-sub { font-size: 9pt; font-weight: 600; margin-top: 1.4mm; }
+        .partido .pt-meta { font-size: 8pt; color: var(--c-suave); margin-top: .6mm; }
 
         /* Dos columnas: tablas (flex poco fiable en WeasyPrint) */
         .dos { width: 100%; border-collapse: separate; border-spacing: 4mm 0; margin: 0 -4mm 5mm; table-layout: fixed; }
         .dos > tbody > tr > td, .dos > tr > td { vertical-align: top; }
         .comment-box { min-height: 22mm; }
-        .comment-box .k-eyebrow { margin-bottom: 1.5mm; }
-        .comment-box.df .k-eyebrow { color: var(--k-secundario-texto); }
-        .comment-box.ataque { border-top: 1mm solid var(--k-primario); }
-        .comment-box.defensa { border-top: 1mm solid var(--k-secundario); }
+        .comment-box .c-rotulo { margin-bottom: 1.5mm; }
         .comment-box p { font-size: 9pt; line-height: 1.5; white-space: pre-line; }
 
         .col-head {
-            padding-bottom: 1.4mm; margin-bottom: 1.6mm;
-            border-bottom: .6mm solid var(--k-primario);
-            font-size: 8pt; font-weight: 800; text-transform: uppercase; letter-spacing: .08em;
+            padding-bottom: 1.4mm; margin-bottom: 1.2mm;
+            border-bottom: .4mm solid var(--c-tinta);
         }
-        .col-head.df { border-bottom-color: var(--k-secundario); }
-        .col-head .col-count { float: right; color: var(--k-tinta-suave); font-weight: 600; }
-        .summary-play { padding: 1.2mm 0; border-bottom: .2mm solid var(--k-linea); font-size: 9pt; }
+        .col-head .col-count { float: right; font-weight: 700; color: var(--c-tinta); font-size: 8pt; }
+        .summary-play { padding: 1.2mm 0; border-bottom: .25mm solid var(--c-borde); font-size: 9pt; }
         .summary-play:last-child { border-bottom: none; }
-        .sp-num { display: inline-block; min-width: 5mm; font-size: 7.5pt; color: var(--k-tinta-suave); }
+        .sp-num { display: inline-block; min-width: 5mm; font-size: 7.5pt; color: var(--c-suave); }
         .sp-name { font-weight: 600; }
-        .summary-empty { color: var(--k-tinta-suave); font-style: italic; font-size: 8.5pt; padding: 2mm 0; }
+        .summary-empty { color: var(--c-suave); font-size: 8.5pt; padding: 2mm 0; }
 
-        /* ── Chips ── */
-        .code {
-            display: inline-block; padding: .3mm 1.6mm; border-radius: 1mm; margin-right: 1.2mm;
-            background: var(--k-primario-suave); color: var(--k-primario-texto);
-            font-size: 7pt; font-weight: 700; letter-spacing: .04em; white-space: nowrap;
-        }
-        .code.df { background: var(--k-secundario-suave); color: var(--k-secundario-texto); }
-        .k-chip.chip-neutro { background: #F1F3F8; color: var(--k-tinta-suave); }
-        .k-chip.chip-senal { background: #fff; color: var(--k-primario-texto); border: .25mm solid var(--k-primario-medio); }
-        .k-chip { margin: 0 1mm .8mm 0; }
+        /* Código de jugada: rectángulo fino */
+        .code { display: inline-block; padding: .2mm 1.4mm; border: .25mm solid var(--c-borde); border-radius: .5mm; margin-right: 1.2mm;
+            font-size: 7pt; font-weight: 700; letter-spacing: .04em; white-space: nowrap; color: var(--c-tinta); }
 
         /* ── Fichas de jugada ── */
-        .seccion-df { border-left-color: var(--k-secundario); }
-        .k-seccion { page-break-after: avoid; margin-top: 2mm; }
-        .k-seccion .n { color: var(--k-tinta-suave); font-weight: 600; }
+        .lado-sec { page-break-after: avoid; margin-top: 2mm; }
+        .lado-sec .n { color: var(--c-suave); font-weight: 600; }
         .play-card { margin-bottom: 5mm; page-break-inside: avoid; }
         .play-title-row { margin-bottom: 1.5mm; }
-        .play-name { font-size: 12.5pt; font-weight: 800; letter-spacing: -.015em; margin-right: 2mm; }
-        .play-meta { margin-bottom: 2mm; }
+        .play-name { font-size: 12.5pt; font-weight: 800; margin-right: 2mm; }
+        .play-meta { margin-bottom: 2mm; font-size: 8pt; color: var(--c-suave); }
+        .play-meta .sep { margin: 0 1.4mm; color: var(--c-borde); }
+        .play-meta .tag { color: var(--c-tinta); font-weight: 600; }
 
         .diagram-container { text-align: center; margin: 2mm 0; }
         .diagram-container svg { display: block; margin: 0 auto; max-width: 100%; max-height: 92mm; }
@@ -72,49 +57,40 @@
         .rol-tabla { width: 100%; border-collapse: collapse; }
         .rol-tabla td { vertical-align: top; padding: .8mm 0; font-size: 9pt; }
         .rol-tabla .rol-nums { width: 22mm; padding-right: 2mm; }
-        .rol-num {
-            display: inline-block; min-width: 5mm; padding: .2mm 1.2mm; margin: 0 .8mm .8mm 0;
-            border-radius: 9mm; background: var(--k-tinta); color: #fff;
-            font-weight: 700; font-size: 7.5pt; text-align: center;
-        }
-        .rol-texto { line-height: 1.35; }
+        .rol-tabla .c-ficha { margin: 0 .8mm .8mm 0; }
+        .rol-texto { line-height: 1.35; padding-top: .8mm; }
 
-        .asignaciones { margin-top: 2.5mm; padding: 2.6mm 3.2mm; }
-        .asignaciones .k-eyebrow { margin-bottom: 1.2mm; }
+        .asignaciones { margin-top: 2.5mm; }
+        .asignaciones .c-rotulo { margin-bottom: 1.2mm; }
         .asig-tabla { width: 100%; border-collapse: collapse; }
-        .asig-tabla td { padding: .9mm 0; font-size: 8.8pt; vertical-align: middle; border-bottom: .2mm solid var(--k-primario-medio); }
+        .asig-tabla td { padding: .9mm 0; font-size: 8.8pt; vertical-align: middle; border-bottom: .25mm solid var(--c-borde); }
         .asig-tabla tr:last-child td { border-bottom: none; }
         .asig-tabla .c-num { width: 8mm; }
-        .asig-num {
-            display: inline-block; width: 5.6mm; height: 5.6mm; line-height: 5.6mm; border-radius: 50%;
-            background: var(--k-primario); color: var(--k-sobre-primario);
-            font-weight: 700; font-size: 7.5pt; text-align: center;
-        }
         .asig-name { font-weight: 600; }
-        .asig-arrow { color: var(--k-tinta-suave); }
-        .asig-rol { font-size: 8.5pt; color: var(--k-tinta-suave); font-style: italic; }
+        .asig-arrow { color: var(--c-suave); }
+        .asig-rol { font-size: 8.5pt; color: var(--c-suave); }
 
         .play-desc { font-size: 9pt; margin-top: 2.5mm; line-height: 1.5; white-space: pre-line; }
         .play-notes {
-            font-size: 8.5pt; color: var(--k-tinta-suave); font-style: italic; margin-top: 2mm;
-            padding-top: 2mm; border-top: .25mm solid var(--k-linea);
+            font-size: 8.5pt; color: var(--c-suave); margin-top: 2mm;
+            padding-top: 2mm; border-top: .25mm solid var(--c-borde);
         }
-        .empty { color: var(--k-tinta-suave); font-style: italic; padding: 8mm; text-align: center; }
+        .empty { color: var(--c-suave); padding: 8mm; text-align: center; }
     </style>
 </head>
 <body>
 {% macro ficha(jp, lado) -%}
     {% set play = jp.jugada %}
     {% if play %}
-    <div class="k-tarjeta play-card">
+    <div class="c-caja play-card">
         <div class="play-title-row">
             <span class="play-name">{{ play.nombre }}</span>
-            {% if play.codigo %}<span class="code k-mono {{ lado }}">{{ play.codigo }}</span>{% endif %}
+            {% if play.codigo %}<span class="code">{{ play.codigo }}</span>{% endif %}
         </div>
         <div class="play-meta">
-            <span class="k-chip">{{ tipo_labels.get(play.tipo, play.tipo) }}</span>
-            {% if play.senal_codigo %}<span class="k-chip chip-senal">Señal: {{ play.senal_codigo }}</span>{% endif %}
-            {% if play.subtipo %}<span class="k-chip chip-neutro">{{ play.subtipo }}</span>{% endif %}
+            <span class="tag">{{ tipo_labels.get(play.tipo, play.tipo) }}</span>
+            {% if play.senal_codigo %}<span class="sep">/</span><span class="tag">Señal: {{ play.senal_codigo }}</span>{% endif %}
+            {% if play.subtipo %}<span class="sep">/</span>{{ play.subtipo }}{% endif %}
         </div>
 
         {% if play.main_svg %}
@@ -126,7 +102,7 @@
             <table class="rol-tabla">
             {% for rol in play.roles_campo %}
             <tr>
-                <td class="rol-nums">{% for d in rol.dorsales %}<span class="rol-num k-mono">{{ d }}</span>{% endfor %}</td>
+                <td class="rol-nums">{% for d in rol.dorsales %}<span class="c-ficha">{{ d }}</span>{% endfor %}</td>
                 <td class="rol-texto">{{ rol.texto }}</td>
             </tr>
             {% endfor %}
@@ -135,12 +111,12 @@
         {% endif %}
 
         {% if jp.resolved_asignaciones %}
-        <div class="k-tarjeta-suave asignaciones">
-            <div class="k-eyebrow">Asignaciones</div>
+        <div class="c-hundido asignaciones">
+            <div class="c-rotulo">Asignaciones</div>
             <table class="asig-tabla">
             {% for asig in jp.resolved_asignaciones %}
             <tr>
-                <td class="c-num">{% if asig.element_label %}<span class="asig-num k-mono">{{ asig.element_label }}</span>{% endif %}</td>
+                <td class="c-num">{% if asig.element_label %}<span class="c-ficha">{{ asig.element_label }}</span>{% endif %}</td>
                 <td>
                     <span class="asig-name">{{ asig.jugador_nombre }}</span>
                     {% if asig.rol %}<span class="asig-arrow">→</span> <span class="asig-rol">{{ rol_labels.get(asig.rol, asig.rol) }}</span>{% endif %}
@@ -170,10 +146,10 @@
     <div class="cover">
         {{ cabecera(tema_c, titulo="ABP · Plan de partido", subtitulo=(equipo_nombre ~ ' vs ' if equipo_nombre else '') ~ rival_nombre, meta=meta_partido) }}
 
-        <div class="cover-banda">
-            <div class="k-eyebrow">Plan de partido · balón parado</div>
-            <div class="cb-titulo">{% if equipo_nombre %}{{ equipo_nombre }} <span class="cb-vs">vs</span> {% endif %}{{ rival_nombre }}</div>
-            <div class="cb-sub">
+        <div class="partido c-caja-fuerte">
+            <div class="c-rotulo">Plan de partido · balón parado</div>
+            <div class="c-titulo">{% if equipo_nombre %}{{ equipo_nombre }} <span class="vs">vs</span> {% endif %}{{ rival_nombre }}</div>
+            <div class="pt-sub">
                 {% if partido.fecha %}{{ partido.fecha }}{% endif %}
                 {% if partido.hora %} · {{ partido.hora }}{% endif %}
                 {% if partido.competicion %} · {{ partido.competicion }}{% endif %}
@@ -181,7 +157,7 @@
                 {% if partido.localia %} · {{ partido.localia | upper }}{% endif %}
             </div>
             {% if equipo_temporada or equipo_categoria %}
-            <div class="cb-meta">
+            <div class="pt-meta">
                 {% if equipo_categoria %}{{ equipo_categoria }}{% endif %}
                 {% if equipo_categoria and equipo_temporada %} · {% endif %}
                 {% if equipo_temporada %}Temporada {{ equipo_temporada }}{% endif %}
@@ -193,14 +169,14 @@
         <table class="dos">
             <tr>
                 <td>
-                    <div class="k-tarjeta comment-box ataque">
-                        <div class="k-eyebrow">Ataque</div>
+                    <div class="c-caja comment-box">
+                        <div class="c-rotulo">Ataque</div>
                         <p>{{ plan.comentario_ofensivo or 'Sin comentarios' }}</p>
                     </div>
                 </td>
                 <td>
-                    <div class="k-tarjeta comment-box defensa df">
-                        <div class="k-eyebrow">Defensa</div>
+                    <div class="c-caja comment-box">
+                        <div class="c-rotulo">Defensa</div>
                         <p>{{ plan.comentario_defensivo or 'Sin comentarios' }}</p>
                     </div>
                 </td>
@@ -208,18 +184,18 @@
         </table>
         {% endif %}
 
-        <div class="k-seccion">Resumen de jugadas</div>
+        <div class="c-seccion">Resumen de jugadas</div>
         <table class="dos">
             <tr>
                 <td>
-                    <div class="col-head of">Ofensivas <span class="col-count k-mono">{{ total_ofensivas }}</span></div>
+                    <div class="col-head c-rotulo">Ofensivas <span class="col-count">{{ total_ofensivas }}</span></div>
                     {% if ofensivas %}
                         {% for jp in ofensivas %}
                         {% set play = jp.jugada %}
                         {% if play %}
                         <div class="summary-play">
-                            <span class="sp-num k-mono">{{ loop.index }}.</span>
-                            {% if play.codigo %}<span class="code k-mono">{{ play.codigo }}</span>{% endif %}
+                            <span class="sp-num">{{ loop.index }}.</span>
+                            {% if play.codigo %}<span class="code">{{ play.codigo }}</span>{% endif %}
                             <span class="sp-name">{{ play.nombre }}</span>
                         </div>
                         {% endif %}
@@ -229,14 +205,14 @@
                     {% endif %}
                 </td>
                 <td>
-                    <div class="col-head df">Defensivas <span class="col-count k-mono">{{ total_defensivas }}</span></div>
+                    <div class="col-head c-rotulo">Defensivas <span class="col-count">{{ total_defensivas }}</span></div>
                     {% if defensivas %}
                         {% for jp in defensivas %}
                         {% set play = jp.jugada %}
                         {% if play %}
                         <div class="summary-play">
-                            <span class="sp-num k-mono">{{ loop.index }}.</span>
-                            {% if play.codigo %}<span class="code k-mono df">{{ play.codigo }}</span>{% endif %}
+                            <span class="sp-num">{{ loop.index }}.</span>
+                            {% if play.codigo %}<span class="code">{{ play.codigo }}</span>{% endif %}
                             <span class="sp-name">{{ play.nombre }}</span>
                         </div>
                         {% endif %}
@@ -251,13 +227,13 @@
 
     <!-- ===== JUGADAS OFENSIVAS ===== -->
     {% if ofensivas %}
-    <div class="k-seccion">Ofensivas <span class="n">({{ ofensivas | length }})</span></div>
+    <div class="c-seccion lado-sec">Ofensivas <span class="n">({{ ofensivas | length }})</span></div>
     {% for jp in ofensivas %}{{ ficha(jp, 'of') }}{% endfor %}
     {% endif %}
 
     <!-- ===== JUGADAS DEFENSIVAS ===== -->
     {% if defensivas %}
-    <div class="k-seccion seccion-df"{% if ofensivas %} style="page-break-before: always"{% endif %}>Defensivas <span class="n">({{ defensivas | length }})</span></div>
+    <div class="c-seccion lado-sec"{% if ofensivas %} style="page-break-before: always"{% endif %}>Defensivas <span class="n">({{ defensivas | length }})</span></div>
     {% for jp in defensivas %}{{ ficha(jp, 'df') }}{% endfor %}
     {% endif %}
 

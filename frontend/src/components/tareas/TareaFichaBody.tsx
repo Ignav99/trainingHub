@@ -5,6 +5,7 @@
  * Se usa al crear, al ver en biblioteca y al editar en sesión.
  */
 
+import { useState } from 'react'
 import { Info, Plus } from 'lucide-react'
 import { Button, Input, Textarea } from '@/components/ui'
 import { MultiSelect } from '@/components/ui/multi-select'
@@ -14,6 +15,7 @@ import {
   CATEGORIAS_MARGEN,
   CATEGORIAS_PORTERO,
   CATEGORIAS_TAREA,
+  MATERIALES,
   METODOLOGIAS_TAREA,
   OBJETIVOS_TACTICOS,
   OBJETIVOS_TECNICOS,
@@ -417,6 +419,15 @@ export default function TareaFichaBody({
         </div>
       </section>
 
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold text-primary">Material</h2>
+        <MaterialPicker
+          value={form.material || []}
+          readOnly={readOnly}
+          onChange={(next) => onChange('material', next)}
+        />
+      </section>
+
       <section className="space-y-4">
         <h2 className="text-sm font-semibold text-primary">Volumen y carga</h2>
         {!hideVolumen && (
@@ -538,6 +549,88 @@ export default function TareaFichaBody({
           )}
         </div>
       </section>
+    </div>
+  )
+}
+
+function MaterialPicker({
+  value,
+  readOnly,
+  onChange,
+}: {
+  value: string[]
+  readOnly: boolean
+  onChange: (next: string[]) => void
+}) {
+  const [draft, setDraft] = useState('')
+  const codigos = new Set<string>(MATERIALES.map((m) => m.codigo))
+  const libres = value.filter((v) => !codigos.has(v))
+  const toggle = (c: string) =>
+    onChange(value.includes(c) ? value.filter((v) => v !== c) : [...value, c])
+  const addLibre = () => {
+    const t = draft.trim()
+    if (!t) return
+    if (!value.some((v) => v.toLowerCase() === t.toLowerCase())) onChange([...value, t])
+    setDraft('')
+  }
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        Lo que necesita esta tarea. El material de la sesión se calcula solo a partir de sus tareas.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {MATERIALES.map((m) => {
+          const active = value.includes(m.codigo)
+          return (
+            <button
+              key={m.codigo}
+              type="button"
+              disabled={readOnly}
+              aria-pressed={active}
+              onClick={() => toggle(m.codigo)}
+              className={cn(
+                'rounded-md border px-3 py-2 text-sm font-medium',
+                active ? 'border-primary bg-primary/10 text-primary' : 'hover:bg-muted',
+                readOnly && !active && 'opacity-50',
+                readOnly && 'cursor-default'
+              )}
+            >
+              {m.nombre}
+            </button>
+          )
+        })}
+        {libres.map((l) => (
+          <button
+            key={l}
+            type="button"
+            disabled={readOnly}
+            onClick={() => onChange(value.filter((v) => v !== l))}
+            className="rounded-md border border-primary bg-primary/10 px-3 py-2 text-sm font-medium text-primary"
+          >
+            {l}
+            {!readOnly && ' ×'}
+          </button>
+        ))}
+      </div>
+      {!readOnly && (
+        <div className="flex items-center gap-2">
+          <Input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                addLibre()
+              }
+            }}
+            placeholder="Otro material"
+            className="h-9 w-48"
+          />
+          <Button type="button" variant="outline" size="sm" onClick={addLibre}>
+            <Plus className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

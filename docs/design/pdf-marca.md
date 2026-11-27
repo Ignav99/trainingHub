@@ -52,3 +52,15 @@ Isotipo `frontend/public/brand/kabine-mark.svg` (en papel, plano de un color: el
 logotipo `kabine-wordmark.svg`. Componente React `@/components/brand/KabineLogo`. El logo aparece
 SIEMPRE: en cada página de PDF (marca de agua + pie), en portada y pie de cada diapositiva PPTX y
 en las salas de presentación.
+
+## Presentaciones (PPTX y salas)
+- **Descarga PPTX** (`backend/app/services/presentacion_pptx.py`): superficie **Papel** — fondo blanco, tinta y
+  neutros teñidos con el tono del club (`tema_pdf`), una sola línea (1,5 px / 0,75 pt fina), sin sombras ni
+  degradados, color del club como único acento, personas (once) como círculos con iniciales. Fuente `Encode Sans`
+  puesta en cada run (PPTX no la embebe: si falta, PowerPoint/Keynote usan su sans). Logo: isotipo + logotipo grande en
+  la portada y pequeño en el pie de cada diapositiva (PNG con cairosvg si está; si no, silueta dibujada con Pillow
+  desde `MARCA_PATH` y el logotipo en texto).
+- **Salas en pantalla** (`PresentacionSala`, `SalaStage`, `DossierPresenter`, `DossierSlides`): superficie
+  **Visitante** siempre (`salaSuperficie` de `components/revision/salaCal.tsx`, también con los aspectos `acta`/`clasico`),
+  solo tokens, rectángulos con `--radius`, personas en círculo, `SalaMarca` (isotipo + logotipo) en la cabecera de
+  cada sala, en la portada y en la esquina de cada diapositiva.

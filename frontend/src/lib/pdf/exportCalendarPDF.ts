@@ -40,6 +40,9 @@ import {
   cabeceraPdf,
   cerrarPdf,
   fuente,
+  HUNDIDO,
+  iconoAvion,
+  iconoCasa,
   LINEA,
   mezcla,
   prepararPdf,
@@ -51,6 +54,7 @@ import {
   trazo,
   type TemaPdf,
 } from './marca'
+import { BAJA, OK } from './marcaColor'
 
 export interface CalendarExportInput {
   viewMode: CalendarViewMode
@@ -71,14 +75,15 @@ type Index = ReturnType<typeof buildDayIndex>
 
 const MARGEN = 12
 const RESERVA_PIE = 13
-const FUERA_MES = '#F5F6FA'
-const TRAMA = '#DDE0EA'
-const MUTED = '#8A90B0'
-const VICTORIA = '#15803D'
-const DERROTA = '#C62828'
+const FUERA_MES = HUNDIDO
+const TRAMA = LINEA
+const MUTED = TINTA_SUAVE
+/** V / D escritas en success / destructive de Cal (semánticos). */
+const VICTORIA = OK
+const DERROTA = BAJA
 /** "Fuera" = info (tono 215, el mismo de --info en Cal). */
 const COLOR_FUERA = hslAHex('215 70% 46%')
-const COLOR_NEUTRO = '#8A90B0'
+const COLOR_NEUTRO = TINTA_SUAVE
 
 // ───────────────────────── utilidades ─────────────────────────
 
@@ -228,7 +233,7 @@ function dibujaEscudo(
     }
   }
   if (!png) {
-    relleno(doc, '#EEF0F6')
+    relleno(doc, HUNDIDO)
     doc.circle(cx, cy, lado / 2, 'F')
     fuente(doc, 'bold')
     doc.setFontSize(Math.max(4, lado * 1.15))
@@ -264,19 +269,39 @@ function luna(doc: jsPDF, cx: number, cy: number, r: number) {
   doc.circle(cx + r * 0.2, cy - r * 0.16, r * 0.44, 'F')
 }
 
-/** Etiqueta CASA / FUERA en el color de la localía. */
-function chipLocalia(doc: jsPDF, p: Partido, c: Colores, x: number, y: number, tam = 5): number {
-  const texto = p.localia === 'local' ? 'CASA' : p.localia === 'visitante' ? 'FUERA' : 'NEUTRAL'
-  const color = p.localia === 'local' ? c.casa : p.localia === 'visitante' ? COLOR_FUERA : COLOR_NEUTRO
-  fuente(doc, 'mono')
+function textoLocalia(p: Partido) {
+  return p.localia === 'local' ? 'CASA' : p.localia === 'visitante' ? 'FUERA' : 'NEUTRAL'
+}
+
+/** Ancho (mm) de la localía escrita + glifo. */
+function anchoLocalia(doc: jsPDF, p: Partido, tam = 5): number {
+  fuente(doc, 'estrecha')
   doc.setFontSize(tam)
-  const w = doc.getTextWidth(texto) + 2
-  const h = tam * 0.42 + 0.8
-  relleno(doc, color)
-  doc.roundedRect(x, y - h + 0.7, w, h, 0.6, 0.6, 'F')
-  tinta(doc, '#FFFFFF')
-  doc.text(texto, x + 1, y)
-  return w
+  doc.setCharSpace(0.3)
+  const w = doc.getTextWidth(textoLocalia(p))
+  doc.setCharSpace(0)
+  return (p.localia === 'neutral' ? 0 : tam * 0.5 + 0.8) + w
+}
+
+/** Localía escrita (CASA / FUERA) con casa o avión dibujado, en el color de la localía. */
+function chipLocalia(doc: jsPDF, p: Partido, c: Colores, x: number, y: number, tam = 5): number {
+  const color = p.localia === 'local' ? c.casa : p.localia === 'visitante' ? COLOR_FUERA : COLOR_NEUTRO
+  const glifo = tam * 0.5
+  let tx = x
+  if (p.localia === 'local') {
+    iconoCasa(doc, x, y - glifo * 0.92, glifo, color)
+    tx = x + glifo + 0.8
+  } else if (p.localia === 'visitante') {
+    iconoAvion(doc, x, y - glifo * 0.92, glifo, color)
+    tx = x + glifo + 0.8
+  }
+  fuente(doc, 'estrecha')
+  doc.setFontSize(tam)
+  doc.setCharSpace(0.3)
+  tinta(doc, color)
+  doc.text(textoLocalia(p), tx, y)
+  doc.setCharSpace(0)
+  return tx - x + doc.getTextWidth(textoLocalia(p)) + 0.6
 }
 
 /** Resultado grande (marcador + V/E/D) o la hora, centrado en cx. */
@@ -286,17 +311,20 @@ function marcadorGrande(doc: jsPDF, p: Partido, cx: number, y: number, tam: numb
     fuente(doc, 'bold')
     doc.setFontSize(tam)
     const wm = doc.getTextWidth(r.marcador)
-    const lado = tam * 0.3 // pastilla V/E/D en mm
-    const x0 = cx - (wm + 1.4 + lado) / 2
+    fuente(doc, 'ancha')
+    doc.setFontSize(tam * 0.62)
+    const wl = doc.getTextWidth(r.marca)
+    const x0 = cx - (wm + 1.6 + wl) / 2
+    fuente(doc, 'bold')
+    doc.setFontSize(tam)
     tinta(doc, TINTA)
     doc.text(r.marcador, x0, y)
-    relleno(doc, r.marca === 'V' ? VICTORIA : r.marca === 'D' ? DERROTA : MUTED)
-    const py = y - tam * 0.3
-    doc.roundedRect(x0 + wm + 1.4, py, lado, lado, lado * 0.22, lado * 0.22, 'F')
-    fuente(doc, 'bold')
-    doc.setFontSize(tam * 0.5)
-    tinta(doc, '#FFFFFF')
-    doc.text(r.marca, x0 + wm + 1.4 + lado / 2, py + lado * 0.74, { align: 'center' })
+    // V / E / D escrita (sin cuadrado relleno)
+    fuente(doc, 'ancha')
+    doc.setFontSize(tam * 0.62)
+    tinta(doc, r.marca === 'V' ? VICTORIA : r.marca === 'D' ? DERROTA : TINTA_SUAVE)
+    doc.text(r.marca, x0 + wm + 1.6, y)
+    tinta(doc, TINTA)
   } else if (p.hora) {
     fuente(doc, 'bold')
     doc.setFontSize(tam * 0.9)
@@ -437,7 +465,7 @@ async function exportMonth(doc: jsPDF, tema: TemaPdf, c: Colores, escudos: Escud
   const cellH = (pageH - top - RESERVA_PIE - legendH) / weeks.length
 
   // Cabecera de días
-  fuente(doc, 'mono')
+  fuente(doc, 'estrecha')
   doc.setFontSize(6.8)
   tinta(doc, TINTA_SUAVE)
   doc.setCharSpace(0.5)
@@ -491,7 +519,7 @@ function celdaMes(
   // Número del día + etiqueta (J o MD)
   fuente(doc, 'bold')
   doc.setFontSize(9.5)
-  tinta(doc, atenuado ? '#B3B8CF' : TINTA)
+  tinta(doc, atenuado ? LINEA : TINTA)
   doc.text(String(dia), x + pad, y + 5.4)
   if (!enMes) {
     const wd = doc.getTextWidth(String(dia))
@@ -501,12 +529,12 @@ function celdaMes(
   }
   const md = mdDelDia(b)
   if (p?.jornada) {
-    fuente(doc, 'mono')
+    fuente(doc, 'estrecha')
     doc.setFontSize(6.5)
     tinta(doc, TINTA_SUAVE)
     doc.text(`J${p.jornada}`, x + w - pad, y + 5.2, { align: 'right' })
   } else if (md && !p) {
-    fuente(doc, 'mono')
+    fuente(doc, 'estrecha')
     doc.setFontSize(6.2)
     tinta(doc, TINTA_SUAVE)
     const tw = doc.getTextWidth(md)
@@ -530,7 +558,7 @@ function celdaMes(
     marcadorGrande(doc, p, cx, cuerpoTop + cuerpoH * 0.62, Math.min(14, cuerpoH * 0.62))
     if (b.sesiones.length) {
       const s = b.sesiones[0]
-      fuente(doc, 'mono')
+      fuente(doc, 'estrecha')
       doc.setFontSize(5.5)
       tinta(doc, TINTA_SUAVE)
       doc.text(recorta(doc, [numeroSesion(s), hora(s.hora)].filter(Boolean).join(' '), w - pad * 2), x + pad, y + h - pad)
@@ -549,7 +577,7 @@ function celdaMes(
     doc.text(big, cx, yN, { align: 'center' })
     const sub = [n ? hora(s.hora) : '', s.duracion_total ? `${s.duracion_total}′` : ''].filter(Boolean).join(' · ')
     if (sub) {
-      fuente(doc, 'mono')
+      fuente(doc, 'estrecha')
       doc.setFontSize(6.5)
       tinta(doc, TINTA_SUAVE)
       doc.text(sub, cx, yN + 3.6, { align: 'center' })
@@ -565,7 +593,7 @@ function celdaMes(
     let ty = cuerpoTop + 3
     const caben = Math.max(1, Math.floor((cuerpoH - 1) / 5.2))
     for (const s of b.sesiones.slice(0, caben)) {
-      fuente(doc, 'mono')
+      fuente(doc, 'estrecha')
       doc.setFontSize(7.5)
       tinta(doc, TINTA)
       const n = numeroSesion(s) || '·'
@@ -642,7 +670,7 @@ async function exportWeek(doc: jsPDF, tema: TemaPdf, c: Colores, escudos: Escudo
 
     // Cabecera del día
     const d = new Date(date + 'T12:00:00')
-    fuente(doc, 'mono')
+    fuente(doc, 'estrecha')
     doc.setFontSize(6.5)
     tinta(doc, TINTA_SUAVE)
     doc.setCharSpace(0.4)
@@ -655,7 +683,7 @@ async function exportWeek(doc: jsPDF, tema: TemaPdf, c: Colores, escudos: Escudo
     const p = b.partidos[0]
     const md = mdDelDia(b)
     if (p?.jornada || md) {
-      fuente(doc, 'mono')
+      fuente(doc, 'estrecha')
       doc.setFontSize(7)
       tinta(doc, TINTA_SUAVE)
       const etiqueta = p?.jornada ? `J${p.jornada}` : md!
@@ -681,18 +709,14 @@ async function exportWeek(doc: jsPDF, tema: TemaPdf, c: Colores, escudos: Escudo
       const der = local ? { png: escudos.get(pa.rival?.escudo_url || ''), nombre: rivalNombre(pa, true) } : { png: escudoClub, nombre: tema.club || 'Club' }
       dibujaEscudo(doc, izq.png, izq.nombre, cx - lado * 0.78, y + lado / 2, lado)
       dibujaEscudo(doc, der.png, der.nombre, cx + lado * 0.78, y + lado / 2, lado)
-      fuente(doc, 'mono')
+      fuente(doc, 'estrecha')
       doc.setFontSize(6)
       tinta(doc, MUTED)
       doc.text('vs', cx, y + lado / 2 + 1, { align: 'center' })
       y += lado + 5
       marcadorGrande(doc, pa, cx, y + 3, 19)
       y += 8
-      const wChip = (() => {
-        fuente(doc, 'mono')
-        doc.setFontSize(5.2)
-        return doc.getTextWidth(pa.localia === 'local' ? 'CASA' : pa.localia === 'visitante' ? 'FUERA' : 'NEUTRAL') + 2
-      })()
+      const wChip = anchoLocalia(doc, pa, 5.2)
       chipLocalia(doc, pa, c, cx - wChip / 2, y, 5.2)
       y += 4.4
       fuente(doc, 'bold')
@@ -703,7 +727,7 @@ async function exportWeek(doc: jsPDF, tema: TemaPdf, c: Colores, escudos: Escudo
       y += Math.min(2, nombre.length) * 3.6
       const r = resultadoPartido(pa.goles_favor, pa.goles_contra)
       if (r && pa.hora) {
-        fuente(doc, 'mono')
+        fuente(doc, 'estrecha')
         doc.setFontSize(6.2)
         tinta(doc, TINTA_SUAVE)
         doc.text(hora(pa.hora), cx, y, { align: 'center' })
@@ -731,7 +755,7 @@ async function exportWeek(doc: jsPDF, tema: TemaPdf, c: Colores, escudos: Escudo
       relleno(doc, '#FFFFFF')
       trazo(doc, LINEA)
       doc.setLineWidth(0.25)
-      doc.roundedRect(cardX, y, cardW, cardH, 1.2, 1.2, 'FD')
+      doc.roundedRect(cardX, y, cardW, cardH, 0.5, 0.5, 'FD')
       relleno(doc, colorS)
       doc.rect(cardX, y + 0.6, 0.9, cardH - 1.2, 'F')
       const n = numeroSesion(s)
@@ -741,7 +765,7 @@ async function exportWeek(doc: jsPDF, tema: TemaPdf, c: Colores, escudos: Escudo
       doc.text(n || 'Sesión', cardX + 2.8, y + 6)
       const wn = doc.getTextWidth(n || 'Sesión')
       if (s.hora) {
-        fuente(doc, 'mono')
+        fuente(doc, 'estrecha')
         doc.setFontSize(7.5)
         tinta(doc, TINTA_SUAVE)
         doc.text(hora(s.hora), cardX + 2.8 + wn + 1.6, y + 6)
@@ -758,7 +782,7 @@ async function exportWeek(doc: jsPDF, tema: TemaPdf, c: Colores, escudos: Escudo
       const pie = [s.match_day && esClaveMD(s.match_day) ? `${s.match_day} ${MD_NOMBRE[s.match_day]}` : s.match_day, s.duracion_total ? `${s.duracion_total}′` : '', s.estado !== 'completada' && s.estado !== 'planificada' ? s.estado.replace('_', ' ') : '']
         .filter(Boolean)
         .join(' · ')
-      fuente(doc, 'mono')
+      fuente(doc, 'estrecha')
       doc.setFontSize(5.8)
       tinta(doc, TINTA_SUAVE)
       doc.text(recorta(doc, pie, cardW - 4.6), cardX + 2.8, y + cardH - 2.2)
@@ -821,7 +845,7 @@ async function exportYear(doc: jsPDF, tema: TemaPdf, c: Colores, escudos: Escudo
   const rowH = usableH / 12
   const cellW = usableW / 31
 
-  fuente(doc, 'mono')
+  fuente(doc, 'estrecha')
   doc.setFontSize(4.6)
   tinta(doc, MUTED)
   for (let d = 1; d <= 31; d++) doc.text(String(d), left + labelW + (d - 0.5) * cellW, start + 2.6, { align: 'center' })
@@ -832,7 +856,7 @@ async function exportYear(doc: jsPDF, tema: TemaPdf, c: Colores, escudos: Escudo
     doc.setFontSize(7)
     tinta(doc, TINTA)
     doc.text(MONTH_NAMES_SHORT[sm.month], left, y + rowH * 0.5)
-    fuente(doc, 'mono')
+    fuente(doc, 'estrecha')
     doc.setFontSize(5)
     tinta(doc, MUTED)
     doc.text(`'${String(sm.year).slice(-2)}`, left, y + rowH * 0.5 + 2.6)
@@ -847,7 +871,7 @@ async function exportYear(doc: jsPDF, tema: TemaPdf, c: Colores, escudos: Escudo
       relleno(doc, finde ? '#FAFAFC' : '#FFFFFF')
       doc.rect(x, y, cellW, rowH, 'F')
       fondoDia(doc, b, c, x, y, cellW, rowH, { barra: 0.8 })
-      fuente(doc, 'mono')
+      fuente(doc, 'estrecha')
       doc.setFontSize(3.8)
       tinta(doc, MUTED)
       doc.text(String(day), x + 0.6, y + 2.5)
@@ -858,7 +882,7 @@ async function exportYear(doc: jsPDF, tema: TemaPdf, c: Colores, escudos: Escudo
         const lado = Math.min(cellW * 0.72, rowH * 0.46)
         dibujaEscudo(doc, escudos.get(p.rival?.escudo_url || ''), rivalNombre(p, true), cx, y + rowH * 0.5, lado)
         const r = resultadoPartido(p.goles_favor, p.goles_contra)
-        fuente(doc, r ? 'bold' : 'mono')
+        fuente(doc, 'estrecha')
         doc.setFontSize(4.2)
         tinta(doc, r ? (r.marca === 'V' ? VICTORIA : r.marca === 'D' ? DERROTA : TINTA_SUAVE) : TINTA_SUAVE)
         doc.text(r ? r.marcador : hora(p.hora), cx, y + rowH - 0.9, { align: 'center' })
@@ -869,7 +893,7 @@ async function exportYear(doc: jsPDF, tema: TemaPdf, c: Colores, escudos: Escudo
         tinta(doc, TINTA)
         doc.text(numeroSesion(s) || 'S', cx, y + rowH * 0.62, { align: 'center' })
         if (b.sesiones.length > 1) {
-          fuente(doc, 'mono')
+          fuente(doc, 'estrecha')
           doc.setFontSize(3.6)
           tinta(doc, MUTED)
           doc.text(`+${b.sesiones.length - 1}`, cx, y + rowH - 0.9, { align: 'center' })

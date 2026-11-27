@@ -14,6 +14,8 @@ import httpx
 from jinja2 import Environment, FileSystemLoader
 
 from app.services.pdf_marca import html_a_pdf, jinja_globals, tema_pdf
+from app.services.material import material_de_tareas
+from app.services.informe_boards import clip as _clip, is_poisoned_preview, parse_grafico
 
 from app.services.tarea_descanso import format_descanso
 from app.services.partido_campo import clean_estadio_nombre, format_kit_convocatoria_label, split_campo_arbitro
@@ -853,33 +855,12 @@ async def generate_sesion_pdf_v2(
         else:
             sequential_dur += dur_i
 
-        # Preferir instantánea real del editor; SVG como fallback
-        from app.services.informe_boards import is_poisoned_preview
-        preview_img = ""
-        preview_poisoned = False
-        if isinstance(grafico_data, dict):
-            raw_preview = grafico_data.get("preview") or ""
-            if isinstance(raw_preview, str) and raw_preview.startswith("data:image"):
-                if is_poisoned_preview(raw_preview):
-                    preview_poisoned = True
-                else:
-                    preview_img = raw_preview
-        if not preview_img and not preview_poisoned:
-            gu = tarea.get("grafico_url") or ""
-            if isinstance(gu, str) and gu:
-                preview_img = _url_to_data_uri(gu) if gu.startswith("http") else gu
-                if not (isinstance(preview_img, str) and preview_img.startswith("data:image")):
-                    preview_img = ""
-                elif is_poisoned_preview(preview_img):
-                    preview_img = ""
-                    preview_poisoned = True
-
-        if preview_poisoned:
-            svg_thumb = ""
-            svg_large = ""
-        else:
-            svg_thumb = render_diagram_thumbnail(grafico_data, diagram_id=f"t{len(all_tareas)}")
-            svg_large = render_diagram_svg(grafico_data, diagram_id=f"d{len(all_tareas)}")
+        # Pizarra: foto real del editor; si no hay (o es el raster inventado), se dibuja
+        # desde grafico_data. Nunca falta una pizarra.
+        board = _board_tarea(tarea, f"t{len(all_tareas)}", f"d{len(all_tareas)}")
+        preview_img = board["img"]
+        svg_thumb = board["svg"]
+        svg_large = board["svg_large"]
 
         # Formation HTML for detail page + petos HTML for cover page
         formation_html = _build_formation_html(formacion, jugadores_map)
@@ -912,9 +893,14 @@ async def generate_sesion_pdf_v2(
             "consignas_ofensivas": _ensure_list(tarea.get("consignas_ofensivas")),
             "consignas_defensivas": _ensure_list(tarea.get("consignas_defensivas")),
             "errores_comunes": _ensure_list(tarea.get("errores_comunes")),
-            "variantes": _ensure_list(tarea.get("variantes")),
+            "variantes": [
+                v for v in _ensure_list(tarea.get("variantes"))
+                if v.strip().lower() not in {x.lower() for x in _normas_planas(tarea)}
+            ],
             "progresiones": _ensure_list(tarea.get("progresiones")),
-            "material": _ensure_list(tarea.get("material")),
+            "material": material_de_tareas([tarea.get("material")]),
+            "normas_grupos": _normas_grupos(tarea),
+            "peto_color": _peto_categoria(categoria),
             "posicion_entrenador": tarea.get("posicion_entrenador") or "",
             "notas": tarea_sesion.get("notas", ""),
             "fase_label": FASE_NOMBRES.get(fase_key, ""),
@@ -988,6 +974,8 @@ async def generate_sesion_pdf_v2(
             "variantes": [],
             "progresiones": [],
             "material": [],
+            "normas_grupos": [("Normas", _lineas(partido.get("normas")))] if _lineas(partido.get("normas")) else [],
+            "peto_color": _peto_categoria({"codigo": "PCO"}),
             "posicion_entrenador": "",
             "notas": fase.get("notas") or "",
             "fase_label": fase.get("nombre") or "Partido condicionado",
@@ -1011,8 +999,8 @@ async def generate_sesion_pdf_v2(
     for fase_key, fase in fases.items():
         all_tareas.extend(fase.get("tareas") or [])
 
-    # Cover page: only desarrollo tasks (exclude activacion + vuelta_calma)
-    cover_tareas = [t for t in all_tareas if not t["is_activacion"] and not t["is_vuelta_calma"]]
+    # Portada: TODAS las tareas (ninguna pizarra puede faltar)
+    cover_tareas = list(all_tareas)
 
     # Derive secondary color (slightly lighter/shifted version of primary)
     color_secundario = organizacion.get("color_secundario", color_primario)
@@ -1024,14 +1012,10 @@ async def generate_sesion_pdf_v2(
     if logo_url:
         logo_url = _url_to_data_uri(logo_url)
 
-    # Aggregate unique materials from all tasks
-    material_sesion = []
-    seen_materials = set()
-    for t in all_tareas:
-        for m in t.get("material", []):
-            if m and m not in seen_materials:
-                material_sesion.append(m)
-                seen_materials.add(m)
+    # Material mínimo necesario: unión calculada de las tareas (no el campo manual)
+    material_sesion = material_de_tareas(
+        [(ts.get("tareas") or {}).get("material") for ts in tareas_sesion]
+    )
 
     # Build portero tareas enriched data
     portero_enriched = []
@@ -1076,9 +1060,19 @@ async def generate_sesion_pdf_v2(
             "notas": jp.get("notas", ""),
         })
 
+    roster_grupos = _roster_grupos(asistencia_roster)
+    md_color = _contexto_sesion_comun(sesion_data, organizacion, None, None, "")["md_color"]
+    avail = 186 - 22 - (6 if conceptos_line else 0) - (8 if sesion_data.get("objetivo_principal") else 0) \
+        - (7 if material_sesion else 0) - _alto_roster(roster_grupos, 10) - 8
+    portada_layout = _layout_rejilla(len(cover_tareas), avail, 277)
+    portada_layout["board_h"] = round(max(portada_layout["cell_h"] - 15.5, 8), 1)
+
     def _render() -> bytes:
         html_content = template.render(
             tema=tema_pdf(organizacion),
+            roster_grupos=roster_grupos,
+            md_color=md_color,
+            portada_layout=portada_layout,
             sesion=sesion_data,
             fases=fases,
             all_tareas=all_tareas,
@@ -1327,6 +1321,13 @@ async def generate_tarea_pdf(
             grafico_svg_rendered=grafico_svg_rendered,
             grafico_data_uri=grafico_data_uri,
             descanso_label=format_descanso(tarea.get("tiempo_descanso")),
+            material_nombres=material_de_tareas([tarea.get("material")]),
+            normas_grupos=_normas_grupos(tarea),
+            variantes_extra=[
+                v for v in _lineas(tarea.get("variantes"))
+                if v.lower() not in {x.lower() for x in _normas_planas(tarea)}
+            ],
+            peto_color=_peto_categoria(categoria),
         )
         try:
             return html_a_pdf(html_content, organizacion, "Tarea")
@@ -1699,6 +1700,362 @@ async def generate_abp_partido_pdf(
     return await asyncio.to_thread(_render)
 
 
+# ============ Sesión: piezas compartidas por v2 / reducido / plegado ============
+
+# Color de peto por categoría (semántico; siempre va con la sigla escrita).
+_PETO_CATEGORIA = {
+    "RND": "#3B82F6", "JDP": "#8B5CF6", "POS": "#06B6D4", "EVO": "#F59E0B",
+    "AVD": "#EF4444", "PCO": "#10B981", "ACO": "#14B8A6", "SSG": "#F97316",
+    "ABP": "#6366F1", "PAR": "#84CC16",
+}
+
+
+def _peto_categoria(categoria: Optional[dict]) -> str:
+    cat = categoria if isinstance(categoria, dict) else {}
+    color = str(cat.get("color") or "").strip()
+    if re.fullmatch(r"#[0-9A-Fa-f]{6}", color):
+        return color
+    return _PETO_CATEGORIA.get(str(cat.get("codigo") or "").upper(), "#64748B")
+
+
+def _lineas(val) -> list[str]:
+    """Texto o lista -> líneas limpias (sin viñetas)."""
+    if val is None:
+        return []
+    if isinstance(val, str):
+        parts = re.split(r"[\n;]", val)
+    elif isinstance(val, (list, tuple)):
+        parts = []
+        for v in val:
+            parts.extend(str(v).split("\n"))
+    else:
+        return []
+    out = [p.strip(" •-\t") for p in parts]
+    return [p for p in out if p]
+
+
+def _normas_grupos(tarea: dict) -> list[tuple[str, list[str]]]:
+    """Normas de provocación de la tarea: reglas técnicas, tácticas y psicológicas,
+    más el texto «Variantes / reglas» (sin repetir lo ya listado)."""
+    grupos: list[tuple[str, list[str]]] = []
+    vistos: set[str] = set()
+    for label, key in (
+        ("Técnicas", "reglas_tecnicas"),
+        ("Tácticas", "reglas_tacticas"),
+        ("Psicológicas", "reglas_psicologicas"),
+    ):
+        items = [x for x in _lineas(tarea.get(key)) if x.lower() not in vistos]
+        vistos.update(x.lower() for x in items)
+        if items:
+            grupos.append((label, items))
+    extra = [x for x in _lineas(tarea.get("reglas")) if x.lower() not in vistos]
+    if extra:
+        grupos.append(("Reglas y variantes", extra))
+    return grupos
+
+
+def _normas_planas(tarea: dict) -> list[str]:
+    return [x for _, items in _normas_grupos(tarea) for x in items]
+
+
+def _board_tarea(tarea: dict, diagram_id: str, large_id: str = "") -> dict:
+    """Pizarra de una tarea: foto real del editor; si no hay, SVG desde grafico_data
+    (también cuando la foto es el raster inventado). Siempre devuelve algo dibujable."""
+    from app.services.svg_renderer import render_diagram_for_pdf, render_diagram_svg
+
+    grafico = parse_grafico(tarea.get("grafico_data"))
+    img = ""
+    raw = grafico.get("preview") or ""
+    if isinstance(raw, str) and raw.startswith("data:image") and not is_poisoned_preview(raw):
+        img = raw
+    if not img:
+        gu = tarea.get("grafico_url") or ""
+        if isinstance(gu, str) and gu:
+            cand = _url_to_data_uri(gu) if gu.startswith("http") else gu
+            if isinstance(cand, str) and cand.startswith("data:image") and not is_poisoned_preview(cand):
+                img = cand
+    svg, svg_large, kind = "", "", "half"
+    if not img:
+        base = grafico or {"pitchType": "half"}
+        try:
+            svg, kind = render_diagram_for_pdf(base, diagram_id=diagram_id)
+            kind = kind or "half"
+        except Exception:
+            svg = ""
+        try:
+            svg_large = render_diagram_svg(grafico or None, diagram_id=large_id or diagram_id + "L") or ""
+        except Exception:
+            svg_large = ""
+    elif isinstance(grafico, dict):
+        kind = "full" if grafico.get("pitchType") == "full" else "half"
+    return {"img": img, "svg": svg, "svg_large": svg_large, "kind": kind}
+
+
+def _orden_fases(estructura) -> tuple[list[str], dict]:
+    """Claves de fase en el orden de la sesión, y los bloques de partido condicionado."""
+    partidos: dict = {}
+    keys: list[str] = []
+    if isinstance(estructura, list) and estructura:
+        for bloque in sorted(estructura, key=lambda b: (b or {}).get("orden", 0)):
+            tipo = bloque.get("tipo")
+            if tipo == "partido_condicionado":
+                k = f"bloque_{bloque.get('id', tipo)}"
+                partidos[k] = bloque
+                keys.append(k)
+            elif tipo == "videoanalisis" or not tipo:
+                continue
+            elif tipo == "compensatorio":
+                keys.extend(fase_for_lane(i) for i in range(len(lanes_from_bloque(bloque))))
+            else:
+                keys.append(tipo)
+    else:
+        keys = (
+            ["activacion"] + [f"desarrollo_{i}" for i in range(1, 7)]
+            + [f"compensatorio_{i}" for i in range(1, 9)] + ["vuelta_calma"]
+        )
+    return keys, partidos
+
+
+def _jug_corto(jugadores_map: Optional[dict], jid) -> dict:
+    j = (jugadores_map or {}).get(str(jid)) or {}
+    ap = (j.get("apellidos") or "").strip()
+    nom = (j.get("nombre") or "").strip()
+    etiqueta = ap.split()[0] if ap else (nom or "?")
+    return {"dorsal": j.get("dorsal") if j.get("dorsal") not in (None, "") else "", "nombre": etiqueta}
+
+
+def _card_tarea(ts: dict, orden: int, jugadores_map: Optional[dict]) -> dict:
+    tarea = ts.get("tareas") or ts.get("tarea") or {}
+    if not isinstance(tarea, dict):
+        tarea = {}
+    cat = tarea.get("categorias_tarea") or tarea.get("categoria") or {}
+    cat = cat if isinstance(cat, dict) else {}
+    fase = ts.get("fase_sesion") or ""
+    lane = compensatorio_lane_index(fase) if is_compensatorio_fase(fase) else None
+    desc = " ".join((tarea.get("desarrollo") or tarea.get("descripcion") or "").split())
+    if not desc:
+        obj = []
+        for key in ("objetivos_tacticos", "objetivos_tecnicos"):
+            vals = tarea.get(key) or []
+            if isinstance(vals, list):
+                obj.extend(str(v).replace("_", " ") for v in vals[:2])
+        desc = " · ".join(obj[:3])
+    formacion = ts.get("formacion_equipos") if isinstance(ts.get("formacion_equipos"), dict) else None
+    try:
+        dur = int(ts.get("duracion_override") or tarea.get("duracion_total") or 0)
+    except (TypeError, ValueError):
+        dur = 0
+    espacio = ""
+    if tarea.get("espacio_largo") and tarea.get("espacio_ancho"):
+        espacio = f"{int(float(tarea['espacio_largo']))}×{int(float(tarea['espacio_ancho']))} m"
+    return {
+        "orden": orden,
+        "titulo": tarea.get("titulo") or "Tarea",
+        "sigla": str(cat.get("codigo") or cat.get("nombre_corto") or "").upper()[:4],
+        "peto": _peto_categoria(cat),
+        "duracion": dur,
+        "series": tarea.get("num_series") if (tarea.get("num_series") or 1) > 1 else None,
+        "desc": desc,
+        "normas": _normas_planas(tarea),
+        "material": material_de_tareas([tarea.get("material")]),
+        "board": _board_tarea(tarea, f"r{orden}", f"rl{orden}"),
+        "equipos": _build_equipos_reducido(formacion, jugadores_map),
+        "lane": lane,
+        "espacio": espacio,
+        "jugadores": (
+            f"{tarea.get('num_jugadores_min')}"
+            + (f"–{tarea.get('num_jugadores_max')}" if tarea.get("num_jugadores_max") and tarea.get("num_jugadores_max") != tarea.get("num_jugadores_min") else "")
+        ) if tarea.get("num_jugadores_min") else "",
+    }
+
+
+def _card_partido(bloque: dict, orden: int) -> dict:
+    partido = bloque.get("partido") if isinstance(bloque.get("partido"), dict) else {}
+    try:
+        dur = int(partido.get("duracion_min") or bloque.get("duracion_objetivo") or 0)
+    except (TypeError, ValueError):
+        dur = 0
+    pizarra = partido.get("pizarra") if isinstance(partido.get("pizarra"), dict) else None
+    board = _board_tarea({"grafico_data": pizarra or {"pitchType": "full"}}, f"rp{orden}", f"rpl{orden}")
+    return {
+        "orden": orden,
+        "titulo": bloque.get("label") or "Partido condicionado",
+        "sigla": "PCO",
+        "peto": _peto_categoria({"codigo": "PCO"}),
+        "duracion": dur,
+        "series": None,
+        "desc": " ".join(str(partido.get("objetivo") or "").split()),
+        "normas": _lineas(partido.get("normas")),
+        "material": [],
+        "board": board,
+        "equipos": [],
+        "lane": None,
+        "espacio": "",
+        "jugadores": "",
+    }
+
+
+def _roster_grupos(asistencia_roster: Optional[list]) -> list[dict]:
+    roster = asistencia_roster or []
+    defs = (
+        ("sesion", "Sesión", lambda p: "sesion" in (p.get("tipos") or [])),
+        ("fisio", "Fisio", lambda p: "fisio" in (p.get("tipos") or [])),
+        ("margen", "Margen", lambda p: "margen" in (p.get("tipos") or [])),
+        ("ausente", "Ausentes", lambda p: p.get("sort_key") == "ausente"),
+    )
+    out = []
+    for clave, label, pred in defs:
+        players = []
+        for p in roster:
+            if not pred(p):
+                continue
+            ap = (p.get("apellidos") or "").strip()
+            nom = (p.get("nombre") or "").strip()
+            players.append({
+                "dorsal": p.get("dorsal") if p.get("dorsal") not in (None, "") else "",
+                "nombre": ap.split()[0] if ap else nom,
+                "motivo": (p.get("tipo_display") or "").replace("Ausente — ", "") if clave == "ausente" else "",
+                "fisio": clave in ("sesion", "margen") and "fisio" in (p.get("tipos") or []),
+            })
+        if players:
+            out.append({"clave": clave, "label": label, "players": players})
+    return out
+
+
+def _alto_roster(grupos: list[dict], por_linea: int) -> float:
+    return sum(2 + 5.6 * max(1, -(-len(g["players"]) // por_linea)) for g in grupos)
+
+
+def _layout_rejilla(n: int, avail_h: float, ancho: float) -> dict:
+    n = max(n, 1)
+    if n <= 3:
+        rows, cols = 1, n
+    elif n <= 12:
+        rows, cols = 2, -(-n // 2)
+    else:
+        rows, cols = 3, -(-n // 3)
+    cell_h = max(30.0, avail_h / rows - 2)
+    cell_w = ancho / cols - 2
+    return {"cols": cols, "rows": rows, "cell_h": round(cell_h, 1), "cell_w": round(cell_w, 1)}
+
+
+def _recorta_card(card: dict, lineas: int, cpl: int, max_normas: int = 5) -> None:
+    """Ajusta descripción y normas a `lineas` líneas de `cpl` caracteres.
+
+    Cada norma ocupa una línea (se acorta); la descripción usa el resto."""
+    lineas = max(int(lineas), 1)
+    normas = card.get("normas") or []
+    desc = card.get("desc") or ""
+    if normas:
+        quiere = min(len(normas), max_normas)
+        n_lin = quiere if not desc else min(quiere, max(1, lineas // 2))
+    else:
+        n_lin = 0
+    d_lin = max(lineas - n_lin, 1 if desc else 0)
+    card["desc_c"] = _clip(desc, int(d_lin * cpl * 0.9)) if desc else ""
+    if desc and card["desc_c"]:
+        usadas = -(-len(card["desc_c"]) // cpl)
+        if normas and usadas < d_lin:
+            n_lin = min(min(len(normas), max_normas), n_lin + (d_lin - usadas))
+    card["normas_c"] = [_clip(x, max(cpl - 3, 12)) for x in normas[:n_lin]]
+
+
+def _datos_cartel(
+    sesion_data: dict,
+    tareas_sesion: list,
+    jugadores_map: Optional[dict],
+    margen_entrenamientos: Optional[list],
+) -> dict:
+    """Todo lo que necesitan el reducido (cartel) y el plegado."""
+    keys, partidos = _orden_fases(sesion_data.get("estructura_fases"))
+    por_fase: dict[str, list] = {}
+    for ts in tareas_sesion or []:
+        por_fase.setdefault(ts.get("fase_sesion") or "desarrollo_1", []).append(ts)
+    items: list[tuple[str, dict]] = []
+    for k in keys:
+        if k in partidos:
+            items.append(("partido", partidos[k]))
+        items.extend(("tarea", ts) for ts in por_fase.pop(k, []))
+    for resto in por_fase.values():
+        items.extend(("tarea", ts) for ts in resto)
+
+    tareas = []
+    for n, (tipo, obj) in enumerate(items, start=1):
+        tareas.append(_card_tarea(obj, n, jugadores_map) if tipo == "tarea" else _card_partido(obj, n))
+
+    material = material_de_tareas([(ts.get("tareas") or {}).get("material") for ts in tareas_sesion or []])
+    duracion = tiempos_sesion(tareas_sesion)[0] + sum(
+        c["duracion"] for (tipo, _o), c in zip(items, tareas) if tipo == "partido"
+    )
+
+    lanes = []
+    estructura = sesion_data.get("estructura_fases")
+    for bloque in (estructura if isinstance(estructura, list) else []):
+        if not isinstance(bloque, dict) or bloque.get("tipo") != "compensatorio":
+            continue
+        for i, lane in enumerate(lanes_from_bloque(bloque)):
+            players = [_jug_corto(jugadores_map, jid) for jid in lane.get("jugador_ids") or []]
+            lt = [c for c in tareas if c["lane"] == i]
+            if not players and not lt:
+                continue
+            lanes.append({
+                "label": lane.get("label") or f"Grupo {chr(65 + i)}",
+                "players": players,
+                "tareas": [{"orden": c["orden"], "titulo": c["titulo"], "duracion": c["duracion"]} for c in lt],
+                "duracion": sum(c["duracion"] for c in lt),
+            })
+
+    margen = []
+    for ent in margen_entrenamientos or []:
+        ap = (ent.get("apellidos") or "").strip()
+        nom = (ent.get("nombre") or "").strip()
+        margen.append({
+            "dorsal": ent.get("dorsal") if ent.get("dorsal") not in (None, "") else "",
+            "nombre": ap.split()[0] if ap else nom,
+            "objetivo": ent.get("objetivo") or "",
+            "duracion": ent.get("duracion_estimada"),
+            "ejercicios": [
+                {"titulo": t.get("titulo") or "", "duracion": t.get("duracion"),
+                 "series": t.get("series"), "repeticiones": t.get("repeticiones")}
+                for t in (ent.get("tareas") or []) if t.get("titulo")
+            ],
+        })
+    return {
+        "tareas": tareas, "material": material, "duracion": duracion,
+        "lanes": lanes, "margen": margen,
+    }
+
+
+def _contexto_sesion_comun(
+    sesion_data: dict, organizacion: dict, lugar, microciclo_nombre, logo_url: str
+) -> dict:
+    from app.services.informe_boards import md_chrome
+    from app.services.sesion_labels import build_conceptos_line
+
+    equipo = sesion_data.get("equipos", {}) or {}
+    md = md_chrome(sesion_data.get("match_day"))
+    return {
+        "md_color": md["bar"],
+        "md_label": md["label"] if sesion_data.get("match_day") else "",
+        "tema": tema_pdf(organizacion),
+        "sesion": sesion_data,
+        "objetivo_principal": (sesion_data.get("objetivo_principal") or "").strip(),
+        "equipo_nombre": equipo.get("nombre", ""),
+        "equipo_categoria": equipo.get("categoria", ""),
+        "logo_url": logo_url,
+        "match_day": sesion_data.get("match_day"),
+        "rival": sesion_data.get("rival"),
+        "lugar": lugar or sesion_data.get("lugar"),
+        "microciclo_nombre": microciclo_nombre,
+        "conceptos_line": build_conceptos_line(sesion_data),
+    }
+
+
+def _logo_pdf(organizacion: dict) -> str:
+    logo_url = organizacion.get("logo_url") or ""
+    return _url_to_data_uri(logo_url) if logo_url else ""
+
+
 async def generate_sesion_pdf_reducido(
     sesion_data: dict,
     tareas_sesion: list,
@@ -1708,178 +2065,137 @@ async def generate_sesion_pdf_reducido(
     microciclo_nombre: Optional[str] = None,
     asistencia_roster: Optional[list] = None,
     jugadores_map: Optional[dict] = None,
+    margen_entrenamientos: Optional[list] = None,
 ) -> bytes:
-    """PDF reducido: 1 folio A4 landscape, conceptos, objetivo, convocatoria densa, 2×2 pizarras."""
-    from app.services.informe_boards import is_poisoned_preview
+    """Reducido = cartel A4 apaisado para la puerta del vestuario.
+
+    Todas las tareas con su pizarra y una explicación corta, el tiempo, el material
+    mínimo necesario y, si lo hay, el compensatorio (quién va y qué hace).
+    Siempre 1 folio: las alturas se calculan y cada celda recorta su texto.
+    """
     env = _get_jinja_env_v2()
     template = env.get_template("sesion_pdf_reducido.html")
+    datos = _datos_cartel(sesion_data, tareas_sesion, jugadores_map, margen_entrenamientos)
+    tareas = datos["tareas"]
+    lanes, margen = datos["lanes"], datos["margen"]
 
-    color_primario = organizacion.get("color_primario", "#1a365d")
-    equipo = sesion_data.get("equipos", {}) or {}
-    logo_url = organizacion.get("logo_url") or ""
-    if logo_url:
-        logo_url = _url_to_data_uri(logo_url)
+    # Alto del compensatorio (si lo hay)
+    comp_h = 0.0
+    if lanes or margen:
+        cols_c = len(lanes) + (1 if margen else 0)
+        col_w = 281 / max(cols_c, 1)
+        por_fila = max(1, int((col_w - 4) // 17))
+        h_lane = 0.0
+        for ln in lanes:
+            h_lane = max(h_lane, 5 + 6.4 * max(1, -(-len(ln["players"]) // por_fila)) + 3.6 * min(len(ln["tareas"]), 4))
+        h_marg = (5 + 5.6 * min(len(margen), 6)) if margen else 0
+        comp_h = min(56.0, max(h_lane, h_marg, 20.0) + 3)
 
-    from app.services.svg_renderer import render_diagram_for_pdf
-    from app.services.sesion_labels import build_conceptos_line, chunk_list
+    objetivo = bool((sesion_data.get("objetivo_principal") or "").strip())
+    avail = 190 - 25 - (7 if objetivo else 0) - (7 if datos["material"] else 0) - comp_h - 4
+    lay = _layout_rejilla(len(tareas), avail, 281)
+    fs = 10.0 if lay["cell_w"] > 120 else (8.4 if lay["cell_w"] > 75 else 7.2)
+    board_h = round(min(lay["cell_h"] * 0.52, lay["cell_w"] * 0.74, 90), 1)
+    text_h = max(lay["cell_h"] - board_h - 11, 8)
+    fs_mm = fs * 0.3528
+    lineas = max(1, int(text_h / (fs_mm * 1.3)))
+    cpl = max(10, int((lay["cell_w"] - 4) / (fs_mm * 0.54)))
+    for c in tareas:
+        _recorta_card(c, lineas, cpl, max_normas=5)
+    lay.update(board_h=board_h, text_h=round(text_h, 1), fs=fs)
+    filas = [tareas[i * lay["cols"]:(i + 1) * lay["cols"]] for i in range(lay["rows"])]
+    filas = [f + [None] * (lay["cols"] - len(f)) for f in filas if f]
 
-    # —— Tareas (máx. 4 para grid 2×2 en 1 página) ——
-    todas = []
-    duracion_total = tiempos_sesion(tareas_sesion)[0]
-    for i, ts in enumerate(tareas_sesion or [], start=1):
-        tarea = ts.get("tareas") or ts.get("tarea") or {}
-        if not isinstance(tarea, dict):
-            tarea = {}
-        cat = tarea.get("categorias_tarea") or tarea.get("categoria") or {}
-        cat_code = ""
-        if isinstance(cat, dict):
-            cat_code = cat.get("codigo") or cat.get("nombre_corto") or cat.get("nombre") or ""
-        dur = ts.get("duracion_override") or tarea.get("duracion_total") or 0
-
-        desc = tarea.get("desarrollo") or tarea.get("descripcion") or ""
-        formacion = ts.get("formacion_equipos") if isinstance(ts.get("formacion_equipos"), dict) else None
-        desc_limit = 55 if formacion else 90
-        if isinstance(desc, str) and len(desc) > desc_limit:
-            desc = desc[: desc_limit - 3].rsplit(" ", 1)[0] + "…"
-
-        obj_bits = []
-        for key in ("objetivos_tacticos", "objetivos_tecnicos"):
-            vals = tarea.get(key) or []
-            if isinstance(vals, list) and vals:
-                obj_bits.extend([str(v).replace("_", " ") for v in vals[:2]])
-        if obj_bits and not desc:
-            desc = " · ".join(obj_bits[:2])
-        elif obj_bits and len(desc) < 40:
-            desc = f"{desc} · {obj_bits[0]}" if desc else obj_bits[0]
-
-        grafico = tarea.get("grafico_data") if isinstance(tarea.get("grafico_data"), dict) else {}
-        # Preferir instantánea real del editor (JPEG data URL)
-        preview_img = ""
-        preview_poisoned = False
-        if isinstance(grafico, dict):
-            raw_preview = grafico.get("preview") or ""
-            if isinstance(raw_preview, str) and raw_preview.startswith("data:image"):
-                if is_poisoned_preview(raw_preview):
-                    preview_poisoned = True
-                else:
-                    preview_img = raw_preview
-        if not preview_img and not preview_poisoned:
-            # Legacy: grafico_url (http o data URI)
-            gu = tarea.get("grafico_url") or ""
-            if isinstance(gu, str) and gu:
-                preview_img = _url_to_data_uri(gu) if gu.startswith("http") else gu
-                if not (isinstance(preview_img, str) and preview_img.startswith("data:image")):
-                    preview_img = ""
-                elif is_poisoned_preview(preview_img):
-                    preview_img = ""
-                    preview_poisoned = True
-
-        svg_thumb = ""
-        pitch_kind = "half"
-        if isinstance(grafico, dict):
-            pitch_kind = "full" if grafico.get("pitchType") == "full" else "half"
-        # Fallback SVG solo si no hay foto (y no es el JPEG inventado)
-        if not preview_img and not preview_poisoned:
-            try:
-                svg_thumb, pitch_kind = render_diagram_for_pdf(grafico or None, diagram_id=f"r{i}")
-                pitch_kind = pitch_kind or "half"
-            except Exception:
-                svg_thumb = ""
-                pitch_kind = "half"
-
-        todas.append({
-            "orden": ts.get("orden") or i,
-            "titulo": tarea.get("titulo") or "Tarea",
-            "categoria": cat_code,
-            "duracion": dur,
-            "descripcion": desc,
-            "preview_img": preview_img,
-            "svg_thumbnail": svg_thumb,
-            "pitch_kind": pitch_kind,
-            "equipos": _build_equipos_reducido(formacion, jugadores_map),
-        })
-
-    tareas_total = len(todas)
-    tareas_corta = todas[:4]
-    # Rellenar a 4 celdas (None = vacía)
-    while len(tareas_corta) < 4:
-        tareas_corta.append(None)
-    task_rows = [tareas_corta[0:2], tareas_corta[2:4]]
-
-    intensidad = (
-        sesion_data.get("intensidad_calculada")
-        or sesion_data.get("intensidad_objetivo")
-        or ""
+    ctx = _contexto_sesion_comun(sesion_data, organizacion, lugar, microciclo_nombre, _logo_pdf(organizacion))
+    ctx.update(
+        filas=filas, layout=lay, material=datos["material"], duracion_total=datos["duracion"],
+        lanes=lanes, margen=margen, comp_h=round(comp_h, 1), n_tareas=len(tareas),
     )
 
-    # —— Roster: lista plana sin duplicar, columnas de ~5 ——
-    roster = asistencia_roster or []
-    g_sesion = [p for p in roster if "sesion" in (p.get("tipos") or [])]
-    g_fisio = [p for p in roster if "fisio" in (p.get("tipos") or [])]
-    g_margen = [p for p in roster if "margen" in (p.get("tipos") or [])]
-    g_ausentes = [p for p in roster if p.get("sort_key") == "ausente"]
+    def _render() -> bytes:
+        return html_a_pdf(template.render(**ctx), organizacion, "Sesión")
 
-    flat_players = []
-    seen_ids = set()
+    return await asyncio.to_thread(_render)
 
-    def _add(players, grupo: str):
-        for p in players:
-            pid = p.get("jugador_id") or p.get("id") or f"{p.get('nombre')}-{p.get('dorsal')}"
-            if grupo != "sesion" and pid in seen_ids:
-                # fisio/margen ya listados en sesión → no duplicar
-                continue
-            if grupo == "sesion":
-                seen_ids.add(pid)
-            elif grupo in ("fisio", "margen") and "sesion" in (p.get("tipos") or []):
-                continue
-            row = dict(p)
-            row["grupo"] = grupo
-            flat_players.append(row)
-            seen_ids.add(pid)
 
-    _add(g_sesion, "sesion")
-    _add(g_fisio, "fisio")
-    _add(g_margen, "margen")
-    _add(g_ausentes, "ausente")
+async def generate_sesion_pdf_plegado(
+    sesion_data: dict,
+    tareas_sesion: list,
+    organizacion: dict,
+    *,
+    lugar: Optional[str] = None,
+    microciclo_nombre: Optional[str] = None,
+    asistencia_roster: Optional[list] = None,
+    jugadores_map: Optional[dict] = None,
+    margen_entrenamientos: Optional[list] = None,
+) -> bytes:
+    """Plegado: 1 folio A4 apaisado en 6 u 8 paneles, en orden de lectura.
 
-    # ~4 nombres por columna → convocatoria baja
-    per_col = 4
-    n = len(flat_players)
-    n_cols = max(1, (n + per_col - 1) // per_col) if n else 0
-    if n_cols > 8:
-        per_col = max(4, (n + 7) // 8)
-        n_cols = max(1, (n + per_col - 1) // per_col)
-    roster_columns = chunk_list(flat_players, per_col) if n else []
+    Panel 1 = sesión (objetivo, material, índice); luego una o varias tareas por panel;
+    último = compensatorio y notas. Guías de doblez discontinuas con la etiqueta «doblar».
+    """
+    env = _get_jinja_env_v2()
+    template = env.get_template("sesion_pdf_plegado.html")
+    datos = _datos_cartel(sesion_data, tareas_sesion, jugadores_map, margen_entrenamientos)
+    tareas = datos["tareas"]
+    n = len(tareas)
 
-    conceptos_line = build_conceptos_line(sesion_data)
+    total = 6 if n <= 4 else 8
+    cols = 3 if total == 6 else 4
+    slots = total - 2
+    panel_w = 283.0 / cols
+    inner_w, inner_h = panel_w - 6, 85.5
+
+    base, extra = (n // slots, n % slots) if n >= slots else (0, 0)
+    if n >= slots:
+        counts = [base + (1 if i < extra else 0) for i in range(slots)]
+    else:
+        counts = [1] * n + [0] * (slots - n)
+
+    paneles = [{"tipo": "portada"}]
+    pos = 0
+    for k in counts:
+        if k == 0:
+            paneles.append({"tipo": "notas"})
+            continue
+        bloques = []
+        for card in tareas[pos:pos + k]:
+            if k == 1:
+                bh = round(min(inner_w * 0.7, 40), 1)
+                dims = dict(modo="v", block_h=inner_h, board_h=bh, board_w=inner_w, text_w=inner_w,
+                            text_h=inner_h - bh - 7, fs=7.6 if cols == 4 else 8.2)
+            elif k == 2:
+                bh = round(min(inner_w * 0.42, 22), 1)
+                bl = (inner_h - 3) / 2
+                dims = dict(modo="v", block_h=bl, board_h=bh, board_w=inner_w, text_w=inner_w,
+                            text_h=bl - bh - 7, fs=6.8)
+            else:
+                bl = (inner_h - 2 * (k - 1)) / k
+                bw = min(27.0, inner_w * 0.4)
+                dims = dict(modo="s", block_h=round(bl, 1), board_h=round(min(bl - 7, bw * 0.78), 1),
+                            board_w=round(bw, 1), text_w=inner_w - bw - 2, text_h=bl - 7, fs=6.4)
+            fs_mm = dims["fs"] * 0.3528
+            lineas = max(1, int(dims["text_h"] / (fs_mm * 1.3)))
+            if k == 1:
+                lineas -= 3 if card.get("normas") else 2  # rótulo «Normas» + líneas de datos
+            elif k == 2 and card.get("normas"):
+                lineas -= 1
+            cpl = max(10, int((dims["text_w"] - 1) / (fs_mm * 0.54)))
+            _recorta_card(card, lineas, cpl, max_normas=4 if k == 1 else (2 if k == 2 else 1))
+            bloques.append({"card": card, **{kk: (round(v, 1) if isinstance(v, float) else v) for kk, v in dims.items()}})
+        pos += k
+        paneles.append({"tipo": "tareas", "bloques": bloques, "k": k})
+    paneles.append({"tipo": "cierre"})
+
+    filas = [paneles[i * cols:(i + 1) * cols] for i in range(2)]
+    ctx = _contexto_sesion_comun(sesion_data, organizacion, lugar, microciclo_nombre, _logo_pdf(organizacion))
+    ctx.update(
+        filas=filas, cols=cols, total=total, panel_w=round(panel_w, 1), material=datos["material"],
+        duracion_total=datos["duracion"], lanes=datos["lanes"], margen=datos["margen"],
+        indice=tareas[:8], n_tareas=n, roster_grupos=_roster_grupos(asistencia_roster),
+    )
 
     def _render() -> bytes:
-        html_content = template.render(
-            tema=tema_pdf(organizacion),
-            sesion=sesion_data,
-            objetivo_principal=(sesion_data.get("objetivo_principal") or "").strip(),
-            org_nombre=organizacion.get("nombre", ""),
-            equipo_nombre=equipo.get("nombre", ""),
-            logo_url=logo_url,
-            color_primario=color_primario,
-            match_day=sesion_data.get("match_day"),
-            rival=sesion_data.get("rival"),
-            lugar=lugar or sesion_data.get("lugar"),
-            conceptos_line=conceptos_line,
-            tareas_corta=[t for t in tareas_corta if t],
-            tareas_total=tareas_total,
-            task_rows=task_rows,
-            duracion_total=duracion_total or sesion_data.get("duracion_total") or 0,
-            intensidad=intensidad,
-            microciclo_nombre=microciclo_nombre,
-            g_sesion=g_sesion,
-            g_fisio=g_fisio,
-            g_margen=g_margen,
-            g_ausentes=g_ausentes,
-            roster_columns=roster_columns,
-            objetivo_fisico=sesion_data.get("objetivo_fisico") or "",
-            objetivo_psicologico=sesion_data.get("objetivo_psicologico") or "",
-        )
-        return html_a_pdf(html_content, organizacion, "Sesión")
+        return html_a_pdf(template.render(**ctx), organizacion, "Sesión")
 
     return await asyncio.to_thread(_render)
