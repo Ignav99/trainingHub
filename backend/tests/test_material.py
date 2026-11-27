@@ -2,7 +2,9 @@ from app.services.material import (
     CATALOGO,
     codigos_de_tareas,
     material_de_tareas,
+    entrada_material,
     nombre_material,
+    parse_entrada,
     sincronizar_materiales_sesion,
     sincronizar_materiales_sesiones_de_tarea,
 )
@@ -102,3 +104,44 @@ def test_catalogo_espejo_del_frontend():
     pares = re.findall(r"codigo: '([^']+)', nombre: '([^']+)'", bloque)
     assert dict(pares) == CATALOGO
     assert [c for c, _ in pares] == list(CATALOGO)
+
+
+def test_parse_entrada_con_cantidad_y_legado():
+    assert parse_entrada("petos:12") == ("petos", 12)
+    assert parse_entrada("Petos: 8") == ("petos", 8)
+    assert parse_entrada("petos") == ("petos", None)
+    assert parse_entrada("petos:0") == ("petos", None)
+    assert parse_entrada("petos:abc") == ("petos", None)
+    # solo los petos llevan cantidad
+    assert parse_entrada("conos:5") == ("conos:5", None)
+    assert parse_entrada("aros: 4") == ("aros: 4", None)
+
+
+def test_entrada_material_roundtrip():
+    assert entrada_material("petos", 12) == "petos:12"
+    assert entrada_material("petos", None) == "petos"
+    assert entrada_material("conos", 5) == "conos"
+
+
+def test_nombre_material_petos_aproximados():
+    assert nombre_material("petos:12") == "Petos (~12)"
+    assert nombre_material("petos") == "Petos"
+    assert nombre_material("balones") == "Balones"
+
+
+def test_material_de_tareas_agrega_petos_por_maximo_no_suma():
+    out = material_de_tareas([["balones", "petos:8"], ["petos:12", "conos"], ["petos"], None])
+    assert out == ["Balones", "Petos (~12)", "Conos"]
+
+
+def test_petos_sin_cantidad_en_ninguna_tarea():
+    assert material_de_tareas([["petos"], ["petos"]]) == ["Petos"]
+
+
+def test_codigos_de_tareas_sin_cantidades_para_el_filtro():
+    assert codigos_de_tareas([["petos:12", "balones"], ["petos:8"]]) == ["balones", "petos"]
+
+
+def test_sincronizar_guarda_codigos_planos():
+    db = _DB({"sesion_tareas": [{"sesion_id": "s1", "tareas": {"material": ["petos:10", "conos"]}}]})
+    assert sincronizar_materiales_sesion(db, "s1") == ["petos", "conos"]

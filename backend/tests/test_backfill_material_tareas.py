@@ -20,7 +20,7 @@ TAREAS = [
 def test_propuesta_ignora_con_material_y_sin_sugerencia():
     prop = bf.construir_propuesta(TAREAS)
     assert [p["id"] for p in prop] == ["a"]
-    assert prop[0]["material_sugerido"] == ["balones", "petos"]
+    assert prop[0]["material_sugerido"] == ["balones", "petos:2"]
 
 
 class _Q:
@@ -58,7 +58,7 @@ def test_apply_escribe_backup_antes_y_restore_revierte(tmp_path):
     assert bf.aplicar(db, prop, tmp_path, "t") == 1
     backup = tmp_path / "backup_material_tareas_t.json"
     assert json.loads(backup.read_text()) == {"a": []}
-    assert ("a", {"material": ["balones", "petos"]}) in db.writes
+    assert ("a", {"material": ["balones", "petos:2"]}) in db.writes
     db.writes.clear()
     assert bf.restaurar(db, backup) == 1
     assert ("a", {"material": []}) in db.writes
@@ -67,5 +67,5 @@ def test_apply_escribe_backup_antes_y_restore_revierte(tmp_path):
 def test_propuesta_csv_y_json(tmp_path):
     prop = bf.construir_propuesta(TAREAS)
     j, c = bf.escribir_propuesta(prop, tmp_path, "t")
-    assert "Balones; Petos" in c.read_text()
+    assert "Balones; Petos (~2)" in c.read_text()
     assert json.loads(j.read_text())[0]["id"] == "a"

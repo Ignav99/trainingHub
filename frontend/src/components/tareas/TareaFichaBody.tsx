@@ -32,6 +32,7 @@ import type { TareaCreatorData, TareaFichaVariant } from '@/lib/tareaFicha'
 import { combineDescanso, splitDescanso } from '@/lib/tareaDescanso'
 import { minutosEfectivosCatalogo } from '@/lib/duracionEfectiva'
 import { cn } from '@/lib/utils'
+import { entradaMaterial, parseEntrada } from '@/lib/materialSesion'
 
 export function categoriasForVariant(variant: TareaFichaVariant) {
   if (variant === 'margen') return CATEGORIAS_MARGEN
@@ -423,6 +424,7 @@ export default function TareaFichaBody({
         <h2 className="text-sm font-semibold text-primary">Material</h2>
         <MaterialPicker
           value={form.material || []}
+          jugadores={form.num_jugadores_min}
           readOnly={readOnly}
           onChange={(next) => onChange('material', next)}
         />
@@ -555,22 +557,37 @@ export default function TareaFichaBody({
 
 function MaterialPicker({
   value,
+  jugadores,
   readOnly,
   onChange,
 }: {
   value: string[]
+  jugadores?: number
   readOnly: boolean
   onChange: (next: string[]) => void
 }) {
   const [draft, setDraft] = useState('')
+  const parsed = value.map((v) => ({ raw: v, ...parseEntrada(v) }))
   const codigos = new Set<string>(MATERIALES.map((m) => m.codigo))
-  const libres = value.filter((v) => !codigos.has(v))
-  const toggle = (c: string) =>
-    onChange(value.includes(c) ? value.filter((v) => v !== c) : [...value, c])
+  const libres = parsed.filter((p) => !codigos.has(p.codigo))
+  const petos = parsed.find((p) => p.codigo === 'petos')
+  const toggle = (c: string) => {
+    const actual = parsed.find((p) => p.codigo === c)
+    if (actual) {
+      onChange(value.filter((v) => v !== actual.raw))
+      return
+    }
+    // Petos: propone la mitad de los jugadores (un equipo juega sin peto); se puede editar.
+    const sugerida = c === 'petos' && jugadores && jugadores > 1 ? Math.ceil(jugadores / 2) : undefined
+    onChange([...value, entradaMaterial(c, sugerida)])
+  }
+  const setPetos = (n: number) => {
+    onChange(value.map((v) => (parseEntrada(v).codigo === 'petos' ? entradaMaterial('petos', n) : v)))
+  }
   const addLibre = () => {
     const t = draft.trim()
     if (!t) return
-    if (!value.some((v) => v.toLowerCase() === t.toLowerCase())) onChange([...value, t])
+    if (!parsed.some((p) => p.codigo.toLowerCase() === t.toLowerCase())) onChange([...value, t])
     setDraft('')
   }
   return (
@@ -580,7 +597,7 @@ function MaterialPicker({
       </p>
       <div className="flex flex-wrap gap-2">
         {MATERIALES.map((m) => {
-          const active = value.includes(m.codigo)
+          const active = parsed.some((p) => p.codigo === m.codigo)
           return (
             <button
               key={m.codigo}
@@ -596,22 +613,42 @@ function MaterialPicker({
               )}
             >
               {m.nombre}
+              {m.codigo === 'petos' && petos?.cantidad ? ` ~${petos.cantidad}` : ''}
             </button>
           )
         })}
         {libres.map((l) => (
           <button
-            key={l}
+            key={l.raw}
             type="button"
             disabled={readOnly}
-            onClick={() => onChange(value.filter((v) => v !== l))}
+            onClick={() => onChange(value.filter((v) => v !== l.raw))}
             className="rounded-md border border-primary bg-primary/10 px-3 py-2 text-sm font-medium text-primary"
           >
-            {l}
+            {l.raw}
             {!readOnly && ' ×'}
           </button>
         ))}
       </div>
+      {petos && !readOnly && (
+        <div className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 w-fit">
+          <label htmlFor="material-petos-cantidad" className="text-xs font-medium">
+            Petos, cantidad aprox.
+          </label>
+          <Input
+            id="material-petos-cantidad"
+            type="number"
+            min={1}
+            inputMode="numeric"
+            value={petos.cantidad ?? ''}
+            onChange={(e) => {
+              const n = parseInt(e.target.value, 10)
+              setPetos(Number.isFinite(n) && n > 0 ? n : 0)
+            }}
+            className="h-9 w-20 tabular-nums"
+          />
+        </div>
+      )}
       {!readOnly && (
         <div className="flex items-center gap-2">
           <Input
