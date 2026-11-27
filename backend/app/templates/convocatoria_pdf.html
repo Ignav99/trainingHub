@@ -3,28 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <style>
-        @page { size: A4; margin: 14mm 14mm 15mm; }
+        @page { size: A4; margin: 14mm 14mm 15mm; margin-bottom: 15mm; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-size: 9pt; line-height: 1.45; }
 
-        .partido { background: var(--k-primario); color: var(--k-sobre-primario);
-            border-radius: 2.6mm; padding: 4mm 5mm; margin-bottom: 3mm; }
-        .partido .k-eyebrow { color: var(--k-sobre-primario); opacity: .8; }
-        .partido .equipos { font-size: 15pt; font-weight: 800; letter-spacing: -.02em; line-height: 1.15; margin-top: 1mm; }
-        .partido .info { font-size: 8pt; margin-top: 1.2mm; opacity: .9; }
+        .partido { padding: 3.2mm 4mm; margin-bottom: 3mm; }
+        .partido .equipos { font-size: 14pt; font-weight: 800; line-height: 1.15; margin-top: 1mm; }
+        .partido .info { font-size: 8.5pt; margin-top: 1.2mm; color: var(--c-suave); }
 
-        .meta { width: 100%; border-collapse: separate; border-spacing: 1.6mm 1.6mm; margin: 0 -1.6mm 1mm; table-layout: fixed; }
-        .meta td { vertical-align: top; }
-        .meta .k-tarjeta { padding: 2.4mm 2.8mm; min-height: 13mm; }
-        .meta .valor { font-size: 9.5pt; font-weight: 700; margin-top: .6mm; line-height: 1.2; }
-
-        .k-tabla td { padding: 1.5mm 2mm; font-size: 10pt; vertical-align: middle; }
-        .dorsal { display: inline-block; width: 6.8mm; height: 6.8mm; border-radius: 50%;
-            background: var(--k-primario); color: var(--k-sobre-primario);
-            text-align: center; line-height: 6.8mm; font-size: 8.5pt; font-weight: 700; }
-        .nombre { font-weight: 700; font-size: 10.5pt; }
-        .apodo { color: var(--k-tinta-suave); font-size: 8.5pt; }
-        .k-tabla tr:nth-child(even) td .k-chip { background: #fff; }
+        .meta td.l { width: 30mm; font-family: "Encode Sans Narrow"; }
+        .meta td.v { font-weight: 600; }
+        body .c-tabla td { vertical-align: middle; }
+        .c-tabla td.dorsal-c { width: 13mm; }
+        .nombre { font-weight: 700; font-size: 10pt; }
+        .apodo { color: var(--c-suave); }
     </style>
 </head>
 <body>
@@ -32,8 +24,8 @@
     {% set sub %}{{ equipo_nombre }}{% if equipo_categoria %} · {{ equipo_categoria }}{% endif %}{% endset %}
     {{ cabecera(tema, titulo="Convocatoria", subtitulo=sub, meta=fecha, eyebrow=(tema.club or org_nombre)) }}
 
-    <div class="partido">
-        <div class="k-eyebrow">{{ localia | capitalize }}{% if competicion %} · {{ competicion.replace('_', ' ') | capitalize }}{% endif %}{% if jornada %} · Jornada {{ jornada }}{% endif %}</div>
+    <div class="partido c-caja-fuerte">
+        <div class="c-rotulo">{{ localia | capitalize }}{% if competicion %} · {{ competicion.replace('_', ' ') | capitalize }}{% endif %}{% if jornada %} · Jornada {{ jornada }}{% endif %}</div>
         <div class="equipos">{{ equipo_nombre }} vs {{ rival_nombre }}</div>
         <div class="info">
             {{ fecha }}{% if hora %} · {{ hora }}h{% endif %}
@@ -41,21 +33,15 @@
         </div>
     </div>
 
-    <table class="meta">
-        <tr>
-            <td><div class="k-tarjeta"><div class="k-dato-label">Convocados</div><div class="valor">{{ total_convocados }}</div></div></td>
-            <td><div class="k-tarjeta"><div class="k-dato-label">Lugar</div><div class="valor">{{ lugar_partido or '—' }}</div></div></td>
-            <td><div class="k-tarjeta"><div class="k-dato-label">Árbitro</div><div class="valor">{{ arbitro or '—' }}</div></div></td>
-        </tr>
-        <tr>
-            <td><div class="k-tarjeta"><div class="k-dato-label">Citación</div><div class="valor">{% if hora_citacion %}{{ hora_citacion }} h{% else %}—{% endif %}</div></div></td>
-            <td><div class="k-tarjeta"><div class="k-dato-label">Lugar de citación</div><div class="valor">{{ lugar_citacion or '—' }}</div></div></td>
-            <td><div class="k-tarjeta"><div class="k-dato-label">Equipación</div><div class="valor">{{ kit_convocatoria | capitalize }}</div></div></td>
-        </tr>
+    <table class="c-tabla meta">
+        <tr><td class="l c-rotulo">Convocados</td><td class="v">{{ total_convocados }}</td><td class="l c-rotulo">Lugar</td><td class="v">{{ lugar_partido or '—' }}</td></tr>
+        <tr><td class="l c-rotulo">Árbitro</td><td class="v">{{ arbitro or '—' }}</td><td class="l c-rotulo">Citación</td><td class="v">{% if hora_citacion %}{{ hora_citacion }} h{% else %}—{% endif %}</td></tr>
+        <tr><td class="l c-rotulo">Lugar de citación</td><td class="v">{{ lugar_citacion or '—' }}</td><td class="l c-rotulo">Equipación</td><td class="v">{{ kit_convocatoria | capitalize }}</td></tr>
     </table>
+    <div style="height:1mm"></div>
 
-    <div class="k-seccion">Convocados por dorsal ({{ total_convocados }})</div>
-    <table class="k-tabla">
+    <div class="c-seccion">Convocados por dorsal ({{ total_convocados }})</div>
+    <table class="c-tabla">
         <thead>
             <tr>
                 <th style="width: 13mm;">#</th>
@@ -67,10 +53,10 @@
         <tbody>
             {% for c in convocados %}
             <tr>
-                <td><span class="dorsal k-mono">{{ c.dorsal or '-' }}</span></td>
+                <td class="dorsal-c"><span class="c-ficha">{{ c.dorsal or '-' }}</span></td>
                 <td class="nombre">{{ c.jugador_nombre }}</td>
                 <td class="apodo">{{ c.apodo or '—' }}</td>
-                <td><span class="k-chip">{{ c.posicion or '-' }}</span></td>
+                <td>{{ c.posicion or '-' }}</td>
             </tr>
             {% endfor %}
         </tbody>

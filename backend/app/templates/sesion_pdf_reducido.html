@@ -1,360 +1,118 @@
 {% from "_marca/cabecera.html" import cabecera %}<!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <title>{{ sesion.titulo }} — Vestuario</title>
-  <style>
-    /*
-      PDF reducido — 1 folio A4 landscape, diseño normalizado Kabin-e.
-      WeasyPrint: TABLE + alturas fijas (flex:1 colapsa).
-      Alto útil: 210 − 6 (arriba) − 15 (pie de marca) = 189 mm.
-    */
-    @page { size: A4 landscape; margin: 6mm 7mm 15mm 7mm; }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-size: 8px;
-      line-height: 1.2;
-      width: 283mm;
-      height: 188mm;
-      overflow: hidden;
-    }
+<meta charset="UTF-8">
+<title>{{ tema.club }} — {{ sesion.get('titulo', 'Sesión') }}</title>
+<style>
+/* Sesión reducido = cartel A4 apaisado para la puerta del vestuario (Cal, papel).
+   Alto útil 190 mm: cabecera 14 + objetivo 7 + material 7 + rejilla + compensatorio.
+   Las alturas las calcula pdf_service._layout_rejilla; cada celda recorta su texto. */
+@page { size: A4 landscape; margin: 7mm 8mm 13mm 8mm; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-size: 8pt; line-height: 1.25; }
+.c-cabecera { padding-bottom: 1.6mm; margin-bottom: 1.6mm; }
+.c-cabecera .c-escudo { width: 9mm; height: 9mm; }
+.c-cab-titulo { font-size: 14pt; white-space: nowrap; overflow: hidden; }
+.c-cab-sub { font-size: 7.5pt; margin-top: .3mm; }
+.meta { white-space: nowrap; font-size: 8pt; }
+.meta b { font-size: 14pt; font-weight: 800; }
+.md-sw { display: inline-block; width: 2.4mm; height: 2.4mm; margin-right: 1mm; vertical-align: -.2mm; border-radius: .3mm; }
 
-    /* Cabecera de marca, versión compacta para que quepa en un folio */
-    body .k-cabecera { padding-bottom: 1.6mm; margin-bottom: 1.8mm; gap: 3mm; }
-    body .k-cabecera .k-escudo { width: 9mm; height: 9mm; }
-    body .k-cabecera .k-cab-titulo { font-size: 14pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    body .k-cabecera .k-cab-club { font-size: 6.5pt; }
-    body .k-cabecera .k-cab-sub { font-size: 7.5pt; margin-top: .4mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .md { font-size: 11pt; font-weight: 800; padding: 1.2mm 3.2mm; border-radius: 1.6mm;
-      background: var(--k-primario); color: var(--k-sobre-primario); white-space: nowrap; }
-    .sep { color: #B5BAD0; margin: 0 1mm; }
+.linea { height: 7mm; overflow: hidden; white-space: nowrap; line-height: 7mm; font-size: 8.4pt;
+  border-bottom: .25mm solid var(--c-borde); }
+.linea .c-rotulo { margin-right: 2mm; }
+.linea b { font-weight: 700; }
 
-    .concepts {
-      font-size: 7.5px;
-      background: var(--k-primario-suave);
-      border-radius: 1.6mm;
-      padding: 1.2mm 2.4mm;
-      margin-bottom: 1.5mm;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      line-height: 1.3;
-    }
-    .concepts .k-eyebrow { font-size: 6px; margin-right: 1.6mm; }
+table.rej { width: 100%; border-collapse: separate; border-spacing: 1.5mm; table-layout: fixed; margin: -1.5mm; width: calc(100% + 3mm); }
+td.cel { vertical-align: top; padding: 0; border: .25mm solid var(--c-borde); border-radius: .5mm; }
+td.vacia { border: .25mm dashed var(--c-borde); }
+.in { padding: 1.4mm 1.8mm; overflow: hidden; }
+.ch { display: flex; height: 5.6mm; overflow: hidden; white-space: nowrap; line-height: 5.6mm; border-bottom: .25mm solid var(--c-borde); margin-bottom: 1mm; }
+.ch .num { font-weight: 800; color: var(--c-suave); margin-right: 1.2mm; }
+.ch .sig { font-family: "Encode Sans Narrow", sans-serif !important; font-weight: 700; font-size: 6.8pt; letter-spacing: .06em; margin-right: 1.4mm; }
+.ch .tit { font-weight: 800; }
+.ch .lt { flex: 1; min-width: 0; overflow: hidden; }
+.ch .dur { flex: none; font-weight: 800; margin-left: 1.5mm; }
+.ch .grp { flex: none; font-size: 6.4pt; color: var(--c-suave); margin-left: 1.5mm; }
+.bd { border: .25mm solid var(--c-borde); border-radius: .5mm; overflow: hidden; text-align: center; margin-bottom: 1mm; }
+.bd img { width: 100%; height: 100%; object-fit: contain; }
+.bd svg { width: 100%; height: 100%; }
+.tx { overflow: hidden; line-height: 1.22; }
+.tx p { margin-bottom: .6mm; }
+.tx .nm { margin-top: .4mm; padding-left: 2.2mm; position: relative; }
+.tx .nm::before { content: ""; position: absolute; left: .2mm; top: 1.1mm; width: 1mm; height: 1mm; border-radius: 50%; background: var(--c-club); }
 
-    .objetivo {
-      border: .25mm solid var(--k-linea);
-      border-left: 1mm solid var(--k-primario);
-      border-radius: 1.6mm;
-      padding: 1.2mm 2.4mm;
-      max-height: 10mm;
-      overflow: hidden;
-    }
-    .objetivo .k-eyebrow { font-size: 6px; }
-    .objetivo .txt {
-      font-size: 9px;
-      font-weight: 600;
-      line-height: 1.25;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .objetivo .extra {
-      font-size: 7px;
-      color: var(--k-tinta-suave);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .objetivo .extra strong { color: var(--k-tinta); font-weight: 600; }
-
-    .lbl {
-      font-size: 7.5pt;
-      font-weight: 800;
-      letter-spacing: -.01em;
-      padding-left: 1.8mm;
-      border-left: .8mm solid var(--k-primario);
-      margin-bottom: 1mm;
-      line-height: 1.15;
-    }
-    .lbl .leg {
-      display: inline-block;
-      font-size: 5.8px;
-      font-weight: 600;
-      padding: 0 1.4mm;
-      border-radius: 9mm;
-      margin-left: 1.2mm;
-      vertical-align: 1px;
-    }
-    /* Estado de disponibilidad (semántico) */
-    .leg-s { background: var(--k-primario-suave); color: var(--k-primario-texto); }
-    .leg-f { background: #F3E8FF; color: #6B21A8; }
-    .leg-m { background: #FEF3C7; color: #92400E; }
-    .leg-a { background: #FEE2E2; color: #991B1B; }
-
-    .roster {
-      width: 100%;
-      border-collapse: collapse;
-      table-layout: fixed;
-      margin-bottom: 1.5mm;
-    }
-    .roster td {
-      vertical-align: top;
-      padding: 0 1mm 0 0;
-      overflow: hidden;
-    }
-    .player {
-      font-size: 7px;
-      line-height: 1.3;
-      padding: 0 1mm;
-      margin-bottom: .3mm;
-      border-radius: .8mm;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .p-sesion { background: var(--k-primario-suave); }
-    .p-fisio { background: #FAF5FF; }
-    .p-margen { background: #FFFBEB; }
-    .p-ausente { background: #FEF2F2; color: #7F1D1D; }
-    .dorsal { font-size: 6.2px; color: var(--k-tinta-suave); margin-right: .6mm; }
-    .chip {
-      display: inline-block;
-      font-size: 5px;
-      font-weight: 800;
-      padding: 0 .6mm;
-      border-radius: .6mm;
-      margin-left: .4mm;
-    }
-    .chip-f { background: #E9D5FF; color: #6B21A8; }
-    .chip-m { background: #FDE68A; color: #92400E; }
-    .motivo { color: #B91C1C; font-size: 6px; }
-
-    /* —— Tareas 2×2: pizarra IZQ + texto DER —— */
-    .tasks {
-      width: 278mm; /* 283mm − 3 huecos de 1.6mm: WeasyPrint suma el border-spacing fuera del 100% */
-      border-collapse: separate;
-      border-spacing: 1.6mm 1.4mm;
-      margin-top: -1.4mm;
-      table-layout: fixed;
-    }
-    .tasks > tbody > tr > td,
-    .tasks > tr > td {
-      width: 50%;
-      height: 61mm;
-      vertical-align: top;
-      padding: 0;
-      border: .25mm solid var(--k-linea);
-      border-radius: 2.6mm;
-      overflow: hidden;
-      background: #fff;
-    }
-
-    .task-inner {
-      width: 100%;
-      height: 61mm;
-      border-collapse: collapse;
-      table-layout: fixed;
-    }
-    .task-board {
-      width: 68%;
-      height: 61mm;
-      text-align: left;
-      vertical-align: middle;
-      overflow: hidden;
-      padding: 1mm;
-    }
-    .task-board img,
-    .task-board svg {
-      display: block;
-      width: 100% !important;
-      height: 59mm !important;
-      max-width: none !important;
-      object-fit: contain;
-      object-position: left center;
-      margin: 0;
-    }
-    .task-board .empty {
-      color: var(--k-tinta-suave);
-      font-size: 8px;
-      padding-left: 3mm;
-    }
-    .task-info {
-      width: 32%;
-      height: 61mm;
-      vertical-align: top;
-      padding: 2.2mm 2.4mm 2mm 2.4mm;
-      overflow: hidden;
-      border-left: .25mm solid var(--k-linea);
-    }
-    .task-top {
-      font-size: 9px;
-      font-weight: 800;
-      letter-spacing: -.01em;
-      line-height: 1.2;
-      margin-bottom: 1mm;
-    }
-    .task-top .ord { color: var(--k-primario-texto); font-size: 7.5px; margin-right: .6mm; }
-    .task-min {
-      display: inline-block;
-      font-size: 7px;
-      color: var(--k-tinta-suave);
-      margin-bottom: 1mm;
-      margin-right: 1mm;
-    }
-    .task-desc {
-      font-size: 6.8px;
-      color: var(--k-tinta-suave);
-      line-height: 1.3;
-      max-height: 18mm;
-      overflow: hidden;
-      margin-bottom: 1mm;
-    }
-    .task-cat {
-      display: inline-block;
-      background: var(--k-primario-suave);
-      color: var(--k-primario-texto);
-      font-size: 6px;
-      font-weight: 600;
-      padding: .2mm 1.6mm;
-      border-radius: 9mm;
-      vertical-align: 1px;
-    }
-    .task-teams { margin-top: 1.2mm; }
-    .task-team {
-      margin-bottom: .8mm;
-      padding: .6mm 1.4mm;
-      border-radius: 1mm;
-      border-left: .8mm solid #94a3b8;
-      background: #F7F8FB;
-      overflow: hidden;
-    }
-    .task-team-name {
-      font-size: 6.5px;
-      font-weight: 800;
-      line-height: 1.2;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .task-team-players {
-      font-size: 5.8px;
-      color: var(--k-tinta-suave);
-      line-height: 1.25;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .task-empty-cell {
-      background: var(--k-primario-suave);
-      color: var(--k-tinta-suave);
-      text-align: center;
-      font-size: 8px;
-      height: 61mm;
-      line-height: 61mm;
-    }
-  </style>
+/* Compensatorio */
+.comp { border-top: .4mm solid var(--c-tinta); margin-top: 2mm; padding-top: 1mm; overflow: hidden; }
+table.cc { width: 100%; table-layout: fixed; border-collapse: collapse; }
+table.cc td { vertical-align: top; padding: 0 2.4mm 0 0; }
+table.cc td + td { padding-left: 2.4mm; border-left: .25mm solid var(--c-borde); }
+.cc .rot { font-weight: 800; font-size: 8.6pt; margin-bottom: .8mm; }
+.cc .rot span { font-weight: 600; color: var(--c-suave); margin-left: 1.5mm; }
+.fch { width: 5mm; height: 5mm; line-height: 4.2mm; font-size: 6.2pt; vertical-align: middle; margin-right: .8mm; }
+.jug { display: inline-block; white-space: nowrap; margin: 0 2.2mm 1mm 0; font-size: 7.6pt; }
+.cc .ej { font-size: 7.6pt; line-height: 3.6mm; white-space: nowrap; overflow: hidden; }
+.cc .ej b { color: var(--c-suave); margin-right: 1mm; }
+.mj { white-space: nowrap; overflow: hidden; height: 5.6mm; line-height: 5.6mm; font-size: 7.4pt; }
+.mj .e { color: var(--c-suave); }
+</style>
 </head>
 <body>
-  {% set subtitulo %}{% if equipo_nombre %}{{ equipo_nombre }}<span class="sep">·</span>{% endif %}{% if rival %}vs {{ rival }}<span class="sep">·</span>{% endif %}{{ sesion.fecha }}{% if sesion.hora %} {{ sesion.hora }}{% endif %}{% if lugar or sesion.lugar %}<span class="sep">·</span>{{ lugar or sesion.lugar }}{% endif %}<span class="sep">·</span><span class="k-mono">{{ duracion_total or 0 }}′</span>{% if intensidad %}<span class="sep">·</span>{{ intensidad }}{% endif %}{% endset %}
-  {{ cabecera(dict(tema, logo_url=logo_url), titulo=sesion.titulo, subtitulo=subtitulo, meta='<span class="md">' ~ (match_day or "—") ~ '</span>', eyebrow=org_nombre) }}
+{% set cab_tema = dict(tema, logo_url=logo_url) %}
+{% set cab_sub %}{{ sesion.get('fecha', '') }}{% if sesion.get('hora') %} · {{ sesion.get('hora')[:5] }} h{% endif %}{% if lugar %} · {{ lugar }}{% endif %}{% if rival %} · Rival: {{ rival }}{% endif %}{% endset %}
+{% set cab_meta %}<div class="meta">{% if match_day %}<span class="md-sw" style="background:{{ md_color }}"></span>{{ match_day }}{% if md_label %} · {{ md_label }}{% endif %}<br>{% endif %}<b>{{ duracion_total }}</b> min · {{ n_tareas }} tareas</div>{% endset %}
+{{ cabecera(cab_tema, titulo=sesion.get('titulo', 'Sesión de entrenamiento'), subtitulo=cab_sub, meta=cab_meta, eyebrow=[tema.club, equipo_categoria]|select|join(' · ')) }}
 
-  {% if conceptos_line %}
-  <div class="concepts">
-    <span class="k-eyebrow">Conceptos</span>{{ conceptos_line }}
-  </div>
-  {% endif %}
+{% if objetivo_principal %}<div class="linea"><span class="c-rotulo">Objetivo</span><b>{{ objetivo_principal }}</b></div>{% endif %}
+{% if material %}<div class="linea"><span class="c-rotulo">Material mínimo necesario</span>{{ material|join(' · ') }}</div>{% endif %}
 
-  <div class="objetivo" style="margin-bottom:1.5mm">
-    <div class="k-eyebrow">Objetivo de la sesión</div>
-    <div class="txt">{{ objetivo_principal or sesion.objetivo_principal or "—" }}</div>
-    {% if objetivo_fisico or objetivo_psicologico %}
-    <div class="extra">
-      {% if objetivo_fisico %}<strong>Físico:</strong> {{ objetivo_fisico }}{% endif %}
-      {% if objetivo_fisico and objetivo_psicologico %} · {% endif %}
-      {% if objetivo_psicologico %}<strong>Psico:</strong> {{ objetivo_psicologico }}{% endif %}
-    </div>
+{% set L = layout %}
+<table class="rej">
+  {% for fila in filas %}
+  <tr>
+    {% for t in fila %}
+    {% if t %}
+    <td class="cel" style="height:{{ L.cell_h }}mm"><div class="in" style="height:{{ L.cell_h }}mm">
+      <div class="ch" style="font-size:{{ L.fs + 0.8 }}pt">
+        <div class="lt"><span class="num">{{ '%02d' % t.orden }}</span><span class="c-peto" style="background:{{ t.peto }}"></span>{% if t.sigla %}<span class="sig">{{ t.sigla }}</span>{% endif %}<span class="tit">{{ t.titulo }}</span></div>
+        {% if t.lane is not none %}<div class="grp">Grupo {{ 'ABCDEFGH'[t.lane] }}</div>{% endif %}
+        <div class="dur">{% if t.series %}{{ t.series }}×{% endif %}{{ t.duracion }}'</div>
+      </div>
+      <div class="bd" style="height:{{ L.board_h }}mm">{% if t.board.img %}<img src="{{ t.board.img }}" alt="">{% else %}{{ t.board.svg }}{% endif %}</div>
+      <div class="tx" style="height:{{ L.text_h }}mm;font-size:{{ L.fs }}pt">
+        {% if t.desc_c %}<p>{{ t.desc_c }}</p>{% endif %}
+        {% for n in t.normas_c %}<div class="nm">{{ n }}</div>{% endfor %}
+      </div>
+    </div></td>
+    {% else %}
+    <td class="cel vacia" style="height:{{ L.cell_h }}mm"></td>
     {% endif %}
-  </div>
-
-  <div class="lbl">
-    Convocatoria
-    <span class="leg leg-s">Sesión {{ g_sesion|length }}</span>
-    <span class="leg leg-f">Fisio {{ g_fisio|length }}</span>
-    <span class="leg leg-m">Margen {{ g_margen|length }}</span>
-    <span class="leg leg-a">Aus. {{ g_ausentes|length }}</span>
-  </div>
-  {% if roster_columns %}
-  <table class="roster">
-    <tr>
-      {% for col in roster_columns %}
-      <td>
-        {% for p in col %}
-        <div class="player p-{{ p.grupo }}">
-          <span class="dorsal k-mono">{% if p.dorsal %}{{ p.dorsal }}{% endif %}</span>
-          {{ p.nombre }} {{ (p.apellidos or '')[:1] }}.
-          {% if p.grupo == 'sesion' %}
-            {% if 'fisio' in p.tipos %}<span class="chip chip-f">F</span>{% endif %}
-            {% if 'margen' in p.tipos %}<span class="chip chip-m">M</span>{% endif %}
-          {% elif p.grupo == 'ausente' %}
-            <span class="motivo">{{ p.tipo_display|replace('Ausente — ','') }}</span>
-          {% endif %}
-        </div>
-        {% endfor %}
-      </td>
-      {% endfor %}
-    </tr>
-  </table>
-  {% endif %}
-
-  <div class="lbl">Ejercicios{% if tareas_total > 4 %} (4 de {{ tareas_total }}){% else %} ({{ tareas_corta|length }}){% endif %}</div>
-  <table class="tasks">
-    {% for row in task_rows %}
-    <tr>
-      {% for t in row %}
-      <td>
-        {% if t %}
-        <table class="task-inner">
-          <tr>
-            <td class="task-board board-{{ t.pitch_kind or 'half' }}">
-              {% if t.preview_img %}
-                <img src="{{ t.preview_img }}" alt="" />
-              {% elif t.svg_thumbnail %}
-                {{ t.svg_thumbnail|safe }}
-              {% else %}
-                <span class="empty">Sin pizarra</span>
-              {% endif %}
-            </td>
-            <td class="task-info">
-              <div class="task-top">
-                <span class="ord k-mono">{{ t.orden }}</span>{{ t.titulo }}
-              </div>
-              <span class="task-min k-mono">{{ t.duracion }}′</span>{% if t.categoria %}<span class="task-cat">{{ t.categoria }}</span>{% endif %}
-              {% if t.descripcion %}
-              <div class="task-desc">{{ t.descripcion }}</div>
-              {% endif %}
-              {% if t.equipos %}
-              <div class="task-teams">
-                {% for eq in t.equipos[:4] %}
-                <div class="task-team" style="border-left-color: {{ eq.color }}; background: {{ eq.color }}14;">
-                  <div class="task-team-name">{{ eq.nombre }} · {{ eq.count }}</div>
-                  {% if eq.players %}
-                  <div class="task-team-players">{{ eq.players[:8]|join(' · ') }}{% if eq.players|length > 8 %}…{% endif %}</div>
-                  {% endif %}
-                </div>
-                {% endfor %}
-              </div>
-              {% endif %}
-            </td>
-          </tr>
-        </table>
-        {% else %}
-        <div class="task-empty-cell">—</div>
-        {% endif %}
-      </td>
-      {% endfor %}
-    </tr>
     {% endfor %}
-  </table>
+  </tr>
+  {% endfor %}
+</table>
+
+{% if lanes or margen %}
+<div class="comp" style="height:{{ comp_h }}mm">
+  <table class="cc"><tr>
+    {% for ln in lanes %}
+    <td>
+      <div class="rot">Compensatorio · {{ ln.label }}<span>{% if ln.duracion %}{{ ln.duracion }}'{% endif %}</span></div>
+      <div>{% for j in ln.players %}<span class="jug"><span class="c-ficha fch">{{ j.dorsal }}</span>{{ j.nombre }}</span>{% endfor %}</div>
+      {% for e in ln.tareas[:4] %}<div class="ej"><b>{{ '%02d' % e.orden }}</b>{{ e.titulo }}{% if e.duracion %} · {{ e.duracion }}'{% endif %}</div>{% endfor %}
+    </td>
+    {% endfor %}
+    {% if margen %}
+    <td>
+      <div class="rot">Al margen</div>
+      {% for m in margen[:6] %}
+      <div class="mj"><span class="c-ficha fch">{{ m.dorsal }}</span><b>{{ m.nombre }}</b>
+        <span class="e">{% if m.ejercicios %}{% for e in m.ejercicios[:2] %}{{ e.titulo }}{% if e.duracion %} {{ e.duracion }}'{% endif %}{% if not loop.last %} · {% endif %}{% endfor %}{% elif m.objetivo %}{{ m.objetivo[:60] }}{% endif %}</span></div>
+      {% endfor %}
+    </td>
+    {% endif %}
+  </tr></table>
+</div>
+{% endif %}
 </body>
 </html>

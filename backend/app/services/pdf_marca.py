@@ -2,10 +2,12 @@
 
 Cualquier PDF que sale de la app pasa por :func:`html_a_pdf`, que inyecta:
 
-* las fuentes de la app (Schibsted Grotesk + IBM Plex Mono) embebidas,
-* las variables de color del club (``--k-primario``, ``--k-secundario``…),
-  con variantes de contraste calculadas para que ningún color de club deje
-  texto ilegible,
+* la superficie "Papel" del sistema Cal (docs/diseno/cal.md): Encode Sans
+  (estrecha para rótulos, ancha para títulos) embebida, tinta teñida con el
+  tono del club, una sola línea, sin sombras ni degradados,
+* las variables de color ``--c-*`` (y los alias antiguos ``--k-*``) calculadas
+  igual que ``src/lib/clubTone.ts`` en la app: el club aporta el tono y el
+  color "seguro" (4.5:1 con blanco),
 * la marca de agua (isotipo de Kabin-e teñido con el color del club) y el pie
   normalizado con número de página.
 
@@ -26,10 +28,10 @@ FUENTES_DIR = APP_DIR / "static" / "fonts"
 MARCA_DIR = APP_DIR / "static" / "marca"
 TEMPLATES_DIR = APP_DIR / "templates"
 
-TINTA = "#0E1334"
-TINTA_SUAVE = "#5A618C"
-LINEA = "#E3E6EF"
-PRIMARIO_DEFECTO = "#2326A0"
+TINTA = "#171D1A"
+TINTA_SUAVE = "#5A615D"
+LINEA = "#CDD2CF"
+PRIMARIO_DEFECTO = "#1F5240"
 
 # Silueta del isotipo (una sola pieza, sin facetas) — misma geometría que
 # frontend/public/brand/kabine-mark.svg.
@@ -94,32 +96,87 @@ def oscurece_hasta(color: str, fondo: str = "#FFFFFF", minimo: float = 4.5) -> s
     return c
 
 
+def _hsl_hex(h: float, s: float, l: float) -> str:
+    s /= 100
+    l /= 100
+    a = s * min(l, 1 - l)
+
+    def f(n: int) -> float:
+        k = (n + h / 30) % 12
+        return 255 * (l - a * max(-1, min(k - 3, 9 - k, 1)))
+
+    return _hex((f(0), f(8), f(4)))
+
+
+def _hex_hsl(hx: str) -> tuple[int, int, int]:
+    r, g, b = (c / 255 for c in _rgb(hx))
+    mx, mn = max(r, g, b), min(r, g, b)
+    l = (mx + mn) / 2
+    d = mx - mn
+    if d == 0:
+        return 0, 0, round(l * 100)
+    s = d / (1 - abs(2 * l - 1))
+    if mx == r:
+        h = ((g - b) / d) % 6
+    elif mx == g:
+        h = (b - r) / d + 2
+    else:
+        h = (r - g) / d + 4
+    h *= 60
+    return round(h % 360), round(s * 100), round(l * 100)
+
+
+def tono_club(hex_club: Optional[str]) -> tuple[int, int, int]:
+    """(tono, saturación, luminosidad) del color seguro del club — igual que clubTone.ts."""
+    try:
+        h, s, l = _hex_hsl(_normaliza_hex(hex_club, PRIMARIO_DEFECTO))
+    except Exception:
+        h, s, l = 158, 42, 26
+    sin_color = s < 12
+    tono = 220 if sin_color else h
+    sat = 8 if sin_color else min(s, 80)
+    lum = min(l, 46)
+    while lum > 6 and contraste("#FFFFFF", _hsl_hex(tono, sat, lum)) < 4.5:
+        lum -= 1
+    return tono, sat, lum
+
+
 def tema_pdf(organizacion: Optional[dict[str, Any]] = None) -> dict[str, str]:
-    """Colores del club listos para imprimir, con contraste garantizado."""
+    """Colores del papel Cal a partir del club. Tinta y neutros teñidos con su tono."""
     org = organizacion or {}
-    primario = _normaliza_hex(org.get("color_primario"), PRIMARIO_DEFECTO)
-    secundario = _normaliza_hex(org.get("color_secundario"), primario)
-
-    # Un secundario casi blanco (o casi igual al primario) no sirve como acento.
-    if contraste(secundario, "#FFFFFF") < 1.6 or contraste(secundario, primario) < 1.25:
-        secundario = mezcla(primario, TINTA, 0.45)
-
-    sobre_primario = "#FFFFFF" if contraste("#FFFFFF", primario) >= contraste(TINTA, primario) else TINTA
-    sobre_secundario = "#FFFFFF" if contraste("#FFFFFF", secundario) >= contraste(TINTA, secundario) else TINTA
-
+    h, s, l = tono_club(org.get("color_primario"))
+    club = _hsl_hex(h, s, l)
+    tinta = _hsl_hex(h, 18, 11)
+    suave = _hsl_hex(h, 7, 38)
+    borde = _hsl_hex(h, 9, 82)
+    hundido = _hsl_hex(h, 12, 92.5)
+    club_suave = _hsl_hex(h, min(s, 40), 94)
+    secundario = _normaliza_hex(org.get("color_secundario"), club)
+    if contraste(secundario, "#FFFFFF") < 1.6 or contraste(secundario, club) < 1.25:
+        secundario = tinta
     return {
-        "primario": primario,
+        # Cal
+        "color_club": club,
+        "color_club_suave": club_suave,
+        "tinta": tinta,
+        "tinta_suave": suave,
+        "borde": borde,
+        "hundido": hundido,
+        "aviso": _hsl_hex(45, 96, 52),
+        "baja": _hsl_hex(6, 78, 44),
+        "ok": _hsl_hex(152, 60, 30),
+        "info": _hsl_hex(215, 55, 42),
+        # alias antiguos (plantillas aún no migradas)
+        "primario": club,
         "secundario": secundario,
-        "primario_texto": oscurece_hasta(primario),
+        "primario_texto": club,
         "secundario_texto": oscurece_hasta(secundario),
-        "sobre_primario": sobre_primario,
-        "sobre_secundario": sobre_secundario,
-        "primario_suave": mezcla(primario, "#FFFFFF", 0.92),
-        "primario_medio": mezcla(primario, "#FFFFFF", 0.75),
-        "secundario_suave": mezcla(secundario, "#FFFFFF", 0.9),
-        "tinta": TINTA,
-        "tinta_suave": TINTA_SUAVE,
-        "linea": LINEA,
+        "sobre_primario": "#FFFFFF",
+        "sobre_secundario": "#FFFFFF" if contraste("#FFFFFF", secundario) >= contraste(tinta, secundario) else tinta,
+        "primario_suave": hundido,
+        "primario_medio": borde,
+        "secundario_suave": hundido,
+        "linea": borde,
         "club": (org.get("nombre") or "").strip(),
         "logo_url": org.get("logo_url") or "",
     }
@@ -161,14 +218,18 @@ def _css_base() -> str:
 
 def css_marca(tema: dict[str, str]) -> str:
     fuentes = FUENTES_DIR.as_uri()
+    t = tema
     variables = (
         ":root{"
-        f"--k-primario:{tema['primario']};--k-secundario:{tema['secundario']};"
-        f"--k-primario-texto:{tema['primario_texto']};--k-secundario-texto:{tema['secundario_texto']};"
-        f"--k-sobre-primario:{tema['sobre_primario']};--k-sobre-secundario:{tema['sobre_secundario']};"
-        f"--k-primario-suave:{tema['primario_suave']};--k-primario-medio:{tema['primario_medio']};"
-        f"--k-secundario-suave:{tema['secundario_suave']};"
-        f"--k-tinta:{tema['tinta']};--k-tinta-suave:{tema['tinta_suave']};--k-linea:{tema['linea']};"
+        f"--c-club:{t['color_club']};--c-club-suave:{t['color_club_suave']};--c-tinta:{t['tinta']};"
+        f"--c-suave:{t['tinta_suave']};--c-borde:{t['borde']};--c-hundido:{t['hundido']};"
+        f"--c-aviso:{t['aviso']};--c-baja:{t['baja']};--c-ok:{t['ok']};--c-info:{t['info']};"
+        f"--k-primario:{t['color_club']};--k-secundario:{t['secundario']};"
+        f"--k-primario-texto:{t['color_club']};--k-secundario-texto:{t['secundario_texto']};"
+        f"--k-sobre-primario:#FFFFFF;--k-sobre-secundario:{t['sobre_secundario']};"
+        f"--k-primario-suave:{t['hundido']};--k-primario-medio:{t['borde']};"
+        f"--k-secundario-suave:{t['hundido']};"
+        f"--k-tinta:{t['tinta']};--k-tinta-suave:{t['tinta_suave']};--k-linea:{t['borde']};"
         "}"
     )
     return _css_base().replace("__FUENTES__", fuentes) + variables
@@ -180,10 +241,10 @@ def html_marca(tema: dict[str, str], titulo: str = "") -> str:
     pie_club = f'<span class="k-pie-club">{_esc(club)}</span>' if club else ""
     pie_titulo = f'<span class="k-pie-titulo">{_esc(titulo)}</span>' if titulo else ""
     return (
-        f'<div class="k-marca-agua"><img src="{marca_data_uri(tema["primario"])}" alt=""></div>'
+        f'<div class="k-marca-agua"><img src="{marca_data_uri(tema["color_club"])}" alt=""></div>'
         '<div class="k-pie">'
-        f'<img class="k-pie-marca" src="{marca_data_uri(tema["primario"])}" alt="">'
-        f'<img class="k-pie-word" src="{wordmark_data_uri(TINTA_SUAVE)}" alt="Kabin-e">'
+        f'<img class="k-pie-marca" src="{marca_data_uri(tema["tinta"])}" alt="">'
+        f'<img class="k-pie-word" src="{wordmark_data_uri(tema["tinta"])}" alt="Kabin-e">'
         f"{pie_club}{pie_titulo}"
         "</div>"
     )

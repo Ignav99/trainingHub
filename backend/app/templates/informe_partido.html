@@ -3,46 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <style>
-        @page { size: A4; margin: 14mm 14mm 15mm; }
+        @page { size: A4; margin: 14mm 14mm 15mm; margin-bottom: 15mm; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-size: 9pt; line-height: 1.45; }
 
-        /* Marcador */
-        .marcador { width: 100%; border-collapse: separate; margin: 1mm 0 4mm; }
+        /* Marcador: texto sobre una caja fuerte; el club solo en el resultado */
+        body .marcador { width: 100%; border-collapse: collapse; margin: 0 0 4mm; border: .4mm solid var(--c-tinta); border-radius: .5mm; }
         .marcador td { vertical-align: middle; text-align: center; padding: 4mm 3mm; }
         .marcador .equipo { width: 40%; }
-        .marcador .equipo-nombre { font-size: 13pt; font-weight: 800; letter-spacing: -.015em; line-height: 1.1; }
-        .marcador .equipo-label { margin-top: 1mm; font-size: 6.8pt; color: var(--k-tinta-suave);
-            text-transform: uppercase; letter-spacing: .14em; }
+        .marcador .equipo-nombre { font-size: 12.5pt; font-weight: 800; line-height: 1.1; }
         .marcador .centro { width: 20%; }
-        .marcador .score { font-size: 26pt; font-weight: 800; letter-spacing: -.02em; line-height: 1;
-            color: var(--k-primario-texto); white-space: nowrap; }
-        .marcador .vs { font-size: 14pt; font-weight: 800; color: var(--k-tinta-suave); }
+        .marcador .score { font-size: 24pt; font-weight: 800; line-height: 1; color: var(--c-tinta); white-space: nowrap; }
+        .marcador .vs { font-size: 13pt; font-weight: 800; color: var(--c-suave); }
+        .resultado { margin-top: 1.6mm; font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; }
+        .result-victoria { color: var(--c-ok); }
+        .result-derrota { color: var(--c-baja); }
+        .result-empate { color: var(--c-suave); }
 
-        .resultado { display: inline-block; margin-top: 2mm; padding: .6mm 2.4mm; border-radius: 9mm;
-            font-size: 6.8pt; font-weight: 700; text-transform: uppercase; letter-spacing: .12em; }
-        .result-victoria { background: #DCFCE7; color: #166534; }
-        .result-empate { background: #FEF3C7; color: #92400E; }
-        .result-derrota { background: #FEE2E2; color: #991B1B; }
+        /* Datos: tabla de dos columnas */
+        body .datos { margin-bottom: 3mm; }
+        .datos td.l { width: 32mm; font-family: "Encode Sans Narrow"; }
 
-        /* Rejilla de datos */
-        .datos { width: 100%; border-collapse: separate; border-spacing: 2mm 0; margin: 0 -2mm 2mm; }
-        .datos td { vertical-align: top; }
-        .datos .k-tarjeta { padding: 2.6mm 3mm; }
-        .dato-valor { font-size: 10.5pt; font-weight: 700; margin-top: .6mm; }
+        .subtitulo-grupo { margin: 2mm 0 1.5mm; }
+        .c-tabla { margin-bottom: 4mm; }
+        .c-tabla .c { text-align: center; }
+        .c-tabla .dorsal { font-weight: 700; }
+        .tarjeta-ta, .tarjeta-tr { display: inline-block; width: 1.8mm; height: 2.5mm; border-radius: .2mm; transform: rotate(10deg); }
+        .tarjeta-ta { background: var(--c-aviso); }
+        .tarjeta-tr { background: var(--c-baja); }
 
-        .subtitulo-grupo { font-size: 7pt; font-weight: 700; color: var(--k-tinta-suave);
-            text-transform: uppercase; letter-spacing: .12em; margin: 2mm 0 1.5mm; }
-        .k-tabla { margin-bottom: 4mm; }
-        .k-tabla .c { text-align: center; }
-        .k-tabla .dorsal { font-weight: 700; color: var(--k-primario-texto); }
-        .tarjeta-ta, .tarjeta-tr { display: inline-block; width: 2.4mm; height: 3.4mm; border-radius: .4mm; }
-        .tarjeta-ta { background: #FACC15; }
-        .tarjeta-tr { background: #DC2626; }
-
-        .notas { margin-top: 3mm; }
         .notas p { white-space: pre-wrap; font-size: 8.5pt; }
-        .texto-suave { font-size: 8.5pt; color: var(--k-tinta-suave); margin-top: 2mm; }
+        .texto-suave { font-size: 8.5pt; color: var(--c-suave); margin-top: 2mm; }
     </style>
 </head>
 <body>
@@ -51,12 +42,12 @@
     {{ cabecera(tema, titulo="Informe de partido", subtitulo=sub, meta=partido.get('fecha', ''), eyebrow=organizacion.get('nombre', 'Kabin-e')) }}
 
     <!-- Marcador -->
-    <div class="k-tarjeta-suave" style="padding: 0;">
+    <div>
         <table class="marcador">
             <tr>
                 <td class="equipo">
                     <div class="equipo-nombre">{{ equipo_nombre }}</div>
-                    <div class="equipo-label k-mono">{% if partido.get('localia') == 'local' %}Local{% else %}Visitante{% endif %}</div>
+                    <div class="c-rotulo">{% if partido.get('localia') == 'local' %}Local{% else %}Visitante{% endif %}</div>
                 </td>
                 <td class="centro">
                     {% if partido.get('goles_favor') is not none %}
@@ -70,36 +61,28 @@
                 </td>
                 <td class="equipo">
                     <div class="equipo-nombre">{{ rival.get('nombre', 'Rival') }}</div>
-                    <div class="equipo-label k-mono">{% if partido.get('localia') == 'local' %}Visitante{% else %}Local{% endif %}</div>
+                    <div class="c-rotulo">{% if partido.get('localia') == 'local' %}Visitante{% else %}Local{% endif %}</div>
                 </td>
             </tr>
         </table>
     </div>
 
     <!-- Datos del partido -->
-    <table class="datos" style="margin-top: 3mm;">
-        <tr>
-            <td><div class="k-tarjeta"><div class="k-dato-label">Fecha</div><div class="dato-valor">{{ partido.get('fecha', '') }}</div></div></td>
-            {% if partido.get('hora') %}
-            <td><div class="k-tarjeta"><div class="k-dato-label">Hora</div><div class="dato-valor">{{ partido.get('hora') }}h</div></div></td>
-            {% endif %}
-            <td><div class="k-tarjeta"><div class="k-dato-label">Localía</div><div class="dato-valor">{{ partido.get('localia', '') | capitalize }}</div></div></td>
-            <td><div class="k-tarjeta"><div class="k-dato-label">Competición</div><div class="dato-valor">{{ partido.get('competicion', '').replace('_', ' ') | capitalize }}</div></div></td>
-        </tr>
+    <table class="c-tabla datos">
+        <tr><td class="l c-rotulo">Fecha</td><td>{{ partido.get('fecha', '') }}</td>
+            {% if partido.get('hora') %}<td class="l c-rotulo">Hora</td><td>{{ partido.get('hora') }}h</td>{% endif %}</tr>
+        <tr><td class="l c-rotulo">Localía</td><td>{{ partido.get('localia', '') | capitalize }}</td>
+            <td class="l c-rotulo">Competición</td><td>{{ partido.get('competicion', '').replace('_', ' ') | capitalize }}</td></tr>
     </table>
 
     <!-- Rival -->
     {% if rival.get('ciudad') or rival.get('estadio') or rival.get('notas') %}
-    <div class="k-seccion">Datos del rival</div>
+    <div class="c-seccion">Datos del rival</div>
     {% if rival.get('ciudad') or rival.get('estadio') %}
-    <table class="datos">
+    <table class="c-tabla datos">
         <tr>
-            {% if rival.get('ciudad') %}
-            <td><div class="k-tarjeta"><div class="k-dato-label">Ciudad</div><div class="dato-valor">{{ rival.get('ciudad') }}</div></div></td>
-            {% endif %}
-            {% if rival.get('estadio') %}
-            <td><div class="k-tarjeta"><div class="k-dato-label">Estadio</div><div class="dato-valor">{{ rival.get('estadio') }}</div></div></td>
-            {% endif %}
+            {% if rival.get('ciudad') %}<td class="l c-rotulo">Ciudad</td><td>{{ rival.get('ciudad') }}</td>{% endif %}
+            {% if rival.get('estadio') %}<td class="l c-rotulo">Estadio</td><td>{{ rival.get('estadio') }}</td>{% endif %}
         </tr>
     </table>
     {% endif %}
@@ -110,15 +93,15 @@
 
     <!-- Convocatoria -->
     {% if convocatoria %}
-    <div class="k-seccion">Convocatoria</div>
+    <div class="c-seccion">Convocatoria</div>
 
     {% set titulares = convocatoria | selectattr('titular') | list %}
     {% set suplentes = convocatoria | rejectattr('titular') | list %}
 
     {% for grupo, titulo_grupo in [(titulares, 'Titulares'), (suplentes, 'Suplentes')] %}
     {% if grupo %}
-    <div class="subtitulo-grupo">{{ titulo_grupo }} ({{ grupo | length }})</div>
-    <table class="k-tabla">
+    <div class="c-rotulo subtitulo-grupo">{{ titulo_grupo }} ({{ grupo | length }})</div>
+    <table class="c-tabla">
         <thead>
             <tr>
                 <th style="width: 9mm;">#</th>
@@ -134,10 +117,10 @@
         <tbody>
             {% for c in grupo %}
             <tr>
-                <td class="dorsal k-mono">{{ c.get('dorsal', '') }}</td>
+                <td class="dorsal"><span class="c-ficha{% if c.get('titular') %} c-ficha-titular{% endif %}">{{ c.get('dorsal', '') }}</span></td>
                 <td style="font-weight: 600;">{{ c.get('jugador_nombre', '') }}</td>
                 <td>{{ c.get('posicion_asignada', '') }}</td>
-                <td class="c k-mono">{{ c.get('minutos_jugados', 0) }}</td>
+                <td class="c">{{ c.get('minutos_jugados', 0) }}</td>
                 <td class="c">{% if c.get('goles', 0) > 0 %}{{ c.get('goles') }}{% endif %}</td>
                 <td class="c">{% if c.get('asistencias', 0) > 0 %}{{ c.get('asistencias') }}{% endif %}</td>
                 <td class="c">{% if c.get('tarjeta_amarilla') %}<span class="tarjeta-ta"></span>{% endif %}</td>
@@ -157,26 +140,22 @@
     {% set total_amarillas = convocatoria | selectattr('tarjeta_amarilla') | list | length %}
     {% set total_rojas = convocatoria | selectattr('tarjeta_roja') | list | length %}
     {% if total_goles > 0 or total_asistencias > 0 or total_amarillas > 0 or total_rojas > 0 %}
-    <table class="datos">
-        <tr>
-            <td><div class="k-tarjeta"><div class="k-dato">{{ total_goles }}</div><div class="k-dato-label" style="margin-top: 1mm;">Goles</div></div></td>
-            <td><div class="k-tarjeta"><div class="k-dato">{{ total_asistencias }}</div><div class="k-dato-label" style="margin-top: 1mm;">Asistencias</div></div></td>
-            <td><div class="k-tarjeta"><div class="k-dato">{{ total_amarillas }}</div><div class="k-dato-label" style="margin-top: 1mm;">T. Amarillas</div></div></td>
-            <td><div class="k-tarjeta"><div class="k-dato">{{ total_rojas }}</div><div class="k-dato-label" style="margin-top: 1mm;">T. Rojas</div></div></td>
-        </tr>
+    <table class="c-tabla datos">
+        <thead><tr><th>Goles</th><th>Asistencias</th><th>T. amarillas</th><th>T. rojas</th></tr></thead>
+        <tr><td class="c-dato">{{ total_goles }}</td><td class="c-dato">{{ total_asistencias }}</td><td class="c-dato">{{ total_amarillas }}</td><td class="c-dato">{{ total_rojas }}</td></tr>
     </table>
     {% endif %}
     {% endif %}
 
     <!-- Notas -->
     {% if partido.get('notas_pre') %}
-    <div class="k-seccion">Notas pre-partido</div>
-    <div class="k-tarjeta notas" style="margin-top: 0;"><p>{{ partido.get('notas_pre') }}</p></div>
+    <div class="c-seccion">Notas pre-partido</div>
+    <div class="c-caja notas"><p>{{ partido.get('notas_pre') }}</p></div>
     {% endif %}
 
     {% if partido.get('notas_post') %}
-    <div class="k-seccion">Notas post-partido</div>
-    <div class="k-tarjeta notas" style="margin-top: 0;"><p>{{ partido.get('notas_post') }}</p></div>
+    <div class="c-seccion">Notas post-partido</div>
+    <div class="c-caja notas"><p>{{ partido.get('notas_post') }}</p></div>
     {% endif %}
 </body>
 </html>

@@ -154,7 +154,7 @@ export const sesionesApi = {
 
   async generatePdf(
     id: string,
-    variant: 'reducido' | 'extendido' = 'reducido',
+    variant: 'reducido' | 'extendido' | 'plegado' = 'reducido',
     opts?: { fecha?: string | null },
   ): Promise<void> {
     const blob = await api.getBlob(`/sesiones/${id}/pdf?variant=${variant}&preview=false`, {
@@ -178,7 +178,7 @@ export const sesionesApi = {
 
   async previewPdf(
     id: string,
-    variant: 'reducido' | 'extendido' = 'reducido',
+    variant: 'reducido' | 'extendido' | 'plegado' = 'reducido',
     opts?: { fecha?: string | null },
   ): Promise<void> {
     // Abrir la pestaña de forma síncrona evita el bloqueo de popups tras el await.

@@ -17,6 +17,7 @@ import io
 
 from app.services.keywords import synthesize_keywords
 from app.services.sesion_carga import aggregate_sesion_carga, carga_from_sesion_tarea
+from app.services.material import sincronizar_materiales_sesion
 from app.services.tarea_narrative import hydrate_tarea_narrative, sync_reglas_variantes
 from app.services.tarea_write import retry_tarea_write
 from app.services.sesion_taxonomy import (
@@ -368,7 +369,9 @@ def _recalc_sesion_carga(supabase, sesion_id: str) -> dict:
     """Recalcula duración, carga por tarea y agregados de sesión.
 
     Nunca lanza: un fallo aquí no debe impedir guardar tareas.
+    También recalcula `sesiones.materiales` (material mínimo = unión de las tareas).
     """
+    sincronizar_materiales_sesion(supabase, sesion_id)
     try:
         try:
             tareas = supabase.table("sesion_tareas").select(
@@ -2018,6 +2021,7 @@ def crear_tarea_en_sesion(
         "orden": max_orden + 1,
         "fase_sesion": request.fase_sesion,
     }).execute()
+    sincronizar_materiales_sesion(supabase, str(sesion_id))
 
     # Return full updated session
     return get_sesion(sesion_id, auth)
@@ -2104,6 +2108,7 @@ async def ai_crear_tarea_en_sesion(
         "orden": max_orden + 1,
         "fase_sesion": request.fase_sesion,
     }).execute()
+    sincronizar_materiales_sesion(supabase, str(sesion_id))
 
     # Return full updated session
     return get_sesion(sesion_id, auth)
@@ -2232,7 +2237,7 @@ def delete_formacion_tarea(
 async def generate_pdf(
     sesion_id: UUID,
     preview: bool = Query(False, description="If true, return inline for browser preview"),
-    variant: str = Query("reducido", description="reducido | extendido"),
+    variant: str = Query("reducido", description="reducido | extendido | plegado"),
     auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
 ):
     """Genera el PDF de la sesión (reducido 1 pág o extendido), lo sube a Storage y lo devuelve."""
@@ -2284,6 +2289,12 @@ async def generate_pdf(
                 for grupo in espacio.get("grupos", []):
                     for jid in grupo.get("jugador_ids", []):
                         jugador_ids.add(str(jid))
+    # Jugadores de los grupos del compensatorio (cartel reducido / plegado)
+    for bloque in (sesion.get("estructura_fases") or []):
+        if isinstance(bloque, dict) and bloque.get("tipo") == "compensatorio":
+            for lane in ((bloque.get("compensatorio") or {}).get("lanes") or []):
+                for jid in (lane.get("jugador_ids") or []):
+                    jugador_ids.add(str(jid))
 
     jugadores_map = {}
     if jugador_ids:
@@ -2519,15 +2530,22 @@ async def generate_pdf(
 
     # Generar PDF (reducido vestuario / extendido detalle)
     try:
-        from app.services.pdf_service import generate_sesion_pdf_reducido
-        if (variant or "reducido").lower() == "reducido":
-            pdf_bytes = await generate_sesion_pdf_reducido(
-                sesion, tareas, organizacion,
-                lugar=lugar,
-                microciclo_nombre=microciclo_nombre,
-                asistencia_roster=asistencia_roster,
-                jugadores_map=jugadores_map,
-            )
+        from app.services.pdf_service import (
+            generate_sesion_pdf_plegado,
+            generate_sesion_pdf_reducido,
+        )
+        variante = (variant or "reducido").lower()
+        cartel_kwargs = dict(
+            lugar=lugar,
+            microciclo_nombre=microciclo_nombre,
+            asistencia_roster=asistencia_roster,
+            jugadores_map=jugadores_map,
+            margen_entrenamientos=margen_enriched,
+        )
+        if variante == "plegado":
+            pdf_bytes = await generate_sesion_pdf_plegado(sesion, tareas, organizacion, **cartel_kwargs)
+        elif variante == "reducido":
+            pdf_bytes = await generate_sesion_pdf_reducido(sesion, tareas, organizacion, **cartel_kwargs)
         else:
             pdf_bytes = await generate_sesion_pdf_v2(
                 sesion, tareas, organizacion, jugadores_map,
@@ -2549,7 +2567,7 @@ async def generate_pdf(
     # Subir a Storage (ruta distinta por variante para no pisar el otro PDF)
     settings = get_settings()
     variant_key = (variant or "reducido").lower()
-    if variant_key not in ("reducido", "extendido"):
+    if variant_key not in ("reducido", "extendido", "plegado"):
         variant_key = "reducido"
     storage_path = f"sesiones/{auth.organizacion_id}/{sesion_id}_{variant_key}.pdf"
 

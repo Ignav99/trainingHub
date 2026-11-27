@@ -4,29 +4,29 @@
 <meta charset="UTF-8">
 <title>Plan de Partido Jugadores — vs {{ rival.get('nombre', 'Rival') }}</title>
 <style>
-@page { size: A4 portrait; margin: 12mm 12mm 15mm; }
+@page { size: A4 portrait; margin: 12mm 12mm 15mm; margin-bottom: 15mm; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-size: 9pt; line-height: 1.45; }
 
 /* ── Cabecera de partido (club vs rival) ── */
-.cab-partido { border-bottom: .6mm solid var(--k-primario); padding-bottom: 3.5mm; margin-bottom: 4mm; }
+.cab-partido { border-bottom: .4mm solid var(--c-tinta); padding-bottom: 3mm; margin-bottom: 5mm; }
 .cab-partido table { width: 100%; border-collapse: collapse; }
 .cab-partido td { vertical-align: middle; }
 .cp-escudo { width: 13mm; }
 .cp-escudo img { width: 13mm; height: 13mm; object-fit: contain; display: block; }
 .cp-texto { padding-left: 4mm; }
-.cp-club { font-size: 7.5pt; font-weight: 600; color: var(--k-tinta-suave); text-transform: uppercase; letter-spacing: .12em; }
-.cp-titulo { font-size: 18pt; font-weight: 800; letter-spacing: -.02em; line-height: 1.05; }
-.cp-sub { font-size: 8.5pt; color: var(--k-tinta-suave); margin-top: .8mm; }
+.cp-club { font-size: 7.5pt; font-weight: 600; color: var(--c-suave); text-transform: uppercase; letter-spacing: .08em; }
+.cp-titulo { font-size: 17pt; font-weight: 800; line-height: 1.05; }
+.cp-sub { font-size: 8.5pt; color: var(--c-suave); margin-top: .8mm; }
 .cp-rival { text-align: right; padding: 0 3mm 0 4mm; }
-.cp-vs { font-size: 6.8pt; text-transform: uppercase; letter-spacing: .16em; color: var(--k-tinta-suave); }
-.cp-rival-nombre { font-size: 13pt; font-weight: 800; letter-spacing: -.015em; line-height: 1.1; }
+.cp-vs { font-size: 6.8pt; text-transform: uppercase; letter-spacing: .16em; color: var(--c-suave); }
+.cp-rival-nombre { font-size: 13pt; font-weight: 800; line-height: 1.1; }
 
 /* ── Tira de datos del partido ── */
-.tira { background: var(--k-primario-suave); border-radius: 2.6mm; margin-bottom: 4mm; }
+.tira { border: .25mm solid var(--c-borde); border-radius: .5mm; margin-bottom: 4mm; }
 .tira table { width: 100%; border-collapse: collapse; }
-.tira td { padding: 2.2mm 3mm; vertical-align: top; }
-.tira-v { font-size: 9pt; font-weight: 700; margin-top: .3mm; }
+.tira td { padding: 2mm 3mm; vertical-align: top; }
+.tira-v { font-size: 9pt; font-weight: 600; margin-top: .3mm; }
 
 /* ── Rejilla ── */
 .rejilla { width: 100%; border-collapse: collapse; table-layout: fixed; }
@@ -34,36 +34,31 @@ body { font-size: 9pt; line-height: 1.45; }
 .rejilla td:first-child { padding-left: 0; }
 .rejilla td:last-child { padding-right: 0; }
 
-/* ── Tarjeta de fase ── */
-.f-azul { --f: #2563EB; --f-suave: #EEF4FF; --f-texto: #1E40AF; }
-.f-rojo { --f: #DC2626; --f-suave: #FEF0F0; --f-texto: #991B1B; }
-.f-ambar { --f: #D97706; --f-suave: #FFF6E5; --f-texto: #92400E; }
-.fase { background: #fff; border: .25mm solid var(--k-linea); border-radius: 2.6mm; overflow: hidden;
-    margin-bottom: 3mm; page-break-inside: avoid; }
-.fase-cab { background: var(--f-suave); border-left: 1mm solid var(--f); padding: 1.8mm 3mm;
-    font-size: 10pt; font-weight: 800; letter-spacing: -.01em; }
+/* ── Fase: caja fina, título ancho + rótulo numerado, sin color de fase ── */
+.fase { background: transparent; border: .25mm solid var(--c-borde); border-radius: .5mm; margin-bottom: 3mm; page-break-inside: avoid; }
+.fase-cab { font-size: 10pt; padding: 1.8mm 3mm 1.4mm; border-bottom: .4mm solid var(--c-tinta); font-size: 9pt; font-weight: 800; }
+.fase-cab .n { font-size: 6.8pt; color: var(--c-suave); margin-right: 1.6mm; }
 .fase-cuerpo { padding: 2.4mm 3mm 2.6mm; }
 .fase-bloque { margin-bottom: 2mm; }
 .fase-bloque:last-child { margin-bottom: 0; }
-.fase-sub { font-size: 6.8pt; font-weight: 700; text-transform: uppercase; letter-spacing: .12em;
-    color: var(--f-texto); margin-bottom: .8mm; }
+.fase-sub { font-size: 6.6pt; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--c-suave); margin-bottom: .8mm; }
 .vinetas { list-style: none; }
-.vinetas li { position: relative; padding-left: 3mm; margin-bottom: .6mm; font-size: 9pt; font-weight: 600;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.vinetas li::before { content: ''; position: absolute; left: 0; top: 1.8mm; width: 1.3mm; height: 1.3mm;
-    border-radius: 50%; background: var(--f); }
+.vinetas li { position: relative; padding-left: 3mm; margin-bottom: .6mm; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9pt; font-weight: 600; }
+.vinetas li::before { content: ''; position: absolute; left: 0; top: 1.6mm; width: 1.3mm; height: 1.3mm; border-radius: 50%; background: var(--c-tinta); }
+/* Campo: líneas de tinta sobre blanco */
+.cancha { margin: 2.4mm 3mm 0; border: .25mm solid var(--c-borde); border-radius: .5mm; overflow: hidden; background: transparent; }
 .cols-trans { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .cols-trans td { vertical-align: top; padding-right: 4mm; }
 .cols-trans td:last-child { padding-right: 0; }
 
 /* Campo (diagrama) */
-.cancha { margin: 2.4mm 3mm 0; border-radius: 1.6mm; overflow: hidden; background: #1E5631; }
+.cancha { margin: 2.4mm 3mm 0; border: .25mm solid var(--c-borde); border-radius: .5mm; overflow: hidden; background: transparent; }
 .cancha svg { display: block; width: 100%; height: 34mm; }
 .cancha.ancha svg { height: 22mm; }
 
 /* ── Enfoque ── */
 .enfoque { margin-bottom: 3.5mm; }
-.enfoque .k-eyebrow { margin-bottom: 1mm; }
+.enfoque .c-rotulo { margin-bottom: 1mm; }
 .enfoque-texto { font-size: 10.5pt; font-weight: 600; line-height: 1.4; }
 
 /* ── Claves del partido (protagonista) ── */
@@ -72,8 +67,8 @@ body { font-size: 9pt; line-height: 1.45; }
 .clave:last-child { margin-bottom: 0; }
 .clave td { vertical-align: top; }
 .clave-num { width: 9.5mm; }
-.clave-num span { display: block; width: 7mm; height: 7mm; border-radius: 50%; text-align: center; line-height: 7mm;
-    background: var(--k-primario); color: var(--k-sobre-primario); font-size: 9pt; font-weight: 700; }
+.clave-num span { display: block; width: 7mm; height: 7mm; border-radius: 50%; text-align: center; line-height: 6.2mm;
+    border: .4mm solid var(--c-tinta); color: var(--c-tinta); font-size: 8.5pt; font-weight: 700; }
 .clave-texto { font-size: 11pt; font-weight: 600; padding-top: .8mm; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>
 </head>
@@ -81,14 +76,14 @@ body { font-size: 9pt; line-height: 1.45; }
 
 <div class="cab-partido">
     <table><tr>
-        <td class="cp-escudo"><img src="{{ tema.logo_url or marca_data_uri(tema.primario) }}" alt=""></td>
+        <td class="cp-escudo"><img src="{{ tema.logo_url or marca_data_uri(tema.color_club) }}" alt=""></td>
         <td class="cp-texto">
             <div class="cp-club">{{ organizacion.get('nombre', 'Kabin-e') }}</div>
             <div class="cp-titulo">Plan de partido</div>
             {% if equipo_nombre %}<div class="cp-sub">{{ equipo_nombre }}</div>{% endif %}
         </td>
         <td class="cp-rival">
-            <div class="cp-vs k-mono">vs</div>
+            <div class="cp-vs">vs</div>
             <div class="cp-rival-nombre">{{ rival.get('nombre', 'Rival') }}</div>
         </td>
         {% if rival.get('escudo_url') %}<td class="cp-escudo"><img src="{{ rival.get('escudo_url') }}" alt=""></td>{% endif %}
@@ -97,17 +92,17 @@ body { font-size: 9pt; line-height: 1.45; }
 
 <div class="tira">
     <table><tr>
-        {% if partido.get('fecha') %}<td><div class="k-dato-label">Fecha</div><div class="tira-v">{{ partido.get('fecha', '') }}</div></td>{% endif %}
-        {% if partido.get('hora') %}<td><div class="k-dato-label">Hora</div><div class="tira-v">{{ partido.get('hora', '') }}</div></td>{% endif %}
-        {% if partido.get('localia') %}<td><div class="k-dato-label">Localía</div><div class="tira-v" style="text-transform:capitalize">{{ partido.get('localia', '') }}</div></td>{% endif %}
-        {% if partido.get('jornada') %}<td><div class="k-dato-label">Jornada</div><div class="tira-v">{{ partido.get('jornada', '') }}</div></td>{% endif %}
+        {% if partido.get('fecha') %}<td><div class="c-dato-label">Fecha</div><div class="tira-v">{{ partido.get('fecha', '') }}</div></td>{% endif %}
+        {% if partido.get('hora') %}<td><div class="c-dato-label">Hora</div><div class="tira-v">{{ partido.get('hora', '') }}</div></td>{% endif %}
+        {% if partido.get('localia') %}<td><div class="c-dato-label">Localía</div><div class="tira-v" style="text-transform:capitalize">{{ partido.get('localia', '') }}</div></td>{% endif %}
+        {% if partido.get('jornada') %}<td><div class="c-dato-label">Jornada</div><div class="tira-v">{{ partido.get('jornada', '') }}</div></td>{% endif %}
     </tr></table>
 </div>
 
 <!-- Enfoque general — una frase -->
 {% if plan.get('enfoque_general') %}
-<div class="k-tarjeta-suave enfoque">
-    <div class="k-eyebrow">Enfoque general</div>
+<div class="c-caja enfoque">
+    <div class="c-rotulo">Enfoque general</div>
     <div class="enfoque-texto">{{ plan.get('enfoque_general', '')|first_sentence }}</div>
 </div>
 {% endif %}
@@ -117,19 +112,19 @@ body { font-size: 9pt; line-height: 1.45; }
     <td>
         {% if plan.get('plan_ofensivo') %}
         {% set po = plan.get('plan_ofensivo', {}) %}
-        <div class="fase f-azul">
-            <div class="fase-cab">Plan ofensivo</div>
+        <div class="fase">
+            <div class="fase-cab"><span class="n c-rotulo">01</span>Plan ofensivo</div>
             <div class="cancha">
                 <svg viewBox="0 0 100 70">
-                    <line x1="50" y1="0" x2="50" y2="70" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
-                    <circle cx="50" cy="35" r="9" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
-                    <rect x="0" y="17" width="10" height="36" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
-                    <rect x="90" y="17" width="10" height="36" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
-                    <rect x="0" y="24" width="4" height="22" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
-                    <rect x="96" y="24" width="4" height="22" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
-                    <defs><marker id="aop" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="rgba(88,166,255,0.6)"/></marker></defs>
-                    <line x1="25" y1="35" x2="82" y2="35" stroke="rgba(88,166,255,0.4)" stroke-width="2.5" marker-end="url(#aop)" stroke-dasharray="4 3"/>
-                    <rect x="58" y="8" width="37" height="54" rx="4" fill="rgba(88,166,255,0.15)" stroke="rgba(88,166,255,0.4)" stroke-width="0.8" stroke-dasharray="3 2"/>
+                    <line x1="50" y1="0" x2="50" y2="70" stroke="{{ tema.tinta }}" stroke-width="0.5"/>
+                    <circle cx="50" cy="35" r="9" fill="none" stroke="{{ tema.tinta }}" stroke-width="0.5"/>
+                    <rect x="0" y="17" width="10" height="36" fill="none" stroke="{{ tema.tinta }}" stroke-width="0.5"/>
+                    <rect x="90" y="17" width="10" height="36" fill="none" stroke="{{ tema.tinta }}" stroke-width="0.5"/>
+                    <rect x="0" y="24" width="4" height="22" fill="none" stroke="{{ tema.tinta }}" stroke-width="0.5"/>
+                    <rect x="96" y="24" width="4" height="22" fill="none" stroke="{{ tema.tinta }}" stroke-width="0.5"/>
+                    <defs><marker id="aop" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="{{ tema.tinta }}"/></marker></defs>
+                    <line x1="25" y1="35" x2="82" y2="35" stroke="{{ tema.tinta }}" stroke-width="2.5" marker-end="url(#aop)" stroke-dasharray="4 3"/>
+                    <rect x="58" y="8" width="37" height="54" rx="4" fill="{{ tema.hundido }}" stroke="{{ tema.tinta }}" stroke-width="0.8" stroke-dasharray="3 2"/>
                 </svg>
             </div>
             <div class="fase-cuerpo">
@@ -155,20 +150,20 @@ body { font-size: 9pt; line-height: 1.45; }
     <td>
         {% if plan.get('plan_defensivo') %}
         {% set pd = plan.get('plan_defensivo', {}) %}
-        <div class="fase f-rojo">
-            <div class="fase-cab">Plan defensivo</div>
+        <div class="fase">
+            <div class="fase-cab"><span class="n c-rotulo">02</span>Plan defensivo</div>
             <div class="cancha">
                 <svg viewBox="0 0 100 70">
-                    <line x1="50" y1="0" x2="50" y2="70" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
-                    <circle cx="50" cy="35" r="9" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
-                    <rect x="0" y="17" width="10" height="36" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
-                    <rect x="90" y="17" width="10" height="36" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
-                    <rect x="0" y="24" width="4" height="22" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
-                    <rect x="96" y="24" width="4" height="22" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
-                    <rect x="5" y="10" width="42" height="50" rx="4" fill="rgba(248,81,73,0.15)" stroke="rgba(248,81,73,0.4)" stroke-width="0.8" stroke-dasharray="3 2"/>
-                    <line x1="35" y1="18" x2="52" y2="18" stroke="rgba(248,81,73,0.5)" stroke-width="1.2"/>
-                    <line x1="35" y1="35" x2="55" y2="35" stroke="rgba(248,81,73,0.5)" stroke-width="1.2"/>
-                    <line x1="35" y1="52" x2="52" y2="52" stroke="rgba(248,81,73,0.5)" stroke-width="1.2"/>
+                    <line x1="50" y1="0" x2="50" y2="70" stroke="{{ tema.tinta }}" stroke-width="0.5"/>
+                    <circle cx="50" cy="35" r="9" fill="none" stroke="{{ tema.tinta }}" stroke-width="0.5"/>
+                    <rect x="0" y="17" width="10" height="36" fill="none" stroke="{{ tema.tinta }}" stroke-width="0.5"/>
+                    <rect x="90" y="17" width="10" height="36" fill="none" stroke="{{ tema.tinta }}" stroke-width="0.5"/>
+                    <rect x="0" y="24" width="4" height="22" fill="none" stroke="{{ tema.tinta }}" stroke-width="0.5"/>
+                    <rect x="96" y="24" width="4" height="22" fill="none" stroke="{{ tema.tinta }}" stroke-width="0.5"/>
+                    <rect x="5" y="10" width="42" height="50" rx="4" fill="{{ tema.hundido }}" stroke="{{ tema.tinta }}" stroke-width="0.8" stroke-dasharray="3 2"/>
+                    <line x1="35" y1="18" x2="52" y2="18" stroke="{{ tema.tinta }}" stroke-width="1.2"/>
+                    <line x1="35" y1="35" x2="55" y2="35" stroke="{{ tema.tinta }}" stroke-width="1.2"/>
+                    <line x1="35" y1="52" x2="52" y2="52" stroke="{{ tema.tinta }}" stroke-width="1.2"/>
                 </svg>
             </div>
             <div class="fase-cuerpo">
@@ -196,20 +191,20 @@ body { font-size: 9pt; line-height: 1.45; }
 <!-- Transiciones — compacto en 2 columnas -->
 {% if plan.get('transiciones') %}
 {% set tr = plan.get('transiciones', {}) %}
-<div class="fase f-ambar">
-    <div class="fase-cab">Transiciones</div>
+<div class="fase">
+    <div class="fase-cab"><span class="n c-rotulo">03</span>Transiciones</div>
     <div class="cancha ancha">
         <svg viewBox="0 0 200 80">
-            <line x1="100" y1="0" x2="100" y2="80" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
-            <circle cx="100" cy="40" r="10" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
-            <rect x="0" y="20" width="12" height="40" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
-            <rect x="188" y="20" width="12" height="40" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
-            <defs><marker id="top" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 z" fill="#3fb950"/></marker></defs>
-            <defs><marker id="tdp" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 z" fill="#f85149"/></marker></defs>
-            <path d="M 40,28 Q 100,18 165,28" fill="none" stroke="#3fb950" stroke-width="2" marker-end="url(#top)"/>
-            <path d="M 165,52 Q 100,62 40,52" fill="none" stroke="#f85149" stroke-width="2" marker-end="url(#tdp)"/>
-            <text x="90" y="16" fill="#3fb950" font-size="7" font-weight="700">DEF → ATQ</text>
-            <text x="90" y="73" fill="#f85149" font-size="7" font-weight="700">ATQ → DEF</text>
+            <line x1="100" y1="0" x2="100" y2="80" stroke="{{ tema.tinta }}" stroke-width="0.5"/>
+            <circle cx="100" cy="40" r="10" fill="none" stroke="{{ tema.tinta }}" stroke-width="0.5"/>
+            <rect x="0" y="20" width="12" height="40" fill="none" stroke="{{ tema.tinta }}" stroke-width="0.5"/>
+            <rect x="188" y="20" width="12" height="40" fill="none" stroke="{{ tema.tinta }}" stroke-width="0.5"/>
+            <defs><marker id="top" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 z" fill="{{ tema.tinta }}"/></marker></defs>
+            <defs><marker id="tdp" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L0,7 L7,3.5 z" fill="{{ tema.tinta }}"/></marker></defs>
+            <path d="M 40,28 Q 100,18 165,28" fill="none" stroke="{{ tema.tinta }}" stroke-width="2" marker-end="url(#top)"/>
+            <path d="M 165,52 Q 100,62 40,52" fill="none" stroke="{{ tema.tinta }}" stroke-width="2" marker-end="url(#tdp)"/>
+            <text x="90" y="16" fill="{{ tema.tinta }}" font-size="7" font-weight="700">DEF → ATQ</text>
+            <text x="90" y="73" fill="{{ tema.tinta }}" font-size="7" font-weight="700">ATQ → DEF</text>
         </svg>
     </div>
     <div class="fase-cuerpo">
@@ -233,11 +228,11 @@ body { font-size: 9pt; line-height: 1.45; }
 
 <!-- CLAVES DEL PARTIDO -->
 {% if plan.get('claves_del_partido') and plan.get('claves_del_partido')|length > 0 %}
-<div class="k-seccion">Claves del partido</div>
-<div class="k-tarjeta-suave claves">
+<div class="c-seccion">Claves del partido</div>
+<div class="c-caja claves">
     {% for clave in plan.get('claves_del_partido', [])[:5] %}
     <table class="clave"><tr>
-        <td class="clave-num"><span class="k-mono">{{ loop.index }}</span></td>
+        <td class="clave-num"><span>{{ loop.index }}</span></td>
         <td class="clave-texto">{{ clave }}</td>
     </tr></table>
     {% endfor %}

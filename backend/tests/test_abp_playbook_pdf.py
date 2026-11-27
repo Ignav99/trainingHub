@@ -9,6 +9,7 @@ from app.services.pdf_service import (
     _render_abp_diagram_svg,
     generate_abp_playbook_pdf,
 )
+from app.services.pdf_marca import tema_pdf
 from app.services.svg_renderer import (
     prepare_abp_playbook_snapshot,
     render_abp_diagram_svg,
@@ -223,7 +224,6 @@ async def test_playbook_pdf_html_has_logo_and_abp_viewbox():
     assert "Playbook ABP" in html
     assert "Club Test" in html
     assert "data:image/png;base64,aaa" in html
-    assert "Generado con Kabin-e" in html
     assert "Juvenil A" in html
     assert 'viewBox="0 0 680 525"' in html
     assert 'x="10" y="305"' not in html
@@ -231,5 +231,6 @@ async def test_playbook_pdf_html_has_logo_and_abp_viewbox():
     assert "Pedro López" in html
     assert "Pasa al palo corto" in html
     assert "Puño" in html
-    assert "#112233" in html
+    # El color del club se transforma en un tono con contraste seguro (Cal): se comprueba el del tema.
+    assert tema_pdf(kwargs["organizacion"])["color_club"].lower() in html.lower()
     assert "Índice de jugadas" in html

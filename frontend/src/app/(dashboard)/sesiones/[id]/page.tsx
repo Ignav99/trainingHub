@@ -57,7 +57,7 @@ import { SesionCabeceraCal } from '@/components/sesiones/SesionCabeceraCal'
 import { SesionPhaseNav, normalizeSesionPhase, type SesionPhase } from '@/components/sesiones/SesionPhaseNav'
 import { SesionCierrePanel } from '@/components/sesiones/SesionCierrePanel'
 import { SesionDefinirForm } from '@/components/sesiones/SesionDefinirForm'
-import { SesionMaterialPanel } from '@/components/sesiones/SesionMaterialPanel'
+import { SesionMaterialMinimo } from '@/components/sesiones/SesionMaterialMinimo'
 import { SesionBloquesPanel } from '@/components/sesiones/SesionBloquesPanel'
 import { ConvocatoriaSesionCal } from '@/components/sesiones/ConvocatoriaSesionCal'
 import { sesionesApi, SesionUpdateData } from '@/lib/api/sesiones'
@@ -1410,6 +1410,11 @@ export default function SesionDetailPage() {
         }
       />
 
+      <SesionMaterialMinimo
+        className="mb-4"
+        materialPorTarea={allTareas.map((st) => st.tarea?.material)}
+      />
+
       {creacionPaso ? (
         <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           <p className="font-medium">Creación sin terminar</p>
@@ -1621,12 +1626,6 @@ export default function SesionDetailPage() {
               />
             </div>
           )}
-
-          <SesionMaterialPanel
-            value={sesion.materiales || []}
-            derivedFromTareas={(sesion.tareas || []).flatMap((st) => st.tarea?.material || [])}
-            onChange={(mats) => updateField('materiales', mats)}
-          />
 
           <div className="flex justify-between pt-2">
             <Button type="button" variant="outline" onClick={() => handlePhaseChange('convocatoria')}>

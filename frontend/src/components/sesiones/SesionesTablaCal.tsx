@@ -7,6 +7,8 @@ import { useRouter } from 'next/navigation'
 import { Activity, Eye, FileText, MoreHorizontal, Trash2 } from 'lucide-react'
 import { format, parseISO, startOfWeek } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { toast } from 'sonner'
+import { sesionesApi } from '@/lib/api/sesiones'
 import { Estado, type EstadoTipo } from '@/components/ui/estado'
 import { continueHref, PASO_LABEL, readCreacionPaso } from '@/lib/sesionBorrador'
 import type { Sesion } from '@/types'
@@ -125,6 +127,16 @@ export function MenuFila({
             <button role="menuitem" type="button" className={item} onClick={(e) => onPdf(sesion.id, e, sesion.fecha, 'extendido')}>
               <FileText className="h-4 w-4" aria-hidden="true" />
               PDF extendido
+            </button>
+            <button role="menuitem" type="button" className={item} onClick={(e) => {
+              e.stopPropagation()
+              setActiveMenu(null)
+              sesionesApi
+                .generatePdf(sesion.id, 'plegado', { fecha: sesion.fecha })
+                .catch(() => toast.error('Error al generar el PDF plegado'))
+            }}>
+              <FileText className="h-4 w-4" aria-hidden="true" />
+              Plegado (1 folio)
             </button>
             <button
               role="menuitem"

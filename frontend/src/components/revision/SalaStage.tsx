@@ -31,6 +31,7 @@ import { Button } from '@/components/ui/button'
 import { SalaClipTree } from './SalaClipTree'
 import { SalaZoomCatcher } from './SalaZoomCatcher'
 import { SalaFloatingChrome, SalaReviewBar, WhiteboardBar } from './salaChrome'
+import { SalaMarca, salaSuperficie } from './salaCal'
 import { useSalaVideoShare } from './useSalaVideoShare'
 import { useSalaLink } from '@/hooks/useSalaLink'
 import { salaLinkLabel } from '@/lib/salaLink'
@@ -371,44 +372,45 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
   }
 
   return (
-    <div ref={rootRef} className="fixed inset-0 z-[80] bg-black text-white flex flex-col">
-      <div className="flex items-center justify-between px-3 py-2 bg-zinc-950 border-b border-white/10 gap-2">
-        <div className="text-sm font-medium truncate">
+    <div ref={rootRef} {...salaSuperficie} className="fixed inset-0 z-[80] flex flex-col">
+      <div className="flex items-center justify-between px-3 py-2 bg-background border-b-[1.5px] border-border gap-2">
+        <SalaMarca className="shrink-0" />
+        <div className="min-w-0 flex-1 text-sm font-medium truncate">
           Sala {session.code} · {isHost ? 'TV / portátil' : 'Tablet'}
-          <span className={`ml-2 text-[10px] ${wsOk ? 'text-emerald-400' : 'text-amber-400'}`}>
+          <span className={`ml-2 text-[10px] ${wsOk ? 'text-success' : 'text-warning'}`}>
             {salaLinkLabel(status)}
           </span>
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-white" onClick={togglePlay} title="Play / pausa">
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-foreground" onClick={togglePlay} title="Play / pausa">
             {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
           </Button>
           {isHost && (
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-white" onClick={toggleFullscreen} title="Pantalla completa">
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-foreground" onClick={toggleFullscreen} title="Pantalla completa">
               {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
             </Button>
           )}
           {onClose && (
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-white" onClick={onClose} title="Cerrar sala">
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-foreground" onClick={onClose} title="Cerrar sala">
               <X className="h-4 w-4" />
             </Button>
           )}
         </div>
       </div>
       {!isHost && (
-        <div className="px-3 py-1 text-[11px] text-zinc-400 flex items-center gap-1 bg-zinc-950">
+        <div className="px-3 py-1 text-[11px] text-muted-foreground flex items-center gap-1 bg-background">
           <VolumeX className="h-3 w-3" /> Audio en el PC · mute aquí también lo corta allí. Play y pausa salen de aquí o del portátil.
         </div>
       )}
 
       <div className="flex-1 min-h-0 flex">
-        <div className="relative flex-1 min-h-0 min-w-0 overflow-hidden bg-black">
+        <div className="relative flex-1 min-h-0 min-w-0 overflow-hidden bg-background">
           <div
             ref={videoPaneRef}
             data-testid="sala-video-pane"
             className={
               videoTheater
-                ? 'fixed inset-0 z-[120] isolate overflow-hidden bg-black'
+                ? 'fixed inset-0 z-[120] isolate overflow-hidden bg-background'
                 : 'relative h-full w-full min-h-0 overflow-hidden isolate'
             }
           >
@@ -430,7 +432,7 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
                 onError={() => setMediaError(true)}
               />
             ) : (
-              <div className="flex h-full w-full items-center justify-center text-zinc-500 text-sm">
+              <div className="flex h-full w-full items-center justify-center text-muted-foreground text-sm">
                 Elige un recorte en la barra de la derecha
               </div>
             )}
@@ -494,17 +496,17 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
               />
             </SalaFloatingChrome>
             {mediaError && (
-              <div className="absolute inset-x-4 top-24 z-[60] rounded-md bg-black/80 text-amber-200 text-xs p-3">
+              <div className="absolute inset-x-4 top-24 z-[60] rounded-md border-[1.5px] border-border bg-card text-warning text-xs p-3">
                 Este recorte no se pudo reproducir en este navegador. Prueba Safari en el iPad o sube el clip en MP4/WebM (H.264).
               </div>
             )}
           </div>
         </div>
 
-        <aside className={`${foldersOpen ? 'w-60' : 'w-9'} shrink-0 border-l border-white/10 bg-zinc-950 flex flex-col transition-[width] duration-200`}>
+        <aside className={`${foldersOpen ? 'w-60' : 'w-9'} shrink-0 border-l-[1.5px] border-border bg-background flex flex-col transition-[width] duration-200`}>
           <button
             type="button"
-            className="h-8 w-full flex items-center justify-center text-zinc-300 hover:bg-white/10"
+            className="h-8 w-full flex items-center justify-center text-muted-foreground hover:bg-secondary"
             onClick={() => setFoldersOpen((open) => !open)}
             title={foldersOpen ? 'Ocultar carpetas' : 'Mostrar carpetas'}
           >
@@ -512,15 +514,15 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
           </button>
           {foldersOpen ? (
             <div className="flex-1 min-h-0 overflow-y-auto p-2">
-              <p className="text-[11px] text-zinc-500 px-1 mb-2">Carpetas y recortes</p>
+              <p className="text-[11px] text-muted-foreground px-1 mb-2">Carpetas y recortes</p>
               {session.pack ? (
                 <SalaClipTree pack={session.pack} currentClipId={currentClip?.id} onPick={pickClip} />
               ) : (
-                <p className="text-xs text-zinc-500">Sin librería</p>
+                <p className="text-xs text-muted-foreground">Sin librería</p>
               )}
             </div>
           ) : (
-            <p className="flex-1 [writing-mode:vertical-rl] text-[10px] text-zinc-500 tracking-widest px-2 py-3 rotate-180">
+            <p className="flex-1 [writing-mode:vertical-rl] text-[10px] text-muted-foreground tracking-widest px-2 py-3 rotate-180">
               Carpetas
             </p>
           )}
@@ -528,9 +530,9 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
       </div>
 
       {isHost && !peerReady && (
-        <div className="absolute inset-0 z-[90] bg-black/85 flex items-center justify-center p-6">
+        <div className="absolute inset-0 z-[90] bg-background/95 flex items-center justify-center p-6">
           <div className="max-w-sm w-full text-center space-y-4">
-            <p className="text-sm text-zinc-300">
+            <p className="text-sm text-muted-foreground">
               Escanea el QR con la tablet. En cuanto entre, esta pantalla pasa sola a la revisión y las dos se sincronizan. Si el 5G va justo, se abre un enlace directo entre tablet y televisor.
             </p>
             <p className="text-4xl font-mono tracking-[0.3em] font-semibold">{session.code}</p>
@@ -538,7 +540,7 @@ export function SalaStage({ code, role, initialSession, onClose }: SalaStageProp
               // eslint-disable-next-line @next/next/no-img-element
               <img src={qrSrc} alt={`QR sala ${session.code}`} width={240} height={240} className="mx-auto rounded-md bg-white p-2" />
             ) : null}
-            <p className={`text-xs ${wsOk ? 'text-emerald-400' : 'text-amber-400'}`}>
+            <p className={`text-xs ${wsOk ? 'text-success' : 'text-warning'}`}>
               {wsOk ? 'Esperando a la tablet…' : 'Reconectando la sala…'}
             </p>
           </div>

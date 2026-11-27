@@ -30,6 +30,8 @@ export interface TareaCreatorData {
   orientaciones_fisicas: string[]
   etiquetas_fisicas: string[]
   tags?: string[]
+  /** Material de la tarea (códigos de MATERIALES o texto libre). */
+  material?: string[]
   consignas_ofensivas?: string[]
   consignas_defensivas?: string[]
   num_series: number
@@ -130,6 +132,7 @@ export function emptyTareaForm(
     objetivos_tecnicos: [],
     orientaciones_fisicas: [],
     etiquetas_fisicas: [],
+    material: [],
     num_series: 2,
     duracion_serie: 8,
     duracion_total: 16,
@@ -173,6 +176,7 @@ export function tareaToCreatorData(
     objetivos_tecnicos: asList(tarea.objetivos_tecnicos),
     orientaciones_fisicas: asList(tarea.orientaciones_fisicas),
     etiquetas_fisicas: asList(tarea.etiquetas_fisicas),
+    material: asList(tarea.material),
     num_series: tarea.num_series || 1,
     duracion_serie: tarea.duracion_serie || tarea.duracion_total || 8,
     duracion_total: tarea.duracion_total || 0,
@@ -232,6 +236,7 @@ export function payloadFromCreatorForm(form: TareaCreatorData): Record<string, u
     consignas_defensivas: loaded.consignas_defensivas || [],
     orientaciones_fisicas: loaded.orientaciones_fisicas,
     etiquetas_fisicas: loaded.etiquetas_fisicas,
+    material: Array.isArray(form.material) ? form.material : [],
     complejidad: loaded.complejidad || undefined,
     dificultad: loaded.dificultad,
     complejidad_go: loaded.complejidad_go ?? null,

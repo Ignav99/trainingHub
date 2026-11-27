@@ -1,0 +1,165 @@
+{% from "_marca/cabecera.html" import cabecera %}<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>{{ tema.club }} — {{ sesion.get('titulo', 'Sesión') }} (plegado)</title>
+<style>
+/* Sesión plegado = 1 folio A4 apaisado en 6 u 8 paneles (Cal, papel), para plegar y seguir
+   el entrenamiento en orden. Panel 1: sesión · intermedios: tareas · último: compensatorio.
+   Área útil 283 × 189 mm → paneles de (283/cols) × 94 mm. Guías de doblez discontinuas. */
+@page { size: A4 landscape; margin: 6mm 7mm 12mm 7mm; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-size: 7.4pt; line-height: 1.25; }
+.hoja { position: relative; width: 283mm; height: 188mm; page-break-inside: avoid; }
+table.pl { width: 283mm; height: 188mm; table-layout: fixed; border-collapse: collapse; }
+td.p { height: 94mm; vertical-align: top; padding: 0; border: .25mm dashed var(--c-suave); }
+tr:first-child td.p { border-top: none; }
+tr:last-child td.p { border-bottom: none; }
+td.p:first-child { border-left: none; }
+td.p:last-child { border-right: none; }
+.pi { height: 93.4mm; padding: 3mm; overflow: hidden; position: relative; }
+.pn { position: absolute; right: 2mm; top: 1.2mm; font-family: "Encode Sans Narrow", sans-serif !important; font-size: 6pt; font-weight: 700; color: var(--c-suave); letter-spacing: .06em; }
+.doblar { position: absolute; background: #fff; font-family: "Encode Sans Narrow", sans-serif !important; font-size: 5.2pt; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .1em; color: var(--c-suave); text-align: center; width: 11mm; height: 2.4mm; line-height: 2.4mm; }
+
+/* Portada */
+.pt-club { margin-bottom: .6mm; }
+.pt-tit { font-size: 11.5pt; line-height: 1.1; margin-bottom: 1.6mm; max-height: 13mm; overflow: hidden; }
+.pt-meta { font-size: 7.4pt; color: var(--c-tinta); margin-bottom: 1.2mm; line-height: 1.35; }
+.md-sw { display: inline-block; width: 2.2mm; height: 2.2mm; margin-right: 1mm; vertical-align: -.2mm; border-radius: .3mm; }
+.pt-bloque { border-top: .25mm solid var(--c-borde); padding-top: 1mm; margin-top: 1.2mm; }
+.pt-bloque .c-rotulo { margin-bottom: .3mm; }
+.pt-obj { font-weight: 700; font-size: 8pt; line-height: 1.25; max-height: 14mm; overflow: hidden; }
+.idx { white-space: nowrap; overflow: hidden; height: 3.7mm; line-height: 3.7mm; font-size: 7pt; border-bottom: .2mm solid var(--c-borde); }
+.idx .n { font-weight: 800; color: var(--c-suave); margin-right: 1mm; }
+.idx .s { font-family: "Encode Sans Narrow", sans-serif !important; font-weight: 700; font-size: 6.2pt; margin-right: 1mm; }
+.idx .d { float: right; font-weight: 700; }
+
+/* Tarea */
+.tb { overflow: hidden; }
+.tb + .tb { border-top: .25mm solid var(--c-borde); padding-top: 1mm; margin-top: 1mm; }
+.th { display: flex; height: 5.2mm; line-height: 5.2mm; white-space: nowrap; overflow: hidden; margin-bottom: .8mm; padding-right: 8mm; }
+.th .lt { flex: 1; min-width: 0; overflow: hidden; }
+.tb + .tb .th { padding-right: 0; }
+.th .n { font-weight: 800; color: var(--c-suave); margin-right: 1.2mm; }
+.th .s { font-family: "Encode Sans Narrow", sans-serif !important; font-weight: 700; font-size: 6.6pt; margin-right: 1.2mm; letter-spacing: .05em; }
+.th .t { font-weight: 800; }
+.th .d { flex: none; font-weight: 800; margin-left: 1.5mm; }
+.th .g { flex: none; font-size: 6pt; color: var(--c-suave); margin-left: 1.5mm; }
+.bd { border: .25mm solid var(--c-borde); border-radius: .5mm; overflow: hidden; text-align: center; margin-bottom: .8mm; }
+.bd img { width: 100%; height: 100%; object-fit: contain; }
+.bd svg { width: 100%; height: 100%; }
+.tt { overflow: hidden; line-height: 1.22; }
+.tt p { margin-bottom: .6mm; }
+.nm { padding-left: 2.2mm; position: relative; margin-top: .3mm; }
+.nm::before { content: ""; position: absolute; left: .2mm; top: 1.1mm; width: 1mm; height: 1mm; border-radius: 50%; background: var(--c-club); }
+.tt .c-rotulo { font-size: 5.8pt; margin-top: .6mm; }
+.tt .meta { color: var(--c-suave); margin-top: .8mm; }
+/* modo lateral (3+ tareas en un panel) */
+.tb.s .bdw { float: left; margin-right: 2mm; }
+.tb.s .tt { overflow: hidden; }
+
+/* Cierre / notas */
+.cp-tit { font-weight: 800; font-size: 8.4pt; margin-bottom: .8mm; }
+.cp-tit span { font-weight: 600; color: var(--c-suave); margin-left: 1.5mm; }
+.cp-bloque { margin-bottom: 1.8mm; }
+.fch { width: 5mm; height: 5mm; line-height: 4.2mm; font-size: 6.2pt; vertical-align: middle; margin-right: .8mm; }
+.jug { display: inline-block; white-space: nowrap; margin: 0 1.8mm 1mm 0; font-size: 7pt; }
+.ej { font-size: 7pt; line-height: 3.5mm; white-space: nowrap; overflow: hidden; }
+.ej b { color: var(--c-suave); margin-right: 1mm; }
+.mj { white-space: nowrap; overflow: hidden; height: 5.4mm; line-height: 5.4mm; font-size: 7pt; }
+.mj .e { color: var(--c-suave); }
+.reg { height: 6mm; border-bottom: .25mm solid var(--c-borde); }
+</style>
+</head>
+<body>
+{% set cab_tema = dict(tema, logo_url=logo_url) %}
+<div class="hoja">
+<table class="pl">
+{% set ns = namespace(i=0) %}
+{% for fila in filas %}
+<tr>
+  {% for p in fila %}
+  {% set ns.i = ns.i + 1 %}
+  <td class="p"><div class="pi">
+    <div class="pn">{{ ns.i }} / {{ total }}</div>
+
+    {% if p.tipo == 'portada' %}
+      <div class="c-rotulo pt-club">{{ [tema.club, equipo_categoria]|select|join(' · ') }}</div>
+      <div class="c-titulo pt-tit">{{ sesion.get('titulo', 'Sesión de entrenamiento') }}</div>
+      <div class="pt-meta">
+        {{ sesion.get('fecha', '') }}{% if sesion.get('hora') %} · {{ sesion.get('hora')[:5] }} h{% endif %}{% if lugar %} · {{ lugar }}{% endif %}<br>
+        {% if match_day %}<span class="md-sw" style="background:{{ md_color }}"></span>{{ match_day }}{% if md_label %} · {{ md_label }}{% endif %}{% endif %}{% if rival %} · Rival: {{ rival }}{% endif %}<br>
+        <b>{{ duracion_total }} min</b> · {{ n_tareas }} tareas
+      </div>
+      {% if objetivo_principal %}<div class="pt-bloque"><div class="c-rotulo">Objetivo</div><div class="pt-obj">{{ objetivo_principal }}</div></div>{% endif %}
+      {% if material %}<div class="pt-bloque"><div class="c-rotulo">Material mínimo necesario</div><div>{{ material|join(' · ') }}</div></div>{% endif %}
+      <div class="pt-bloque"><div class="c-rotulo">Orden de trabajo</div>
+        {% for t in indice %}<div class="idx"><span class="d">{{ t.duracion }}'</span><span class="n">{{ '%02d' % t.orden }}</span><span class="c-peto" style="background:{{ t.peto }}"></span>{% if t.sigla %}<span class="s">{{ t.sigla }}</span>{% endif %}{{ t.titulo }}</div>{% endfor %}
+        {% if n_tareas > indice|length %}<div class="idx" style="color:var(--c-suave)">+ {{ n_tareas - indice|length }} más en los paneles siguientes</div>{% endif %}
+      </div>
+
+    {% elif p.tipo == 'tareas' %}
+      {% for b in p.bloques %}{% set t = b.card %}
+      <div class="tb {{ 's' if b.modo == 's' else '' }}" style="height:{{ b.block_h }}mm;font-size:{{ b.fs }}pt">
+        <div class="th">
+          <div class="lt"><span class="n">{{ '%02d' % t.orden }}</span><span class="c-peto" style="background:{{ t.peto }}"></span>{% if t.sigla %}<span class="s">{{ t.sigla }}</span>{% endif %}<span class="t">{{ t.titulo }}</span></div>
+          {% if t.lane is not none %}<div class="g">Grupo {{ 'ABCDEFGH'[t.lane] }}</div>{% endif %}
+          <div class="d">{% if t.series %}{{ t.series }}×{% endif %}{{ t.duracion }}'</div>
+        </div>
+        {% if b.modo == 's' %}<div class="bdw" style="width:{{ b.board_w }}mm">{% endif %}
+        <div class="bd" style="height:{{ b.board_h }}mm">{% if t.board.img %}<img src="{{ t.board.img }}" alt="">{% else %}{{ t.board.svg }}{% endif %}</div>
+        {% if b.modo == 's' %}</div>{% endif %}
+        <div class="tt" style="{% if b.modo == 's' %}height:{{ b.block_h - 6.5 }}mm{% else %}height:{{ b.text_h }}mm{% endif %}">
+          {% if t.desc_c %}<p>{{ t.desc_c }}</p>{% endif %}
+          {% if t.normas_c %}{% if b.modo != 's' %}<div class="c-rotulo">Normas</div>{% endif %}{% for n in t.normas_c %}<div class="nm">{{ n }}</div>{% endfor %}{% endif %}
+          {% if p.k == 1 %}
+            {% if t.equipos %}<div class="meta">{% for e in t.equipos %}{{ e.nombre }}: {{ e.players|join(' ') }}{% if not loop.last %} · {% endif %}{% endfor %}</div>{% endif %}
+            {% set mm = [t.espacio, (t.jugadores ~ ' jug.') if t.jugadores else '', t.material|join(', ')]|select|join(' · ') %}
+            {% if mm %}<div class="meta">{{ mm }}</div>{% endif %}
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+
+    {% elif p.tipo == 'cierre' %}
+      {% if lanes or margen %}
+        {% for ln in lanes %}
+        <div class="cp-bloque">
+          <div class="cp-tit">Compensatorio · {{ ln.label }}<span>{% if ln.duracion %}{{ ln.duracion }}'{% endif %}</span></div>
+          <div>{% for j in ln.players %}<span class="jug"><span class="c-ficha fch">{{ j.dorsal }}</span>{{ j.nombre }}</span>{% endfor %}</div>
+          {% for e in ln.tareas[:3] %}<div class="ej"><b>{{ '%02d' % e.orden }}</b>{{ e.titulo }}{% if e.duracion %} · {{ e.duracion }}'{% endif %}</div>{% endfor %}
+        </div>
+        {% endfor %}
+        {% if margen %}
+        <div class="cp-bloque">
+          <div class="cp-tit">Al margen</div>
+          {% for m in margen[:5] %}
+          <div class="mj"><span class="c-ficha fch">{{ m.dorsal }}</span><b>{{ m.nombre }}</b>
+            <span class="e">{% if m.ejercicios %}{% for e in m.ejercicios[:2] %}{{ e.titulo }}{% if e.duracion %} {{ e.duracion }}'{% endif %}{% if not loop.last %} · {% endif %}{% endfor %}{% elif m.objetivo %}{{ m.objetivo[:40] }}{% endif %}</span></div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      {% endif %}
+      <div class="c-rotulo" style="margin-bottom:.5mm">Notas</div>
+      {% for _ in range(3 if (lanes or margen) else 11) %}<div class="reg"></div>{% endfor %}
+
+    {% else %}
+      <div class="c-rotulo" style="margin-bottom:.5mm">Notas</div>
+      {% for _ in range(13) %}<div class="reg"></div>{% endfor %}
+    {% endif %}
+  </div></td>
+  {% endfor %}
+</tr>
+{% endfor %}
+</table>
+{# Guías de doblez: etiqueta «doblar» sobre cada línea #}
+{% for c in range(1, cols) %}
+<div class="doblar" style="left:{{ (panel_w * c - 5.5)|round(1) }}mm; top:-1.2mm;">doblar</div>
+<div class="doblar" style="left:{{ (panel_w * c - 5.5)|round(1) }}mm; top:186.8mm;">doblar</div>
+{% endfor %}
+<div class="doblar" style="left:-0.5mm; top:92.8mm;">doblar</div>
+<div class="doblar" style="left:271.5mm; top:92.8mm;">doblar</div>
+</div>
+</body>
+</html>
