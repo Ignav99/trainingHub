@@ -243,3 +243,15 @@ def test_pizarras_verticales_y_apaisadas_caben_en_un_folio(n):
     for gen in (ps.generate_sesion_pdf_reducido, ps.generate_sesion_pdf_plegado):
         pdf = _run(gen(_sesion(), _tareas(n), ORG, jugadores_map=JM, asistencia_roster=ROSTER, margen_entrenamientos=MARGEN))
         assert _paginas(pdf) == 1, (gen.__name__, n)
+
+
+def test_material_petos_con_cantidad_maxima_entre_tareas(html_capturado):
+    tareas = _tareas(3)
+    tareas[0]["tareas"]["material"] = ["balones", "petos:8"]
+    tareas[1]["tareas"]["material"] = ["petos:12", "conos"]
+    tareas[2]["tareas"]["material"] = ["petos"]
+    for fn, kw in ((ps.generate_sesion_pdf_v2, {}), (ps.generate_sesion_pdf_reducido, {"jugadores_map": JM})):
+        html = _run(fn(_sesion(), tareas, ORG, **({"jugadores_map": JM} if kw else {"jugadores_map": JM}))).decode()
+        assert "Petos (~12)" in html
+        assert "petos:12" not in html  # nunca la entrada cruda
+        assert "Petos (~12)" in html.split("Material mínimo necesario", 1)[1][:400]

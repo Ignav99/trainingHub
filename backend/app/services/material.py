@@ -27,6 +27,11 @@ _ORDEN = {c: i for i, c in enumerate(CATALOGO)}
 _POR_NOMBRE = {n.lower(): c for c, n in CATALOGO.items()}
 
 
+# Solo los petos llevan cantidad (estimada). Se guarda dentro de `tareas.material`
+# como la entrada "petos:12" (código + ":" + entero). El resto es solo presencia.
+CON_CANTIDAD = frozenset({"petos"})
+
+
 def _codigo(m: str) -> str:
     t = m.strip()
     low = t.lower()
@@ -35,9 +40,34 @@ def _codigo(m: str) -> str:
     return _POR_NOMBRE.get(low, t)
 
 
-def nombre_material(m: str) -> str:
-    c = _codigo(m)
-    return CATALOGO.get(c, c[:1].upper() + c[1:] if c else c)
+def parse_entrada(m: str) -> tuple[str, int | None]:
+    """'petos:12' -> ('petos', 12); 'Petos' -> ('petos', None); 'aros: 4' -> ('aros: 4', None)."""
+    t = m.strip()
+    if ":" in t:
+        izq, _, der = t.partition(":")
+        cod = _codigo(izq)
+        if cod in CON_CANTIDAD:
+            der = der.strip()
+            if der.isdigit() and int(der) > 0:
+                return cod, int(der)
+            return cod, None
+    return _codigo(t), None
+
+
+def entrada_material(codigo: str, cantidad: int | None = None) -> str:
+    """Inversa de `parse_entrada`: solo los códigos con cantidad la serializan."""
+    if codigo in CON_CANTIDAD and cantidad and cantidad > 0:
+        return f"{codigo}:{int(cantidad)}"
+    return codigo
+
+
+def nombre_material(m: str, cantidad: int | None = None) -> str:
+    c, q = parse_entrada(m)
+    q = cantidad or q
+    base = CATALOGO.get(c, c[:1].upper() + c[1:] if c else c)
+    if c in CON_CANTIDAD and q:
+        return f"{base} (~{q})"
+    return base
 
 
 def _lista(valor: Any) -> list[str]:
@@ -50,26 +80,36 @@ def _lista(valor: Any) -> list[str]:
     return []
 
 
-def material_de_tareas(materiales_por_tarea: Iterable[Any]) -> list[str]:
-    """Unión ordenada (catálogo primero, luego libres) en nombres legibles."""
+def _agregar(materiales_por_tarea: Iterable[Any]) -> tuple[list[str], dict[str, int]]:
+    """Códigos ordenados (catálogo primero, luego libres) y cantidad MÁXIMA por código.
+
+    Los petos se reutilizan entre tareas: el mínimo necesario es la mayor necesidad
+    simultánea, no la suma.
+    """
     vistos: dict[str, None] = {}
+    maximos: dict[str, int] = {}
     for mats in materiales_por_tarea:
         for m in _lista(mats):
-            vistos.setdefault(_codigo(m), None)
+            cod, q = parse_entrada(m)
+            vistos.setdefault(cod, None)
+            if q:
+                maximos[cod] = max(maximos.get(cod, 0), q)
     codigos = sorted(vistos, key=lambda c: (_ORDEN.get(c, len(_ORDEN)), c.lower()))
-    return [nombre_material(c) for c in codigos]
+    return codigos, maximos
+
+
+def material_de_tareas(materiales_por_tarea: Iterable[Any]) -> list[str]:
+    """Unión ordenada en nombres legibles; petos con cantidad máxima: 'Petos (~12)'."""
+    codigos, maximos = _agregar(materiales_por_tarea)
+    return [nombre_material(c, maximos.get(c)) for c in codigos]
 
 
 def codigos_de_tareas(materiales_por_tarea: Iterable[Any]) -> list[str]:
-    """Unión ordenada (catálogo primero, luego libres) en códigos canónicos.
+    """Unión ordenada en códigos planos (sin cantidades).
 
     Es lo que se guarda en `sesiones.materiales` (filtrable en la biblioteca).
     """
-    vistos: dict[str, None] = {}
-    for mats in materiales_por_tarea:
-        for m in _lista(mats):
-            vistos.setdefault(_codigo(m), None)
-    return sorted(vistos, key=lambda c: (_ORDEN.get(c, len(_ORDEN)), c.lower()))
+    return _agregar(materiales_por_tarea)[0]
 
 
 def sincronizar_materiales_sesion(supabase: Any, sesion_id: str) -> list[str] | None:

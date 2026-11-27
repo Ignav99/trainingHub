@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Rellena `tareas.material` donde esté vacío, con `sugerir_material`.
+(Los petos se guardan con cantidad estimada: "petos:12"; el resto, solo presencia.)
 
 Seguro por diseño:
   * Por defecto es --dry-run: solo lee y escribe una propuesta (CSV + JSON).
@@ -34,7 +35,7 @@ from app.services.material_sugerido import sugerir_material  # noqa: E402
 
 COLUMNAS = (
     "id, titulo, descripcion, desarrollo, reglas, anotaciones, estructura_equipos, "
-    "num_jugadores_min, espacio_largo, espacio_ancho, equipamiento, grafico_data, material, "
+    "num_jugadores_min, num_jugadores_max, espacio_largo, espacio_ancho, equipamiento, grafico_data, material, "
     "categorias_tarea(codigo)"
 )
 PAGINA = 500
@@ -72,6 +73,8 @@ def construir_propuesta(tareas: list[dict]) -> list[dict]:
                 "id": t["id"],
                 "titulo": t.get("titulo"),
                 "categoria": cat.get("codigo") if isinstance(cat, dict) else None,
+                "jugadores": t.get("num_jugadores_min"),
+                "estructura_equipos": t.get("estructura_equipos"),
                 "material_previo": t.get("material") or [],
                 "material_sugerido": sug,
             }
@@ -86,9 +89,12 @@ def escribir_propuesta(propuesta: list[dict], salida: Path, sello: str) -> tuple
     ruta_json.write_text(json.dumps(propuesta, ensure_ascii=False, indent=2))
     with ruta_csv.open("w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["id", "titulo", "categoria", "material_sugerido"])
+        w.writerow(["id", "titulo", "categoria", "jugadores", "estructura_equipos", "material_sugerido"])
         for p in propuesta:
-            w.writerow([p["id"], p["titulo"], p["categoria"], "; ".join(nombre_material(c) for c in p["material_sugerido"])])
+            w.writerow([
+                p["id"], p["titulo"], p["categoria"], p.get("jugadores"), p.get("estructura_equipos"),
+                "; ".join(nombre_material(c) for c in p["material_sugerido"]),
+            ])
     return ruta_json, ruta_csv
 
 
