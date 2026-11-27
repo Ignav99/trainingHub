@@ -71,6 +71,25 @@ def filtrar_por_ambito(rows: Iterable[Any], ambito: str) -> list:
     return [r for r in rows if en_ambito(competicion_de(r), ambito)]
 
 
+def cuenta_titular_suplente(convocatorias: Iterable[Any]) -> tuple[int, int]:
+    """Titularidades y suplencias de quien fue convocado.
+
+    El once sale del informe del partido (`titular`). El resto de la
+    convocatoria es suplente y cuenta igual, aunque no haya jugado
+    minutos: el portero del banquillo no entra y aun así es suplente.
+    """
+    titularidades = 0
+    suplencias = 0
+    for row in convocatorias:
+        if not isinstance(row, dict):
+            continue
+        if row.get("titular"):
+            titularidades += 1
+        else:
+            suplencias += 1
+    return titularidades, suplencias
+
+
 def rendimiento_reciente(convocatorias: Iterable[Any], limite: int = 5) -> tuple[Optional[float], int]:
     """Media de las últimas notas de partido (1-10) en las que jugó minutos.
 

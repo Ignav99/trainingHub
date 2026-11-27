@@ -95,6 +95,26 @@ class TestTarjetasPorJugador:
         assert todos["j1"]["rojas"] == 1
 
 
+class TestCuentaTitularSuplente:
+    def test_el_banquillo_cuenta_aunque_no_juegue(self):
+        from app.services.partido_ambito import cuenta_titular_suplente
+
+        titularidades, suplencias = cuenta_titular_suplente([
+            {"titular": True, "minutos_jugados": 90},
+            {"titular": True, "minutos_jugados": 90},
+            {"titular": False, "minutos_jugados": 12},
+            {"titular": False, "minutos_jugados": 0},
+            {"titular": None, "minutos_jugados": 0},
+        ])
+        assert titularidades == 2
+        assert suplencias == 3
+
+    def test_ignora_filas_que_no_son_convocatoria(self):
+        from app.services.partido_ambito import cuenta_titular_suplente
+
+        assert cuenta_titular_suplente([None, "x", {"titular": False}]) == (0, 1)
+
+
 class TestRendimientoReciente:
     def test_ultimas_cinco_con_minutos(self):
         from app.services.partido_ambito import rendimiento_reciente

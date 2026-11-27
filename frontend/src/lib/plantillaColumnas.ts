@@ -107,7 +107,7 @@ export function lecturaSancion(
   return { lectura: 'sin-datos' }
 }
 
-/** Titular / suplente que entró y jugó. Sin ninguna de las dos, no hay ratio. */
+/** Titular / suplente de la convocatoria. Sin ninguna de las dos, no hay ratio. */
 export function presencias(titularidades: number, suplencias: number): string | null {
   if (titularidades <= 0 && suplencias <= 0) return null
   return `${titularidades}/${suplencias}`

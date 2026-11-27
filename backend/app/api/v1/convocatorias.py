@@ -25,6 +25,7 @@ from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
 from app.services.partido_ambito import (
     AMBITO_COMPETICION,
+    cuenta_titular_suplente,
     filtrar_por_ambito,
     normalize_ambito,
     rendimiento_reciente,
@@ -209,15 +210,13 @@ def resumen_convocatorias_equipo(
                 racha.append("D")
         racha.reverse()  # más reciente al final
         nota, partidos_con_nota = rendimiento_reciente(convocatorias_ordenadas)
+        titularidades, suplencias = cuenta_titular_suplente(convocatorias)
 
         resumenes.append(JugadorResumenConvocatorias(
             jugador_id=jid,
             total_convocatorias=len(convocatorias),
-            titularidades=sum(1 for c in convocatorias if c.get("titular")),
-            suplencias=sum(
-                1 for c in convocatorias
-                if not c.get("titular") and (c.get("minutos_jugados") or 0) > 0
-            ),
+            titularidades=titularidades,
+            suplencias=suplencias,
             partidos_jugados=sum(1 for c in convocatorias if (c.get("minutos_jugados") or 0) > 0),
             minutos_totales=sum(c.get("minutos_jugados", 0) or 0 for c in convocatorias),
             goles=sum(c.get("goles", 0) or 0 for c in convocatorias),

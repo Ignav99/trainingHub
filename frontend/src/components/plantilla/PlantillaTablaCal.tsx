@@ -331,7 +331,7 @@ export function PlantillaTablaCal({
               <th scope="col" className={`${cab} text-right`}>Edad</th>
               <th scope="col" className={`${cab} text-right`}>Min.</th>
               <th scope="col" className={`${cab} text-right`} title="Minutos por partido jugado">Min/p</th>
-              <th scope="col" className={`${cab} text-right`} title="Titularidades / suplencias en las que jugó">T/S</th>
+              <th scope="col" className={`${cab} text-right`} title="Titularidades / suplencias. Convocado y no titular cuenta, aunque no juegue">T/S</th>
               <th scope="col" className={`${cab} text-right`}>Gol</th>
               <th scope="col" className={`${cab} text-right`}>Ast</th>
               <th scope="col" className={`${cab} text-right`}>Tarj.</th>
