@@ -1425,7 +1425,7 @@ export interface Notificacion {
 // ============================================
 
 export type TipoStaffPost = 'comentario' | 'pregunta' | 'tarea' | 'aviso'
-export type EntidadStaffPost = 'sesion' | 'partido' | 'jugador'
+export type EntidadStaffPost = 'sesion' | 'partido' | 'jugador' | 'rival'
 
 export interface MiembroStaff {
   id: string

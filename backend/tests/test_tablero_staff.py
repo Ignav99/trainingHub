@@ -374,3 +374,44 @@ def test_sin_migracion_lista_vacia_y_crear_con_ancla_da_503():
             raise Exception('column staff_posts.ancla does not exist (42703)')
 
     assert tb.listar_pines(Roto(), EQ, ANA, "/partidos") == {"data": [], "disponible": False}
+
+
+# ─── Comentarios sobre una entidad o página (sin ancla) ───────────────────────
+
+def test_mencion_en_una_sesion_lleva_a_la_sesion_con_hilo():
+    fake = db()
+    sesion_id = fake.tables["sesiones"][0]["id"]
+    hilo = tb.crear_post(fake, EQ, ACTOR_ANA, {
+        "contenido": f"{tok('Luis Mora', LUIS)} revisa esto", "entidad_tipo": "sesion", "entidad_id": sesion_id,
+    })
+    [n] = notifs(fake)
+    assert n["url"] == f"/sesiones/{sesion_id}?hilo={hilo['id']}"
+    # una respuesta mantiene el enlace
+    tb.crear_post(fake, EQ, ACTOR_LUIS, {"contenido": "visto", "parent_id": hilo["id"]})
+    assert notifs(fake, ANA)[0]["url"] == f"/sesiones/{sesion_id}?hilo={hilo['id']}"
+    # y cualquier comentario sobre una entidad se puede resolver
+    assert tb.actualizar_post(fake, EQ, hilo["id"], ACTOR_LUIS, {"estado": "resuelta"})["estado"] == "resuelta"
+
+
+def test_comentario_de_pagina_sin_entidad_se_lista_por_ruta():
+    fake = db()
+    hilo = tb.crear_post(fake, EQ, ACTOR_ANA, {
+        "contenido": f"{tok('Luis Mora', LUIS)} mira el panel", "pagina_ruta": "/dashboard", "pagina_titulo": "Panel",
+    })
+    assert hilo["entidad_titulo"] == "Panel" and hilo["entidad_href"] == "/dashboard"
+    assert notifs(fake)[0]["url"] == f"/dashboard?hilo={hilo['id']}"
+    tb.crear_post(fake, EQ, ACTOR_ANA, {"contenido": "otra", "pagina_ruta": "/plantilla", "pagina_titulo": "Plantilla"})
+    res = tb.listar_hilos(fake, EQ, ANA, pagina="/dashboard")
+    assert [h["id"] for h in res["data"]] == [hilo["id"]]
+    with pytest.raises(tb.TableroError):
+        tb.crear_post(fake, EQ, ACTOR_ANA, {"contenido": "x", "pagina_ruta": "http://x"})
+
+
+def test_enlazar_un_rival_de_la_organizacion():
+    fake = con_admin_club(db())
+    fake.tables["rivales"] = [{"id": "r1", "nombre": "CD Rival", "organizacion_id": "org1"},
+                              {"id": "r2", "nombre": "Ajeno", "organizacion_id": "org2"}]
+    hilo = tb.crear_post(fake, EQ, ACTOR_ANA, {"contenido": "plan", "entidad_tipo": "rival", "entidad_id": "r1"})
+    assert hilo["entidad_titulo"] == "CD Rival" and hilo["entidad_href"] == "/rivales/r1"
+    with pytest.raises(tb.TableroError):
+        tb.crear_post(fake, EQ, ACTOR_ANA, {"contenido": "x", "entidad_tipo": "rival", "entidad_id": "r2"})

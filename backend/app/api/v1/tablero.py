@@ -27,9 +27,12 @@ class PostCreate(BaseModel):
     parent_id: Optional[UUID] = None
     asignado_a: Optional[UUID] = None
     fecha_limite: Optional[date] = None
-    entidad_tipo: Optional[Literal["sesion", "partido", "jugador"]] = None
+    entidad_tipo: Optional[Literal["sesion", "partido", "jugador", "rival"]] = None
     entidad_id: Optional[UUID] = None
     ancla: Optional[dict] = None
+    # Comentario sobre una página que no es una entidad (panel, listados).
+    pagina_ruta: Optional[str] = Field(None, max_length=400)
+    pagina_titulo: Optional[str] = Field(None, max_length=200)
 
 
 class PostUpdate(BaseModel):
@@ -98,9 +101,10 @@ def get_actividad(
 def list_posts(
     equipo_id: UUID,
     filtro: str = Query("todo"),
-    entidad_tipo: Optional[Literal["sesion", "partido", "jugador"]] = None,
+    entidad_tipo: Optional[Literal["sesion", "partido", "jugador", "rival"]] = None,
     entidad_id: Optional[UUID] = None,
     antes: Optional[str] = None,
+    pagina: Optional[str] = Query(None, max_length=400, description="Hilos de una página sin entidad (pathname)"),
     limit: int = Query(20, ge=1, le=50),
     auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
 ):
@@ -115,6 +119,7 @@ def list_posts(
         entidad_id=str(entidad_id) if entidad_id else None,
         antes=antes,
         limite=limit,
+        pagina=pagina,
     )
 
 

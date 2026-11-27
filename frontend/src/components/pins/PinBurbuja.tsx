@@ -64,7 +64,7 @@ export function PinBurbuja({
   miembros: MiembroStaff[]
   meId?: string
   puedeModerar: boolean
-  numero: number
+  numero?: number
   onCerrar: () => void
   onCambio: (hilo: StaffHilo | null) => void
 }) {
@@ -102,7 +102,7 @@ export function PinBurbuja({
       ref={ref}
       {...{ [ATTR_UI]: '' }}
       role="dialog"
-      aria-label={`Comentario ${numero}`}
+      aria-label={numero ? `Comentario ${numero}` : 'Comentario'}
       onKeyDown={(e) => {
         if (e.key === 'Escape') {
           e.stopPropagation()
@@ -116,7 +116,7 @@ export function PinBurbuja({
       )}
     >
       <div className="flex items-center gap-2 border-b-[1.5px] border-line px-3 py-1.5 text-xs text-muted-foreground">
-        <span className="tabular-nums">#{numero}</span>
+        {numero ? <span className="tabular-nums">#{numero}</span> : null}
         <span>{tipo.label}{resuelta ? ' · resuelto' : ''}</span>
         <button
           type="button"

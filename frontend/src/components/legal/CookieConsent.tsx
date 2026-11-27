@@ -2,11 +2,15 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 
 const CONSENT_KEY = 'cookie-consent'
 
 export default function CookieConsent() {
   const [visible, setVisible] = useState(false)
+  const pathname = usePathname()
+  // El anotador se usa en el campo: el aviso no debe tapar el banquillo (se mostrará fuera del anotador).
+  const enAnotador = Boolean(pathname?.startsWith('/anotador'))
 
   useEffect(() => {
     const consent = localStorage.getItem(CONSENT_KEY)
@@ -54,7 +58,7 @@ export default function CookieConsent() {
     setVisible(false)
   }
 
-  if (!visible) return null
+  if (!visible || enAnotador) return null
 
   return (
     <div className="k-cookie fixed bottom-0 left-0 right-0 z-50 p-4 bg-gray-900 border-t border-gray-700 shadow-2xl">

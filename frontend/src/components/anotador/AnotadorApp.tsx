@@ -1,28 +1,16 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import useSWR, { mutate } from 'swr'
-import {
-  ArrowLeft,
-  Play,
-  Pause,
-  Undo2,
-  Save,
-  Loader2,
-  ExternalLink,
-} from 'lucide-react'
+import useSWR from 'swr'
 import { toast } from 'sonner'
-import { TeamCrest } from '@/components/ui/team-crest'
 import { FORMATIONS } from '@/lib/formations'
+import { cargarPartidoLocal, prefetchPartido } from '@/lib/register-sw'
 import { apiKey, apiFetcher } from '@/lib/swr'
-import { convocatoriasApi } from '@/lib/api/convocatorias'
-import { estadisticasPartidoApi, type EstadisticaPartidoUpdateData } from '@/lib/api/estadisticasPartido'
-import { partidosApi } from '@/lib/api/partidos'
 import { useEquipoStore } from '@/stores/equipoStore'
+import { useClubStore } from '@/stores/clubStore'
 import {
   type AttackLane,
-  applySub,
   addRivalDorsal,
   bumpPeriodOccasion,
   bumpPeriodStat,
@@ -30,27 +18,15 @@ import {
   computePlayerRows,
   currentPeriod,
   DEFAULT_ANOTADOR,
-  denormalizeFoulDot,
-  effectiveMatchMinute,
-  emptyTeamStats,
   eventLabel,
-  EXTRA_SLOT_PREFIX,
-  formacionSlotsForAnotadorSave,
   formatClock,
-  golesPorPeriodoFromEvents,
-  hasAnotadorLiveData,
   hydrateSnapshot,
-  informeFromSnapshot,
   informeStatsFromUnknown,
-  isPenaltyGoal,
   matchMinute,
-  mergeNotasPre,
-  parseNotasPre,
   newEventId,
   nudgeElapsed,
-  normalizeFoulDot,
+  parseNotasPre,
   patchGoalEvent,
-  periodReport,
   remapFormationSlots,
   removeRivalDorsal,
   reopenMatch,
@@ -58,11 +34,6 @@ import {
   setActiveHalf,
   setPeriodFoulMap,
   startEleven,
-  statsPeriodosPayload,
-  TEAM_STAT_FIELDS,
-  TIPO_ABP_OPTIONS,
-  TIPO_GOL_OPTIONS,
-  ZONA_OPTIONS,
   type AnotadorEvent,
   type AnotadorHalf,
   type AnotadorSide,
@@ -70,80 +41,116 @@ import {
   type TeamStatKey,
 } from '@/lib/anotador'
 import type { Convocatoria, EstadisticaPartido, Partido } from '@/types'
+import type { PartidoLocal } from '@/lib/register-sw'
+import type { Aviso, EnvioCierre, EstadoCierre } from './adaptadores'
+import { Banquillo, type FichaBanco } from './Banquillo'
+import { BarraAcciones } from './BarraAcciones'
+import { Campo, ControlSentido, type FichaCampo } from './Campo'
+import { Cronologia, type FilaEvento } from './Cronologia'
+import { EditorEvento } from './EditorEvento'
+import { ordenCronologico, type EventoEditable } from './edicionEvento'
+import {
+  INTERACCION_INICIAL, guiaInteraccion, pulsarAccion, tocarJugador,
+  type Efecto, type Interaccion, type Resultado,
+} from './emparejamiento'
+import { EsqueletoAnotador } from './Esqueleto'
+import type { DatosFicha } from './FichaJugador'
+import { HojaGol } from './HojaGol'
+import { HojaMas, type FilaNota } from './HojaMas'
+import { registrarCambio, registrarEvento, restaurarEvento, reemplazarEvento, revertirEvento } from './operaciones'
+import { PanelCerrado, PanelPrevia } from './PanelEstado'
+import { PanelRevision } from './PanelRevision'
+import { Boton } from './Piezas'
+import { resumenPartido } from './resumen'
+import { marcarBien, pendientes, reabrir, parsearEstado, REVISION_VACIA, type EstadoRevision } from './revisionEstado'
+import { TecladoRival } from './TecladoRival'
+import { TopBar, type ItemMenu } from './TopBar'
+import { PantallaRecuperacion } from './BannerRecuperacion'
+import { usaEstadoRecuperado, usePersistencia } from './usePersistencia'
+import { byDorsal, displayName, dorsalOf, etiquetaCorta, fotoOf, iniciales } from './utils'
 
-type Tab = 'acta' | 'once' | 'goles' | 'stats' | 'faltas' | 'notas' | 'cierre'
-type Pending = 'cambio' | 'asistencia' | null
+type Hoja = null | 'mas' | 'crono' | 'revision'
+type PedidoTeclado =
+  | { para: 'amarilla' | 'roja' }
+  | { para: 'gol'; eventoId: string }
+  | null
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'acta', label: 'Acta' },
-  { id: 'once', label: 'Once' },
-  { id: 'goles', label: 'Goles' },
-  { id: 'stats', label: 'Stats' },
-  { id: 'faltas', label: 'Faltas' },
-  { id: 'notas', label: 'Notas' },
-  { id: 'cierre', label: 'Cierre' },
-]
+const FOTO_KEY = 'kabine:anotador:fichas-foto'
+/** Un único aviso «Deshacer» a la vez: no se apilan ni tapan el panel de revisión. */
+const ID_DESHACER = 'anotador-deshacer'
 
-const LIVE_STATS: TeamStatKey[] = [
-  'tiros_a_puerta',
-  'saques_esquina',
-  'faltas_cometidas',
-  'fueras_juego',
-  'penaltis',
-]
-
-function playerOf(c: Convocatoria) {
-  return (c.jugador || c.jugadores || {}) as {
-    apodo?: string | null
-    nombre?: string | null
-    apellidos?: string | null
-    dorsal?: number | null
-    foto_url?: string | null
-    posicion_principal?: string | null
-  }
+function leerLocal(key: string): string | null {
+  try { return window.localStorage.getItem(key) } catch { return null }
+}
+function escribirLocal(key: string, value: string) {
+  try { window.localStorage.setItem(key, value) } catch { /* sin almacenamiento: no pasa nada */ }
 }
 
-function displayName(c: Convocatoria) {
-  const p = playerOf(c)
-  return p.apodo || `${p.nombre || ''} ${p.apellidos || ''}`.trim() || 'Jugador'
+function vibrar() {
+  try { navigator.vibrate?.(10) } catch { /* no disponible */ }
 }
 
-function dorsalOf(c: Convocatoria) {
-  return c.dorsal ?? playerOf(c).dorsal ?? null
+function ficha(c: Convocatoria): DatosFicha {
+  return { id: c.id, dorsal: dorsalOf(c), etiqueta: etiquetaCorta(c), iniciales: iniciales(c), fotoUrl: fotoOf(c) }
 }
 
-function byDorsal(a: Convocatoria, b: Convocatoria) {
-  return (dorsalOf(a) ?? 99) - (dorsalOf(b) ?? 99)
-}
+const etiquetaCompeticion = (v?: string) => (v ? v.charAt(0).toUpperCase() + v.slice(1).replace(/_/g, ' ') : 'Partido')
 
 export function AnotadorApp({ partidoId }: { partidoId: string }) {
-  const equipoNombre = useEquipoStore((s) => s.equipoActivo?.nombre) || 'Nosotros'
-  const { data: partido, isLoading: loadP } = useSWR<Partido>(
-    apiKey(`/partidos/${partidoId}`),
-    apiFetcher,
-  )
-  const { data: convData, isLoading: loadC } = useSWR<{ data: Convocatoria[]; total: number }>(
+  const equipoStore = useEquipoStore((s) => s.equipoActivo?.nombre)
+  const escudoClub = useClubStore((s) => s.theme.logoUrl)
+  const { data: partidoRed, isLoading: loadP, mutate: recargarPartido } = useSWR<Partido>(apiKey(`/partidos/${partidoId}`), apiFetcher)
+  const { data: convRed, isLoading: loadC, mutate: recargarConv } = useSWR<{ data: Convocatoria[]; total: number }>(
     apiKey(`/convocatorias/partido/${partidoId}`),
     apiFetcher,
   )
-  const { data: informe, isLoading: loadS } = useSWR<EstadisticaPartido>(
+  const { data: informeRed, isLoading: loadS } = useSWR<EstadisticaPartido>(
     apiKey(`/estadisticas-partido/${partidoId}`),
     apiFetcher,
   )
-  const convocados = convData?.data || []
+
+  // Copia del partido guardada en la tablet ("Preparar sin conexión" / última carga con red).
+  // undefined = aún leyendo; null = no hay copia.
+  const [copia, setCopia] = useState<PartidoLocal | null | undefined>(undefined)
+  const [esperaAgotada, setEsperaAgotada] = useState(false)
+  useEffect(() => {
+    let vivo = true
+    void cargarPartidoLocal(partidoId).then((l) => { if (vivo) setCopia(l) })
+    return () => { vivo = false }
+  }, [partidoId])
+  // Sin red (o red muerta) no se espera a la API: se abre con la copia de la tablet.
+  useEffect(() => {
+    const cargando = loadP || loadC || loadS
+    if (!cargando) { setEsperaAgotada(false); return }
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) { setEsperaAgotada(true); return }
+    const t = window.setTimeout(() => setEsperaAgotada(true), 4500)
+    return () => window.clearTimeout(t)
+  }, [loadP, loadC, loadS])
+
+  const partido = partidoRed ?? (copia?.partido as Partido | undefined)
+  const convData = convRed ?? (copia ? { data: copia.convocados as Convocatoria[], total: copia.convocados.length } : undefined)
+  const informe = (informeRed ?? (copia?.informe as EstadisticaPartido | null | undefined)) || undefined
+  const convocados = useMemo(() => convData?.data || [], [convData])
+  const equipoNombre = equipoStore || (copia?.equipo as { nombre?: string } | null | undefined)?.nombre || 'Nosotros'
+  const sinRespuesta = (loadP || loadC || loadS) && !esperaAgotada
+  const datosListos = copia !== undefined && !sinRespuesta && Boolean(partido) && convocados.length > 0
 
   const [snap, setSnap] = useState<AnotadorSnapshot>(DEFAULT_ANOTADOR)
-  const [tab, setTab] = useState<Tab>('acta')
-  const [selected, setSelected] = useState<string | null>(null)
-  const [pending, setPending] = useState<Pending>(null)
-  const [selectedRival, setSelectedRival] = useState<number | null>(null)
-  const persistBusy = useRef(false)
-  const titularWrittenRef = useRef(new Map<string, { titular: boolean; pos: string | null }>())
+  const [inter, setInter] = useState<Interaccion>(INTERACCION_INICIAL)
+  const [rival, setRival] = useState(false)
+  const [teclado, setTeclado] = useState<PedidoTeclado>(null)
   const [goalDraftId, setGoalDraftId] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
+  const [hoja, setHoja] = useState<Hoja>(null)
+  const [masVista, setMasVista] = useState<'ocasiones' | 'notas'>('ocasiones')
+  const [editor, setEditor] = useState<{ modo: 'editar' | 'crear'; evento: EventoEditable } | null>(null)
+  const [pulsos, setPulsos] = useState<Record<string, number>>({})
   const [ready, setReady] = useState(false)
   const [reflexion, setReflexion] = useState('')
   const [notasRend, setNotasRend] = useState<Record<string, number | null>>({})
+  const [mostrarFoto, setMostrarFotoState] = useState(true)
+  const [revision, setRevision] = useState<EstadoRevision>(REVISION_VACIA)
+  const [envio, setEnvio] = useState<EnvioCierre>(null)
+
   const snapRef = useRef(snap)
   snapRef.current = snap
   const partidoRef = useRef(partido)
@@ -154,42 +161,33 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
   notasRendRef.current = notasRend
   const elapsedRef = useRef(0)
   elapsedRef.current = snap.elapsedMs
-  const persistSilentRef = useRef<() => void>(() => undefined)
+  const latidoRef = useRef<(r: { running: boolean; elapsedMs: number; half: 1 | 2 }) => void>(() => undefined)
+  const sincRef = useRef<{ pendientes: number; estado: string }>({ pendientes: 0, estado: 'guardado' })
+  const readyRef = useRef(false)
 
   useEffect(() => {
-    if (!partido || loadC || loadS || ready) return
-    const parsedForm = parseNotasPre(partido.notas_pre).formacion || DEFAULT_ANOTADOR.form
-    const formation = FORMATIONS.find((f) => f.name === parsedForm) || FORMATIONS[0]
-    setSnap(hydrateSnapshot({
-      notasPre: partido.notas_pre,
-      titulares: convocados.filter((c) => c.titular).map((c) => ({
-        id: c.id,
-        posicion: c.posicion_asignada,
-      })),
-      formationSlots: formation.slots,
-      informeStats: informeStatsFromUnknown(informe as unknown as Record<string, unknown>),
-      foulMap: informe
-        ? {
-            cometidas: informe.faltas_mapa_cometidas || [],
-            recibidas: informe.faltas_mapa_recibidas || [],
-          }
-        : null,
-    }))
-    setReflexion(informe?.reflexion_entrenador || '')
-    const notes: Record<string, number | null> = {}
-    for (const c of convocados) {
-      notes[c.id] = c.mi_nota_rendimiento ?? null
-    }
-    setNotasRend(notes)
-    setReady(true)
-  }, [partido, loadC, loadS, ready, convocados, informe])
+    setMostrarFotoState(leerLocal(FOTO_KEY) !== '0')
+    setRevision(parsearEstado(leerLocal(`kabine:anotador:revision:${partidoId}`)))
+  }, [partidoId])
+
+  const setMostrarFoto = (v: boolean) => {
+    setMostrarFotoState(v)
+    escribirLocal(FOTO_KEY, v ? '1' : '0')
+  }
+  const guardarRevision = (next: EstadoRevision) => {
+    setRevision(next)
+    escribirLocal(`kabine:anotador:revision:${partidoId}`, JSON.stringify(next))
+  }
 
   useEffect(() => {
     if (!snap.running) return
     const t0 = performance.now()
     const base = elapsedRef.current
     const id = window.setInterval(() => {
-      setSnap((s) => ({ ...s, elapsedMs: base + (performance.now() - t0) }))
+      const elapsedMs = base + (performance.now() - t0)
+      setSnap((s) => ({ ...s, elapsedMs }))
+      // El reloj avanza por temporizador, no por operaciones: el latido guarda el tiempo cada 5 s.
+      latidoRef.current({ running: true, elapsedMs, half: snapRef.current.half })
     }, 250)
     return () => window.clearInterval(id)
   }, [snap.running])
@@ -209,404 +207,499 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
   }, [])
 
   useEffect(() => {
+    // Solo se pregunta si hay algo que aún no llegó al servidor: lo anotado sigue a salvo en la tablet.
     const onLeave = (e: BeforeUnloadEvent) => {
-      if (!ready) return
+      const s = sincRef.current
+      if (!readyRef.current || (s.pendientes === 0 && s.estado === 'guardado')) return
       e.preventDefault()
       e.returnValue = ''
     }
     window.addEventListener('beforeunload', onLeave)
     return () => window.removeEventListener('beforeunload', onLeave)
-  }, [ready])
+  }, [])
 
-  const formation = FORMATIONS.find((f) => f.name === snap.form) || FORMATIONS[0]
-  const onField = new Set(Object.values(snap.slots).filter(Boolean))
-  const onPitch = convocados.filter((c) => onField.has(c.id)).sort(byDorsal)
-  const bench = convocados.filter((c) => !onField.has(c.id)).sort(byDorsal)
-  const minute = matchMinute(snap.half, snap.elapsedMs)
-  const liveScore = scoreFromEvents(snap.events)
-  const rows = computePlayerRows(snap, convocados.map((c) => c.id), minute)
-  const selectedConv = convocados.find((c) => c.id === selected) || null
-  const goalDraft = snap.events.find((e) => e.id === goalDraftId) || null
   const nameOf = useCallback((id?: string) => {
     if (!id) return ''
     const c = convocados.find((x) => x.id === id)
     return c ? displayName(c) : ''
   }, [convocados])
 
-  const persist = useCallback(async (opts?: { silent?: boolean; snapshot?: AnotadorSnapshot }) => {
-    const current = opts?.snapshot ?? snapRef.current
-    const match = partidoRef.current
-    if (!match) return
-    if (opts?.silent && persistBusy.current) return
-    if (!opts?.silent) persistBusy.current = true
-    if (!opts?.silent) setSaving(true)
-    try {
-      let sourceNotas: unknown = match.notas_pre
-      try {
-        const latest = await partidosApi.get(match.id)
-        if (latest?.notas_pre != null) sourceNotas = latest.notas_pre
-      } catch { /* el acta ya cargada sigue siendo la base */ }
-      const notas = mergeNotasPre(sourceNotas, { ...current, running: false })
-      await partidosApi.update(match.id, { notas_pre: notas })
-      partidoRef.current = { ...match, notas_pre: notas }
+  const datos = usePersistencia({
+    partidoId,
+    convocados,
+    nameOf,
+    notasPreRemotas: partidoRed?.notas_pre,
+    remotoListo: datosListos,
+  })
+  const { estadoSync, guardar, guardarNota, guardarReflexion, volcarReflexion, forzarSync, recuperacion } = datos
+  latidoRef.current = datos.latido
+  sincRef.current = estadoSync
+  readyRef.current = ready
 
-      const xiSlots = formacionSlotsForAnotadorSave(sourceNotas, current)
-      const assigned = new Map<string, string | null>()
-      for (const [slotId, convId] of Object.entries(xiSlots)) {
-        if (convId) assigned.set(convId, slotId.startsWith(EXTRA_SLOT_PREFIX) ? null : slotId)
-      }
-      if (assigned.size > 0) {
-        const written = titularWrittenRef.current
-        const changed = convocados.flatMap((c) => {
-          const titular = assigned.has(c.id)
-          const pos = assigned.get(c.id) ?? null
-          const prev = written.get(c.id) ?? { titular: Boolean(c.titular), pos: c.posicion_asignada ?? null }
-          if (opts?.silent && prev.titular === titular && (!titular || pos == null || prev.pos === pos)) return []
-          return [titular && pos ? { id: c.id, titular, posicion_asignada: pos } : { id: c.id, titular }]
-        })
-        if (changed.length > 0) {
-          try {
-            await convocatoriasApi.batchUpdateStats(changed)
-            for (const row of changed) {
-              written.set(row.id, { titular: row.titular, pos: row.posicion_asignada ?? written.get(row.id)?.pos ?? null })
-            }
-          } catch { /* el once no debe tumbar el volcado */ }
-        }
-      }
-
-      const flushed = informeFromSnapshot(current, convocados.map((c) => c.id), nameOf)
-      const hasLive = hasAnotadorLiveData(flushed.snap) || Boolean(reflexionRef.current.trim())
-      let dumpError: unknown = null
-      if (hasLive) {
-        const { gf, gc } = flushed.score
-        if (!opts?.silent && (current.started || current.events.length > 0 || current.closed)) {
-          try {
-            await partidosApi.registrarResultado(match.id, gf, gc)
-          } catch (err) {
-            dumpError = dumpError || err
-          }
-        }
-        try {
-          await convocatoriasApi.batchUpdateStats(
-            Object.entries(flushed.playerRows).map(([id, stats]) => ({ id, ...stats })),
-          )
-        } catch (err) {
-          dumpError = dumpError || err
-        }
-        const payload: EstadisticaPartidoUpdateData = {
-          goles_detalle_favor: flushed.goles.favor,
-          goles_detalle_contra: flushed.goles.contra,
-          faltas_mapa_cometidas: flushed.foulMap.cometidas,
-          faltas_mapa_recibidas: flushed.foulMap.recibidas,
-          reflexion_entrenador: reflexionRef.current,
-          goles_por_periodo: golesPorPeriodoFromEvents(flushed.snap.events),
-          ...emptyTeamStats(),
-          ...flushed.teamStats,
-        }
-        try {
-          await estadisticasPartidoApi.upsert(match.id, {
-            ...payload,
-            stats_periodos: statsPeriodosPayload(flushed.snap),
-          })
-        } catch {
-          try {
-            await estadisticasPartidoApi.upsert(match.id, payload)
-          } catch (err) {
-            dumpError = dumpError || err
-          }
-        }
-        if (!opts?.silent) {
-          await Promise.all(Object.entries(notasRendRef.current).map(async ([id, nota]) => {
-            if (nota == null) return
-            try {
-              await convocatoriasApi.upsertRendimiento(id, nota)
-            } catch { /* ignore nota errors */ }
-          }))
-        }
-      }
-
-      if (opts?.silent) return
-
-      await mutate(
-        (key: string) => typeof key === 'string' && (
-          key.includes('/partidos')
-          || key.includes('/convocatorias')
-          || key.includes('/estadisticas-partido')
-        )
-      )
-      if (dumpError) {
-        const msg = dumpError instanceof Error ? dumpError.message : 'Error del servidor'
-        toast.warning(`Acta guardada. El informe no se volcó: ${msg}`)
-        return
-      }
-      toast.success(
-        current.closed
-          ? 'Partido cerrado. Totales 1ª + 2ª en el informe'
-          : hasLive ? 'Todo guardado en el informe' : 'Once guardado. Pulsa saque al empezar.',
-      )
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'No se ha podido guardar')
-    } finally {
-      if (!opts?.silent) persistBusy.current = false
-      if (!opts?.silent) setSaving(false)
-    }
-  }, [convocados, nameOf])
-
-  persistSilentRef.current = () => {
-    void persist({ silent: true }).catch(() => undefined)
-  }
-
-  useEffect(() => {
-    if (!ready) return
-    if (!snap.started && snap.events.length === 0) return
-    const t = window.setTimeout(() => persistSilentRef.current(), 12_000)
-    return () => window.clearTimeout(t)
-  }, [snap.events, snap.slots, snap.half, snap.form, snap.teamStats, snap.periods, snap.foulMap, snap.closed, snap.rivalDorsals, ready])
-
-  useEffect(() => {
-    if (!snap.running) return
-    const t = window.setInterval(() => persistSilentRef.current(), 30_000)
-    return () => window.clearInterval(t)
-  }, [snap.running])
-
-  const toggleClock = () => {
-    const willPause = snap.running
-    const next = (() => {
-      let cur = snapRef.current
-      if (!cur.started && !cur.running) cur = startEleven(cur)
-      return { ...cur, running: !cur.running }
-    })()
+  /** Pone el snapshot en pantalla y lo escribe en la tablet. Toda acción del delegado pasa por aquí. */
+  const aplicarSnap = useCallback((next: AnotadorSnapshot) => {
     snapRef.current = next
     setSnap(next)
-    if (willPause) void persist({ snapshot: next }).catch(() => undefined)
+    return guardar(next)
+  }, [guardar])
+  const commit = useCallback((fn: (s: AnotadorSnapshot) => AnotadorSnapshot) => aplicarSnap(fn(snapRef.current)), [aplicarSnap])
+
+  // ---------- Arranque: el estado de la tablet (o del servidor) manda; el acta de siempre es el plan B ----------
+  useEffect(() => {
+    if (ready || recuperacion.fase !== 'lista' || !partido) return
+    const estado = recuperacion.estado
+    const usar = usaEstadoRecuperado(estado)
+    const parsedForm = parseNotasPre(partido.notas_pre).formacion || DEFAULT_ANOTADOR.form
+    const formacion = FORMATIONS.find((f) => f.name === parsedForm) || FORMATIONS[0]
+    const base = hydrateSnapshot({
+      notasPre: usar && estado ? JSON.stringify({ anotador: estado.snapshot }) : partido.notas_pre,
+      titulares: convocados.filter((c) => c.titular).map((c) => ({ id: c.id, posicion: c.posicion_asignada })),
+      formationSlots: formacion.slots,
+      informeStats: informeStatsFromUnknown(informe as unknown as Record<string, unknown>),
+      foulMap: informe
+        ? { cometidas: informe.faltas_mapa_cometidas || [], recibidas: informe.faltas_mapa_recibidas || [] }
+        : null,
+    })
+    snapRef.current = base
+    setSnap(base)
+    void guardar(base) // lo que la normalización añade (once por titulares, reloj en pausa) también queda guardado
+    const refl = estado?.reflexion || informe?.reflexion_entrenador || ''
+    setReflexion(refl)
+    if (!estado?.reflexion && refl) guardarReflexion(refl)
+    const notes: Record<string, number | null> = {}
+    for (const c of convocados) {
+      const propia = estado?.notas?.[c.id]
+      notes[c.id] = propia ?? c.mi_nota_rendimiento ?? null
+      if (propia == null && c.mi_nota_rendimiento != null) void guardarNota(c.id, c.mi_nota_rendimiento)
+    }
+    setNotasRend(notes)
+    setReady(true)
+    // Se refresca la copia para trabajar sin conexión la próxima vez (si hay red).
+    if (typeof navigator === 'undefined' || navigator.onLine !== false) void prefetchPartido(partidoId).catch(() => undefined)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recuperacion.fase, partido, ready])
+
+  const formation = FORMATIONS.find((f) => f.name === snap.form) || FORMATIONS[0]
+  const onField = useMemo(() => new Set(Object.values(snap.slots).filter(Boolean)), [snap.slots])
+  const minute = matchMinute(snap.half, snap.elapsedMs)
+  const liveScore = scoreFromEvents(snap.events)
+  const rows = computePlayerRows(snap, convocados.map((c) => c.id), minute)
+  const livePeriod = currentPeriod(snap)
+  const previa = !snap.started && snap.events.length === 0 && !snap.closed
+
+  const fichas = useMemo(() => {
+    const m = new Map<string, DatosFicha>()
+    for (const c of convocados) m.set(c.id, ficha(c))
+    return m
+  }, [convocados])
+  const ordenados = useMemo(() => [...convocados].sort(byDorsal), [convocados])
+  const todasFichas = useMemo(() => ordenados.map((c) => fichas.get(c.id)!), [ordenados, fichas])
+
+  const tarjetaDe = (id: string): 'amarilla' | 'roja' | null =>
+    rows[id]?.tarjeta_roja ? 'roja' : rows[id]?.tarjeta_amarilla ? 'amarilla' : null
+
+  const ocupantes = useMemo(() => {
+    const out: Record<string, FichaCampo | undefined> = {}
+    for (const slot of formation.slots) {
+      const id = snap.slots[slot.id]
+      const f = id ? fichas.get(id) : undefined
+      if (f) out[slot.id] = { ...f, titular: true, tarjeta: tarjetaDe(f.id), goles: rows[f.id]?.goles || 0, minutos: null }
+    }
+    return out
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formation, snap.slots, fichas, snap.events])
+
+  const banco: FichaBanco[] = convocados
+    .filter((c) => !onField.has(c.id))
+    .sort(byDorsal)
+    .map((c) => ({
+      ...ficha(c),
+      tarjeta: tarjetaDe(c.id),
+      goles: rows[c.id]?.goles || 0,
+      minutos: rows[c.id]?.minutos_jugados || null,
+      salio: (snap.playedOff[c.id] || 0) > 0 || snap.events.some((e) => e.type === 'cambio' && e.convId === c.id) || tarjetaDe(c.id) === 'roja',
+    }))
+
+  useEffect(() => {
+    if (hoja === 'revision') toast.dismiss(ID_DESHACER)
+  }, [hoja])
+
+  // ---------- Revisión ----------
+  const ultimoSnap = useRef(snap)
+  const avisos: Aviso[] = useMemo(() => {
+    ultimoSnap.current = snapRef.current
+    if (!ready) return []
+    return datos.validar(snapRef.current)
+    // Se recalcula con los datos del partido, no con cada tick del reloj.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, snap.events, snap.slots, snap.half, snap.closed, snap.started, snap.teamStats, snap.rivalDorsals, convocados, estadoSync.pendientes > 0])
+  const pend = pendientes(avisos, revision)
+
+  // ---------- Feedback ----------
+  const pulsar = (...ids: (string | undefined)[]) => {
+    setPulsos((p) => {
+      const n = { ...p }
+      for (const id of ids) if (id) n[id] = (n[id] || 0) + 1
+      return n
+    })
+    vibrar()
+  }
+
+  const deshacerEvento = useCallback((id: string, silencioso = false) => {
+    const previo = revertirEvento(snapRef.current, id)
+    if (!previo.evento) return
+    void commit((s) => revertirEvento(s, id).snap)
+    setGoalDraftId((g) => (g === id ? null : g))
+    if (!silencioso) toast.message('Evento deshecho')
+    if (previo.parcial) toast.warning('Se quitó el evento, pero el once ya había cambiado después. Revísalo.')
+  }, [commit])
+
+  const avisarConDeshacer = (mensaje: string, id: string) => {
+    toast(mensaje, {
+      id: ID_DESHACER,
+      duration: 6500,
+      action: { label: 'Deshacer', onClick: () => deshacerEvento(id, true) },
+    })
+  }
+
+  const nuevoEvento = (partial: Omit<AnotadorEvent, 'id' | 'minute' | 'half'>): AnotadorEvent => {
+    const s = snapRef.current
+    return { ...partial, id: newEventId(), minute: matchMinute(s.half, s.elapsedMs), half: s.half }
+  }
+
+  const anotar = (ev: AnotadorEvent, mensaje: string, jugadores: (string | undefined)[] = []) => {
+    void commit((s) => registrarEvento(s, ev))
+    pulsar(...jugadores)
+    avisarConDeshacer(mensaje, ev.id)
+  }
+
+  // ---------- Acciones sobre jugador ----------
+  const ejecutar = (efecto: Efecto) => {
+    if (efecto.tipo === 'aviso') { toast.message(efecto.mensaje); return }
+    if (efecto.tipo === 'cambio') {
+      const slotId = Object.entries(snapRef.current.slots).find(([, v]) => v === efecto.sale)?.[0]
+      if (!slotId) { toast.error('El jugador que sale no está en el campo'); return }
+      const id = newEventId()
+      const min = matchMinute(snapRef.current.half, snapRef.current.elapsedMs)
+      void commit((s) => registrarCambio(s, efecto.sale, efecto.entra, slotId, min, id))
+      pulsar(efecto.sale, efecto.entra)
+      avisarConDeshacer(`${min}′ Cambio: sale ${nameOf(efecto.sale)}, entra ${nameOf(efecto.entra)}`, id)
+      return
+    }
+    if (efecto.tipo !== 'evento') return
+    setGoalDraftId(null)
+    const nombre = nameOf(efecto.convId)
+    if (efecto.accion === 'gol') {
+      const ev = nuevoEvento({ type: 'gol', convId: efecto.convId, side: 'us', es_abp: false, tipo_gol: 'otro', zona: 'central' })
+      anotar(ev, `${ev.minute}′ Gol de ${nombre}`, [efecto.convId])
+      setGoalDraftId(ev.id)
+    } else if (efecto.accion === 'amarilla') {
+      const ev = nuevoEvento({ type: 'amarilla', convId: efecto.convId, side: 'us' })
+      anotar(ev, `${ev.minute}′ Amarilla a ${nombre}`, [efecto.convId])
+    } else {
+      const ev = nuevoEvento({ type: 'roja', convId: efecto.convId, side: 'us' })
+      anotar(ev, `${ev.minute}′ Roja a ${nombre}`, [efecto.convId])
+    }
+  }
+
+  const aplicar = (r: Resultado) => {
+    setInter(r.est)
+    ejecutar(r.efecto)
+  }
+
+  const colocarEnHueco = (slotId: string, selId: string) => {
+    void commit((s) => {
+      const slots = { ...s.slots }
+      const previoSlot = Object.entries(slots).find(([, v]) => v === selId)?.[0]
+      const ocupante = slots[slotId]
+      if (previoSlot) {
+        if (ocupante && ocupante !== selId) slots[previoSlot] = ocupante
+        else delete slots[previoSlot]
+      }
+      slots[slotId] = selId
+      return { ...s, slots }
+    })
+    setInter(INTERACCION_INICIAL)
+    vibrar()
+  }
+
+  const onToqueCampo = (hueco: { id: string }, convId: string | null) => {
+    if (previa) {
+      if (inter.jugador && (convId == null || convId !== inter.jugador)) {
+        colocarEnHueco(hueco.id, inter.jugador)
+        return
+      }
+      if (convId) aplicar(tocarJugador(inter, convId, onField))
+      return
+    }
+    if (convId) { aplicar(tocarJugador(inter, convId, onField)); return }
+    toast.message('Hueco vacío: el jugador salió expulsado o aún no se colocó')
+  }
+
+  const onToqueBanco = (id: string) => aplicar(tocarJugador(inter, id, onField))
+
+  const accionJugador = (a: 'gol' | 'amarilla' | 'roja') => {
+    if (rival && a !== 'gol') {
+      setInter(INTERACCION_INICIAL)
+      setTeclado({ para: a })
+      return
+    }
+    aplicar(pulsarAccion(inter, a, onField))
+  }
+
+  const golRival = () => {
+    setGoalDraftId(null)
+    const ev = nuevoEvento({ type: 'gol_contra', side: 'rival', es_abp: false, tipo_gol: 'otro', zona: 'central' })
+    anotar(ev, `${ev.minute}′ Gol del rival`)
+    setGoalDraftId(ev.id)
+    setRival(false)
+  }
+
+  const simple = (type: 'corner' | 'falta') => {
+    const lado: AnotadorSide = rival ? 'rival' : 'us'
+    const ev = nuevoEvento({ type, side: lado })
+    const nombre = type === 'corner' ? 'Córner' : 'Falta'
+    anotar(ev, `${ev.minute}′ ${nombre}${lado === 'rival' ? ' del rival' : ''}`)
+    setRival(false)
+  }
+
+  const elegirDorsalRival = (n: number | null) => {
+    const pedido = teclado
+    setTeclado(null)
+    if (!pedido) return
+    if (n != null) void commit((s) => addRivalDorsal(s, n))
+    if (pedido.para === 'gol') {
+      void commit((s) => patchGoalEvent(s, pedido.eventoId, { rivalDorsal: n ?? undefined }))
+      return
+    }
+    const ev = nuevoEvento({ type: pedido.para, side: 'rival', rivalDorsal: n ?? undefined })
+    anotar(ev, `${ev.minute}′ ${pedido.para === 'roja' ? 'Roja' : 'Amarilla'} rival${n != null ? ` #${n}` : ''}`)
+    setRival(false)
+  }
+
+  // ---------- Reloj ----------
+  const toggleClock = () => {
+    const willPause = snap.running
+    let cur = snapRef.current
+    if (!cur.started && !cur.running) cur = startEleven(cur)
+    const next = { ...cur, running: !cur.running }
+    void aplicarSnap(next)
+    setInter(INTERACCION_INICIAL)
+    if (willPause) latidoRef.current({ running: false, elapsedMs: next.elapsedMs, half: next.half })
   }
 
   const changeHalf = (half: AnotadorHalf) => {
     if (snap.half === half) return
-    const next = setActiveHalf(snapRef.current, half)
-    snapRef.current = next
-    setSnap(next)
-    void persist({ snapshot: next }).catch(() => undefined)
+    void aplicarSnap(setActiveHalf(snapRef.current, half))
   }
 
-  const undo = () => {
-    setSnap((s) => {
-      const last = s.events[s.events.length - 1]
-      if (!last) return s
-      const events = s.events.slice(0, -1)
-      let next: AnotadorSnapshot = { ...s, events }
-      let slots = s.slots
-      let enteredAt = s.enteredAt
-      let playedOff = s.playedOff
-      const side = last.side || (last.type === 'gol_contra' ? 'rival' : 'us')
-      const half = last.half || s.half
-      if (last.type === 'corner') next = bumpPeriodStat(next, 'saques_esquina', side, -1, half)
-      if (last.type === 'falta') next = bumpPeriodStat(next, 'faltas_cometidas', side, -1, half)
-      if (last.type === 'amarilla') next = bumpPeriodStat(next, 'tarjetas_amarillas', side, -1, half)
-      if (last.type === 'roja') next = bumpPeriodStat(next, 'tarjetas_rojas', side, -1, half)
-      if (isPenaltyGoal(last)) next = bumpPeriodStat(next, 'penaltis', side, -1, half)
-      if (last.type === 'cambio' && last.convId && last.relatedConvId && last.slotId) {
-        slots = { ...s.slots, [last.slotId]: last.convId }
-        enteredAt = { ...s.enteredAt }
-        delete enteredAt[last.relatedConvId]
-        playedOff = { ...s.playedOff }
-        delete playedOff[last.convId]
-      }
-      if (last.type === 'roja' && last.convId && last.slotId) {
-        playedOff = { ...playedOff }
-        delete playedOff[last.convId]
-        slots = { ...slots, [last.slotId]: last.convId }
-      }
-      return { ...next, slots, enteredAt, playedOff }
-    })
-    setPending(null)
-    setGoalDraftId(null)
-  }
-
-  const onTapPlayer = (convId: string, slotId?: string) => {
-    if (pending === 'cambio' && selected && selected !== convId && !onField.has(convId)) {
-      const slot = slotId || Object.entries(snap.slots).find(([, v]) => v === selected)?.[0]
-      if (slot) {
-        setSnap((s) => {
-          const withSub = applySub(s, selected, convId, slot, minute)
-          return {
-            ...withSub,
-            events: [...withSub.events, {
-              id: newEventId(),
-              minute,
-              half: s.half,
-              type: 'cambio',
-              convId: selected,
-              relatedConvId: convId,
-              slotId: slot,
-            }],
-          }
-        })
-        setPending(null)
-        setSelected(convId)
-        return
-      }
-    }
-    if (pending === 'asistencia' && goalDraftId && convId !== goalDraft?.convId) {
-      setSnap((s) => patchGoalEvent(s, goalDraftId, { relatedConvId: convId }))
-      setPending(null)
-      setGoalDraftId(null)
-      toast.success('Asistencia anotada')
-      return
-    }
-    setSelected((prev) => (prev === convId ? null : convId))
-    setSelectedRival(null)
-  }
-
-  const pushTimed = (partial: Omit<AnotadorEvent, 'id' | 'minute' | 'half'>) => {
-    const ev: AnotadorEvent = {
-      ...partial,
-      id: newEventId(),
-      minute,
-      half: snap.half,
-    }
-    setSnap((s) => ({ ...s, events: [...s.events, ev] }))
-    return ev
-  }
-
-  const firePlayer = (type: 'gol' | 'amarilla' | 'roja') => {
-    if (!selected) {
-      toast.error('Toca un dorsal')
-      return
-    }
-    const convId = selected
-    if (type === 'roja') {
-      setSnap((s) => {
-        const slotId = Object.entries(s.slots).find(([, v]) => v === convId)?.[0]
-        const nowMin = matchMinute(s.half, s.elapsedMs)
-        const entered = s.enteredAt[convId] ?? nowMin
-        const nextSlots = { ...s.slots }
-        if (slotId) delete nextSlots[slotId]
-        return bumpPeriodStat({
-          ...s,
-          events: [...s.events, {
-            id: newEventId(), minute: nowMin, half: s.half, type: 'roja', convId, slotId, side: 'us',
-          }],
-          slots: nextSlots,
-          playedOff: { ...s.playedOff, [convId]: (s.playedOff[convId] || 0) + Math.max(0, nowMin - entered) },
-        }, 'tarjetas_rojas', 'us', 1)
-      })
-      setSelected(null)
-      return
-    }
-    if (type === 'amarilla') {
-      setSnap((s) => bumpPeriodStat({
-        ...s,
-        events: [...s.events, {
-          id: newEventId(),
-          minute: matchMinute(s.half, s.elapsedMs),
-          half: s.half,
-          type: 'amarilla',
-          convId,
-          side: 'us',
-        }],
-      }, 'tarjetas_amarillas', 'us', 1))
-      return
-    }
-    const ev = pushTimed({ type: 'gol', convId, side: 'us', es_abp: false, tipo_gol: 'otro', zona: 'central' })
-    setGoalDraftId(ev.id)
-    setPending(null)
-  }
-
-  const fireCambio = () => {
-    if (!selected || !onField.has(selected)) {
-      toast.error('Toca al que sale')
-      return
-    }
-    setPending('cambio')
-  }
-
-  const fireRival = (type: 'gol_contra' | 'amarilla' | 'roja') => {
-    const rivalDorsal = selectedRival ?? undefined
-    if ((type === 'amarilla' || type === 'roja') && rivalDorsal == null) {
-      toast.error('Toca un dorsal rival')
-      return
-    }
-    if (type === 'gol_contra') {
-      const ev = pushTimed({ type, side: 'rival', rivalDorsal, es_abp: false, tipo_gol: 'otro', zona: 'central' })
-      setGoalDraftId(ev.id)
-      return
-    }
-    setSnap((s) => bumpPeriodStat({
-      ...s,
-      events: [...s.events, {
-        id: newEventId(),
-        minute: matchMinute(s.half, s.elapsedMs),
-        half: s.half,
-        type,
-        side: 'rival',
-        rivalDorsal,
-      }],
-    }, type === 'amarilla' ? 'tarjetas_amarillas' : 'tarjetas_rojas', 'rival', 1))
-  }
-
-  const bump = (key: TeamStatKey, side: AnotadorSide, delta: number) => {
-    setSnap((s) => bumpPeriodStat(s, key, side, delta))
-  }
-
-  const bumpOccasion = (side: AnotadorSide, lane: AttackLane, delta: number) => {
-    setSnap((s) => bumpPeriodOccasion(s, side, lane, delta))
-  }
-
-  const patchGoal = (id: string, patch: Partial<AnotadorEvent>) => {
-    setSnap((s) => patchGoalEvent(s, id, patch))
-  }
-
-  const placeOnSlot = (slotId: string) => {
-    if (!selected) return
-    if (pending === 'cambio') {
-      onTapPlayer(selected, slotId)
-      return
-    }
-    if (snap.started) {
-      toast.message('Cambio: toca Sale y luego al del banquillo')
-      return
-    }
-    setSnap((s) => {
-      const slots = { ...s.slots }
-      for (const [k, v] of Object.entries(slots)) {
-        if (v === selected) delete slots[k]
-      }
-      slots[slotId] = selected
-      return { ...s, slots }
-    })
-  }
-
+  // ---------- Formación ----------
   const changeFormation = (name: string) => {
     const nextForm = FORMATIONS.find((f) => f.name === name)
     if (!nextForm) return
-    setSnap((s) => {
+    void commit((s) => {
       const prevForm = FORMATIONS.find((f) => f.name === s.form) || FORMATIONS[0]
-      return {
-        ...s,
-        form: name,
-        slots: remapFormationSlots(s.slots, prevForm.slots, nextForm.slots),
-      }
+      return { ...s, form: name, slots: remapFormationSlots(s.slots, prevForm.slots, nextForm.slots) }
     })
   }
 
-  if (loadP || loadC || loadS || !ready) {
+  // ---------- Cronología y edición ----------
+  const filas: FilaEvento[] = useMemo(() => {
+    return ordenCronologico(snap.events as EventoEditable[]).map((ev) => {
+      const lado = ev.side || (ev.type === 'gol_contra' ? 'rival' : 'us')
+      const texto = eventLabel(ev as AnotadorEvent, nameOf).replace(/^\d+'\s*/, '')
+      const partes = texto.split(/\s(?=\(asiste)/)
+      return {
+        evento: ev,
+        titulo: partes[0],
+        detalle: [lado === 'rival' ? 'Rival' : '', ev.half === 1 ? '1ª parte' : '2ª parte', partes[1]?.replace(/[()]/g, '') || '']
+          .filter(Boolean).join(' · '),
+        principal: ev.convId ? fichas.get(ev.convId) : undefined,
+        secundario: ev.relatedConvId ? fichas.get(ev.relatedConvId) : undefined,
+        avisos: avisos.filter((a) => a.eventIds?.includes(ev.id) && !revision.descartados.includes(a.id)).length,
+      }
+    })
+  }, [snap.events, fichas, nameOf, avisos, revision.descartados])
+
+  const abrirEditor = (id: string) => {
+    const ev = snapRef.current.events.find((e) => e.id === id)
+    if (!ev) return
+    setHoja(null)
+    setEditor({ modo: 'editar', evento: { ...ev } as EventoEditable })
+  }
+
+  const anadirOlvidado = () => {
+    const s = snapRef.current
+    setHoja(null)
+    setEditor({
+      modo: 'crear',
+      evento: { id: newEventId(), type: 'gol', side: 'us', half: s.half, minute: matchMinute(s.half, s.elapsedMs), es_abp: false, tipo_gol: 'otro', zona: 'central' },
+    })
+  }
+
+  const guardarEditor = (nuevo: EventoEditable) => {
+    if (!editor) return
+    const ev = nuevo as AnotadorEvent
+    if (editor.modo === 'crear') {
+      void commit((s) => registrarEvento(s, ev))
+      avisarConDeshacer(`${ev.minute}′ Evento añadido`, ev.id)
+    } else {
+      const previo = snapRef.current.events.find((e) => e.id === ev.id)
+      void commit((s) => reemplazarEvento(s, ev))
+      if (previo) {
+        toast('Evento corregido', {
+          id: ID_DESHACER,
+          duration: 6500,
+          action: { label: 'Deshacer', onClick: () => { void commit((s) => reemplazarEvento(s, previo)) } },
+        })
+      }
+    }
+    setEditor(null)
+  }
+
+  const borrarEditor = (id: string) => {
+    const previo = revertirEvento(snapRef.current, id)
+    if (!previo.evento) { setEditor(null); return }
+    const { evento, posicion } = previo
+    void commit((s) => revertirEvento(s, id).snap)
+    setEditor(null)
+    setGoalDraftId((g) => (g === id ? null : g))
+    toast('Evento eliminado', {
+      id: ID_DESHACER,
+      duration: 6500,
+      action: { label: 'Deshacer', onClick: () => { void commit((s) => restaurarEvento(s, evento, posicion)) } },
+    })
+    if (previo.parcial) toast.warning('El once ya había cambiado después de ese evento. Revísalo.')
+  }
+
+  const corregirAviso = (a: Aviso) => {
+    if (a.eventIds?.[0]) { abrirEditor(a.eventIds[0]); return }
+    if (a.convIds?.[0]) {
+      setHoja(null)
+      setInter({ jugador: a.convIds[0], armada: null, entra: null })
+    }
+  }
+
+  const goalDraft = snap.events.find((e) => e.id === goalDraftId) || null
+  const ultimo = snap.events.length ? eventLabel(snap.events[snap.events.length - 1], nameOf) : null
+
+  // ---------- Cierre ----------
+  // Primero queda escrito en la tablet; después se intenta enviar. El delegado ve en cada momento DÓNDE está el cierre.
+  const cerrarPartido = async () => {
+    toast.dismiss(ID_DESHACER)
+    setEnvio('enviando')
+    setInter(INTERACCION_INICIAL)
+    const enDisco = await aplicarSnap(closeMatch(snapRef.current))
+    if (!enDisco) { setEnvio('fallo'); return }
+    await volcarReflexion()
+    const r = await forzarSync({ resultado: true })
+    setEnvio(r?.ok ? 'servidor' : 'local')
+  }
+
+  const avisarResultadoSync = (fin?: string, pendientes = 0) => {
+    if (fin === 'completo') toast.success('Todo enviado al servidor')
+    else if (fin === 'offline') toast.message('Sin conexión: todo sigue guardado en la tablet y se enviará solo.')
+    else if (fin === 'login') toast.warning('Sesión caducada: inicia sesión para enviar. Tus datos están a salvo en la tablet.')
+    else toast.warning(`No se pudo enviar todo${pendientes ? ` (${pendientes} por enviar)` : ''}. Sigue guardado en la tablet; se reintenta solo.`)
+  }
+  /** Menú «Guardar y sincronizar ahora»: guardado explícito (notifica el marcador al staff). */
+  const guardarAhora = async () => {
+    const r = await forzarSync({ resultado: true })
+    avisarResultadoSync(r?.fin, estadoSync.pendientes)
+  }
+  /** Insignia «Sincronizar ahora»: solo envía, sin avisar al staff del marcador. */
+  const sincronizarAhora = async () => {
+    const r = await forzarSync()
+    avisarResultadoSync(r?.fin, estadoSync.pendientes)
+  }
+
+  const reabrirPartido = () => {
+    setEnvio(null)
+    void commit((s) => reopenMatch(s))
+  }
+
+  const reintentarEnvio = async () => {
+    const r = await forzarSync({ resultado: true })
+    if (r?.ok) { setEnvio('servidor'); toast.success('Enviado al servidor') }
+    else toast.message('Sigue sin llegar al servidor. Todo está guardado en la tablet.')
+  }
+
+  const cierre: EstadoCierre | null = !snap.closed
+    ? null
+    : envio === 'enviando'
+      ? { fase: 'enviando', pendientes: estadoSync.pendientes }
+      : envio === 'fallo'
+        ? { fase: 'fallo', pendientes: estadoSync.pendientes }
+        : estadoSync.estado === 'guardado' && estadoSync.pendientes === 0 && (envio !== null || Boolean(estadoSync.ultimaSync))
+          ? { fase: 'servidor', pendientes: 0 }
+          : { fase: 'tablet', pendientes: estadoSync.pendientes }
+
+  const resumen = useMemo(() => resumenPartido(
+    snap.events as EventoEditable[],
+    nameOf,
+    convocados.map((c) => ({
+      convId: c.id, nombre: displayName(c), dorsal: dorsalOf(c), minutos: rows[c.id]?.minutos_jugados || 0,
+    })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [snap.events, convocados, nameOf, minute, snap.slots])
+
+  const notasFilas: FilaNota[] = [...convocados]
+    .sort((a, b) => {
+      const ma = rows[a.id]?.minutos_jugados || 0
+      const mb = rows[b.id]?.minutos_jugados || 0
+      if (onField.has(a.id) !== onField.has(b.id)) return onField.has(a.id) ? -1 : 1
+      if (ma !== mb) return mb - ma
+      return byDorsal(a, b)
+    })
+    .map((c) => ({
+      ficha: fichas.get(c.id)!,
+      minutos: rows[c.id]?.minutos_jugados || 0,
+      goles: rows[c.id]?.goles || 0,
+      asistencias: rows[c.id]?.asistencias || 0,
+      amarilla: !!rows[c.id]?.tarjeta_amarilla,
+      roja: !!rows[c.id]?.tarjeta_roja,
+      nota: notasRend[c.id] ?? null,
+    }))
+
+  if (recuperacion.fase === 'preguntar' && recuperacion.info) {
     return (
-      <div className="min-h-[100dvh] flex items-center justify-center text-zinc-400 gap-2">
-        <Loader2 className="h-5 w-5 animate-spin" /> Cargando convocatoria…
+      <PantallaRecuperacion
+        recuperacion={recuperacion.info}
+        onContinuar={() => { void recuperacion.continuar() }}
+        onDescartar={() => { void recuperacion.descartar() }}
+      />
+    )
+  }
+
+  // Sin red y sin copia en la tablet: no hay nada con lo que abrir. Se dice claro, sin inventar un acta vacía.
+  if (!ready && !sinRespuesta && copia !== undefined && !partido) {
+    const sinRed = typeof navigator !== 'undefined' && navigator.onLine === false
+    return (
+      <div data-superficie="visitante" className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-background px-6 text-center text-foreground">
+        <p className="text-xl font-bold">{sinRed ? 'Este partido no está preparado para jugar sin conexión.' : 'No se pudo abrir el partido.'}</p>
+        <p className="max-w-[520px] text-base text-muted-foreground">
+          {sinRed
+            ? 'Conéctate una vez y abre el partido (o pulsa «Preparar» en la lista de partidos) para poder anotar sin cobertura.'
+            : 'Comprueba la conexión e inténtalo de nuevo. Si ya anotaste algo en este partido, sigue guardado en la tablet.'}
+        </p>
+        <div className="flex gap-3">
+          <Boton variante="primario" grande onClick={() => { void recargarPartido(); void recargarConv() }}>Reintentar</Boton>
+          <Link href="/anotador" className="inline-flex min-h-14 items-center rounded-lg border-[1.5px] border-line bg-card px-6 text-base font-semibold">Partidos</Link>
+        </div>
       </div>
     )
   }
 
-  if (!partido) return <div className="p-8 text-zinc-400">Partido no encontrado.</div>
+  if (!ready || !partido) return <EsqueletoAnotador />
 
   if (convocados.length === 0) {
     return (
-      <div className="min-h-[100dvh] flex flex-col items-center justify-center gap-4 px-6 text-center">
-        <p className="text-lg">Este partido no tiene convocatoria.</p>
+      <div data-superficie="visitante" className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-background px-6 text-center text-foreground">
+        <p className="text-xl font-bold">Este partido no tiene convocatoria.</p>
+        <p className="text-base text-muted-foreground">Convoca a los jugadores antes de anotar.</p>
         <Link
           href={`/partidos?match=${partidoId}&tab=convocatoria`}
-          className="h-14 px-6 rounded-2xl bg-amber-400 text-zinc-950 font-semibold flex items-center"
+          className="inline-flex min-h-14 items-center rounded-lg border-[1.5px] border-primary bg-primary px-6 text-lg font-semibold text-primary-foreground"
         >
           Ir a convocatoria
         </Link>
@@ -614,1213 +707,238 @@ export function AnotadorApp({ partidoId }: { partidoId: string }) {
     )
   }
 
-  const livePeriod = currentPeriod(snap)
-  const phaseLabel = snap.closed
+  const rivalNombre = partido.rival?.nombre || 'Rival'
+  const hrefInforme = `/partidos?match=${partidoId}&tab=informe-partido`
+  const fase = snap.closed
     ? 'Cerrado'
     : !snap.started
       ? 'Previa'
       : snap.running
-        ? (snap.half === 2 ? '2ª' : '1ª')
-        : snap.half === 2 ? 'Pausa 2ª' : 'Descanso'
+        ? (snap.half === 2 ? '2ª parte' : '1ª parte')
+        : snap.half === 2 ? 'Pausa · 2ª' : 'Descanso'
+  const contexto = [
+    etiquetaCompeticion(partido.competicion),
+    partido.jornada ? `Jornada ${partido.jornada}` : '',
+    partido.localia === 'local' ? 'Local' : partido.localia === 'visitante' ? 'Visitante' : 'Neutral',
+  ].filter(Boolean).join(' · ')
+
+  const menu: ItemMenu[] = [
+    { id: 'partidos', etiqueta: 'Partidos', descripcion: 'Volver a la lista', href: '/anotador' },
+    { id: 'guardar', etiqueta: 'Guardar y sincronizar ahora', onClick: () => { void guardarAhora() } },
+    { id: 'notas', etiqueta: 'Notas y reflexión', descripcion: 'Rendimiento de cada jugador', onClick: () => { setMasVista('notas'); setHoja('mas') } },
+    { id: 'fichas', etiqueta: mostrarFoto ? 'Fichas solo con dorsal' : 'Fichas con foto', onClick: () => setMostrarFoto(!mostrarFoto) },
+    { id: 'informe', etiqueta: 'Abrir informe', href: hrefInforme },
+    ...(snap.closed ? [] : [{ id: 'cerrar', etiqueta: 'Revisar y cerrar partido', onClick: () => setHoja('revision') }]),
+  ]
+
+  const cancelable = inter.jugador || inter.armada || inter.entra
+  const hayParejaCambio = Boolean(inter.jugador && inter.entra && onField.has(inter.jugador))
+  const guia = guiaInteraccion(inter, (id) => nameOf(id))
 
   return (
-    <div data-paleta-propia className="h-[100dvh] flex flex-col bg-[#07110c] pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
-      <header className="shrink-0 px-2 py-1.5 bg-[#050d09] border-b border-amber-500/25 grid grid-cols-[auto_1fr_auto] items-center gap-2">
-        <Link href="/anotador" className="h-12 w-12 rounded-2xl bg-white/10 flex items-center justify-center" aria-label="Partidos">
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
-        <div className="flex items-center justify-center gap-3 min-w-0">
-          <p className="hidden sm:block truncate text-xs text-zinc-400 max-w-[9rem]">{equipoNombre}</p>
-          <p className="font-mono tabular-nums text-[40px] leading-none text-amber-300">
-            {liveScore.gf}<span className="text-amber-300/35 mx-0.5">–</span>{liveScore.gc}
-          </p>
-          {partido.rival?.escudo_url && (
-            <TeamCrest src={partido.rival.escudo_url} name={partido.rival.nombre} size="md" />
-          )}
-          <p className="truncate text-xs text-zinc-400 max-w-[9rem]">{partido.rival?.nombre || 'Rival'}</p>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setSnap((s) => ({ ...s, dirRight: !s.dirRight }))}
-            className="h-12 px-3 rounded-2xl bg-white/10 text-xs font-semibold whitespace-nowrap"
-          >
-            Atacamos {snap.dirRight ? '→' : '←'}
-          </button>
-          <button type="button" onClick={() => setSnap((s) => ({ ...s, elapsedMs: nudgeElapsed(s.elapsedMs, -60_000) }))} className="h-10 w-10 rounded-xl bg-white/10 text-lg" aria-label="Restar minuto">−</button>
-          <div className="text-right min-w-[4.5rem]">
-            <p className="font-mono tabular-nums text-[26px] leading-none text-amber-200">{formatClock(snap.half, snap.elapsedMs)}</p>
-            <p className="text-[10px] uppercase tracking-widest text-emerald-400/80">{phaseLabel}</p>
-          </div>
-          <button type="button" onClick={() => setSnap((s) => ({ ...s, elapsedMs: nudgeElapsed(s.elapsedMs, 60_000) }))} className="h-10 w-10 rounded-xl bg-white/10 text-lg" aria-label="Sumar minuto">+</button>
-          <div className="grid grid-cols-2 h-12 rounded-2xl overflow-hidden bg-white/10">
-            <button
-              type="button"
-              onClick={() => changeHalf(1)}
-              className={`px-2.5 text-xs font-semibold ${snap.half === 1 ? 'bg-amber-400 text-zinc-950' : 'text-zinc-200'}`}
-            >
-              1ª
-            </button>
-            <button
-              type="button"
-              onClick={() => changeHalf(2)}
-              className={`px-2.5 text-xs font-semibold ${snap.half === 2 ? 'bg-amber-400 text-zinc-950' : 'text-zinc-200'}`}
-            >
-              2ª
-            </button>
-          </div>
-          <button
-            type="button"
-            onClick={toggleClock}
-            className="h-12 w-12 rounded-2xl bg-amber-400 text-zinc-950 flex items-center justify-center"
-            aria-label={snap.running ? 'Pausar' : 'Saque'}
-          >
-            {snap.running ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}
-          </button>
-        </div>
-      </header>
-
-      <nav className="shrink-0 grid grid-cols-7 gap-1 px-1.5 py-1 bg-[#050d09]">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTab(t.id)}
-            className={`min-h-12 rounded-xl text-sm font-semibold ${
-              tab === t.id ? 'bg-amber-400 text-zinc-950' : 'bg-white/10 text-zinc-200'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </nav>
-
-      <div className="flex-1 min-h-0 overflow-hidden relative">
-        {tab === 'acta' && (
-          <ActaTab
-            onPitch={onPitch}
-            bench={bench}
-            selected={selected}
-            pending={pending}
-            onTapPlayer={onTapPlayer}
-            firePlayer={firePlayer}
-            fireCambio={fireCambio}
-            fireRival={fireRival}
-            bump={bump}
-            teamStats={livePeriod.teamStats}
-            selectedName={selectedConv ? `${dorsalOf(selectedConv) ?? '—'} ${displayName(selectedConv)}` : null}
-            onField={onField}
-            minutes={Object.fromEntries(Object.entries(rows).map(([id, r]) => [id, r.minutos_jugados]))}
-            rivalDorsals={snap.rivalDorsals || []}
-            selectedRival={selectedRival}
-            onSelectRival={(n) => {
-              setSelected(null)
-              setSelectedRival((prev) => (prev === n ? null : n))
-            }}
-            onAddRival={(n) => setSnap((s) => addRivalDorsal(s, n))}
-            onRemoveRival={(n) => {
-              setSnap((s) => removeRivalDorsal(s, n))
-              setSelectedRival((prev) => (prev === n ? null : prev))
-            }}
-            foulMap={livePeriod.foulMap}
-          />
-        )}
-        {tab === 'once' && (
-          <OnceTab
-            snap={snap}
-            setSnap={setSnap}
-            formation={formation}
-            convocados={convocados}
-            selected={selected}
-            onTapPlayer={onTapPlayer}
-            placeOnSlot={placeOnSlot}
-            changeFormation={changeFormation}
-          />
-        )}
-        {tab === 'goles' && (
-          <GolesTab
-            events={snap.events}
-            convocados={convocados}
-            nameOf={nameOf}
-            patchGoal={patchGoal}
-            onPickAssist={(id) => { setGoalDraftId(id); setPending('asistencia') }}
-          />
-        )}
-        {tab === 'stats' && (
-          <StatsTab
-            teamStats={livePeriod.teamStats}
-            occasionLanes={livePeriod.occasionLanes}
-            totals={snap.teamStats}
-            half={snap.half}
-            usName={equipoNombre}
-            rivalName={partido.rival?.nombre || 'Rival'}
-            bump={bump}
-            bumpOccasion={bumpOccasion}
-            foulMap={livePeriod.foulMap}
-          />
-        )}
-        {tab === 'faltas' && (
-          <FaltasTab
-            foulMap={livePeriod.foulMap}
-            dirRight={snap.dirRight}
-            half={snap.half}
-            setFoulMap={(foulMap) => setSnap((s) => setPeriodFoulMap(s, foulMap))}
-          />
-        )}
-        {tab === 'notas' && (
-          <NotasTab
-            convocados={convocados}
-            rows={rows}
-            onField={onField}
-            notasRend={notasRend}
-            setNotasRend={setNotasRend}
-            reflexion={reflexion}
-            setReflexion={setReflexion}
-          />
-        )}
-        {tab === 'cierre' && (
-          <CierreTab
-            snap={snap}
-            usName={equipoNombre}
-            rivalName={partido.rival?.nombre || 'Rival'}
-            partidoId={partidoId}
-            saving={saving}
-            onSave={() => void persist()}
-            onClose={() => {
-              const next = closeMatch(snapRef.current)
-              snapRef.current = next
-              setSnap(next)
-              setTab('cierre')
-              void persist({ snapshot: next }).catch(() => undefined)
-            }}
-            onReopen={() => setSnap((s) => reopenMatch(s))}
-          />
-        )}
-
-        {pending === 'cambio' && selectedConv && (
-          <PickerOverlay
-            title={`Sale ${dorsalOf(selectedConv) ?? ''} ${displayName(selectedConv)}. ¿Quién entra?`}
-            players={bench}
-            onPick={(id) => onTapPlayer(id)}
-            onCancel={() => setPending(null)}
-          />
-        )}
-        {pending === 'asistencia' && goalDraft && (
-          <PickerOverlay
-            title="¿Quién asiste?"
-            players={convocados.filter((c) => c.id !== goalDraft.convId).sort(byDorsal)}
-            onPick={(id) => onTapPlayer(id)}
-            onCancel={() => { setPending(null); setGoalDraftId(null) }}
-            extra={(
-              <button
-                type="button"
-                onClick={() => { setPending(null); setGoalDraftId(null) }}
-                className="min-h-14 rounded-xl bg-white/10 font-semibold"
-              >
-                Sin asistencia
-              </button>
-            )}
-          />
-        )}
-      </div>
-
-      {goalDraft && (goalDraft.type === 'gol' || goalDraft.type === 'gol_contra') && pending !== 'asistencia' && (
-        <GoalSheet
-          event={goalDraft}
-          needAssist={goalDraft.type === 'gol'}
-          onPatch={(patch) => patchGoal(goalDraft.id, patch)}
-          onAssist={() => setPending('asistencia')}
-          onSkipAssist={() => setGoalDraftId(null)}
-          onClose={() => setGoalDraftId(null)}
-        />
-      )}
-
-      <footer className="shrink-0 h-12 px-2 flex items-center gap-2 bg-[#050d09] border-t border-amber-500/20">
-        <button type="button" onClick={undo} className="h-10 px-3 rounded-xl bg-white/10 flex items-center gap-1 text-sm">
-          <Undo2 className="h-4 w-4" /> Deshacer
-        </button>
-        <div className="flex-1 min-w-0 overflow-x-auto flex items-center gap-2">
-          {snap.events.length === 0 && (
-            <span className="text-xs text-zinc-500 whitespace-nowrap">Toca un dorsal y Gol / tarjeta. Stats y faltas en sus pestañas.</span>
-          )}
-          {[...snap.events].reverse().slice(0, 12).map((ev) => (
-            <span key={ev.id} className="shrink-0 text-xs font-mono text-zinc-200 bg-white/5 rounded-lg px-2 py-1">
-              {eventLabel(ev, nameOf)}
-            </span>
-          ))}
-        </div>
-        <button
-          type="button"
-          onClick={() => void persist()}
-          disabled={saving}
-          className="h-10 px-3 rounded-xl bg-emerald-500 text-zinc-950 font-semibold text-sm flex items-center gap-1 disabled:opacity-60"
-        >
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          Guardar
-        </button>
-        <Link href={`/partidos?match=${partidoId}&tab=informe-partido`} className="h-10 w-10 rounded-xl bg-white/10 flex items-center justify-center" aria-label="Informe">
-          <ExternalLink className="h-4 w-4" />
-        </Link>
-      </footer>
-    </div>
-  )
-}
-
-function ActaTab({
-  onPitch,
-  bench,
-  selected,
-  pending,
-  onTapPlayer,
-  firePlayer,
-  fireCambio,
-  fireRival,
-  bump,
-  teamStats,
-  selectedName,
-  onField,
-  minutes,
-  rivalDorsals,
-  selectedRival,
-  onSelectRival,
-  onAddRival,
-  onRemoveRival,
-  foulMap,
-}: {
-  onPitch: Convocatoria[]
-  bench: Convocatoria[]
-  selected: string | null
-  pending: Pending
-  onTapPlayer: (id: string) => void
-  firePlayer: (t: 'gol' | 'amarilla' | 'roja') => void
-  fireCambio: () => void
-  fireRival: (t: 'gol_contra' | 'amarilla' | 'roja') => void
-  bump: (key: TeamStatKey, side: AnotadorSide, delta: number) => void
-  teamStats: Record<string, number>
-  selectedName: string | null
-  onField: Set<string>
-  minutes: Record<string, number>
-  rivalDorsals: number[]
-  selectedRival: number | null
-  onSelectRival: (n: number) => void
-  onAddRival: (n: number) => void
-  onRemoveRival: (n: number) => void
-  foulMap: AnotadorSnapshot['foulMap']
-}) {
-  const usFoulsLocked = foulMap.cometidas.length > 0
-  const rivalFoulsLocked = foulMap.recibidas.length > 0
-  return (
-    <div className="h-full grid grid-cols-1 landscape:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)] gap-1.5 p-1.5">
-      <div className="min-h-0 overflow-y-auto rounded-2xl bg-[#122018] p-2 space-y-3">
-        <PlayerGroup title="Campo" players={onPitch} selected={selected} pending={pending} onTap={onTapPlayer} minutes={minutes} />
-        <PlayerGroup
-          title={pending === 'cambio' ? 'Banquillo · toca al que entra' : 'Banquillo'}
-          players={bench}
-          selected={selected}
-          pending={pending}
-          onTap={onTapPlayer}
-          highlight={pending === 'cambio'}
-          minutes={minutes}
-        />
-      </div>
-      <div className="min-h-0 overflow-y-auto rounded-2xl bg-[#122018] p-2 space-y-2">
-        <p className="text-xs text-zinc-400 px-1 min-h-5">
-          {pending === 'asistencia'
-            ? 'Toca al que asiste'
-            : pending === 'cambio'
-              ? 'Toca al que entra'
-              : selectedName
-                ? `Seleccionado: ${selectedName}`
-                : selectedRival != null
-                  ? `Rival #${selectedRival}`
-                  : 'Toca un dorsal'}
-        </p>
-        <div className="grid grid-cols-2 gap-1.5">
-          <BigBtn label="Gol" onClick={() => firePlayer('gol')} tone="white" disabled={!selected} />
-          <BigBtn label="Sale" onClick={fireCambio} tone={pending === 'cambio' ? 'sky' : 'mute'} disabled={!selected || !onField.has(selected || '')} />
-          <BigBtn label="Amarilla" onClick={() => firePlayer('amarilla')} tone="yellow" disabled={!selected} />
-          <BigBtn label="Roja" onClick={() => firePlayer('roja')} tone="red" disabled={!selected} />
-        </div>
-        <p className="text-[10px] uppercase tracking-widest text-zinc-500 px-1 pt-1">Rival · dorsales</p>
-        <RivalDorsalPad
-          dorsals={rivalDorsals}
-          selected={selectedRival}
-          onSelect={onSelectRival}
-          onAdd={onAddRival}
-          onRemove={onRemoveRival}
-        />
-        <div className="grid grid-cols-3 gap-1.5">
-          <BigBtn label="Gol" onClick={() => fireRival('gol_contra')} tone="mute" />
-          <BigBtn label="Amarilla" onClick={() => fireRival('amarilla')} tone="yellow" disabled={selectedRival == null} />
-          <BigBtn label="Roja" onClick={() => fireRival('roja')} tone="red" disabled={selectedRival == null} />
-        </div>
-        <p className="text-[10px] uppercase tracking-widest text-zinc-500 px-1 pt-1">Contadores de esta parte</p>
-        <div className="grid grid-cols-[1fr_72px_72px] gap-y-1 gap-x-1 items-center text-xs">
-          <span />
-          <span className="text-center text-zinc-500">Nos</span>
-          <span className="text-center text-zinc-500">Riv</span>
-          {LIVE_STATS.map((key) => {
-            const meta = TEAM_STAT_FIELDS.find((f) => f.key === key)!
-            const lockUs = key === 'faltas_cometidas' && usFoulsLocked
-            const lockRival = key === 'faltas_cometidas' && rivalFoulsLocked
-            return (
-              <StatRow
-                key={key}
-                label={meta.short}
-                us={teamStats[key] || 0}
-                rival={teamStats[`rival_${key}`] || 0}
-                onUs={(d) => bump(key, 'us', d)}
-                onRival={(d) => bump(key, 'rival', d)}
-                lockUs={lockUs}
-                lockRival={lockRival}
-              />
-            )
-          })}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function RivalDorsalPad({
-  dorsals,
-  selected,
-  onSelect,
-  onAdd,
-  onRemove,
-}: {
-  dorsals: number[]
-  selected: number | null
-  onSelect: (n: number) => void
-  onAdd: (n: number) => void
-  onRemove: (n: number) => void
-}) {
-  const [draft, setDraft] = useState('')
-  const add = () => {
-    const n = parseInt(draft, 10)
-    if (!Number.isFinite(n)) return
-    onAdd(n)
-    setDraft('')
-    onSelect(n)
-  }
-  return (
-    <div className="space-y-1.5">
-      <div className="flex flex-wrap gap-1.5">
-        {dorsals.map((n) => {
-          const active = selected === n
-          return (
-            <button
-              key={n}
-              type="button"
-              onClick={() => onSelect(n)}
-              onContextMenu={(e) => { e.preventDefault(); onRemove(n) }}
-              className={`min-h-12 min-w-12 px-2 rounded-xl font-mono text-xl tabular-nums ${
-                active ? 'bg-sky-400 text-zinc-950' : 'bg-white/10 text-sky-200'
-              }`}
-            >
-              {n}
-            </button>
-          )
-        })}
-        {dorsals.length === 0 && (
-          <p className="text-xs text-zinc-500 px-1 py-2">Añade el dorsal y tócalo para la tarjeta.</p>
-        )}
-      </div>
-      <div className="grid grid-cols-[1fr_auto] gap-1.5">
-        <input
-          inputMode="numeric"
-          pattern="[0-9]*"
-          maxLength={2}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value.replace(/\D/g, '').slice(0, 2))}
-          onKeyDown={(e) => { if (e.key === 'Enter') add() }}
-          placeholder="Dorsal"
-          className="min-h-12 rounded-xl bg-white/10 px-3 font-mono text-lg tabular-nums"
-        />
-        <button type="button" onClick={add} className="min-h-12 px-4 rounded-xl bg-sky-500 text-zinc-950 font-semibold">
-          +
-        </button>
-      </div>
-      {selected != null && (
-        <button type="button" onClick={() => onRemove(selected)} className="text-[11px] text-zinc-500 underline">
-          Quitar #{selected} de la lista
-        </button>
-      )}
-    </div>
-  )
-}
-
-function PlayerGroup({
-  title,
-  players,
-  selected,
-  pending,
-  onTap,
-  highlight,
-  minutes,
-}: {
-  title: string
-  players: Convocatoria[]
-  selected: string | null
-  pending: Pending
-  onTap: (id: string) => void
-  highlight?: boolean
-  minutes?: Record<string, number>
-}) {
-  return (
-    <section>
-      <p className="text-[10px] uppercase tracking-widest text-zinc-500 px-1 mb-1">{title}</p>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-        {players.map((c) => {
-          const active = selected === c.id
-          const dorsal = dorsalOf(c)
-          const mins = minutes?.[c.id]
-          return (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => onTap(c.id)}
-              className={`flex items-center gap-2 min-h-[4.25rem] rounded-2xl px-2 text-left ${
-                active ? 'bg-amber-400 text-zinc-950' : highlight ? 'bg-sky-950 ring-2 ring-sky-400' : 'bg-white/5'
-              } ${pending === 'asistencia' && !active ? 'ring-1 ring-emerald-400/50' : ''}`}
-            >
-              <span className={`font-mono tabular-nums text-[28px] font-semibold w-12 text-center ${active ? 'text-zinc-950' : 'text-amber-300'}`}>
-                {dorsal ?? '—'}
-              </span>
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-medium leading-tight">{displayName(c)}</span>
-                {mins != null && mins > 0 && (
-                  <span className={`block text-[11px] tabular-nums ${active ? 'text-zinc-700' : 'text-zinc-500'}`}>{mins}′</span>
-                )}
-              </span>
-            </button>
-          )
-        })}
-        {players.length === 0 && <p className="text-xs text-zinc-500 px-1 col-span-full">Vacío</p>}
-      </div>
-    </section>
-  )
-}
-
-function OnceTab({
-  snap,
-  setSnap,
-  formation,
-  convocados,
-  selected,
-  onTapPlayer,
-  placeOnSlot,
-  changeFormation,
-}: {
-  snap: AnotadorSnapshot
-  setSnap: Dispatch<SetStateAction<AnotadorSnapshot>>
-  formation: (typeof FORMATIONS)[number]
-  convocados: Convocatoria[]
-  selected: string | null
-  onTapPlayer: (id: string, slotId?: string) => void
-  placeOnSlot: (slotId: string) => void
-  changeFormation: (name: string) => void
-}) {
-  const slotLeft = (left: string) => {
-    const n = parseFloat(left)
-    if (!Number.isFinite(n)) return left
-    return snap.dirRight ? left : `${100 - n}%`
-  }
-  return (
-    <div className="h-full flex flex-col gap-1.5 p-1.5">
-      <div className="flex flex-wrap gap-1">
-        {FORMATIONS.map((f) => (
-          <button
-            key={f.name}
-            type="button"
-            onClick={() => changeFormation(f.name)}
-            className={`min-h-10 px-3 rounded-xl text-sm ${snap.form === f.name ? 'bg-amber-400 text-zinc-950' : 'bg-white/10'}`}
-          >
-            {f.name}
-          </button>
-        ))}
-      </div>
-      <div className="flex-1 min-h-0 relative rounded-2xl overflow-hidden bg-[#147a3a]">
-        <div className="absolute inset-3 border-2 border-white/40 pointer-events-none" />
-        <div className="absolute top-1/2 left-3 right-3 border-t-2 border-white/40 pointer-events-none" />
-        {formation.slots.map((slot) => {
-          const convId = snap.slots[slot.id]
-          const conv = convId ? convocados.find((c) => c.id === convId) : null
-          return (
-            <button
-              key={slot.id}
-              type="button"
-              onClick={() => (conv ? onTapPlayer(conv.id, slot.id) : placeOnSlot(slot.id))}
-              className="absolute -translate-x-1/2 -translate-y-1/2 z-10"
-              style={{ top: slot.top, left: slotLeft(slot.left) }}
-            >
-              {conv ? (
-                <div className={`h-14 min-w-14 px-1 rounded-full flex flex-col items-center justify-center ${selected === conv.id ? 'bg-amber-400 text-zinc-950' : 'bg-zinc-950/80 text-white'}`}>
-                  <span className="font-mono text-lg leading-none">{dorsalOf(conv) ?? '—'}</span>
-                  <span className="text-[9px] max-w-[56px] truncate">{displayName(conv)}</span>
-                </div>
-              ) : (
-                <div className="h-12 w-12 rounded-full border-2 border-dashed border-white/60 text-[10px] text-white/80 flex items-center justify-center">
-                  {slot.label}
-                </div>
-              )}
-            </button>
-          )
-        })}
-      </div>
-      <p className="text-xs text-zinc-500 px-1">Antes del saque: toca un dorsal en Acta y un hueco aquí. En juego, los cambios van con Sale. La convocatoria conserva el 11 del saque.</p>
-    </div>
-  )
-}
-
-function GolesTab({
-  events,
-  convocados,
-  nameOf,
-  patchGoal,
-  onPickAssist,
-}: {
-  events: AnotadorEvent[]
-  convocados: Convocatoria[]
-  nameOf: (id?: string) => string
-  patchGoal: (id: string, patch: Partial<AnotadorEvent>) => void
-  onPickAssist: (id: string) => void
-}) {
-  const goals = events.filter((e) => e.type === 'gol' || e.type === 'gol_contra')
-  if (goals.length === 0) {
-    return <p className="p-6 text-zinc-500">Aún no hay goles. Anótalos en Acta tocando un dorsal y Gol.</p>
-  }
-  return (
-    <div className="h-full overflow-y-auto p-2 space-y-2">
-      {goals.map((ev) => (
-        <div key={ev.id} className={`rounded-2xl p-3 space-y-2 ${ev.type === 'gol' ? 'bg-[#122018]' : 'bg-[#201212]'}`}>
-          <div className="flex items-center justify-between gap-2">
-            <p className="font-semibold">
-              {ev.minute}' {ev.type === 'gol' ? nameOf(ev.convId) : 'Rival'}
-            </p>
-            {ev.type === 'gol' && (
-              <button type="button" onClick={() => onPickAssist(ev.id)} className="text-xs underline text-zinc-400">
-                {ev.relatedConvId ? `Asiste ${nameOf(ev.relatedConvId)}` : 'Poner asistencia'}
-              </button>
-            )}
-          </div>
-          <ChipRow
-            options={TIPO_GOL_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
-            value={ev.es_abp ? '' : (ev.tipo_gol || 'otro')}
-            onChange={(v) => patchGoal(ev.id, { es_abp: false, tipo_gol: v, tipo_abp: undefined })}
-          />
-          <ChipRow
-            options={TIPO_ABP_OPTIONS.map((o) => ({ value: o.value, label: `ABP ${o.label}` }))}
-            value={ev.es_abp ? (ev.tipo_abp || 'corner') : ''}
-            onChange={(v) => patchGoal(ev.id, { es_abp: true, tipo_abp: v, tipo_gol: undefined })}
-          />
-          <ChipRow
-            options={ZONA_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
-            value={ev.zona || 'central'}
-            onChange={(v) => patchGoal(ev.id, { zona: v })}
-          />
-          {ev.type === 'gol' && (
-            <select
-              className="w-full min-h-11 rounded-xl bg-white/10 px-3 text-sm"
-              value={ev.convId || ''}
-              onChange={(e) => patchGoal(ev.id, { convId: e.target.value || undefined })}
-            >
-              {convocados.map((c) => (
-                <option key={c.id} value={c.id}>{dorsalOf(c) ?? '—'} {displayName(c)}</option>
-              ))}
-            </select>
-          )}
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function StatsTab({
-  teamStats,
-  occasionLanes,
-  totals,
-  half,
-  usName,
-  rivalName,
-  bump,
-  bumpOccasion,
-  foulMap,
-}: {
-  teamStats: Record<string, number>
-  occasionLanes: AnotadorSnapshot['occasionLanes']
-  totals: Record<string, number>
-  half: AnotadorHalf
-  usName: string
-  rivalName: string
-  bump: (key: TeamStatKey, side: AnotadorSide, delta: number) => void
-  bumpOccasion: (side: AnotadorSide, lane: AttackLane, delta: number) => void
-  foulMap: AnotadorSnapshot['foulMap']
-}) {
-  const regularFields = TEAM_STAT_FIELDS.filter((field) => field.key !== 'ocasiones_gol')
-  const usFoulsLocked = foulMap.cometidas.length > 0
-  const rivalFoulsLocked = foulMap.recibidas.length > 0
-  return (
-    <div className="h-full overflow-y-auto p-2 space-y-3">
-      <p className="px-1 text-xs text-amber-200/80">
-        Anotando {half === 1 ? '1ª' : '2ª'} parte. El total del partido se ve en Cierre.
-        {' '}Totales {totals.ocasiones_gol || 0}–{totals.rival_ocasiones_gol || 0} ocas.
-      </p>
-      <section className="rounded-2xl bg-[#122018] p-3 space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-sm font-semibold">Ocasiones por carril · {half === 1 ? '1ª' : '2ª'}</p>
-          <p className="text-xs text-zinc-400">
-            {teamStats.ocasiones_gol || 0} · {teamStats.rival_ocasiones_gol || 0}
-          </p>
-        </div>
-        <div className="grid grid-cols-[1fr_88px_88px] gap-1 items-center">
-          <span />
-          <span className="text-center text-xs text-zinc-400 truncate">{usName}</span>
-          <span className="text-center text-xs text-zinc-400 truncate">{rivalName}</span>
-          {([
-            ['izq', 'Izq'],
-            ['cen', 'Cen'],
-            ['dch', 'Dch'],
-          ] as const).map(([lane, label]) => (
-            <div key={lane} className="contents">
-              <span className="text-zinc-300 text-sm">{label}</span>
-              <LaneStepper value={occasionLanes.us[lane]} onDelta={(delta) => bumpOccasion('us', lane, delta)} />
-              <LaneStepper value={occasionLanes.rival[lane]} onDelta={(delta) => bumpOccasion('rival', lane, delta)} />
-            </div>
-          ))}
-        </div>
-      </section>
-      <p className="px-1 text-[11px] text-zinc-500">
-        Las faltas del mapa se copian aquí ({foulMap.cometidas.length} cometidas · {foulMap.recibidas.length} recibidas).
-      </p>
-      <div className="grid grid-cols-[1fr_88px_88px] gap-1 items-center">
-        <span />
-        <span className="text-center text-xs text-zinc-400 truncate">{usName}</span>
-        <span className="text-center text-xs text-zinc-400 truncate">{rivalName}</span>
-        {regularFields.map((f) => (
-          <StatRow
-            key={f.key}
-            label={f.label}
-            us={teamStats[f.key] || 0}
-            rival={teamStats[`rival_${f.key}`] || 0}
-            onUs={(d) => bump(f.key, 'us', d)}
-            onRival={(d) => bump(f.key, 'rival', d)}
-            large
-            lockUs={f.key === 'faltas_cometidas' && usFoulsLocked}
-            lockRival={f.key === 'faltas_cometidas' && rivalFoulsLocked}
-          />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function FaltasTab({
-  foulMap,
-  dirRight,
-  half,
-  setFoulMap,
-}: {
-  foulMap: AnotadorSnapshot['foulMap']
-  dirRight: boolean
-  half: AnotadorHalf
-  setFoulMap: (m: AnotadorSnapshot['foulMap']) => void
-}) {
-  const [mode, setMode] = useState<'cometidas' | 'recibidas'>('cometidas')
-  const dots = foulMap[mode].map((dot) => denormalizeFoulDot(dot, dirRight))
-  const other = (mode === 'cometidas' ? foulMap.recibidas : foulMap.cometidas).map((dot) => denormalizeFoulDot(dot, dirRight))
-  const setDots = (next: { x: number; y: number }[]) => {
-    setFoulMap({ ...foulMap, [mode]: next.map((dot) => normalizeFoulDot(dot, dirRight)) })
-  }
-  return (
-    <div className="h-full flex flex-col p-2 gap-2">
-      <div className="grid grid-cols-2 gap-1.5">
-        <button
-          type="button"
-          onClick={() => setMode('cometidas')}
-          className={`min-h-12 rounded-xl font-semibold ${mode === 'cometidas' ? 'bg-red-600 text-white' : 'bg-white/10'}`}
-        >
-          Cometidas ({foulMap.cometidas.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode('recibidas')}
-          className={`min-h-12 rounded-xl font-semibold ${mode === 'recibidas' ? 'bg-sky-500 text-zinc-950' : 'bg-white/10'}`}
-        >
-          Recibidas ({foulMap.recibidas.length})
-        </button>
-      </div>
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs text-zinc-500">
-          {half === 1 ? '1ª' : '2ª'} parte. Toca el campo tal y como lo ves. Dentro, nuestra portería queda siempre a la izquierda.
-          {' '}Stats Faltas = {foulMap.cometidas.length} cometidas · {foulMap.recibidas.length} recibidas.
-        </p>
-        <button
-          type="button"
-          onClick={() => setDots(dots.slice(0, -1))}
-          className="min-h-10 px-3 rounded-xl bg-white/10 text-xs font-semibold whitespace-nowrap"
-        >
-          Quitar última
-        </button>
-      </div>
-      <svg
-        viewBox="0 0 150 100"
-        className="flex-1 w-full rounded-2xl bg-[#2D5016]"
-        onClick={(e) => {
-          const svg = e.currentTarget
-          const pt = svg.createSVGPoint()
-          pt.x = e.clientX
-          pt.y = e.clientY
-          const ctm = svg.getScreenCTM()
-          if (!ctm) return
-          const svgPt = pt.matrixTransform(ctm.inverse())
-          setDots([...dots, { x: Math.round(svgPt.x * 10) / 10, y: Math.round(svgPt.y * 10) / 10 }])
+    <div
+      data-superficie="visitante"
+      className="relative flex h-[100dvh] flex-col bg-background pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-foreground"
+    >
+      <TopBar
+        club={{ nombre: equipoNombre, escudoUrl: escudoClub }}
+        rival={{ nombre: rivalNombre, escudoUrl: partido.rival?.escudo_url }}
+        contexto={contexto}
+        gf={liveScore.gf}
+        gc={liveScore.gc}
+        reloj={{
+          texto: formatClock(snap.half, snap.elapsedMs),
+          fase,
+          corriendo: snap.running,
+          empezado: snap.started,
+          cerrado: snap.closed,
+          parte: snap.half,
+          onAlternar: toggleClock,
+          onSegundaParte: () => changeHalf(2),
+          onCambiarParte: changeHalf,
+          onAjustar: (d) => commit((s) => ({ ...s, elapsedMs: nudgeElapsed(s.elapsedMs, d) })),
         }}
-      >
-        {[0, 20, 40, 60, 80, 100, 120, 140].map((x) => (
-          <rect key={x} x={x} y="0" width="10" height="100" fill="#3D6B1E" opacity={0.3} />
-        ))}
-        <rect x="5" y="5" width="140" height="90" fill="none" stroke="white" strokeWidth="0.6" opacity={0.4} />
-        <line x1="75" y1="5" x2="75" y2="95" stroke="white" strokeWidth="0.5" opacity={0.3} />
-        <circle cx="75" cy="50" r="10" fill="none" stroke="white" strokeWidth="0.4" opacity={0.3} />
-        <rect x="5" y="20" width="18" height="60" fill="none" stroke="white" strokeWidth="0.4" opacity={0.3} />
-        <rect x="127" y="20" width="18" height="60" fill="none" stroke="white" strokeWidth="0.4" opacity={0.3} />
-        <rect x="5" y="32" width="8" height="36" fill="none" stroke="white" strokeWidth="0.3" opacity={0.25} />
-        <rect x="137" y="32" width="8" height="36" fill="none" stroke="white" strokeWidth="0.3" opacity={0.25} />
-        <text x="8" y="12" fill="white" opacity="0.75" fontSize="6">Nuestra</text>
-        <text x="119" y="12" fill="white" opacity="0.75" fontSize="6">Ataque {dirRight ? '→' : '←'}</text>
-        {other.map((d, i) => (
-          <circle key={`o${i}`} cx={d.x} cy={d.y} r="3" fill={mode === 'cometidas' ? '#38bdf866' : '#ef444466'} className="pointer-events-none" />
-        ))}
-        {dots.map((d, i) => (
-          <circle
-            key={`d${i}`}
-            cx={d.x}
-            cy={d.y}
-            r="4"
-            fill={mode === 'cometidas' ? '#ef4444' : '#38bdf8'}
-            onClick={(ev) => { ev.stopPropagation(); setDots(dots.filter((_, j) => j !== i)) }}
+        sync={estadoSync}
+        onSync={() => { void sincronizarAhora() }}
+        onLogin={datos.pedirInicioSesion}
+        revision={{ total: pend.total, errores: pend.errores, onAbrir: () => setHoja('revision') }}
+        cronologia={{ abierta: hoja === 'crono', total: snap.events.length, onAlternar: () => setHoja(hoja === 'crono' ? null : 'crono') }}
+        menu={menu}
+      />
+
+      <div className="relative flex min-h-0 flex-1 gap-3 p-3 landscape:flex-row portrait:flex-col">
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col gap-2">
+          <div className="flex min-h-12 shrink-0 items-center gap-3">
+            <p className="min-w-0 flex-1 truncate text-lg font-semibold" aria-live="polite">{guia}</p>
+            {cancelable && (
+              <Boton onClick={() => setInter(INTERACCION_INICIAL)} className="shrink-0">Cancelar</Boton>
+            )}
+            <ControlSentido dirRight={snap.dirRight} onCambiar={() => commit((s) => ({ ...s, dirRight: !s.dirRight }))} nombreClub={equipoNombre} />
+          </div>
+
+          <Campo
+            huecos={formation.slots}
+            ocupantes={ocupantes}
+            dirRight={snap.dirRight}
+            mostrarFoto={mostrarFoto}
+            seleccionado={inter.jugador}
+            sale={inter.armada === 'cambio' || inter.entra ? inter.jugador : null}
+            candidatos={Boolean(inter.armada && inter.armada !== 'cambio') || (inter.armada === 'cambio' && !inter.jugador)}
+            pulsos={pulsos}
+            editandoOnce={previa}
+            onToque={onToqueCampo}
           />
-        ))}
-      </svg>
-    </div>
-  )
-}
 
-function LaneStepper({ value, onDelta }: { value: number; onDelta: (delta: number) => void }) {
-  return (
-    <div className="grid grid-cols-[1fr_1.1fr_1fr] min-h-12 rounded-xl overflow-hidden bg-white/10">
-      <button type="button" onClick={() => onDelta(-1)} className="text-lg">−</button>
-      <span className="font-mono tabular-nums flex items-center justify-center text-base">{value}</span>
-      <button type="button" onClick={() => onDelta(1)} className="text-lg bg-white/10">+1</button>
-    </div>
-  )
-}
+          <Banquillo
+            jugadores={banco}
+            seleccionado={inter.jugador}
+            entra={inter.entra}
+            candidatos={Boolean(inter.armada === 'cambio' && inter.jugador)}
+            mostrarFoto={mostrarFoto}
+            pulsos={pulsos}
+            onToque={onToqueBanco}
+          />
 
-function NotasTab({
-  convocados,
-  rows,
-  onField,
-  notasRend,
-  setNotasRend,
-  reflexion,
-  setReflexion,
-}: {
-  convocados: Convocatoria[]
-  rows: Record<string, { minutos_jugados: number; goles: number; asistencias: number; tarjeta_amarilla: boolean; tarjeta_roja: boolean }>
-  onField: Set<string>
-  notasRend: Record<string, number | null>
-  setNotasRend: Dispatch<SetStateAction<Record<string, number | null>>>
-  reflexion: string
-  setReflexion: (v: string) => void
-}) {
-  const ordered = [...convocados].sort((a, b) => {
-    const ma = rows[a.id]?.minutos_jugados || 0
-    const mb = rows[b.id]?.minutos_jugados || 0
-    if (onField.has(a.id) !== onField.has(b.id)) return onField.has(a.id) ? -1 : 1
-    if (ma !== mb) return mb - ma
-    return byDorsal(a, b)
-  })
-  return (
-    <div className="h-full overflow-y-auto p-2 space-y-3">
-      <div className="rounded-2xl bg-[#122018] p-3 space-y-2">
-        <p className="text-[10px] uppercase tracking-widest text-zinc-500">Rendimiento (1–10)</p>
-        {ordered.map((c) => {
-          const r = rows[c.id]
-          const nota = notasRend[c.id]
-          return (
-            <div key={c.id} className="grid grid-cols-[2.5rem_1fr_auto] gap-2 items-center min-h-12">
-              <span className="font-mono text-amber-300 text-lg tabular-nums">{dorsalOf(c) ?? '—'}</span>
-              <span className="min-w-0">
-                <span className="block truncate text-sm">{displayName(c)}</span>
-                <span className="text-[11px] text-zinc-500 tabular-nums">
-                  {r?.minutos_jugados || 0}′
-                  {(r?.goles || 0) > 0 ? ` · ${r.goles} gol` : ''}
-                  {(r?.asistencias || 0) > 0 ? ` · ${r.asistencias} ast` : ''}
-                  {r?.tarjeta_amarilla ? ' · A' : ''}
-                  {r?.tarjeta_roja ? ' · R' : ''}
-                </span>
-              </span>
-              <div className="flex items-center gap-1">
-                <button type="button" className="h-10 w-10 rounded-xl bg-white/10" onClick={() => setNotasRend((prev) => {
-                  const cur = prev[c.id]
-                  if (cur == null) return { ...prev, [c.id]: 6 }
-                  return { ...prev, [c.id]: Math.max(1, cur - 0.5) }
-                })}>−</button>
-                <span className="w-10 text-center font-mono tabular-nums">{nota ?? '—'}</span>
-                <button type="button" className="h-10 w-10 rounded-xl bg-white/10" onClick={() => setNotasRend((prev) => {
-                  const cur = prev[c.id]
-                  if (cur == null) return { ...prev, [c.id]: 6 }
-                  return { ...prev, [c.id]: Math.min(10, cur + 0.5) }
-                })}>+</button>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-      <div className="rounded-2xl bg-[#122018] p-3 space-y-2">
-        <p className="text-[10px] uppercase tracking-widest text-zinc-500">Reflexión del entrenador</p>
-        <textarea
-          value={reflexion}
-          onChange={(e) => setReflexion(e.target.value)}
-          rows={5}
-          className="w-full rounded-xl bg-white/10 p-3 text-sm resize-none"
-          placeholder="Qué mejorar esta semana. Sale en la Sala del Lunes."
+          <HojaGol
+            abierta={Boolean(goalDraft && (goalDraft.type === 'gol' || goalDraft.type === 'gol_contra')) && !teclado}
+            evento={goalDraft as EventoEditable | null}
+            titulo={goalDraft?.type === 'gol' ? nameOf(goalDraft.convId) : rivalNombre}
+            asistentes={todasFichas.filter((f) => f.id !== goalDraft?.convId)}
+            mostrarFoto={mostrarFoto}
+            rivalDorsales={snap.rivalDorsals || []}
+            onPatch={(patch) => goalDraft && commit((s) => patchGoalEvent(s, goalDraft.id, patch))}
+            onPedirDorsalRival={() => goalDraft && setTeclado({ para: 'gol', eventoId: goalDraft.id })}
+            onCerrar={() => setGoalDraftId(null)}
+          />
+
+          <TecladoRival
+            abierta={Boolean(teclado)}
+            titulo={
+              teclado?.para === 'roja' ? 'Roja rival · ¿qué dorsal?'
+                : teclado?.para === 'amarilla' ? 'Amarilla rival · ¿qué dorsal?'
+                  : 'Dorsal del rival'
+            }
+            recientes={snap.rivalDorsals || []}
+            onElegir={elegirDorsalRival}
+            onQuitar={(n) => commit((s) => removeRivalDorsal(s, n))}
+            onCerrar={() => setTeclado(null)}
+          />
+        </div>
+
+        {previa ? (
+          <PanelPrevia
+            formaciones={FORMATIONS.map((f) => f.name)}
+            formacion={snap.form}
+            onFormacion={changeFormation}
+            llenos={formation.slots.filter((s) => snap.slots[s.id]).length}
+            total={formation.slots.length}
+            mostrarFoto={mostrarFoto}
+            onMostrarFoto={setMostrarFoto}
+            contexto={`${equipoNombre} – ${rivalNombre} · ${contexto}`}
+            onEmpezar={toggleClock}
+          />
+        ) : snap.closed ? (
+          <PanelCerrado
+            gf={liveScore.gf}
+            gc={liveScore.gc}
+            cierre={cierre}
+            onReintentar={() => { void reintentarEnvio() }}
+            onResumen={() => setHoja('revision')}
+            onReabrir={reabrirPartido}
+            hrefInforme={hrefInforme}
+          />
+        ) : (
+          <BarraAcciones
+            armada={inter.armada}
+            rival={rival}
+            onRival={setRival}
+            hayJugador={Boolean(inter.jugador)}
+            cambioListo={hayParejaCambio}
+            onGol={() => accionJugador('gol')}
+            onGolRival={golRival}
+            onAmarilla={() => accionJugador('amarilla')}
+            onRoja={() => accionJugador('roja')}
+            onCambio={() => aplicar(pulsarAccion(inter, 'cambio', onField))}
+            onCorner={() => simple('corner')}
+            onFalta={() => simple('falta')}
+            onMas={() => { setMasVista('ocasiones'); setHoja('mas') }}
+            ultimo={ultimo}
+            onDeshacer={() => { const l = snap.events[snap.events.length - 1]; if (l) deshacerEvento(l.id) }}
+            puedeDeshacer={snap.events.length > 0}
+          />
+        )}
+
+        <Cronologia
+          abierta={hoja === 'crono'}
+          filas={filas}
+          mostrarFoto={mostrarFoto}
+          onEditar={abrirEditor}
+          onAnadir={anadirOlvidado}
+          onCerrar={() => setHoja(null)}
         />
       </div>
-    </div>
-  )
-}
 
-function CierreTab({
-  snap,
-  usName,
-  rivalName,
-  partidoId,
-  saving,
-  onSave,
-  onClose,
-  onReopen,
-}: {
-  snap: AnotadorSnapshot
-  usName: string
-  rivalName: string
-  partidoId: string
-  saving: boolean
-  onSave: () => void
-  onClose: () => void
-  onReopen: () => void
-}) {
-  const report = periodReport(snap)
-  return (
-    <div className="h-full overflow-y-auto p-2 space-y-3">
-      <section className="rounded-2xl bg-[#122018] p-3 space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-sm font-semibold">Dos espacios: 1ª y 2ª</p>
-          {snap.closed ? (
-            <span className="text-[11px] uppercase tracking-widest text-emerald-400">Cerrado</span>
-          ) : (
-            <span className="text-[11px] uppercase tracking-widest text-amber-300">En curso · {snap.half === 1 ? '1ª' : '2ª'}</span>
-          )}
-        </div>
-        <div className="grid grid-cols-3 gap-2 text-center">
-          <ScoreBox label="1ª" gf={report.score1.gf} gc={report.score1.gc} />
-          <ScoreBox label="2ª" gf={report.score2.gf} gc={report.score2.gc} />
-          <ScoreBox label="Total" gf={report.total.gf} gc={report.total.gc} accent />
-        </div>
-      </section>
-
-      <section className="rounded-2xl bg-[#122018] p-3 overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="text-zinc-500">
-              <th className="text-left font-medium pb-2">Estadística</th>
-              <th className="text-center font-medium pb-2" colSpan={2}>1ª</th>
-              <th className="text-center font-medium pb-2" colSpan={2}>2ª</th>
-              <th className="text-center font-medium pb-2" colSpan={2}>Total</th>
-            </tr>
-            <tr className="text-[10px] text-zinc-500">
-              <th />
-              <th className="text-center font-normal pb-2 max-w-[4rem] truncate">{usName}</th>
-              <th className="text-center font-normal pb-2">Riv</th>
-              <th className="text-center font-normal pb-2 max-w-[4rem] truncate">{usName}</th>
-              <th className="text-center font-normal pb-2">Riv</th>
-              <th className="text-center font-normal pb-2 max-w-[4rem] truncate">{usName}</th>
-              <th className="text-center font-normal pb-2">Riv</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[...report.lanes, ...report.rows].map((row) => (
-              <tr key={row.key} className="border-t border-white/5">
-                <td className="py-1.5 text-zinc-300">{row.label}</td>
-                <td className="text-center font-mono tabular-nums">{row.p1us}</td>
-                <td className="text-center font-mono tabular-nums text-zinc-400">{row.p1rival}</td>
-                <td className="text-center font-mono tabular-nums">{row.p2us}</td>
-                <td className="text-center font-mono tabular-nums text-zinc-400">{row.p2rival}</td>
-                <td className="text-center font-mono tabular-nums text-amber-200">{row.tus}</td>
-                <td className="text-center font-mono tabular-nums text-amber-200/70">{row.trival}</td>
-              </tr>
-            ))}
-            <tr className="border-t border-white/5">
-              <td className="py-1.5 text-zinc-300">Faltas mapa cometidas</td>
-              <td className="text-center font-mono">{report.fouls.cometidas1}</td>
-              <td />
-              <td className="text-center font-mono">{report.fouls.cometidas2}</td>
-              <td />
-              <td className="text-center font-mono text-amber-200">{report.fouls.cometidas1 + report.fouls.cometidas2}</td>
-              <td />
-            </tr>
-            <tr className="border-t border-white/5">
-              <td className="py-1.5 text-zinc-300">Faltas mapa recibidas</td>
-              <td className="text-center font-mono">{report.fouls.recibidas1}</td>
-              <td />
-              <td className="text-center font-mono">{report.fouls.recibidas2}</td>
-              <td />
-              <td className="text-center font-mono text-amber-200">{report.fouls.recibidas1 + report.fouls.recibidas2}</td>
-              <td />
-            </tr>
-          </tbody>
-        </table>
-      </section>
-
-      <div className="grid gap-2">
-        <button
-          type="button"
-          onClick={onClose}
-          disabled={saving || snap.closed}
-          className="min-h-14 rounded-2xl bg-emerald-500 text-zinc-950 font-semibold disabled:opacity-50"
-        >
-          {saving ? 'Guardando…' : snap.closed ? 'Partido cerrado' : 'Cerrar partido y volcar al informe'}
-        </button>
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={saving}
-            className="min-h-12 rounded-xl bg-white/10 font-semibold"
-          >
-            Guardar sin cerrar
-          </button>
-          {snap.closed ? (
-            <button type="button" onClick={onReopen} className="min-h-12 rounded-xl bg-white/10 font-semibold">
-              Seguir anotando
-            </button>
-          ) : (
-            <Link
-              href={`/partidos?match=${partidoId}&tab=informe-partido`}
-              className="min-h-12 rounded-xl bg-white/10 font-semibold flex items-center justify-center"
-            >
-              Ver informe
-            </Link>
-          )}
-        </div>
-        {snap.closed && (
-          <Link
-            href={`/partidos?match=${partidoId}&tab=informe-partido`}
-            className="min-h-12 rounded-xl bg-amber-400 text-zinc-950 font-semibold flex items-center justify-center"
-          >
-            Ver totales en el informe
-          </Link>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function ScoreBox({ label, gf, gc, accent }: { label: string; gf: number; gc: number; accent?: boolean }) {
-  return (
-    <div className={`rounded-xl px-2 py-2 ${accent ? 'bg-amber-400 text-zinc-950' : 'bg-white/5'}`}>
-      <p className={`text-[10px] uppercase tracking-widest ${accent ? 'text-zinc-700' : 'text-zinc-500'}`}>{label}</p>
-      <p className="font-mono tabular-nums text-2xl leading-none mt-1">{gf}–{gc}</p>
-    </div>
-  )
-}
-
-function PickerOverlay({
-  title,
-  players,
-  onPick,
-  onCancel,
-  extra,
-}: {
-  title: string
-  players: Convocatoria[]
-  onPick: (id: string) => void
-  onCancel: () => void
-  extra?: ReactNode
-}) {
-  return (
-    <div className="absolute inset-0 z-20 bg-[#07110c]/95 p-3 flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-2">
-        <p className="font-semibold text-sm">{title}</p>
-        <button type="button" onClick={onCancel} className="h-10 px-3 rounded-xl bg-white/10 text-sm">Cancelar</button>
-      </div>
-      <div className="flex-1 min-h-0 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 gap-1.5 content-start">
-        {players.map((c) => (
-          <button
-            key={c.id}
-            type="button"
-            onClick={() => onPick(c.id)}
-            className="min-h-[4.25rem] rounded-2xl bg-white/10 px-2 flex items-center gap-2 text-left"
-          >
-            <span className="font-mono text-[28px] text-amber-300 w-12 text-center">{dorsalOf(c) ?? '—'}</span>
-            <span className="truncate text-sm">{displayName(c)}</span>
-          </button>
-        ))}
-      </div>
-      {extra}
-    </div>
-  )
-}
-
-function GoalSheet({
-  event,
-  needAssist,
-  onPatch,
-  onAssist,
-  onSkipAssist,
-  onClose,
-}: {
-  event: AnotadorEvent
-  needAssist: boolean
-  onPatch: (patch: Partial<AnotadorEvent>) => void
-  onAssist: () => void
-  onSkipAssist: () => void
-  onClose: () => void
-}) {
-  return (
-    <div className="shrink-0 border-t border-amber-500/30 bg-[#0b1812] p-2 space-y-2 max-h-[42vh] overflow-y-auto">
-      <div className="flex items-center justify-between">
-        <p className="font-semibold text-sm">¿Cómo fue el gol?</p>
-        <button type="button" onClick={onClose} className="text-xs text-zinc-400 underline">Listo</button>
-      </div>
-      <ChipRow
-        options={TIPO_GOL_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
-        value={event.es_abp ? '' : (event.tipo_gol || 'otro')}
-        onChange={(v) => onPatch({ es_abp: false, tipo_gol: v, tipo_abp: undefined })}
+      <HojaMas
+        key={masVista}
+        abierta={hoja === 'mas'}
+        vistaInicial={masVista}
+        onCerrar={() => { setHoja(null); void volcarReflexion() }}
+        parte={snap.half}
+        club={equipoNombre}
+        rival={rivalNombre}
+        teamStats={livePeriod.teamStats}
+        totales={snap.teamStats}
+        occasionLanes={livePeriod.occasionLanes}
+        foulMap={livePeriod.foulMap}
+        dirRight={snap.dirRight}
+        onBump={(key: TeamStatKey, side: AnotadorSide, d: number) => { void commit((s) => bumpPeriodStat(s, key, side, d)) }}
+        onBumpCarril={(side: AnotadorSide, lane: AttackLane, d: number) => { void commit((s) => bumpPeriodOccasion(s, side, lane, d)) }}
+        onFoulMap={(m) => { void commit((s) => setPeriodFoulMap(s, m)) }}
+        notas={notasFilas}
+        onNota={(id, d) => {
+          const cur = notasRendRef.current[id]
+          const nota = cur == null ? 6 : Math.min(10, Math.max(1, cur + d))
+          const nuevas = { ...notasRendRef.current, [id]: nota }
+          notasRendRef.current = nuevas
+          setNotasRend(nuevas)
+          void guardarNota(id, nota)
+        }}
+        reflexion={reflexion}
+        onReflexion={(v) => { setReflexion(v); guardarReflexion(v) }}
+        mostrarFoto={mostrarFoto}
       />
-      <ChipRow
-        options={TIPO_ABP_OPTIONS.map((o) => ({ value: o.value, label: `ABP ${o.label}` }))}
-        value={event.es_abp ? (event.tipo_abp || 'corner') : ''}
-        onChange={(v) => onPatch({ es_abp: true, tipo_abp: v, tipo_gol: undefined })}
+
+      <EditorEvento
+        abierta={Boolean(editor)}
+        modo={editor?.modo || 'editar'}
+        evento={editor?.evento || null}
+        jugadores={todasFichas}
+        mostrarFoto={mostrarFoto}
+        rivalDorsales={snap.rivalDorsals || []}
+        onGuardar={guardarEditor}
+        onBorrar={borrarEditor}
+        onCerrar={() => setEditor(null)}
       />
-      <ChipRow
-        options={ZONA_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
-        value={event.zona || 'central'}
-        onChange={(v) => onPatch({ zona: v })}
+
+      <PanelRevision
+        abierta={hoja === 'revision'}
+        cerrado={snap.closed}
+        resumen={resumen}
+        club={equipoNombre}
+        rival={rivalNombre}
+        avisos={avisos}
+        estado={revision}
+        cierre={cierre}
+        onReintentar={() => { void reintentarEnvio() }}
+        guardando={envio === 'enviando'}
+        onCorregir={corregirAviso}
+        onEstaBien={(a) => guardarRevision(marcarBien(revision, a))}
+        onReabrirAviso={(id) => guardarRevision(reabrir(revision, id))}
+        onCerrarPartido={cerrarPartido}
+        onReabrirPartido={() => { reabrirPartido(); setHoja(null) }}
+        onCerrar={() => setHoja(null)}
+        hrefInforme={hrefInforme}
       />
-      {needAssist && (
-        <div className="grid grid-cols-2 gap-1.5">
-          <button type="button" onClick={onAssist} className="min-h-12 rounded-xl bg-emerald-500 text-zinc-950 font-semibold">
-            Asistencia
-          </button>
-          <button type="button" onClick={onSkipAssist} className="min-h-12 rounded-xl bg-white/10">
-            Sin asistencia
-          </button>
-        </div>
-      )}
     </div>
-  )
-}
-
-function ChipRow({
-  options,
-  value,
-  onChange,
-}: {
-  options: { value: string; label: string }[]
-  value: string
-  onChange: (v: string) => void
-}) {
-  return (
-    <div className="flex flex-wrap gap-1">
-      {options.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          onClick={() => onChange(o.value)}
-          className={`min-h-10 px-2.5 rounded-xl text-xs font-medium ${
-            value === o.value ? 'bg-amber-400 text-zinc-950' : 'bg-white/10'
-          }`}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-function StatRow({
-  label,
-  us,
-  rival,
-  onUs,
-  onRival,
-  large,
-  lockUs,
-  lockRival,
-}: {
-  label: string
-  us: number
-  rival: number
-  onUs: (d: number) => void
-  onRival: (d: number) => void
-  large?: boolean
-  lockUs?: boolean
-  lockRival?: boolean
-}) {
-  return (
-    <>
-      <span className={`text-zinc-300 ${large ? 'text-sm' : 'text-xs'}`}>{label}</span>
-      <Stepper value={us} onDelta={onUs} large={large} locked={lockUs} />
-      <Stepper value={rival} onDelta={onRival} large={large} locked={lockRival} />
-    </>
-  )
-}
-
-function Stepper({ value, onDelta, large, locked }: { value: number; onDelta: (d: number) => void; large?: boolean; locked?: boolean }) {
-  const h = large ? 'min-h-12' : 'min-h-10'
-  if (locked) {
-    return (
-      <div className={`${h} rounded-xl bg-white/5 font-mono tabular-nums flex items-center justify-center text-base text-amber-200`}>
-        {value}
-      </div>
-    )
-  }
-  return (
-    <div className={`grid grid-cols-[1fr_1.2fr_1fr] ${h} rounded-xl overflow-hidden bg-white/10`}>
-      <button type="button" onClick={() => onDelta(-1)} className="text-lg">−</button>
-      <span className="font-mono tabular-nums flex items-center justify-center text-base">{value}</span>
-      <button type="button" onClick={() => onDelta(1)} className="text-lg bg-white/10">+</button>
-    </div>
-  )
-}
-
-function BigBtn({
-  label,
-  onClick,
-  tone,
-  disabled,
-}: {
-  label: string
-  onClick: () => void
-  tone: 'white' | 'yellow' | 'red' | 'sky' | 'mute'
-  disabled?: boolean
-}) {
-  const color = disabled
-    ? 'bg-white/5 text-zinc-600'
-    : tone === 'white'
-      ? 'bg-white text-zinc-950'
-      : tone === 'yellow'
-        ? 'bg-yellow-400 text-zinc-950'
-        : tone === 'red'
-          ? 'bg-red-600 text-white'
-          : tone === 'sky'
-            ? 'bg-sky-400 text-zinc-950'
-            : 'bg-white/10'
-  return (
-    <button type="button" onClick={onClick} disabled={disabled} className={`min-h-14 rounded-xl font-semibold ${color}`}>
-      {label}
-    </button>
   )
 }

@@ -245,7 +245,7 @@ def agrupar_actividad(
 # ─── Base de datos ──────────────────────────────────────────────────────────────
 
 USUARIO_CAMPOS = "id, nombre, apellidos, avatar_url, email"
-ENTIDADES_ENLAZABLES = ("sesion", "partido", "jugador")
+ENTIDADES_ENLAZABLES = ("sesion", "partido", "jugador", "rival")
 
 
 class TableroError(Exception):
@@ -300,12 +300,47 @@ def normalizar_ancla(raw) -> dict:
     }
 
 
-def url_hilo(ancla: Optional[dict], raiz_id: str) -> str:
-    """Enlace de las notificaciones: a la página donde está anclado, o al tablero."""
-    ruta = (ancla or {}).get("ruta") if isinstance(ancla, dict) else None
-    if not ruta:
+SEP_PAGINA = "\u241f"  # separa título y ruta cuando el hilo es de una página sin entidad
+
+
+def codificar_pagina(titulo: str, ruta: str) -> str:
+    return f"{(titulo or ruta).replace(SEP_PAGINA, ' ').strip()[:120]}{SEP_PAGINA}{ruta}"
+
+
+def ruta_pagina(entidad_titulo: Optional[str]) -> Optional[str]:
+    if entidad_titulo and SEP_PAGINA in entidad_titulo:
+        return entidad_titulo.split(SEP_PAGINA, 1)[1] or None
+    return None
+
+
+def titulo_visible(entidad_titulo: Optional[str]) -> Optional[str]:
+    if entidad_titulo and SEP_PAGINA in entidad_titulo:
+        return entidad_titulo.split(SEP_PAGINA, 1)[0] or None
+    return entidad_titulo
+
+
+def ruta_valida(ruta: Optional[str]) -> str:
+    path = (ruta or "").split("?", 1)[0]
+    if not _RUTA_RE.match(path):
+        raise TableroError(400, "Ruta no válida")
+    return path
+
+
+def url_hilo(raiz: Optional[dict], raiz_id: str) -> str:
+    """Enlace de las notificaciones: la página donde se comentó, o el tablero.
+
+    Anclado → ``?pin=``; sobre una entidad o página → ``?hilo=`` (abre el hilo en el botón flotante).
+    """
+    raiz = raiz or {}
+    ancla = raiz.get("ancla")
+    if isinstance(ancla, dict) and ancla.get("ruta"):
+        base, clave = ancla["ruta"], "pin"
+    else:
+        base = href_entidad(raiz.get("entidad_tipo"), raiz.get("entidad_id")) or ruta_pagina(raiz.get("entidad_titulo"))
+        clave = "hilo"
+    if not base:
         return f"/tablero?post={raiz_id}"
-    return f"{ruta}{'&' if '?' in ruta else '?'}pin={raiz_id}"
+    return f"{base}{'&' if '?' in base else '?'}{clave}={raiz_id}"
 
 
 def _ahora() -> str:
@@ -434,6 +469,17 @@ def titulo_entidad(supabase, equipo_id: str, tipo: str, entidad_id: str) -> Opti
             return None
         j = fila[0]
         return f"{j.get('nombre') or ''} {j.get('apellidos') or ''}".strip() or "Jugador"
+    if tipo == "rival":
+        org = (
+            supabase.table("equipos").select("organizacion_id").eq("id", equipo_id).execute().data or []
+        )
+        if not org:
+            return None
+        fila = (
+            supabase.table("rivales").select("id, nombre, organizacion_id")
+            .eq("id", entidad_id).eq("organizacion_id", org[0].get("organizacion_id")).execute().data
+        )
+        return (fila[0].get("nombre") or "Rival") if fila else None
     return None
 
 
@@ -444,6 +490,7 @@ def href_entidad(tipo: Optional[str], entidad_id: Optional[str]) -> Optional[str
         "sesion": f"/sesiones/{entidad_id}",
         "partido": f"/partidos/{entidad_id}",
         "jugador": f"/plantilla/{entidad_id}",
+        "rival": f"/rivales/{entidad_id}",
     }.get(tipo)
 
 
@@ -463,8 +510,8 @@ def _forma(post: dict, usuarios: dict[str, dict]) -> dict:
         "resuelto_at": post.get("resuelto_at"),
         "entidad_tipo": post.get("entidad_tipo"),
         "entidad_id": post.get("entidad_id"),
-        "entidad_titulo": post.get("entidad_titulo"),
-        "entidad_href": href_entidad(post.get("entidad_tipo"), post.get("entidad_id")),
+        "entidad_titulo": titulo_visible(post.get("entidad_titulo")),
+        "entidad_href": href_entidad(post.get("entidad_tipo"), post.get("entidad_id")) or ruta_pagina(post.get("entidad_titulo")),
         "ancla": post.get("ancla") or None,
         "fijado": bool(post.get("fijado")),
         "editado_at": post.get("editado_at"),
@@ -522,6 +569,7 @@ def listar_hilos(
     entidad_id: Optional[str] = None,
     antes: Optional[str] = None,
     limite: int = 20,
+    pagina: Optional[str] = None,
 ) -> dict:
     if filtro not in FILTROS:
         raise TableroError(400, "Filtro no válido")
@@ -530,6 +578,8 @@ def listar_hilos(
         q = supabase.table("staff_posts").select("*").eq("equipo_id", equipo_id).is_("parent_id", "null")
         if entidad_tipo and entidad_id:
             q = q.eq("entidad_tipo", entidad_tipo).eq("entidad_id", entidad_id)
+        elif pagina:
+            q = q.like("entidad_titulo", f"%{SEP_PAGINA}{ruta_valida(pagina)}")
         return q
 
     q = base()
@@ -599,7 +649,7 @@ def enviar_avisos(
     equipo_id: str,
     raiz_id: str,
     contenido: str,
-    ancla: Optional[dict] = None,
+    raiz: Optional[dict] = None,
 ) -> int:
     """Inserta las notificaciones; si faltan las columnas nuevas, sin ellas."""
     if not avisos:
@@ -617,7 +667,7 @@ def enviar_avisos(
             "presentada": False,
             "actor_id": actor_id,
             "equipo_id": equipo_id,
-            "url": url_hilo(ancla, raiz_id),
+            "url": url_hilo(raiz, raiz_id),
         }
         for a in avisos
     ]
@@ -700,6 +750,9 @@ def crear_post(
         if not entidad_titulo:
             raise TableroError(404, "Lo que intentas enlazar no es de este equipo")
 
+    if raiz is None and not entidad_id and datos.get("pagina_ruta"):
+        entidad_titulo = codificar_pagina(datos.get("pagina_titulo") or "", ruta_valida(datos["pagina_ruta"]))
+
     ancla = None
     if raiz is None and datos.get("ancla"):
         ancla = normalizar_ancla(datos["ancla"])
@@ -752,7 +805,7 @@ def crear_post(
         equipo_id=equipo_id,
         raiz_id=raiz_id,
         contenido=contenido,
-        ancla=ancla or ((raiz or {}).get("ancla") if raiz else None),
+        raiz=raiz or {**fila, "id": raiz_id},
     )
     return obtener_hilo(supabase, equipo_id, raiz_id)
 
@@ -820,7 +873,10 @@ def actualizar_post(
         estado = cambios["estado"]
         if estado not in ("abierta", "resuelta"):
             raise TableroError(400, "Estado no válido")
-        if post.get("parent_id") or (post.get("tipo") not in ("tarea", "pregunta") and not post.get("ancla")):
+        if post.get("parent_id") or (
+            post.get("tipo") not in ("tarea", "pregunta")
+            and not (post.get("ancla") or post.get("entidad_id") or ruta_pagina(post.get("entidad_titulo")))
+        ):
             raise TableroError(400, "Solo las tareas y preguntas se cierran")
         if estado != post.get("estado"):
             if estado == "resuelta":
@@ -859,10 +915,10 @@ def actualizar_post(
 
     raiz_id = str(post.get("parent_id") or post["id"])
     contenido = update.get("contenido", post.get("contenido") or "")
-    ancla_raiz = post.get("ancla")
+    raiz_fila = post
     if post.get("parent_id"):
         padre = supabase.table("staff_posts").select("*").eq("id", raiz_id).execute().data or []
-        ancla_raiz = padre[0].get("ancla") if padre else None
+        raiz_fila = padre[0] if padre else post
     enviar_avisos(
         supabase,
         [a for a in nuevos_avisos if a.usuario_id in staff_ids],
@@ -870,7 +926,7 @@ def actualizar_post(
         equipo_id=equipo_id,
         raiz_id=raiz_id,
         contenido=contenido,
-        ancla=ancla_raiz,
+        raiz=raiz_fila,
     )
     return obtener_hilo(supabase, equipo_id, raiz_id)
 

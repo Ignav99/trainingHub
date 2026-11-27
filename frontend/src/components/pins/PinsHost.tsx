@@ -1,15 +1,16 @@
 'use client'
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { usePathname, useRouter } from 'next/navigation'
 import { mutate as mutateGlobal } from 'swr'
 import { toast } from '@/components/ui/toast'
-import { tableroApi, type PinesRespuesta } from '@/lib/api/tablero'
+import { tableroApi, isNotificacionesKey, type PinesRespuesta } from '@/lib/api/tablero'
 import { notificacionesApi } from '@/lib/api/notificaciones'
-import { isNotificacionesKey } from '@/lib/api/tablero'
 import { construirAncla, dianaEn, ATTR_UI, resolverAncla } from '@/lib/pins/ancla-dom'
 import { hrefPin } from '@/lib/pins/ancla'
+import { PINS_ANCLADOS } from '@/lib/pins/config'
+import { ETIQUETA_ENTIDAD } from '@/lib/pins/entidad'
 import { useAuthStore } from '@/stores/authStore'
 import { useEquipoStore } from '@/stores/equipoStore'
 import { usePinsStore } from '@/stores/pinsStore'
@@ -21,7 +22,7 @@ import { PinBurbuja, PinResumen } from './PinBurbuja'
 import { PinComposer, type EnvioPin } from './PinComposer'
 import { PinMarcador } from './PinMarcador'
 import { PinsFab } from './PinsFab'
-import { pinesSinResolver, usePines, usePosiciones, type Pin } from './usePines'
+import { useHilosPagina, usePines, usePosiciones, type ListaHilos } from './usePines'
 
 const SIN_PINES = ['/revision/', '/video-analisis', '/pizarra-tactica', '/tablero']
 
@@ -33,6 +34,16 @@ function escribiendo(): boolean {
 
 function reducirMovimiento(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+/** Esquina del botón flotante: de aquí cuelgan el compositor y la burbuja de los hilos sin ancla. */
+function puntoBoton() {
+  return { x: window.innerWidth - 20, y: window.innerHeight - (window.innerWidth >= 1024 ? 96 : 164) }
+}
+
+/** Título de la página para comentarios que no cuelgan de una entidad. */
+function tituloPagina(): string {
+  return (document.title || '').split(/\s[|·–-]\s/)[0].trim().slice(0, 120)
 }
 
 /** Reenvía la rueda al contenedor con scroll bajo el cursor mientras se elige el punto. */
@@ -61,14 +72,23 @@ function Capa() {
   const abierto = usePinsStore((s) => s.abierto)
   const resaltado = usePinsStore((s) => s.resaltado)
   const borrador = usePinsStore((s) => s.borrador)
+  const comentando = usePinsStore((s) => s.comentando)
   const [contenedor, setContenedor] = useState<HTMLElement | null>(null)
   const pathname = usePathname() || ''
 
   const esStaff = Boolean(user) && (user!.rol === 'admin' || user!.rol === 'superadmin_plataforma' || miembros.some((m) => m.id === user!.id))
-  const esAdmin = user?.rol === 'admin' || user?.rol === 'superadmin_plataforma'
   const activo = Boolean(equipoId) && esStaff && !SIN_PINES.some((r) => pathname.startsWith(r))
-  const { key, ruta, todos, pines, mutate, disponible, cargando } = usePines(equipoId, activo)
-  const posiciones = usePosiciones(pines, abierto)
+
+  // Hilos de la página: lo que de verdad usa el staff.
+  const lista = useHilosPagina(equipoId, activo)
+  const { hilos, entidad, key: claveLista, mutate: mutarLista } = lista
+
+  // Anclados a un punto: dormante hasta que exista la columna `ancla`.
+  const pins = usePines(equipoId, activo && PINS_ANCLADOS)
+  const { ruta, todos, pines, disponible } = pins
+  const pinsOn = PINS_ANCLADOS && disponible === true
+  const pinesVisibles = pinsOn ? pines : []
+  const posiciones = usePosiciones(pinesVisibles, abierto)
   const puedeModerar = puedeModerarTablero(user, miembros)
 
   useEffect(() => {
@@ -83,29 +103,30 @@ function Capa() {
 
   // Al cambiar de vista se cierra lo abierto.
   useEffect(() => {
-    usePinsStore.setState({ abierto: null, borrador: null, modo: 'idle' })
-  }, [ruta])
+    usePinsStore.setState({ abierto: null, borrador: null, modo: 'idle', comentando: false })
+  }, [ruta, entidad?.id])
 
-  // Atajo «c»: solo fuera de campos de texto y sin modificadores.
+  // Atajo «c»: comentar en esta página, solo fuera de campos de texto y sin modificadores.
   useEffect(() => {
-    if (!activo || disponible === false) return
+    if (!activo) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         const s = usePinsStore.getState()
         if (s.modo === 'colocando' || s.borrador) s.cancelar()
+        else if (s.comentando) s.comentar(false)
         else if (s.abierto) s.abrir(null)
         return
       }
       if (e.key.toLowerCase() !== 'c' || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || e.repeat) return
       if (escribiendo() || document.querySelector('[role="dialog"]:not([data-pins-ui])')) return
       e.preventDefault()
-      usePinsStore.getState().colocar()
+      usePinsStore.getState().comentar()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [activo, disponible])
+  }, [activo])
 
-  // ─── Enlace profundo: ?pin=<id> ─────────────────────────────────────────────
+  // ─── Enlace profundo: ?hilo=<id> (hilos de página) y ?pin=<id> (anclados) ───
   const gestionado = useRef<string | null>(null)
   const poll = useRef<ReturnType<typeof setInterval> | null>(null)
   useEffect(() => () => {
@@ -115,55 +136,65 @@ function Capa() {
   }, [])
   useEffect(() => {
     if (!activo) return
-    const id = new URLSearchParams(window.location.search).get('pin')
+    const params = new URLSearchParams(window.location.search)
+    const id = params.get('hilo') ?? params.get('pin')
     if (!id || gestionado.current === id) return
-    if (cargando || disponible === undefined) return
+    if (lista.cargando || (PINS_ANCLADOS && pins.cargando)) return
     gestionado.current = id
 
     const limpiar = () => {
       const u = new URL(window.location.href)
+      u.searchParams.delete('hilo')
       u.searchParams.delete('pin')
       router.replace(u.pathname + (u.search || ''), { scroll: false })
     }
-    const alHilo = () => {
+    const alPanel = () => {
       limpiar()
       useStaffPanel.getState().verHilo(id)
     }
-    const hallado = todos.find((p) => p.hilo.id === id)
-    if (!hallado || disponible === false) return alHilo()
-    if (hallado.ancla.ruta !== ruta) {
-      router.replace(hrefPin(hallado.ancla, id), { scroll: false })
-      gestionado.current = null
+    const marcarLeido = () =>
+      notificacionesApi
+        .markThreadRead(id)
+        .then(() => mutateGlobal(isNotificacionesKey))
+        .catch(() => undefined)
+
+    const anclado = pinsOn ? todos.find((p) => p.hilo.id === id) : undefined
+    if (anclado) {
+      if (anclado.ancla.ruta !== ruta) {
+        router.replace(hrefPin(anclado.ancla, id), { scroll: false })
+        gestionado.current = null
+        return
+      }
+      void marcarLeido()
+      let intentos = 0
+      if (poll.current) clearInterval(poll.current)
+      const t = setInterval(() => {
+        intentos += 1
+        const r = resolverAncla(anclado.ancla)
+        if (r.origen !== 'elemento' && anclado.ancla.selector && intentos < 20) return
+        clearInterval(t)
+        poll.current = null
+        const suave = reducirMovimiento() ? 'auto' : 'smooth'
+        if (r.el) r.el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: suave })
+        else window.scrollTo({ top: Math.max(0, anclado.ancla.y - window.innerHeight / 2), behavior: suave })
+        setTimeout(() => {
+          usePinsStore.setState({ abierto: id, resaltado: id, borrador: null })
+          setTimeout(() => usePinsStore.getState().resaltar(null), 1400)
+        }, reducirMovimiento() ? 0 : 350)
+        limpiar()
+      }, 150)
+      poll.current = t
       return
     }
 
-    notificacionesApi
-      .markThreadRead(id)
-      .then(() => mutateGlobal(isNotificacionesKey))
-      .catch(() => undefined)
+    if (!hilos.some((h) => h.id === id)) return alPanel()
+    void marcarLeido()
+    usePinsStore.setState({ abierto: id, resaltado: id, borrador: null, comentando: false })
+    setTimeout(() => usePinsStore.getState().resaltar(null), 1400)
+    limpiar()
+  }, [activo, lista.cargando, pins.cargando, hilos, todos, pinsOn, ruta, router])
 
-    let intentos = 0
-    if (poll.current) clearInterval(poll.current)
-    const t = setInterval(() => {
-      intentos += 1
-      const r = resolverAncla(hallado.ancla)
-      const listo = r.origen === 'elemento' || !hallado.ancla.selector
-      if (!listo && intentos < 20) return
-      clearInterval(t)
-      poll.current = null
-      const suave = reducirMovimiento() ? 'auto' : 'smooth'
-      if (r.el) r.el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: suave })
-      else window.scrollTo({ top: Math.max(0, hallado.ancla.y - window.innerHeight / 2), behavior: suave })
-      setTimeout(() => {
-        usePinsStore.setState({ abierto: id, resaltado: id, borrador: null })
-        setTimeout(() => usePinsStore.getState().resaltar(null), 1400)
-      }, reducirMovimiento() ? 0 : 350)
-      limpiar()
-    }, 150)
-    poll.current = t
-  }, [activo, cargando, disponible, todos, ruta, router])
-
-  // Pulso del marcador resaltado (solo transform/opacity; sin movimiento si se pidió reducir).
+  // Pulso del marcador anclado resaltado.
   const anilloRef = useRef<HTMLSpanElement>(null)
   useEffect(() => {
     if (!resaltado || reducirMovimiento()) return
@@ -176,12 +207,13 @@ function Capa() {
     )
   }, [resaltado])
 
-  // ─── Crear ─────────────────────────────────────────────────────────────────
+  // ─── Crear un hilo sobre la página (o anclado, si está disponible) ─────────
   const publicar = useCallback(
     async (e: EnvioPin) => {
-      if (!equipoId || !user || !key) return
+      if (!equipoId || !user || !claveLista) return
       const ahora = new Date().toISOString()
       const yo = miembros.find((m) => m.id === user.id)
+      const titulo = entidad ? null : tituloPagina() || pathname
       const temp: StaffHilo = {
         id: `temp-${Date.now()}`,
         equipo_id: equipoId,
@@ -195,11 +227,11 @@ function Capa() {
         estado: 'abierta',
         resuelto_por: null,
         resuelto_at: null,
-        entidad_tipo: null,
-        entidad_id: null,
-        entidad_titulo: null,
+        entidad_tipo: entidad?.tipo ?? null,
+        entidad_id: entidad?.id ?? null,
+        entidad_titulo: titulo,
         entidad_href: null,
-        ancla: e.ancla,
+        ancla: e.ancla ?? null,
         fijado: false,
         editado_at: null,
         created_at: ahora,
@@ -207,22 +239,23 @@ function Capa() {
         respuestas: [],
         respuestas_count: 0,
       }
-      const base = (cur?: PinesRespuesta): PinesRespuesta => cur ?? { data: [], disponible: true }
-      usePinsStore.setState({ borrador: null, modo: 'idle', ocultos: false })
+      const base = (cur?: ListaHilos): ListaHilos => cur ?? { data: [], siguiente: null }
+      usePinsStore.setState({ borrador: null, modo: 'idle', ocultos: false, comentando: false })
       try {
-        await mutate(
+        await mutarLista(
           async (cur) => {
             const hilo = await tableroApi.create({
               equipo_id: equipoId,
               tipo: e.tipo,
               contenido: e.contenido,
-              ancla: e.ancla,
+              ...(e.ancla ? { ancla: e.ancla } : {}),
+              ...(entidad ? { entidad_tipo: entidad.tipo, entidad_id: entidad.id } : { pagina_ruta: pathname, pagina_titulo: titulo ?? undefined }),
             })
             const b = base(cur)
-            return { ...b, data: [...b.data.filter((h) => !h.id.startsWith('temp-')), hilo] }
+            return { ...b, data: [hilo, ...b.data.filter((h) => !h.id.startsWith('temp-'))] }
           },
           {
-            optimisticData: (cur) => ({ ...base(cur), data: [...base(cur).data, temp] }),
+            optimisticData: (cur) => ({ ...base(cur), data: [temp, ...base(cur).data] }),
             rollbackOnError: true,
             populateCache: true,
             revalidate: false,
@@ -231,26 +264,21 @@ function Capa() {
         toast.success('Comentario guardado')
         void mutateGlobal((k) => typeof k === 'string' && k.startsWith('/tablero'))
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'No se pudo guardar'
-        toast.error(msg)
-        if (/migraci/i.test(msg)) void mutate({ data: [], disponible: false }, { revalidate: false })
+        toast.error(err instanceof Error ? err.message : 'No se pudo guardar')
       }
     },
-    [equipoId, user, key, miembros, mutate]
+    [equipoId, user, claveLista, miembros, mutarLista, entidad, pathname]
   )
 
   const aplicar = useCallback(
     (id: string, h: StaffHilo | null) => {
-      void mutate(
-        (cur) => {
-          if (!cur) return cur
-          return { ...cur, data: h ? cur.data.map((x) => (x.id === id ? h : x)) : cur.data.filter((x) => x.id !== id) }
-        },
-        { revalidate: false }
-      )
+      const act = (cur: { data: StaffHilo[] } | undefined) =>
+        cur ? { ...cur, data: h ? cur.data.map((x) => (x.id === id ? h : x)) : cur.data.filter((x) => x.id !== id) } : cur
+      void mutarLista((cur) => act(cur) as ListaHilos | undefined, { revalidate: false })
+      if (pinsOn) void pins.mutate((cur) => act(cur) as PinesRespuesta | undefined, { revalidate: false })
       if (!h) usePinsStore.getState().abrir(null)
     },
-    [mutate]
+    [mutarLista, pins, pinsOn]
   )
 
   const capturar = (ev: React.MouseEvent) => {
@@ -258,17 +286,23 @@ function Capa() {
     usePinsStore.getState().setBorrador({ ancla: construirAncla(punto), punto })
   }
 
-  const ordenados = useMemo(() => pines, [pines])
   if (!activo || !contenedor || !user || !equipoId) return null
+
+  const contexto = entidad ? `Sobre ${entidad.tipo === 'jugador' ? 'este jugador' : entidad.tipo === 'sesion' ? 'esta sesión' : entidad.tipo === 'partido' ? 'este partido' : 'este rival'}` : 'Sobre esta página'
+  const abiertoHilo = abierto ? hilos.find((h) => h.id === abierto) : undefined
+  const abiertoPin = abierto && pinsOn ? pines.find((p) => p.hilo.id === abierto) : undefined
+  const puntoAbierto = abiertoPin ? posiciones[abiertoPin.hilo.id]?.punto : abiertoHilo ? puntoBoton() : undefined
+  const hiloAbierto = abiertoPin?.hilo ?? abiertoHilo
 
   return (
     <>
       <PinsFab
-        pines={ordenados}
-        sinResolver={pinesSinResolver(ordenados)}
-        disponible={disponible !== false}
-        esAdmin={Boolean(esAdmin)}
-        posiciones={posiciones}
+        hilos={hilos}
+        sinResolver={lista.sinResolver}
+        resaltado={Boolean(resaltado) && !abiertoPin}
+        pinsDisponibles={pinsOn}
+        hayPines={pines.length > 0}
+        onAbrirHilo={(h) => usePinsStore.getState().abrir(h.id)}
       />
       {createPortal(
         <>
@@ -291,18 +325,14 @@ function Capa() {
             </>
           )}
 
-          {!ocultos && (
+          {pinsOn && !ocultos && (
             <div {...{ [ATTR_UI]: '' }} className="pointer-events-none fixed inset-0 z-[39] overflow-hidden">
-              {ordenados.map((p) => {
+              {pines.map((p) => {
                 const pos = posiciones[p.hilo.id]
                 if (!pos || (!pos.visible && abierto !== p.hilo.id)) return null
                 const resuelto = p.hilo.estado === 'resuelta'
                 return (
-                  <div
-                    key={p.hilo.id}
-                    className="absolute"
-                    style={{ left: pos.punto.x, top: pos.punto.y, transform: 'translate(-50%, -50%)' }}
-                  >
+                  <div key={p.hilo.id} className="absolute" style={{ left: pos.punto.x, top: pos.punto.y, transform: 'translate(-50%, -50%)' }}>
                     {resaltado === p.hilo.id && (
                       <span
                         ref={anilloRef}
@@ -323,40 +353,38 @@ function Capa() {
             </div>
           )}
 
-          {!ocultos &&
-            modo === 'viendo' &&
-            ordenados.map((p) => {
+          {pinsOn && !ocultos && modo === 'viendo' &&
+            pines.map((p) => {
               const pos = posiciones[p.hilo.id]
               if (!pos?.visible || abierto === p.hilo.id) return null
-              return (
-                <PinResumen
-                  key={p.hilo.id}
-                  hilo={p.hilo}
-                  punto={pos.punto}
-                  onAbrir={() => usePinsStore.getState().abrir(p.hilo.id)}
-                />
-              )
+              return <PinResumen key={p.hilo.id} hilo={p.hilo} punto={pos.punto} onAbrir={() => usePinsStore.getState().abrir(p.hilo.id)} />
             })}
 
-          {!ocultos && abierto && (() => {
-            const p = ordenados.find((x) => x.hilo.id === abierto)
-            const pos = p && posiciones[p.hilo.id]
-            if (!p || !pos) return null
-            return (
-              <PinBurbuja
-                key={p.hilo.id}
-                hilo={p.hilo}
-                punto={pos.punto}
-                numero={p.numero}
-                equipoId={equipoId}
-                miembros={miembros}
-                meId={user.id}
-                puedeModerar={puedeModerar}
-                onCerrar={() => usePinsStore.getState().abrir(null)}
-                onCambio={(h) => aplicar(p.hilo.id, h)}
-              />
-            )
-          })()}
+          {hiloAbierto && puntoAbierto && (
+            <PinBurbuja
+              key={hiloAbierto.id}
+              hilo={hiloAbierto}
+              punto={puntoAbierto}
+              numero={abiertoPin?.numero}
+              equipoId={equipoId}
+              miembros={miembros}
+              meId={user.id}
+              puedeModerar={puedeModerar}
+              onCerrar={() => usePinsStore.getState().abrir(null)}
+              onCambio={(h) => aplicar(hiloAbierto.id, h)}
+            />
+          )}
+
+          {comentando && (
+            <PinComposer
+              punto={puntoBoton()}
+              contexto={contexto}
+              miembros={miembros}
+              meId={user.id}
+              onEnviar={publicar}
+              onCancelar={() => usePinsStore.getState().comentar(false)}
+            />
+          )}
 
           {borrador && (
             <>
@@ -371,6 +399,7 @@ function Capa() {
                 key={`${borrador.punto.x}-${borrador.punto.y}`}
                 punto={borrador.punto}
                 ancla={borrador.ancla}
+                contexto={contexto}
                 miembros={miembros}
                 meId={user.id}
                 onEnviar={publicar}
@@ -385,7 +414,7 @@ function Capa() {
   )
 }
 
-/** Comentarios anclados: botón flotante, capa de marcadores y enlace profundo. Va una sola vez en el layout. */
+/** Comentarios del staff: botón flotante, hilos de la página y enlace profundo. Va una sola vez en el layout. */
 export function PinsHost() {
   return (
     <Suspense fallback={null}>

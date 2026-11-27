@@ -6,6 +6,7 @@ import useSWR, { mutate as mutateGlobal } from 'swr'
 import { apiKey } from '@/lib/swr'
 import { normalizarRuta, parsearAncla, type Ancla, type Punto } from '@/lib/pins/ancla'
 import { ATTR_UI, resolverAncla } from '@/lib/pins/ancla-dom'
+import { entidadDeRuta, paginaDeRuta } from '@/lib/pins/entidad'
 import type { PinesRespuesta } from '@/lib/api/tablero'
 import type { StaffHilo } from '@/types'
 
@@ -151,4 +152,41 @@ export function usePosiciones(pines: Pin[], forzar?: string | null): Record<stri
   }, [pedir])
 
   return pos
+}
+
+export interface ListaHilos {
+  data: StaffHilo[]
+  siguiente: string | null
+}
+
+/** Hilos del staff sobre lo que se está viendo: la entidad (sesión, partido…) o, si no hay, la página. */
+export function useHilosPagina(equipoId: string | undefined | null, activo: boolean) {
+  const pathname = usePathname() || '/'
+  const search = useSearchParams()
+  const entidad = entidadDeRuta(pathname, search ?? '')
+  const pagina = paginaDeRuta(pathname)
+  const key = activo
+    ? apiKey(
+        '/tablero',
+        entidad
+          ? { equipo_id: equipoId || undefined, entidad_tipo: entidad.tipo, entidad_id: entidad.id, limit: 50 }
+          : { equipo_id: equipoId || undefined, pagina, limit: 50 },
+        ['equipo_id']
+      )
+    : null
+  const { data, error, mutate } = useSWR<ListaHilos>(key, {
+    revalidateOnFocus: true,
+    dedupingInterval: 10_000,
+    refreshInterval: 60_000,
+  })
+  const hilos = useMemo(() => (data?.data ?? []).filter((h) => !h.ancla), [data])
+  return {
+    key,
+    entidad,
+    pagina,
+    hilos,
+    mutate,
+    sinResolver: hilos.filter((h) => h.estado !== 'resuelta').length,
+    cargando: Boolean(key) && !data && !error,
+  }
 }

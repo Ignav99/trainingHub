@@ -15,20 +15,23 @@ const ORDEN: TipoStaffPost[] = ['comentario', 'pregunta', 'tarea', 'aviso']
 export interface EnvioPin {
   tipo: TipoStaffPost
   contenido: string
-  ancla: Ancla
+  ancla?: Ancla
 }
 
 /** Compositor pequeño junto al punto elegido. No tapa nada de forma permanente: se cierra con Esc o la X. */
 export function PinComposer({
   punto,
   ancla,
+  contexto,
   miembros,
   meId,
   onEnviar,
   onCancelar,
 }: {
   punto: Punto
-  ancla: Ancla
+  ancla?: Ancla
+  /** Sobre qué se comenta («Sobre esta sesión»); sin ancla es lo que sitúa el comentario. */
+  contexto?: string
   miembros: MiembroStaff[]
   meId?: string
   onEnviar: (e: EnvioPin) => Promise<void>
@@ -106,6 +109,7 @@ export function PinComposer({
         </button>
       </div>
       <div className="px-3 py-2.5">
+        {contexto && <p className="mb-1.5 text-xs text-muted-foreground">{contexto}</p>}
         <MentionTextarea
           value={draft}
           onChange={setDraft}

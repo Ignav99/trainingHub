@@ -30,6 +30,7 @@ import { ReplyComposer } from './PostComposer'
 import { fechaHora, hace, nombreVisible, plazo, ROL_LABEL, TIPOS } from './tablero-utils'
 import { refrescarTablero } from './useTablero'
 import { hrefPin } from '@/lib/pins/ancla'
+import { ETIQUETA_ENTIDAD } from '@/lib/pins/entidad'
 
 const RESPUESTAS_VISIBLES = 2
 
@@ -332,7 +333,7 @@ export const StaffThreadCard = forwardRef<
                 >
                   <Link2 className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">
-                    {hilo.entidad_tipo === 'sesion' ? 'Sesión' : hilo.entidad_tipo === 'partido' ? 'Partido' : 'Jugador'}: {hilo.entidad_titulo}
+                    {hilo.entidad_tipo ? `${ETIQUETA_ENTIDAD[hilo.entidad_tipo]}: ` : 'Página: '}{hilo.entidad_titulo}
                   </span>
                 </Link>
               ) : (
