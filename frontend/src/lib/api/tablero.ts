@@ -1,4 +1,5 @@
 import { api } from './client'
+import type { Ancla } from '@/lib/pins/ancla'
 import type { EntidadStaffPost, StaffHilo, TipoStaffPost } from '@/types'
 
 export type FiltroTablero = 'todo' | 'preguntas' | 'tareas' | 'mis_tareas' | 'menciones' | 'avisos'
@@ -12,6 +13,7 @@ export interface NuevoPost {
   fecha_limite?: string | null
   entidad_tipo?: EntidadStaffPost
   entidad_id?: string
+  ancla?: Ancla
 }
 
 export interface CambiosPost {
@@ -20,6 +22,12 @@ export interface CambiosPost {
   asignado_a?: string | null
   fecha_limite?: string | null
   fijado?: boolean
+}
+
+export interface PinesRespuesta {
+  data: StaffHilo[]
+  /** false hasta aplicar la migración de comentarios anclados. */
+  disponible: boolean
 }
 
 export const tableroApi = {

@@ -1,4 +1,4 @@
-{% from "_marca/cabecera.html" import cabecera %}<!DOCTYPE html>
+{% from "_marca/cabecera.html" import cabecera %}{% from "_sesion/asistentes.html" import franja, bloque %}<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -47,7 +47,8 @@ td.p:last-child { border-right: none; }
 .th .d { flex: none; font-weight: 800; margin-left: 1.5mm; }
 .th .g { flex: none; font-size: 6pt; color: var(--c-suave); margin-left: 1.5mm; }
 .bd { border: .25mm solid var(--c-borde); border-radius: .5mm; overflow: hidden; text-align: center; margin-bottom: .8mm; }
-.bd img { width: 100%; height: 100%; object-fit: contain; }
+.bx { overflow: hidden; }
+.bd img { display: block; width: 100%; height: 100%; }
 .bd svg { width: 100%; height: 100%; }
 .tt { overflow: hidden; line-height: 1.22; }
 .tt p { margin-bottom: .6mm; }
@@ -92,6 +93,7 @@ td.p:last-child { border-right: none; }
         {% if match_day %}<span class="md-sw" style="background:{{ md_color }}"></span>{{ match_day }}{% if md_label %} · {{ md_label }}{% endif %}{% endif %}{% if rival %} · Rival: {{ rival }}{% endif %}<br>
         <b>{{ duracion_total }} min</b> · {{ n_tareas }} tareas
       </div>
+      {{ bloque(asis) }}
       {% if objetivo_principal %}<div class="pt-bloque"><div class="c-rotulo">Objetivo</div><div class="pt-obj">{{ objetivo_principal }}</div></div>{% endif %}
       {% if material %}<div class="pt-bloque"><div class="c-rotulo">Material mínimo necesario</div><div>{{ material|join(' · ') }}</div></div>{% endif %}
       <div class="pt-bloque"><div class="c-rotulo">Orden de trabajo</div>
@@ -108,7 +110,7 @@ td.p:last-child { border-right: none; }
           <div class="d">{% if t.series %}{{ t.series }}×{% endif %}{{ t.duracion }}'</div>
         </div>
         {% if b.modo == 's' %}<div class="bdw" style="width:{{ b.board_w }}mm">{% endif %}
-        <div class="bd" style="height:{{ b.board_h }}mm">{% if t.board.img %}<img src="{{ t.board.img }}" alt="">{% else %}{{ t.board.svg }}{% endif %}</div>
+        <div class="bd" style="height:{{ b.board_h }}mm"><div class="bx" style="width:{{ t.box.w }}mm;height:{{ t.box.h }}mm;margin:{{ t.box.top }}mm auto 0">{% if t.board.img %}<img src="{{ t.board.img }}" alt="">{% else %}{{ t.board.svg }}{% endif %}</div></div>
         {% if b.modo == 's' %}</div>{% endif %}
         <div class="tt" style="{% if b.modo == 's' %}height:{{ b.block_h - 6.5 }}mm{% else %}height:{{ b.text_h }}mm{% endif %}">
           {% if t.desc_c %}<p>{{ t.desc_c }}</p>{% endif %}

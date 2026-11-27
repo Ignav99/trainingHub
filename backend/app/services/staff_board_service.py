@@ -255,6 +255,59 @@ class TableroError(Exception):
         self.detalle = detalle
 
 
+MSG_FALTA_ANCLA = "Falta aplicar la migración de comentarios anclados"
+VISTA_CLAVES = ("tab", "fase", "phase", "vista", "view")
+_RUTA_RE = re.compile(r"^/[^\s?#]{0,300}$")
+
+
+def es_columna_ancla_ausente(exc: BaseException) -> bool:
+    """El error de Postgres/PostgREST por no existir ``staff_posts.ancla`` (aún sin migrar)."""
+    texto = f"{exc} {getattr(exc, 'code', '')} {getattr(exc, 'message', '')}".lower()
+    if "ancla" not in texto:
+        return False
+    return any(m in texto for m in ("42703", "pgrst204", "does not exist", "could not find", "undefined_column"))
+
+
+def _num(v, lo: float, hi: float, defecto: float = 0.0) -> float:
+    try:
+        n = float(v)
+    except (TypeError, ValueError):
+        return defecto
+    if n != n:  # NaN
+        return defecto
+    return max(lo, min(hi, n))
+
+
+def normalizar_ancla(raw) -> dict:
+    """Valida y recorta el ancla que manda el cliente; nunca se guarda tal cual."""
+    if not isinstance(raw, dict):
+        raise TableroError(400, "Ancla no válida")
+    ruta = str(raw.get("ruta") or "")
+    path = ruta.split("?", 1)[0]
+    if not _RUTA_RE.match(path):
+        raise TableroError(400, "Ancla no válida: ruta")
+    selector = raw.get("selector")
+    selector = str(selector)[:400] if isinstance(selector, str) and selector.strip() else None
+    return {
+        "ruta": ruta[:400],
+        "path": path,
+        "selector": selector,
+        "dx": _num(raw.get("dx"), 0, 1),
+        "dy": _num(raw.get("dy"), 0, 1),
+        "x": _num(raw.get("x"), 0, 100000),
+        "y": _num(raw.get("y"), 0, 1000000),
+        "vw": _num(raw.get("vw"), 0, 20000),
+    }
+
+
+def url_hilo(ancla: Optional[dict], raiz_id: str) -> str:
+    """Enlace de las notificaciones: a la página donde está anclado, o al tablero."""
+    ruta = (ancla or {}).get("ruta") if isinstance(ancla, dict) else None
+    if not ruta:
+        return f"/tablero?post={raiz_id}"
+    return f"{ruta}{'&' if '?' in ruta else '?'}pin={raiz_id}"
+
+
 def _ahora() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -412,6 +465,7 @@ def _forma(post: dict, usuarios: dict[str, dict]) -> dict:
         "entidad_id": post.get("entidad_id"),
         "entidad_titulo": post.get("entidad_titulo"),
         "entidad_href": href_entidad(post.get("entidad_tipo"), post.get("entidad_id")),
+        "ancla": post.get("ancla") or None,
         "fijado": bool(post.get("fijado")),
         "editado_at": post.get("editado_at"),
         "created_at": post.get("created_at"),
@@ -545,6 +599,7 @@ def enviar_avisos(
     equipo_id: str,
     raiz_id: str,
     contenido: str,
+    ancla: Optional[dict] = None,
 ) -> int:
     """Inserta las notificaciones; si faltan las columnas nuevas, sin ellas."""
     if not avisos:
@@ -562,7 +617,7 @@ def enviar_avisos(
             "presentada": False,
             "actor_id": actor_id,
             "equipo_id": equipo_id,
-            "url": f"/tablero?post={raiz_id}",
+            "url": url_hilo(ancla, raiz_id),
         }
         for a in avisos
     ]
@@ -645,6 +700,10 @@ def crear_post(
         if not entidad_titulo:
             raise TableroError(404, "Lo que intentas enlazar no es de este equipo")
 
+    ancla = None
+    if raiz is None and datos.get("ancla"):
+        ancla = normalizar_ancla(datos["ancla"])
+
     ahora = _ahora()
     fila = {
         "equipo_id": equipo_id,
@@ -662,7 +721,14 @@ def crear_post(
         "ultima_actividad_at": ahora,
         "created_at": ahora,
     }
-    creado = supabase.table("staff_posts").insert(fila).execute().data[0]
+    if ancla:
+        fila["ancla"] = ancla
+    try:
+        creado = supabase.table("staff_posts").insert(fila).execute().data[0]
+    except Exception as exc:  # noqa: BLE001
+        if ancla and es_columna_ancla_ausente(exc):
+            raise TableroError(503, MSG_FALTA_ANCLA) from exc
+        raise
 
     raiz_id = str(raiz["id"]) if raiz else str(creado["id"])
     if raiz:
@@ -686,8 +752,28 @@ def crear_post(
         equipo_id=equipo_id,
         raiz_id=raiz_id,
         contenido=contenido,
+        ancla=ancla or ((raiz or {}).get("ancla") if raiz else None),
     )
     return obtener_hilo(supabase, equipo_id, raiz_id)
+
+
+def listar_pines(supabase, equipo_id: str, usuario_id: str, ruta: str) -> dict:
+    """Hilos anclados a una página. Sin la columna ``ancla`` devuelve vacío y avisa."""
+    path = (ruta or "").split("?", 1)[0]
+    if not _RUTA_RE.match(path):
+        raise TableroError(400, "Ruta no válida")
+    try:
+        filas = (
+            supabase.table("staff_posts").select("*")
+            .eq("equipo_id", equipo_id).is_("parent_id", "null")
+            .filter("ancla->>path", "eq", path)
+            .order("created_at").limit(200).execute().data or []
+        )
+    except Exception as exc:  # noqa: BLE001
+        if es_columna_ancla_ausente(exc):
+            return {"data": [], "disponible": False}
+        raise
+    return {"data": componer_hilos(supabase, equipo_id, filas), "disponible": True}
 
 
 def actualizar_post(
@@ -734,7 +820,7 @@ def actualizar_post(
         estado = cambios["estado"]
         if estado not in ("abierta", "resuelta"):
             raise TableroError(400, "Estado no válido")
-        if post.get("parent_id") or post.get("tipo") not in ("tarea", "pregunta"):
+        if post.get("parent_id") or (post.get("tipo") not in ("tarea", "pregunta") and not post.get("ancla")):
             raise TableroError(400, "Solo las tareas y preguntas se cierran")
         if estado != post.get("estado"):
             if estado == "resuelta":
@@ -773,6 +859,10 @@ def actualizar_post(
 
     raiz_id = str(post.get("parent_id") or post["id"])
     contenido = update.get("contenido", post.get("contenido") or "")
+    ancla_raiz = post.get("ancla")
+    if post.get("parent_id"):
+        padre = supabase.table("staff_posts").select("*").eq("id", raiz_id).execute().data or []
+        ancla_raiz = padre[0].get("ancla") if padre else None
     enviar_avisos(
         supabase,
         [a for a in nuevos_avisos if a.usuario_id in staff_ids],
@@ -780,6 +870,7 @@ def actualizar_post(
         equipo_id=equipo_id,
         raiz_id=raiz_id,
         contenido=contenido,
+        ancla=ancla_raiz,
     )
     return obtener_hilo(supabase, equipo_id, raiz_id)
 

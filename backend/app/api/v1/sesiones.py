@@ -2258,7 +2258,7 @@ async def generate_pdf(
         ),
         asyncio.to_thread(
             lambda: supabase.table("asistencias_sesion").select(
-                "presente, tipo_participacion, motivo_ausencia, jugadores(nombre, apellidos, dorsal)"
+                "jugador_id, presente, tipo_participacion, motivo_ausencia, jugadores(nombre, apellidos, dorsal)"
             ).eq("sesion_id", sid).execute()
         ),
         asyncio.to_thread(
@@ -2358,6 +2358,7 @@ async def generate_pdf(
                 # Sort key: use highest-priority type present
                 tipo_key = min((TIPO_ORDER.get(t, 99) for t in tipos), default=0)
                 asistencia_roster.append({
+                    "jugador_id": a.get("jugador_id"),
                     "dorsal": dorsal,
                     "nombre": nombre,
                     "apellidos": apellidos,
@@ -2369,6 +2370,7 @@ async def generate_pdf(
             else:
                 motivo = a.get("motivo_ausencia", "otro") or "otro"
                 asistencia_roster.append({
+                    "jugador_id": a.get("jugador_id"),
                     "dorsal": dorsal,
                     "nombre": nombre,
                     "apellidos": apellidos,
@@ -2377,6 +2379,27 @@ async def generate_pdf(
                     "tipo_key": TIPO_ORDER["ausente"],
                     "sort_key": "ausente",
                 })
+
+        # Asistentes: toda la plantilla cuenta como presente salvo bajas, margen y fisio.
+        # Quien no tiene registro de asistencia entra como «sesión».
+        try:
+            from app.services.jugador_tipo import auto_include_in_sesion_asistencia
+            con_registro = {str(a.get("jugador_id")) for a in (roster_response.data or []) if a.get("jugador_id")}
+            if sesion.get("equipo_id"):
+                plantilla = supabase.table("jugadores").select(
+                    "id, nombre, apellidos, dorsal, tipo_jugador, es_invitado"
+                ).eq("equipo_id", str(sesion["equipo_id"])).eq("estado", "activo").execute()
+                for j in plantilla.data or []:
+                    if str(j.get("id")) in con_registro or not auto_include_in_sesion_asistencia(j):
+                        continue
+                    asistencia_roster.append({
+                        "jugador_id": j.get("id"), "dorsal": j.get("dorsal"),
+                        "nombre": j.get("nombre", ""), "apellidos": j.get("apellidos", ""),
+                        "tipos": ["sesion"], "tipo_display": "Sesion",
+                        "tipo_key": TIPO_ORDER["sesion"], "sort_key": "sesion",
+                    })
+        except Exception:
+            pass  # Non-critical
 
         # Sort: sesion → fisio → margen → ausente, then by dorsal within group
         asistencia_roster.sort(key=lambda x: (x["tipo_key"], x.get("dorsal") or 999))

@@ -1,5 +1,6 @@
 """PDF de sesión: extendido (v2), reducido (cartel A4) y plegado (1 folio en paneles)."""
 import asyncio
+import re
 
 import pytest
 
@@ -9,10 +10,10 @@ ORG = {"nombre": "Club Test", "color_primario": "#1B5E3F"}
 JM = {f"p{i}": {"nombre": f"N{i}", "apellidos": f"Ape{i} Dos", "dorsal": i} for i in range(1, 8)}
 
 
-def _graf(n=6):
+def _graf(n=6, pitch="half"):
     els = [{"id": f"e{i}", "type": "player", "position": {"x": 60 + 40 * i, "y": 80 + 20 * i},
             "color": "#3B82F6", "label": str(i)} for i in range(n)]
-    return {"pitchType": "half", "elements": els, "arrows": [], "zones": []}
+    return {"pitchType": pitch, "elements": els, "arrows": [], "zones": []}
 
 
 def _tarea_sesion(i, fase="desarrollo_1"):
@@ -26,7 +27,13 @@ def _tarea_sesion(i, fase="desarrollo_1"):
             "reglas_psicologicas": [f"Norma psico {i}"],
             "reglas": f"Norma tecnica {i}\nVariante libre {i}",
             "material": ["balones", "Pelotas medicinales"] if i % 2 else ["petos"],
-            "grafico_data": _graf(),
+            "grafico_data": _graf(pitch=["full", "half", "custom"][i % 3]),  # apaisado, medio, vertical
+            "como_inicia": f"Inicia {i}", "como_finaliza": f"Finaliza {i}", "forma_puntuar": f"Puntua {i}",
+            "anotaciones": f"Anotacion {i}", "tags": ["rondo"], "progresiones": [f"Progresion {i}"],
+            "regresiones": [f"Regresion {i}"], "consignas_ofensivas": [f"Consigna of {i}"],
+            "errores_comunes": [f"Error {i}"], "objetivos_tacticos": ["salida_balon"],
+            "principio_tactico": "Conservacion", "tiempo_descanso": 60, "dificultad": 3,
+            "complejidad": f"Regla exigencia {i}", "posicion_entrenador": "Banda",
         },
     }
 
@@ -150,3 +157,89 @@ def test_plegado_usa_6_u_8_paneles_y_marca_los_dobleces(html_capturado):
     for i in range(1, 8):  # todas las tareas están en algún panel
         assert f"Tarea {i}" in h7
     assert "Compensatorio · Grupo A" in h7
+
+
+def _foto(w, h):
+    import base64
+    import io
+    from PIL import Image
+    b = io.BytesIO()
+    Image.new("RGB", (w, h), (90, 170, 215)).save(b, "JPEG")
+    return "data:image/jpeg;base64," + base64.b64encode(b.getvalue()).decode()
+
+
+def test_pizarra_conserva_la_orientacion_guardada():
+    vb = lambda pt: re.search(r'viewBox="0 0 (\d+) (\d+)"', ps._svg_pizarra({"pitchType": pt}, "o")[0]).groups()  # noqa: E731
+    assert vb("full") == ("1050", "680")      # campo entero apaisado
+    assert vb("half") == ("680", "525")       # medio campo
+    assert vb("custom") == ("680", "1050")    # campo entero vertical (como el editor)
+    assert ps._svg_pizarra({}, "o")[2] == "full"  # sin pitchType = full, como TacticalBoardMini
+
+
+def test_encaja_no_deforma_vertical_usa_alto_apaisada_usa_ancho():
+    vert = ps._encaja({"ratio": 680 / 1050}, 70, 36)
+    assert vert["h"] == 36 and vert["w"] < 36 and abs(vert["w"] / vert["h"] - 680 / 1050) < .01
+    horiz = ps._encaja({"ratio": 1050 / 680}, 70, 60)
+    assert horiz["w"] == 70 and horiz["h"] < 60 and horiz["top"] > 0
+    assert abs(horiz["w"] / horiz["h"] - 1050 / 680) < .01
+
+
+def test_foto_vertical_y_apaisada_mantienen_su_proporcion():
+    v = ps._board_tarea({"grafico_data": {"preview": _foto(700, 1000)}}, "a")
+    h = ps._board_tarea({"grafico_data": {"preview": _foto(1080, 699)}}, "b")
+    assert v["img"] and abs(v["ratio"] - 0.7) < .01
+    assert h["img"] and abs(h["ratio"] - 1080 / 699) < .01
+
+
+def test_asistentes_todos_presentes_salvo_bajas_margen_y_fisio():
+    r = [
+        {"dorsal": 1, "nombre": "A", "apellidos": "Uno", "tipos": ["sesion"], "sort_key": "sesion"},
+        {"dorsal": 2, "nombre": "B", "apellidos": "Dos", "tipos": ["sesion", "fisio"], "sort_key": "sesion"},
+        {"dorsal": 3, "nombre": "C", "apellidos": "Tres", "tipos": ["margen"], "sort_key": "margen"},
+        {"dorsal": 4, "nombre": "D", "apellidos": "Cuatro", "tipos": [], "sort_key": "ausente"},
+        {"dorsal": 5, "nombre": "E", "apellidos": "Cinco", "tipos": ["fisio", "margen"], "sort_key": "fisio"},
+    ]
+    a = ps._asistentes(r)
+    assert a["en_sesion"] == 1 and a["total"] == 5
+    assert [p["dorsal"] for p in a["bajas"]] == [4]
+    assert sorted(p["dorsal"] for p in a["fisio"]) == [2, 5]   # baja > fisio > margen
+    assert [p["dorsal"] for p in a["margen"]] == [3]
+    assert ps._asistentes([])["hay"] is False
+
+
+ROSTER = [
+    {"dorsal": 1, "nombre": "A", "apellidos": "Uno", "tipos": ["sesion"], "sort_key": "sesion"},
+    {"dorsal": 2, "nombre": "B", "apellidos": "Dos", "tipos": ["sesion", "fisio"], "sort_key": "sesion"},
+    {"dorsal": 3, "nombre": "C", "apellidos": "Tres", "tipos": ["margen"], "sort_key": "margen"},
+    {"dorsal": 4, "nombre": "D", "apellidos": "Cuatro", "tipos": [], "sort_key": "ausente"},
+]
+
+
+def test_franja_de_asistentes_arriba_en_las_tres_variantes(html_capturado):
+    htmls = [
+        _run(ps.generate_sesion_pdf_v2(_sesion(), _tareas(4), ORG, JM, asistencia_roster=ROSTER)).decode(),
+        _run(ps.generate_sesion_pdf_reducido(_sesion(), _tareas(4), ORG, jugadores_map=JM, asistencia_roster=ROSTER)).decode(),
+        _run(ps.generate_sesion_pdf_plegado(_sesion(), _tareas(4), ORG, jugadores_map=JM, asistencia_roster=ROSTER)).decode(),
+    ]
+    for html in htmls:
+        assert "en sesión" in html and "Bajas" in html and "Margen" in html and "Fisio" in html
+        assert "c-ficha-baja" in html
+
+
+def test_extendido_ficha_completa_de_la_tarea(html_capturado):
+    html = _run(ps.generate_sesion_pdf_v2(_sesion(), _tareas(3), ORG, JM)).decode()
+    for i in range(1, 4):
+        for txt in (f"Inicia {i}", f"Finaliza {i}", f"Puntua {i}", f"Anotacion {i}", f"Progresion {i}",
+                    f"Regresion {i}", f"Consigna of {i}", f"Error {i}", f"Regla exigencia {i}"):
+            assert txt in html, txt
+    for txt in ("Descanso", "Dificultad", "Objetivos y situación de juego",
+                "Reglas y consignas", "Variantes y progresiones", "Organización", "Notas", "rondo"):
+        assert txt in html, txt
+
+
+@pytest.mark.parametrize("n", [3, 7, 12])
+def test_pizarras_verticales_y_apaisadas_caben_en_un_folio(n):
+    pytest.importorskip("weasyprint")
+    for gen in (ps.generate_sesion_pdf_reducido, ps.generate_sesion_pdf_plegado):
+        pdf = _run(gen(_sesion(), _tareas(n), ORG, jugadores_map=JM, asistencia_roster=ROSTER, margen_entrenamientos=MARGEN))
+        assert _paginas(pdf) == 1, (gen.__name__, n)

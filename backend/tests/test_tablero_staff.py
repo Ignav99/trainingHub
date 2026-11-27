@@ -314,3 +314,63 @@ def test_abrir_un_hilo_da_por_leidos_solo_sus_avisos(monkeypatch):
     assert res == {"leidas": 1}
     estado = {n["entidad_id"]: (n["leida"], n["presentada"]) for n in notifs(fake, LUIS)}
     assert estado == {hilo["id"]: (True, True), otro["id"]: (False, False)}
+
+
+# ─── Comentarios anclados ─────────────────────────────────────────────────────
+
+ANCLA = {"ruta": "/sesiones/abc?tab=ejercicios", "selector": "[data-pin-id='x']", "dx": 0.4, "dy": 2, "x": 120, "y": 340, "vw": 1440}
+
+
+def test_crear_con_ancla_la_normaliza_y_notifica_con_pin():
+    fake = db()
+    hilo = tb.crear_post(fake, EQ, ACTOR_ANA, {"contenido": f"{tok('Luis Mora', LUIS)} mira aquí", "ancla": ANCLA})
+    assert hilo["ancla"]["path"] == "/sesiones/abc"
+    assert hilo["ancla"]["dy"] == 1  # recortado a 0..1
+    [n] = notifs(fake)
+    assert n["url"] == f"/sesiones/abc?tab=ejercicios&pin={hilo['id']}"
+
+
+def test_respuesta_a_pin_notifica_con_pin_y_resolver_comentario_anclado():
+    fake = db()
+    hilo = tb.crear_post(fake, EQ, ACTOR_ANA, {"contenido": "Ojo", "ancla": {"ruta": "/partidos", "dx": 0, "dy": 0}})
+    tb.crear_post(fake, EQ, ACTOR_LUIS, {"contenido": "visto", "parent_id": hilo["id"]})
+    [n] = notifs(fake, ANA)
+    assert n["url"] == f"/partidos?pin={hilo['id']}"
+    r = tb.actualizar_post(fake, EQ, hilo["id"], ACTOR_LUIS, {"estado": "resuelta"})
+    assert r["estado"] == "resuelta"
+
+
+def test_ancla_con_ruta_invalida_falla():
+    with pytest.raises(tb.TableroError):
+        tb.crear_post(db(), EQ, ACTOR_ANA, {"contenido": "x", "ancla": {"ruta": "http://evil"}})
+
+
+def test_listar_pines_por_ruta():
+    fake = db()
+    tb.crear_post(fake, EQ, ACTOR_ANA, {"contenido": "uno", "ancla": ANCLA})
+    tb.crear_post(fake, EQ, ACTOR_ANA, {"contenido": "otra página", "ancla": {"ruta": "/partidos"}})
+    tb.crear_post(fake, EQ, ACTOR_ANA, {"contenido": "sin ancla"})
+    res = tb.listar_pines(fake, EQ, ANA, "/sesiones/abc")
+    assert res["disponible"] is True
+    assert [h["contenido"] for h in res["data"]] == ["uno"]
+
+
+def test_sin_migracion_lista_vacia_y_crear_con_ancla_da_503():
+    fake = db()
+
+    def sin_columna(body):
+        if "ancla" in body:
+            raise Exception('{"code":"PGRST204","message":"Could not find the \'ancla\' column of \'staff_posts\'"}')
+
+    fake.insert_hooks["staff_posts"] = sin_columna
+    with pytest.raises(tb.TableroError) as e:
+        tb.crear_post(fake, EQ, ACTOR_ANA, {"contenido": "x", "ancla": ANCLA})
+    assert e.value.status == 503 and e.value.detalle == "Falta aplicar la migración de comentarios anclados"
+    # sin ancla sigue funcionando
+    assert tb.crear_post(fake, EQ, ACTOR_ANA, {"contenido": "normal"})["ancla"] is None
+
+    class Roto:
+        def table(self, _n):
+            raise Exception('column staff_posts.ancla does not exist (42703)')
+
+    assert tb.listar_pines(Roto(), EQ, ANA, "/partidos") == {"data": [], "disponible": False}
