@@ -26,12 +26,16 @@ export interface JugadorResumenConvocatorias {
   jugador_id: string
   total_convocatorias: number
   titularidades: number
+  suplencias?: number
+  partidos_jugados?: number
   minutos_totales: number
   goles: number
   asistencias: number
   amarillas: number
   rojas: number
   racha: ('V' | 'E' | 'D')[]
+  rendimiento_reciente?: number | null
+  rendimiento_partidos?: number
 }
 
 export const convocatoriasApi = {

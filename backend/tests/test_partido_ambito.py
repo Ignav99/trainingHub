@@ -94,3 +94,27 @@ class TestTarjetasPorJugador:
         assert todos["j1"]["amarillas"] == 2
         assert todos["j1"]["rojas"] == 1
 
+
+class TestRendimientoReciente:
+    def test_ultimas_cinco_con_minutos(self):
+        from app.services.partido_ambito import rendimiento_reciente
+
+        rows = [
+            {"minutos_jugados": 90, "rendimiento_media": 8},
+            {"minutos_jugados": 0, "rendimiento_media": 2},
+            {"minutos_jugados": 20, "rendimiento_media": None},
+            {"minutos_jugados": 45, "rendimiento_media": 6},
+            {"minutos_jugados": 90, "rendimiento_media": 7},
+            {"minutos_jugados": 90, "rendimiento_media": 7},
+            {"minutos_jugados": 90, "rendimiento_media": 7},
+            {"minutos_jugados": 90, "rendimiento_media": 1},
+        ]
+        media, n = rendimiento_reciente(rows)
+        assert n == 5
+        assert media == 7.0
+
+    def test_sin_notas(self):
+        from app.services.partido_ambito import rendimiento_reciente
+
+        assert rendimiento_reciente([{"minutos_jugados": 90}]) == (None, 0)
+

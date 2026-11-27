@@ -23,7 +23,12 @@ from app.models import (
 )
 from app.database import get_supabase
 from app.dependencies import require_permission, AuthContext
-from app.services.partido_ambito import AMBITO_COMPETICION, filtrar_por_ambito, normalize_ambito
+from app.services.partido_ambito import (
+    AMBITO_COMPETICION,
+    filtrar_por_ambito,
+    normalize_ambito,
+    rendimiento_reciente,
+)
 from app.security.permissions import Permission
 from app.services.load_calculation_service import recalculate_player_load
 
@@ -175,7 +180,8 @@ def resumen_convocatorias_equipo(
         return ResumenEquipoConvocatoriasResponse(data=[])
 
     response = supabase.table("convocatorias").select(
-        "jugador_id, titular, minutos_jugados, goles, asistencias, tarjeta_amarilla, tarjeta_roja, created_at, "
+        "jugador_id, titular, minutos_jugados, goles, asistencias, tarjeta_amarilla, tarjeta_roja, "
+        "rendimiento_media, created_at, "
         "partidos(fecha, resultado, competicion)"
     ).in_("jugador_id", jugador_ids).order("created_at", desc=True).execute()
 
@@ -202,17 +208,25 @@ def resumen_convocatorias_equipo(
             elif resultado == "derrota":
                 racha.append("D")
         racha.reverse()  # más reciente al final
+        nota, partidos_con_nota = rendimiento_reciente(convocatorias_ordenadas)
 
         resumenes.append(JugadorResumenConvocatorias(
             jugador_id=jid,
             total_convocatorias=len(convocatorias),
             titularidades=sum(1 for c in convocatorias if c.get("titular")),
+            suplencias=sum(
+                1 for c in convocatorias
+                if not c.get("titular") and (c.get("minutos_jugados") or 0) > 0
+            ),
+            partidos_jugados=sum(1 for c in convocatorias if (c.get("minutos_jugados") or 0) > 0),
             minutos_totales=sum(c.get("minutos_jugados", 0) or 0 for c in convocatorias),
             goles=sum(c.get("goles", 0) or 0 for c in convocatorias),
             asistencias=sum(c.get("asistencias", 0) or 0 for c in convocatorias),
             amarillas=sum(1 for c in convocatorias if c.get("tarjeta_amarilla")),
             rojas=sum(1 for c in convocatorias if c.get("tarjeta_roja")),
             racha=racha,
+            rendimiento_reciente=nota,
+            rendimiento_partidos=partidos_con_nota,
         ))
 
     return ResumenEquipoConvocatoriasResponse(data=resumenes)

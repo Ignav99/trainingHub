@@ -87,12 +87,16 @@ class JugadorResumenConvocatorias(BaseModel):
     jugador_id: UUID
     total_convocatorias: int = 0
     titularidades: int = 0
+    suplencias: int = 0
+    partidos_jugados: int = 0
     minutos_totales: int = 0
     goles: int = 0
     asistencias: int = 0
     amarillas: int = 0
     rojas: int = 0
     racha: List[str] = Field(default_factory=list)  # ["V","V","E","D","V"], más reciente al final
+    rendimiento_reciente: Optional[float] = None
+    rendimiento_partidos: int = 0
 
 
 class ResumenEquipoConvocatoriasResponse(BaseModel):
