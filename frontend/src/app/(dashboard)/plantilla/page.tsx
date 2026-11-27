@@ -45,6 +45,9 @@ import { PorAspecto } from '@/components/appearance/PorAspecto'
 import { PlantillaTablaCal } from '@/components/plantilla/PlantillaTablaCal'
 import { ExportarInformeButton } from '@/components/informes/ExportarInformeButton'
 import { convocatoriasApi, type JugadorResumenConvocatorias } from '@/lib/api/convocatorias'
+import { rfefApi } from '@/lib/api/rfef'
+import { fusionarSanciones, type SancionOficial } from '@/lib/plantillaColumnas'
+import type { WellnessAggregates } from '@/types'
 import {
   FICHA_ESTADO_LABELS,
   TIPO_JUGADOR_COLORS,
@@ -570,6 +573,42 @@ export default function PlantillaPage() {
     return map
   }, [resumenResponse])
 
+  const { data: wellnessResponse } = useSWR<{ data: WellnessAggregates[] }>(
+    equipoId ? `/wellness/equipo/${equipoId}` : null
+  )
+
+  const wellnessMap = useMemo(() => {
+    const map: Record<string, WellnessAggregates> = {}
+    for (const w of wellnessResponse?.data || []) {
+      map[w.jugador_id] = w
+    }
+    return map
+  }, [wellnessResponse])
+
+  const { data: competiciones } = useSWR<{ data: { id: string }[] }>(
+    equipoId ? apiKey('/rfef/competiciones', { equipo_id: equipoId }, ['equipo_id']) : null,
+    () => rfefApi.listCompeticiones({ equipo_id: equipoId! })
+  )
+
+  const competicionIds = useMemo(
+    () => (competiciones?.data || []).map((c) => c.id).sort(),
+    [competiciones]
+  )
+
+  const { data: sancionMap } = useSWR<Record<string, SancionOficial> | null>(
+    competicionIds.length ? ['plantilla-sancion', ...competicionIds] : null,
+    async () => {
+      const listas = await Promise.all(
+        competicionIds.map((id) =>
+          rfefApi.getMiEquipoTarjetas(id).then((res) => res.jugadores).catch(() => null)
+        )
+      )
+      const validas = listas.filter((lista): lista is NonNullable<typeof lista> => lista !== null)
+      if (validas.length === 0) return null
+      return fusionarSanciones(validas)
+    }
+  )
+
   const jugadores = jugadoresResponse?.data || []
   // Con datos en caché se siguen mostrando: el error solo tapa la lista si no hay nada.
   const error = swrError && !jugadoresResponse ? 'Error al cargar la plantilla' : null
@@ -911,6 +950,8 @@ export default function PlantillaPage() {
               isCrossTeam={(j) => showAllTeams && j.equipo_id !== equipoActivo?.id}
               resumenMap={resumenMap}
               cargaMap={cargaMap}
+              wellnessMap={wellnessMap}
+              sancionMap={sancionMap ?? null}
               onEdit={(j) => router.push(`/plantilla/${j.id}?edit=true`)}
               onDelete={(j) => handleDelete(j.id)}
               onChangeEstado={(j) => setEstadoModal(j)}

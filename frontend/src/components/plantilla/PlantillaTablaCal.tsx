@@ -20,8 +20,16 @@ import {
   resolveDisponibilidad,
   resolveTipoJugador,
 } from '@/lib/jugadorTipo'
-import type { CargaJugador, NivelCarga } from '@/types'
+import type { CargaJugador, NivelCarga, WellnessAggregates } from '@/types'
 import type { JugadorResumenConvocatorias } from '@/lib/api/convocatorias'
+import {
+  lecturaSancion,
+  perfilJugador,
+  rindeEnPartidos,
+  wellnessVisible,
+  type SancionOficial,
+  type TonoRinde,
+} from '@/lib/plantillaColumnas'
 
 export interface PlantillaStatsCal {
   total: number
@@ -36,6 +44,9 @@ interface Props {
   isCrossTeam: (jugador: Jugador) => boolean
   resumenMap: Record<string, JugadorResumenConvocatorias>
   cargaMap: Record<string, CargaJugador>
+  wellnessMap: Record<string, WellnessAggregates>
+  /** Sanción vigente según actas. `null` si esas actas no se han podido leer. */
+  sancionMap: Record<string, SancionOficial> | null
   onEdit: (jugador: Jugador) => void
   onDelete: (jugador: Jugador) => void
   onChangeEstado: (jugador: Jugador) => void
@@ -109,6 +120,13 @@ function cargaAlerta(nivel?: NivelCarga | null): { texto: string; clase: string 
 }
 
 const num = (v?: number | null) => (v === undefined || v === null ? '–' : v)
+
+function tonoRinde(tono: TonoRinde): string {
+  if (tono === 'alto') return 'text-success'
+  if (tono === 'justo') return 'text-warning'
+  if (tono === 'bajo') return 'text-destructive'
+  return 'text-foreground'
+}
 
 /** Motivo de baja y fecha de vuelta, para el title de la celda de estado. */
 export function detalleEstado(j: Jugador): string | undefined {
@@ -271,6 +289,8 @@ export function PlantillaTablaCal({
   isCrossTeam,
   resumenMap,
   cargaMap,
+  wellnessMap,
+  sancionMap,
   onEdit,
   onDelete,
   onChangeEstado,
@@ -285,6 +305,7 @@ export function PlantillaTablaCal({
 
   const cab = 'h-9 px-2 text-xs font-semibold text-muted-foreground [font-stretch:75%]'
   const cifra = 'px-2 text-right tabular-nums'
+  const columnas = 15
 
   return (
     <div className="space-y-3">
@@ -298,21 +319,22 @@ export function PlantillaTablaCal({
         </p>
       )}
       <div className="cal-linea overflow-x-auto bg-card">
-        <table className="w-full min-w-[1040px] border-collapse text-sm">
+        <table className="w-full min-w-[1180px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-border">
               <th scope="col" className={`${cab} text-left`}>Jugador</th>
               <th scope="col" className={`${cab} text-left`}>Pos.</th>
               <th scope="col" className={`${cab} text-left`}>Estado</th>
+              <th scope="col" className={`${cab} text-left`} title="Si cumple sanción de competición">Sanción</th>
               <th scope="col" className={`${cab} text-right`}>Edad</th>
               <th scope="col" className={`${cab} text-right`}>Min.</th>
+              <th scope="col" className={`${cab} text-right`}>Gol</th>
+              <th scope="col" className={`${cab} text-right`}>Ast</th>
               <th scope="col" className={`${cab} text-right`}>Tarj.</th>
               <th scope="col" className={`${cab} text-left`}>Racha</th>
-              <th scope="col" className={`${cab} text-right`}>TEC</th>
-              <th scope="col" className={`${cab} text-right`}>TAC</th>
-              <th scope="col" className={`${cab} text-right`}>FIS</th>
-              <th scope="col" className={`${cab} text-right`}>MEN</th>
-              <th scope="col" className={`${cab} text-right`}>Media</th>
+              <th scope="col" className={`${cab} text-left`} title="Cómo rinde en los partidos, media de las últimas notas">Rinde</th>
+              <th scope="col" className={`${cab} text-left`} title="De qué lado destaca, o la media si va parejo">Perfil</th>
+              <th scope="col" className={`${cab} text-right`} title="Wellness, media de 7 días o el último registro">Well.</th>
               <th scope="col" className={`${cab} text-right`} title="Carga actual (ACWR)">Carga</th>
               <th scope="col" className="w-12 px-1">
                 <span className="sr-only">Acciones</span>
@@ -322,7 +344,7 @@ export function PlantillaTablaCal({
           {grupos.map((g) => (
             <tbody key={g.zona}>
               <tr className="border-b border-border bg-sunken">
-                <th scope="colgroup" colSpan={14} className="h-9 px-3 text-left font-normal">
+                <th scope="colgroup" colSpan={columnas} className="h-9 px-3 text-left font-normal">
                   <span className="cal-rotulo">{g.rotulo}</span>
                   <span className="ml-2 text-xs tabular-nums text-muted-foreground">{g.jugadores.length}</span>
                 </th>
@@ -341,6 +363,12 @@ export function PlantillaTablaCal({
                 const racha = resumen?.racha ?? []
                 const apercibido = est.tipo !== 'sancionado' && esApercibido(amarillas)
                 const alerta = cargaAlerta(carga?.nivel_carga)
+                const sancion = lecturaSancion(j.estado, sancionMap?.[j.id], sancionMap !== null)
+                const perfil = perfilJugador(j)
+                const rinde = rindeEnPartidos(resumen?.rendimiento_reciente, resumen?.rendimiento_partidos ?? 0)
+                const well = wellnessVisible(wellnessMap[j.id])
+                const goles = resumen?.goles ?? 0
+                const asistencias = resumen?.asistencias ?? 0
                 const destino = `/plantilla/${j.id}`
                 return (
                   <tr
@@ -387,11 +415,41 @@ export function PlantillaTablaCal({
                         {j.posicion_principal}
                       </span>
                     </td>
-                    <td className="px-2" title={detalleEstado(j)}>
-                      <EstadoMarca est={est} />
+                    <td className="px-2" title={est.texto === 'disponible' ? 'Puede jugar' : detalleEstado(j)}>
+                      {est.texto === 'disponible' ? (
+                        <Estado tipo="disponible">
+                          <span className="sr-only">puede jugar</span>
+                        </Estado>
+                      ) : (
+                        <EstadoMarca est={est} />
+                      )}
+                    </td>
+                    <td className="px-2">
+                      {sancion.lectura === 'cumple' ? (
+                        <span
+                          className="font-semibold text-destructive"
+                          title={
+                            sancion.restantes && sancion.restantes > 1
+                              ? `Le quedan ${sancion.restantes} partidos`
+                              : 'Cumple sanción'
+                          }
+                        >
+                          cumple{sancion.restantes && sancion.restantes > 1 ? ` ${sancion.restantes}` : ''}
+                        </span>
+                      ) : sancion.lectura === 'libre' ? (
+                        <span className="text-muted-foreground">libre</span>
+                      ) : (
+                        <span className="text-muted-foreground" title="Sin actas de la competición">–</span>
+                      )}
                     </td>
                     <td className={cifra}>{num(j.edad)}</td>
                     <td className={cifra}>{resumen?.minutos_totales ?? 0}</td>
+                    <td className={cifra}>
+                      {goles > 0 ? goles : <span className="text-muted-foreground">–</span>}
+                    </td>
+                    <td className={cifra}>
+                      {asistencias > 0 ? asistencias : <span className="text-muted-foreground">–</span>}
+                    </td>
                     <td className={cifra}>
                       {amarillas === 0 && rojas === 0 ? (
                         <span className="text-muted-foreground">–</span>
@@ -413,11 +471,47 @@ export function PlantillaTablaCal({
                     <td className="px-2">
                       {racha.length > 0 ? <FormGuide racha={racha} /> : <span className="text-muted-foreground">–</span>}
                     </td>
-                    <td className={cifra}>{num(j.nivel_tecnico)}</td>
-                    <td className={cifra}>{num(j.nivel_tactico)}</td>
-                    <td className={cifra}>{num(j.nivel_fisico)}</td>
-                    <td className={cifra}>{num(j.nivel_mental)}</td>
-                    <td className={`${cifra} font-extrabold`}>{num(j.nivel_global)}</td>
+                    <td className="px-2" title={rinde ? `${rinde.partidos} partidos con nota` : 'Sin dos notas de partido'}>
+                      {rinde ? (
+                        <span className="inline-flex items-baseline gap-1.5">
+                          <span className={`font-semibold ${tonoRinde(rinde.tono)}`}>{rinde.texto}</span>
+                          <span className="tabular-nums">{rinde.nota.toFixed(1)}</span>
+                        </span>
+                      ) : resumen?.rendimiento_reciente != null && (resumen.rendimiento_partidos ?? 0) === 1 ? (
+                        <span className="tabular-nums text-muted-foreground" title="Un solo partido con nota">
+                          {resumen.rendimiento_reciente.toFixed(1)}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">–</span>
+                      )}
+                    </td>
+                    <td className="px-2">
+                      {perfil.kind === 'clase' ? (
+                        <span className="font-semibold">{perfil.texto}</span>
+                      ) : perfil.kind === 'media' ? (
+                        <span className="tabular-nums">{perfil.valor}</span>
+                      ) : (
+                        <span className="text-muted-foreground">–</span>
+                      )}
+                    </td>
+                    <td
+                      className={cifra}
+                      title={
+                        well
+                          ? well.reciente
+                            ? 'Último wellness'
+                            : 'Media de wellness de 7 días'
+                          : undefined
+                      }
+                    >
+                      {well ? (
+                        <span className={well.valor < 15 || wellnessMap[j.id]?.wellness_alerta ? 'font-semibold text-warning' : undefined}>
+                          {Number.isInteger(well.valor) ? well.valor : well.valor.toFixed(1)}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">–</span>
+                      )}
+                    </td>
                     <td className={cifra}>
                       {carga && (carga.ratio_acwr != null || alerta) ? (
                         <span className="inline-flex items-center justify-end gap-1.5">

@@ -32,6 +32,8 @@ export interface JugadorResumenConvocatorias {
   amarillas: number
   rojas: number
   racha: ('V' | 'E' | 'D')[]
+  rendimiento_reciente?: number | null
+  rendimiento_partidos?: number
 }
 
 export const convocatoriasApi = {

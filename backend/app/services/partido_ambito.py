@@ -71,6 +71,30 @@ def filtrar_por_ambito(rows: Iterable[Any], ambito: str) -> list:
     return [r for r in rows if en_ambito(competicion_de(r), ambito)]
 
 
+def rendimiento_reciente(convocatorias: Iterable[Any], limite: int = 5) -> tuple[Optional[float], int]:
+    """Media de las últimas notas de partido (1-10) en las que jugó minutos.
+
+    El orden lo trae quien llama: el partido más reciente primero. Sin minutos
+    o sin nota no cuenta. Una sola nota no basta para decir cómo rinde.
+    """
+    notas: list[float] = []
+    tope = max(1, limite)
+    for row in convocatorias:
+        if not isinstance(row, dict):
+            continue
+        if (row.get("minutos_jugados") or 0) <= 0:
+            continue
+        nota = row.get("rendimiento_media")
+        if nota is None:
+            continue
+        notas.append(float(nota))
+        if len(notas) >= tope:
+            break
+    if not notas:
+        return None, 0
+    return round(sum(notas) / len(notas), 2), len(notas)
+
+
 def tarjetas_por_jugador(convocatorias: Iterable[Any], ambito: str) -> dict[str, dict[str, int]]:
     """Amarillas/rojas de convocatorias filtradas por ámbito (amistosos fuera por defecto)."""
     tarjetas_map: dict[str, dict[str, int]] = {}

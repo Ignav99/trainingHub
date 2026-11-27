@@ -93,6 +93,8 @@ class JugadorResumenConvocatorias(BaseModel):
     amarillas: int = 0
     rojas: int = 0
     racha: List[str] = Field(default_factory=list)  # ["V","V","E","D","V"], más reciente al final
+    rendimiento_reciente: Optional[float] = None
+    rendimiento_partidos: int = 0
 
 
 class ResumenEquipoConvocatoriasResponse(BaseModel):
