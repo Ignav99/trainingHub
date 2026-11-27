@@ -24,7 +24,9 @@ import type { CargaJugador, NivelCarga, WellnessAggregates } from '@/types'
 import type { JugadorResumenConvocatorias } from '@/lib/api/convocatorias'
 import {
   lecturaSancion,
+  minutosPorPartido,
   perfilJugador,
+  presencias,
   rindeEnPartidos,
   wellnessVisible,
   type SancionOficial,
@@ -305,7 +307,7 @@ export function PlantillaTablaCal({
 
   const cab = 'h-9 px-2 text-xs font-semibold text-muted-foreground [font-stretch:75%]'
   const cifra = 'px-2 text-right tabular-nums'
-  const columnas = 15
+  const columnas = 17
 
   return (
     <div className="space-y-3">
@@ -319,7 +321,7 @@ export function PlantillaTablaCal({
         </p>
       )}
       <div className="cal-linea overflow-x-auto bg-card">
-        <table className="w-full min-w-[1180px] border-collapse text-sm">
+        <table className="w-full min-w-[1280px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-border">
               <th scope="col" className={`${cab} text-left`}>Jugador</th>
@@ -328,6 +330,8 @@ export function PlantillaTablaCal({
               <th scope="col" className={`${cab} text-left`} title="Si cumple sanción de competición">Sanción</th>
               <th scope="col" className={`${cab} text-right`}>Edad</th>
               <th scope="col" className={`${cab} text-right`}>Min.</th>
+              <th scope="col" className={`${cab} text-right`} title="Minutos por partido jugado">Min/p</th>
+              <th scope="col" className={`${cab} text-right`} title="Titularidades / suplencias en las que jugó">T/S</th>
               <th scope="col" className={`${cab} text-right`}>Gol</th>
               <th scope="col" className={`${cab} text-right`}>Ast</th>
               <th scope="col" className={`${cab} text-right`}>Tarj.</th>
@@ -369,6 +373,8 @@ export function PlantillaTablaCal({
                 const well = wellnessVisible(wellnessMap[j.id])
                 const goles = resumen?.goles ?? 0
                 const asistencias = resumen?.asistencias ?? 0
+                const ts = presencias(resumen?.titularidades ?? 0, resumen?.suplencias ?? 0)
+                const minPartido = minutosPorPartido(resumen?.minutos_totales ?? 0, resumen?.partidos_jugados ?? 0)
                 const destino = `/plantilla/${j.id}`
                 return (
                   <tr
@@ -444,6 +450,19 @@ export function PlantillaTablaCal({
                     </td>
                     <td className={cifra}>{num(j.edad)}</td>
                     <td className={cifra}>{resumen?.minutos_totales ?? 0}</td>
+                    <td className={cifra}>
+                      {minPartido == null ? <span className="text-muted-foreground">–</span> : minPartido}
+                    </td>
+                    <td
+                      className={cifra}
+                      title={
+                        ts
+                          ? `${resumen?.titularidades ?? 0} titular, ${resumen?.suplencias ?? 0} suplente`
+                          : undefined
+                      }
+                    >
+                      {ts ?? <span className="text-muted-foreground">–</span>}
+                    </td>
                     <td className={cifra}>
                       {goles > 0 ? goles : <span className="text-muted-foreground">–</span>}
                     </td>

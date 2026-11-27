@@ -107,6 +107,18 @@ export function lecturaSancion(
   return { lectura: 'sin-datos' }
 }
 
+/** Titular / suplente que entró y jugó. Sin ninguna de las dos, no hay ratio. */
+export function presencias(titularidades: number, suplencias: number): string | null {
+  if (titularidades <= 0 && suplencias <= 0) return null
+  return `${titularidades}/${suplencias}`
+}
+
+/** Minutos por partido en el que jugó. */
+export function minutosPorPartido(minutos: number, partidos: number): number | null {
+  if (partidos <= 0) return null
+  return Math.round(minutos / partidos)
+}
+
 /** Media de 7 días si existe; si no, el último registro. */
 export function wellnessVisible(dato: {
   wellness_7d_avg?: number | null

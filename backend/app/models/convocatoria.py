@@ -87,6 +87,8 @@ class JugadorResumenConvocatorias(BaseModel):
     jugador_id: UUID
     total_convocatorias: int = 0
     titularidades: int = 0
+    suplencias: int = 0
+    partidos_jugados: int = 0
     minutos_totales: int = 0
     goles: int = 0
     asistencias: int = 0

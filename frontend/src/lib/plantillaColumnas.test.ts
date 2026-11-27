@@ -3,7 +3,9 @@ import assert from 'node:assert/strict'
 import {
   fusionarSanciones,
   lecturaSancion,
+  minutosPorPartido,
   perfilJugador,
+  presencias,
   rindeEnPartidos,
   wellnessVisible,
 } from './plantillaColumnas.ts'
@@ -53,6 +55,15 @@ describe('rendimiento en partidos', () => {
     assert.equal(rindeEnPartidos(6.5, 3)?.texto, 'bien')
     assert.equal(rindeEnPartidos(5, 3)?.texto, 'justo')
     assert.equal(rindeEnPartidos(4.2, 4)?.texto, 'bajo')
+  })
+})
+
+describe('titular, suplente y minutos por partido', () => {
+  it('junta las dos cifras y redondea el minuto', () => {
+    assert.equal(presencias(11, 3), '11/3')
+    assert.equal(presencias(0, 0), null)
+    assert.equal(minutosPorPartido(200, 3), 67)
+    assert.equal(minutosPorPartido(90, 0), null)
   })
 })
 

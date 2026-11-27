@@ -214,6 +214,11 @@ def resumen_convocatorias_equipo(
             jugador_id=jid,
             total_convocatorias=len(convocatorias),
             titularidades=sum(1 for c in convocatorias if c.get("titular")),
+            suplencias=sum(
+                1 for c in convocatorias
+                if not c.get("titular") and (c.get("minutos_jugados") or 0) > 0
+            ),
+            partidos_jugados=sum(1 for c in convocatorias if (c.get("minutos_jugados") or 0) > 0),
             minutos_totales=sum(c.get("minutos_jugados", 0) or 0 for c in convocatorias),
             goles=sum(c.get("goles", 0) or 0 for c in convocatorias),
             asistencias=sum(c.get("asistencias", 0) or 0 for c in convocatorias),
