@@ -37,6 +37,18 @@ class _Query:
             self.filters.append(lambda r: r.get(col) == val)
         return self
 
+    def like(self, col, patron):
+        """Solo comodín ``%`` al principio o al final."""
+        ini, fin = patron.startswith("%"), patron.endswith("%")
+        nucleo = patron.strip("%")
+        def ok(r):
+            v = r.get(col)
+            if v is None:
+                return False
+            return nucleo in v if ini and fin else v.endswith(nucleo) if ini else v.startswith(nucleo) if fin else v == nucleo
+        self.filters.append(ok)
+        return self
+
     def gt(self, col, val):
         self.filters.append(lambda r: r.get(col) is not None and r.get(col) > val)
         return self

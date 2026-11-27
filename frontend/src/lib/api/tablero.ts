@@ -14,6 +14,9 @@ export interface NuevoPost {
   entidad_tipo?: EntidadStaffPost
   entidad_id?: string
   ancla?: Ancla
+  /** Comentario sobre una página que no es una entidad (panel, listados). */
+  pagina_ruta?: string
+  pagina_titulo?: string
 }
 
 export interface CambiosPost {
