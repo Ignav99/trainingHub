@@ -30,6 +30,7 @@ import {
 } from 'lucide-react'
 import { NotificationBell } from '@/components/notificaciones/NotificationBell'
 import { StaffPanel } from '@/components/tablero/StaffPanel'
+import { PinsHost } from '@/components/pins/PinsHost'
 import { OpenVideoTabLink } from '@/components/video-analyzer/OpenVideoTabLink'
 import { usePersistHydrated } from '@/hooks/usePersistHydrated'
 import { preload } from 'swr'
@@ -379,6 +380,7 @@ export default function DashboardLayout({
       <InstallPrompt />
       <PaletaComandos />
       <StaffPanel />
+      <PinsHost />
       <Toaster />
     </div>
   )

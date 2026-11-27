@@ -1,4 +1,4 @@
-{% from "_marca/cabecera.html" import cabecera %}<!DOCTYPE html>
+{% from "_marca/cabecera.html" import cabecera %}{% from "_sesion/asistentes.html" import franja, bloque %}<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -35,7 +35,8 @@ td.vacia { border: .25mm dashed var(--c-borde); }
 .ch .dur { flex: none; font-weight: 800; margin-left: 1.5mm; }
 .ch .grp { flex: none; font-size: 6.4pt; color: var(--c-suave); margin-left: 1.5mm; }
 .bd { border: .25mm solid var(--c-borde); border-radius: .5mm; overflow: hidden; text-align: center; margin-bottom: 1mm; }
-.bd img { width: 100%; height: 100%; object-fit: contain; }
+.bx { overflow: hidden; }
+.bd img { display: block; width: 100%; height: 100%; }
 .bd svg { width: 100%; height: 100%; }
 .tx { overflow: hidden; line-height: 1.22; }
 .tx p { margin-bottom: .6mm; }
@@ -63,6 +64,7 @@ table.cc td + td { padding-left: 2.4mm; border-left: .25mm solid var(--c-borde);
 {% set cab_meta %}<div class="meta">{% if match_day %}<span class="md-sw" style="background:{{ md_color }}"></span>{{ match_day }}{% if md_label %} · {{ md_label }}{% endif %}<br>{% endif %}<b>{{ duracion_total }}</b> min · {{ n_tareas }} tareas</div>{% endset %}
 {{ cabecera(cab_tema, titulo=sesion.get('titulo', 'Sesión de entrenamiento'), subtitulo=cab_sub, meta=cab_meta, eyebrow=[tema.club, equipo_categoria]|select|join(' · ')) }}
 
+{{ franja(asis, strip_h) }}
 {% if objetivo_principal %}<div class="linea"><span class="c-rotulo">Objetivo</span><b>{{ objetivo_principal }}</b></div>{% endif %}
 {% if material %}<div class="linea"><span class="c-rotulo">Material mínimo necesario</span>{{ material|join(' · ') }}</div>{% endif %}
 
@@ -78,7 +80,7 @@ table.cc td + td { padding-left: 2.4mm; border-left: .25mm solid var(--c-borde);
         {% if t.lane is not none %}<div class="grp">Grupo {{ 'ABCDEFGH'[t.lane] }}</div>{% endif %}
         <div class="dur">{% if t.series %}{{ t.series }}×{% endif %}{{ t.duracion }}'</div>
       </div>
-      <div class="bd" style="height:{{ L.board_h }}mm">{% if t.board.img %}<img src="{{ t.board.img }}" alt="">{% else %}{{ t.board.svg }}{% endif %}</div>
+      <div class="bd" style="height:{{ L.board_h }}mm"><div class="bx" style="width:{{ t.box.w }}mm;height:{{ t.box.h }}mm;margin:{{ t.box.top }}mm auto 0">{% if t.board.img %}<img src="{{ t.board.img }}" alt="">{% else %}{{ t.board.svg }}{% endif %}</div></div>
       <div class="tx" style="height:{{ L.text_h }}mm;font-size:{{ L.fs }}pt">
         {% if t.desc_c %}<p>{{ t.desc_c }}</p>{% endif %}
         {% for n in t.normas_c %}<div class="nm">{{ n }}</div>{% endfor %}

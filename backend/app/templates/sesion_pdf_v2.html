@@ -1,4 +1,4 @@
-{% from "_marca/cabecera.html" import cabecera %}<!DOCTYPE html>
+{% from "_marca/cabecera.html" import cabecera %}{% from "_sesion/asistentes.html" import franja %}<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -25,14 +25,6 @@ body { font-size: 8.4pt; line-height: 1.35; }
 .linea .c-rotulo { margin-right: 2mm; }
 .linea b { font-weight: 700; }
 
-/* Convocatoria: una fila por grupo, fichas con dorsal */
-.rost { width: 100%; border-collapse: collapse; margin: 1mm 0; }
-.rost td { vertical-align: top; padding: .6mm 0; border-bottom: .25mm solid var(--c-borde); }
-.rost td.l { width: 20mm; padding-top: 1.6mm; }
-.rost .rj { display: inline-block; white-space: nowrap; margin: 0 2.4mm 0 0; font-size: 7.4pt; }
-.rost .fch { width: 4.6mm; height: 4.6mm; line-height: 3.8mm; font-size: 5.8pt; margin-right: .7mm; vertical-align: middle; }
-.rost .mo { color: var(--c-suave); font-size: 6.6pt; margin-left: .6mm; }
-.rost .fi { font-size: 6pt; color: var(--c-suave); margin-left: .5mm; }
 
 /* Rejilla de portada */
 table.rej { border-collapse: separate; border-spacing: 1.5mm; table-layout: fixed; width: calc(100% + 3mm); margin: 0 -1.5mm; }
@@ -45,8 +37,9 @@ td.vacia { border: .25mm dashed var(--c-borde); }
 .ch .sig { font-family: "Encode Sans Narrow", sans-serif !important; font-weight: 700; font-size: 6.6pt; letter-spacing: .06em; margin-right: 1.2mm; }
 .ch .dur { flex: none; margin-left: 1.5mm; font-weight: 800; }
 .bd { border: .25mm solid var(--c-borde); border-radius: .5mm; overflow: hidden; text-align: center; }
-.bd img { width: 100%; height: 100%; object-fit: contain; }
-.bd svg { width: 100%; height: 100%; }
+.bx { overflow: hidden; }
+.bd img { display: block; width: 100%; height: 100%; }
+.bd svg { display: block; width: 100%; height: 100%; }
 .inf { height: 4mm; line-height: 4mm; margin-top: .8mm; font-size: 6.8pt; color: var(--c-suave); white-space: nowrap; overflow: hidden; }
 .leyenda { font-size: 6.4pt; color: var(--c-suave); margin-top: 1mm; text-align: right; }
 
@@ -56,16 +49,16 @@ td.vacia { border: .25mm dashed var(--c-borde); }
 .ph-cat { font-size: 7.6pt; margin-top: 1mm; }
 .datos { width: 100%; border-collapse: collapse; table-layout: fixed; margin: 0 0 2.4mm; border-bottom: .25mm solid var(--c-borde); }
 .datos td { padding: 0 0 1.6mm; vertical-align: bottom; }
-.datos .c-dato { font-size: 13pt; }
+.datos .c-dato { font-size: 11pt; }
 .matl { margin-bottom: 2.2mm; font-size: 8pt; }
 .matl .c-rotulo { margin-right: 1.6mm; }
 .coach { margin-bottom: 2.4mm; font-size: 8pt; }
 .coach b { font-weight: 700; }
 .c-seccion { margin-top: 3mm; }
-.pz { text-align: center; padding: 1.5mm; }
-.pz img { max-height: 98mm; max-width: 100%; width: auto; object-fit: contain; }
-.pz svg { width: 100%; height: auto; max-height: 98mm; }
-table.cols { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.pz { padding: 1.5mm; overflow: hidden; }
+.pz img { display: block; width: 100%; height: 100%; }
+.pz svg { display: block; width: 100%; height: 100%; }
+table.colsx { width: 100%; border-collapse: collapse; table-layout: fixed; }
 table.cols td.col { vertical-align: top; padding: 0; }
 table.cols td.gap { width: 6mm; }
 .cols .c-seccion { font-size: 9.2pt; margin: 2.4mm 0 1.8mm; }
@@ -91,7 +84,8 @@ table.cols td.gap { width: 6mm; }
 /* Porteros / ABP */
 .sg { width: 100%; border-collapse: separate; border-spacing: 0 3mm; table-layout: fixed; }
 .sg td.d { width: 46%; vertical-align: top; padding: 1.5mm; border: .25mm solid var(--c-borde); border-radius: .5mm; text-align: center; }
-.sg td.d svg { width: 100%; height: auto; max-height: 72mm; }
+.sg td.d { height: 74mm; }
+.sg td.d svg { display: block; width: 100%; height: 100%; }
 .sg td.i { vertical-align: top; padding-left: 4mm; }
 .sg .hd { border-bottom: .4mm solid var(--c-tinta); padding-bottom: 1.4mm; margin-bottom: 2mm; }
 .sg .nom { font-size: 11pt; font-weight: 800; margin-top: .8mm; }
@@ -111,6 +105,14 @@ table.cols td.gap { width: 6mm; }
 .mg .ob { font-size: 9pt; margin-bottom: 1.4mm; }
 .mg td { vertical-align: top; }
 .mg .nota { font-size: 8pt; color: var(--c-suave); margin-top: 2mm; }
+.sec-cols { column-count: 2; column-gap: 6mm; }
+.sec-cols .grp { margin-bottom: 1mm; }
+.sec-cols .c-seccion { font-size: 9.2pt; margin: 2.4mm 0 1.6mm; break-after: avoid; }
+.sec-cols .it { break-inside: avoid; }
+.fila { margin-bottom: 1.1mm; break-inside: avoid; }
+.fila .fl { font-family: "Encode Sans Narrow", sans-serif !important; font-size: 6.4pt; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--c-suave); margin-right: 1.6mm; }
+.fila .fv { font-size: 8.2pt; font-weight: 600; }
+.txt { white-space: pre-line; }
 </style>
 </head>
 <body>
@@ -123,20 +125,12 @@ table.cols td.gap { width: 6mm; }
   {% set cab_meta %}<div class="meta">{% if sesion.get('match_day') %}<span class="md-sw" style="background:{{ md_color }}"></span>{{ sesion.get('match_day') }}<br>{% endif %}<b>{{ duracion_total }}</b> min · {{ num_ejercicios }} ejercicios</div>{% endset %}
   {{ cabecera(cab_tema, titulo=sesion.get('titulo', 'Sesión de entrenamiento'), subtitulo=cab_sub, meta=cab_meta, eyebrow=[tema.club, equipo_categoria]|select|join(' · ')) }}
 
+  {{ franja(asis, strip_h) }}
   {% if conceptos_line %}<div class="linea"><span class="c-rotulo">Conceptos</span>{{ conceptos_line }}</div>{% endif %}
   {% if objetivo_principal or fase_juego_principal or principio_tactico_principal %}
   <div class="linea" style="height:8mm;line-height:8mm"><span class="c-rotulo">Objetivo</span><b>{{ [objetivo_principal, fase_juego_principal, principio_tactico_principal]|select|join(' · ') }}</b></div>
   {% endif %}
   {% if material_sesion %}<div class="linea" style="height:7mm;line-height:7mm"><span class="c-rotulo">Material mínimo necesario</span>{{ material_sesion|join(' · ') }}</div>{% endif %}
-
-  {% if roster_grupos %}
-  <table class="rost">
-    {% for g in roster_grupos %}
-    <tr><td class="l"><span class="c-rotulo">{{ g.label }} ({{ g.players|length }})</span></td>
-      <td>{% for p in g.players %}<span class="rj"><span class="c-ficha fch {{ 'c-ficha-baja' if g.clave == 'ausente' else '' }}">{{ p.dorsal }}</span>{{ p.nombre }}{% if p.fisio %}<span class="fi">fisio</span>{% endif %}{% if p.motivo %}<span class="mo">{{ p.motivo }}</span>{% endif %}</span>{% endfor %}</td></tr>
-    {% endfor %}
-  </table>
-  {% endif %}
 
   {% set L = portada_layout %}
   <table class="rej">
@@ -150,7 +144,7 @@ table.cols td.gap { width: 6mm; }
           <div class="lt"><span class="num">{{ '%02d' % (i + 1) }}</span><span class="c-peto" style="background:{{ t.peto_color }}"></span><span class="sig">{{ t.categoria_codigo or 'EJ' }}</span>{{ t.titulo }}</div>
           <div class="dur">{% if t.num_series and t.num_series > 1 %}{{ t.num_series }}×{% endif %}{{ t.duracion }}'</div>
         </div>
-        <div class="bd" style="height:{{ L.board_h }}mm">{% if t.preview_img %}<img src="{{ t.preview_img }}" alt="">{% else %}{{ t.svg_thumbnail }}{% endif %}</div>
+        <div class="bd" style="height:{{ L.board_h }}mm"><div class="bx" style="width:{{ t.box_cover.w }}mm;height:{{ t.box_cover.h }}mm;margin:{{ t.box_cover.top }}mm auto 0">{% if t.board.img %}<img src="{{ t.board.img }}" alt="">{% else %}{{ t.board.svg }}{% endif %}</div></div>
         <div class="inf">{{ [t.fase_label, (t.espacio_largo|int ~ '×' ~ t.espacio_ancho|int ~ ' m') if (t.espacio_largo and t.espacio_ancho) else '', (t.num_jugadores_min ~ ('–' ~ t.num_jugadores_max if t.num_jugadores_max else '') ~ ' jug.') if t.num_jugadores_min else '']|select|join(' · ') }}</div>
       </div></td>
       {% else %}<td class="cel vacia" style="height:{{ L.cell_h }}mm"></td>{% endif %}
@@ -169,70 +163,30 @@ table.cols td.gap { width: 6mm; }
   {% set ph_eyebrow %}{{ [tema.club, sesion.get('match_day',''), sesion.get('fecha','')]|select|join(' · ') }}{% if sesion.get('hora') %} · {{ sesion.get('hora')[:5] }}{% endif %}{% endset %}
   {{ cabecera(cab_tema, titulo=tarea.titulo, subtitulo=ph_sub, meta=ph_meta, eyebrow=ph_eyebrow) }}
 
+  {% for fila in tarea.detalle.datos|batch(5) %}
   <table class="datos"><tr>
-    <td><div class="c-dato-label">Duración</div><div class="c-dato">{{ tarea.duracion }}'</div></td>
-    <td><div class="c-dato-label">Series</div><div class="c-dato">{{ tarea.num_series or '–' }}</div></td>
-    <td><div class="c-dato-label">Jugadores</div><div class="c-dato">{{ tarea.num_jugadores_min }}{% if tarea.num_jugadores_max %}–{{ tarea.num_jugadores_max }}{% endif %}</div></td>
-    <td><div class="c-dato-label">Espacio</div><div class="c-dato">{% if tarea.espacio_largo and tarea.espacio_ancho %}{{ tarea.espacio_largo|int }}×{{ tarea.espacio_ancho|int }} m{% else %}–{% endif %}</div></td>
-    <td><div class="c-dato-label">Intensidad</div><div class="c-dato">{% if tarea.densidad %}{{ tarea.densidad.title() }}{% else %}–{% endif %}</div></td>
+    {% for lab, val in fila %}<td><div class="c-dato-label">{{ lab }}</div><div class="c-dato">{{ val|e }}</div></td>{% endfor %}
+    {% for _ in range(5 - fila|length) %}<td></td>{% endfor %}
   </tr></table>
-
-  {% if tarea.material %}<div class="matl"><span class="c-rotulo">Material</span>{{ tarea.material|join(' · ') }}</div>{% endif %}
-  {% if tarea.posicion_entrenador %}<div class="coach"><b>Posición del entrenador:</b> {{ tarea.posicion_entrenador }}</div>{% endif %}
+  {% endfor %}
 
   <div class="c-seccion">Pizarra</div>
-  <div class="c-pizarra pz">{% if tarea.preview_img %}<img src="{{ tarea.preview_img }}" alt="">{% else %}{{ tarea.svg_large }}{% endif %}</div>
+  <div class="c-pizarra pz" style="height:{{ tarea.box_detail.h + 3 }}mm"><div class="bx" style="width:{{ tarea.box_detail.w }}mm;height:{{ tarea.box_detail.h }}mm;margin:0 auto">{% if tarea.board.img %}<img src="{{ tarea.board.img }}" alt="">{% else %}{{ tarea.board.svg_large }}{% endif %}</div></div>
 
-  <table class="cols"><tr>
-    <td class="col">
-      {% if tarea.descripcion %}<div class="c-seccion">Descripción</div><div class="txt">{{ tarea.descripcion }}</div>{% endif %}
-
-      {% if tarea.is_partido_condicionado %}
-      <div class="c-rotulo rot">11 contra 11</div>
-      {% if tarea.partido_peto %}<div class="txt"><b>Con peto:</b> {{ tarea.partido_peto }}</div>{% endif %}
-      {% if tarea.partido_sin_peto %}<div class="txt"><b>Sin peto:</b> {{ tarea.partido_sin_peto }}</div>{% endif %}
-      {% if tarea.partido_fuera %}<div class="txt"><b>Fuera:</b> {{ tarea.partido_fuera }}</div>{% endif %}
-      {% endif %}
-
-      {% if tarea.formation_html %}<div class="c-rotulo rot">Equipos</div>{{ tarea.formation_html }}{% endif %}
-
-      {% if tarea.fase_juego or tarea.principio_tactico or tarea.subprincipio_tactico %}
-      <div class="c-rotulo rot">Situación de juego</div>
-      {% if tarea.fase_juego %}<div class="txt" style="font-weight:700;margin-bottom:.4mm">{{ tarea.fase_juego.replace('_', ' ').title() }}</div>{% endif %}
-      {% if tarea.principio_tactico %}<div class="txt" style="margin-bottom:.4mm">{{ tarea.principio_tactico }}</div>{% endif %}
-      {% if tarea.subprincipio_tactico %}<div class="txt">{{ tarea.subprincipio_tactico }}</div>{% endif %}
-      {% endif %}
-
-      {% if tarea.errores_comunes %}
-      <div class="c-rotulo rot">Errores comunes</div>
-      <ul class="lista">{% for e in tarea.errores_comunes %}<li>{{ e }}</li>{% endfor %}</ul>
-      {% endif %}
-    </td>
-    <td class="gap"></td>
-    <td class="col">
-      {% if tarea.normas_grupos %}
-      <div class="c-seccion">Normas de provocación</div>
-      {% for label, items in tarea.normas_grupos %}
-      <div class="c-rotulo rot">{{ label }}</div>
-      <ul class="lista">{% for r in items %}<li>{{ r }}</li>{% endfor %}</ul>
+  <div class="sec-cols">
+  {% for sec in tarea.detalle.secciones %}
+    <div class="grp">
+      <div class="c-seccion">{{ sec.titulo }}</div>
+      {% for it in sec['items'] %}
+        {% if it.k == 'fila' %}<div class="fila"><span class="fl">{{ it.label }}</span><span class="fv">{{ it.valor|e }}</span></div>
+        {% elif it.k == 'texto' %}<div class="it"><div class="c-rotulo rot">{{ it.label }}</div><div class="txt">{{ it.valor|e }}</div></div>
+        {% elif it.k == 'lista' %}<div class="it"><div class="c-rotulo rot">{{ it.label }}</div><ul class="lista">{% for r in it['items'] %}<li>{{ r|e }}</li>{% endfor %}</ul></div>
+        {% elif it.k == 'html' %}<div class="it"><div class="c-rotulo rot">{{ it.label }}</div>{{ it.valor }}</div>
+        {% endif %}
       {% endfor %}
-      {% endif %}
-
-      {% if tarea.consignas_ofensivas or tarea.consignas_defensivas %}
-      <div class="c-seccion">Consignas</div>
-      {% for c in tarea.consignas_ofensivas %}<div class="cons"><b>{{ loop.index }}</b>{{ c }}</div>{% endfor %}
-      {% for c in tarea.consignas_defensivas %}<div class="cons"><b>D{{ loop.index }}</b>{{ c }}</div>{% endfor %}
-      {% endif %}
-
-      {% if tarea.variantes or tarea.progresiones %}
-      <div class="c-rotulo rot">Variante · progresión</div>
-      <ul class="lista">
-        {% for v in tarea.variantes %}<li>{{ v }}</li>{% endfor %}
-        {% for p in tarea.progresiones %}<li>{{ p }}</li>{% endfor %}
-      </ul>
-      {% endif %}
-    </td>
-  </tr></table>
+    </div>
+  {% endfor %}
+  </div>
 </div>
 {% endfor %}
 
@@ -244,7 +198,7 @@ table.cols td.gap { width: 6mm; }
   <table class="sg">
     {% for pt in portero_tareas %}
     <tr>
-      <td class="d">{% if pt.svg_large %}{{ pt.svg_large }}{% else %}<span class="nodiag">Sin pizarra</span>{% endif %}</td>
+      <td class="d">{% if pt.svg_large %}<div style="width:{{ pt.box.w }}mm;height:{{ pt.box.h }}mm;margin:{{ pt.box.top }}mm auto 0">{{ pt.svg_large }}</div>{% else %}<span class="nodiag">Sin pizarra</span>{% endif %}</td>
       <td class="i">
         <div class="hd">
           <span class="c-rotulo">P{{ '%02d' % loop.index }} · POR{% if pt.tipo %} · {{ pt.tipo.replace('_', ' ') }}{% endif %} · {{ pt.duracion }}'</span>

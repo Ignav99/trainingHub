@@ -110,12 +110,6 @@ import {
   PASO_LABEL,
   readCreacionPaso,
 } from '@/lib/sesionBorrador'
-import dynamic from 'next/dynamic'
-
-const StaffThreadPanel = dynamic(
-  () => import('@/components/tablero/StaffThreadPanel').then((m) => m.StaffThreadPanel),
-  { ssr: false }
-)
 
 const MATCH_DAY_COLORS: Record<string, string> = {
   'MD+1': 'bg-green-100 text-green-800',
@@ -1607,11 +1601,9 @@ export default function SesionDetailPage() {
             </button>
           )}
 
-          {/* ABP Section - Set Pieces linked to this session */}
+          {/* ABP opcional: solo aparece si la sesión declara ABP (abp_config) o ya tiene jugadas */}
           {sesion?.equipo_id && (
-            <div className="mt-6 p-4 bg-orange-50/50 border border-orange-100 rounded-xl">
-              <ABPSessionLink sesionId={sesionId} equipoId={sesion.equipo_id} />
-            </div>
+            <ABPSessionLink sesionId={sesionId} equipoId={sesion.equipo_id} abpConfig={sesion.abp_config} />
           )}
 
           {/* GK Training Section */}
@@ -2124,10 +2116,6 @@ export default function SesionDetailPage() {
           onDownloadPdf={handleGeneratePdf}
         />
       )}
-
-      <div className="mt-8">
-        <StaffThreadPanel entidadTipo="sesion" entidadId={sesionId} />
-      </div>
 
       {/* Footer */}
       <div className="mt-8 flex justify-between items-center">

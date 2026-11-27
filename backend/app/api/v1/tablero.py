@@ -29,6 +29,7 @@ class PostCreate(BaseModel):
     fecha_limite: Optional[date] = None
     entidad_tipo: Optional[Literal["sesion", "partido", "jugador"]] = None
     entidad_id: Optional[UUID] = None
+    ancla: Optional[dict] = None
 
 
 class PostUpdate(BaseModel):
@@ -115,6 +116,17 @@ def list_posts(
         antes=antes,
         limite=limit,
     )
+
+
+@router.get("/pines")
+def list_pines(
+    equipo_id: UUID,
+    ruta: str = Query(..., min_length=1, max_length=400),
+    auth: AuthContext = Depends(require_permission(Permission.SESSION_READ)),
+):
+    """Comentarios anclados a una página. Vacío (disponible=false) hasta aplicar la migración."""
+    _require_staff(auth)
+    return _run(tablero.listar_pines, get_supabase(), str(equipo_id), auth.user_id, ruta)
 
 
 @router.get("/{post_id}")

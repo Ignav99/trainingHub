@@ -914,6 +914,8 @@ async def generate_sesion_pdf_v2(
             "is_vuelta_calma": fase_key == "vuelta_calma",
             "objetivo_tactico": tarea.get("principio_tactico") or tarea.get("fase_juego", "").replace("_", " ").title() if tarea.get("fase_juego") else "",
             "has_diagram": bool(grafico_data),
+            "board": board,
+            "detalle": _detalle_tarea(tarea, tarea_sesion, formation_html),
         }
 
         if fase_key in fases:
@@ -946,8 +948,8 @@ async def generate_sesion_pdf_v2(
         dur = int(partido.get("duracion_min") or fase.get("duracion_objetivo") or 0)
         duracion_total += dur
         grafico_p = partido.get("pizarra") if isinstance(partido.get("pizarra"), dict) else None
-        svg_large_p = render_diagram_svg(grafico_p, diagram_id=f"pco{fk}") if grafico_p else ""
-        svg_thumb_p = render_diagram_thumbnail(grafico_p, diagram_id=f"pcot{fk}") if grafico_p else ""
+        board_p = _board_tarea({"grafico_data": grafico_p or {"pitchType": "full"}}, f"pcot{fk}", f"pco{fk}")
+        svg_large_p, svg_thumb_p = board_p["svg_large"], board_p["svg"]
         fase["tareas"].append({
             "titulo": fase.get("nombre") or "Partido condicionado",
             "descripcion": partido.get("objetivo") or "",
@@ -979,7 +981,6 @@ async def generate_sesion_pdf_v2(
             "posicion_entrenador": "",
             "notas": fase.get("notas") or "",
             "fase_label": fase.get("nombre") or "Partido condicionado",
-            "preview_img": "",
             "svg_thumbnail": svg_thumb_p,
             "svg_large": svg_large_p,
             "formation_html": "",
@@ -993,6 +994,19 @@ async def generate_sesion_pdf_v2(
             "partido_fuera": _ids_to_names(partido.get("fuera")),
             "objetivo_tactico": partido.get("objetivo") or "",
             "has_diagram": bool(grafico_p),
+            "board": board_p,
+            "preview_img": board_p["img"],
+            "detalle": _detalle_tarea({
+                "desarrollo": partido.get("objetivo") or "", "reglas": partido.get("normas") or "",
+                "duracion_total": dur,
+            }, None, "".join(
+                f'<div class="txt"><b>{lab}:</b> {val}</div>'
+                for lab, val in (
+                    ("Con peto", _ids_to_names(partido.get("equipo_peto"))),
+                    ("Sin peto", _ids_to_names(partido.get("equipo_sin_peto"))),
+                    ("Fuera", _ids_to_names(partido.get("fuera"))),
+                ) if val
+            )),
         })
 
     all_tareas = []
@@ -1024,9 +1038,14 @@ async def generate_sesion_pdf_v2(
         diagram_data = pt.get("diagram")
         dur = pt.get("duracion", 10)
         portero_duracion += dur
-        svg_thumb = render_diagram_thumbnail(diagram_data, diagram_id=f"pt{len(portero_enriched)}")
-        svg_large = render_diagram_svg(diagram_data, diagram_id=f"pd{len(portero_enriched)}")
+        board_pt = _board_tarea(
+            {"grafico_data": diagram_data or {"pitchType": "full"}},
+            f"pt{len(portero_enriched)}", f"pd{len(portero_enriched)}",
+        )
+        svg_thumb, svg_large = board_pt["svg"], board_pt["svg_large"]
         portero_enriched.append({
+            "board": board_pt,
+            "box": _encaja(board_pt, 83.0, 70.0),
             "nombre": pt.get("nombre", ""),
             "descripcion": pt.get("descripcion", ""),
             "duracion": dur,
@@ -1060,17 +1079,22 @@ async def generate_sesion_pdf_v2(
             "notas": jp.get("notas", ""),
         })
 
-    roster_grupos = _roster_grupos(asistencia_roster)
+    asis = _asistentes(asistencia_roster)
     md_color = _contexto_sesion_comun(sesion_data, organizacion, None, None, "")["md_color"]
-    avail = 186 - 22 - (6 if conceptos_line else 0) - (8 if sesion_data.get("objetivo_principal") else 0) \
-        - (7 if material_sesion else 0) - _alto_roster(roster_grupos, 10) - 8
+    strip_h = (5.8 * asis["lineas"] + 1.4) if asis["hay"] else 0
+    avail = 186 - 22 - strip_h - (6 if conceptos_line else 0) - (8 if sesion_data.get("objetivo_principal") else 0) \
+        - (7 if material_sesion else 0) - 8
     portada_layout = _layout_rejilla(len(cover_tareas), avail, 277)
     portada_layout["board_h"] = round(max(portada_layout["cell_h"] - 15.5, 8), 1)
+    for t in all_tareas:
+        t["box_cover"] = _encaja(t["board"], portada_layout["cell_w"] - 3.6, portada_layout["board_h"])
+        t["box_detail"] = _encaja(t["board"], 184.0, 96.0)
 
     def _render() -> bytes:
         html_content = template.render(
             tema=tema_pdf(organizacion),
-            roster_grupos=roster_grupos,
+            asis=asis,
+            strip_h=round(strip_h, 1),
             md_color=md_color,
             portada_layout=portada_layout,
             sesion=sesion_data,
@@ -1291,22 +1315,19 @@ async def generate_tarea_pdf(
     color = organizacion.get("color_primario", "#1a365d")
     categoria = tarea.get("categorias_tarea", {}) or {}
 
-    # Render diagram SVG from grafico_data if available
-    grafico_svg_rendered = tarea.get("grafico_svg") or ""
-    if not grafico_svg_rendered and tarea.get("grafico_data"):
-        try:
-            from app.services.svg_renderer import render_diagram_svg
-            grafico_svg_rendered = render_diagram_svg(tarea["grafico_data"]) or ""
-        except Exception as e:
-            logger.warning(f"Could not render tarea diagram SVG: {e}")
+    # Pizarra con la orientación y proporción guardadas (foto del editor o SVG del editor)
+    board = _board_tarea(tarea, "tf", "tfl")
+    grafico_svg_rendered = board["svg_large"]
+    if not board["img"] and not parse_grafico(tarea.get("grafico_data")).get("elements") and tarea.get("grafico_svg"):
+        grafico_svg_rendered = tarea.get("grafico_svg") or ""
+    box = _encaja(board, 108.0, 96.0)
 
     # Pre-fetch external images as base64 data URIs so WeasyPrint doesn't
     # make slow HTTP requests during PDF rendering (saves ~25s in production).
     raw_logo = organizacion.get("logo_url") or organizacion.get("logo") or ""
     org_logo_data = _url_to_data_uri(raw_logo) if raw_logo else ""
 
-    raw_grafico = tarea.get("grafico_url") or ""
-    grafico_data_uri = _url_to_data_uri(raw_grafico) if raw_grafico and not grafico_svg_rendered else raw_grafico
+    grafico_data_uri = board["img"]
 
     def _render() -> bytes:
         html_content = template.render(
@@ -1328,6 +1349,7 @@ async def generate_tarea_pdf(
                 if v.lower() not in {x.lower() for x in _normas_planas(tarea)}
             ],
             peto_color=_peto_categoria(categoria),
+            box=box,
         )
         try:
             return html_a_pdf(html_content, organizacion, "Tarea")
@@ -1758,11 +1780,48 @@ def _normas_planas(tarea: dict) -> list[str]:
     return [x for _, items in _normas_grupos(tarea) for x in items]
 
 
-def _board_tarea(tarea: dict, diagram_id: str, large_id: str = "") -> dict:
-    """Pizarra de una tarea: foto real del editor; si no hay, SVG desde grafico_data
-    (también cuando la foto es el raster inventado). Siempre devuelve algo dibujable."""
-    from app.services.svg_renderer import render_diagram_for_pdf, render_diagram_svg
+def _viewbox_ratio(svg: str) -> float:
+    m = re.search(r'viewBox="[\d.\-]+ [\d.\-]+ ([\d.]+) ([\d.]+)"', svg or "")
+    if m and float(m.group(2)) > 0:
+        return float(m.group(1)) / float(m.group(2))
+    return 1050 / 680
 
+
+def _img_ratio(uri: str) -> float:
+    try:
+        from io import BytesIO
+        from PIL import Image
+        _h, b64 = uri.split(",", 1)
+        w, h = Image.open(BytesIO(base64.b64decode(b64))).size
+        return w / h if h else 1050 / 680
+    except Exception:
+        return 1050 / 680
+
+
+def _svg_pizarra(grafico: dict, diagram_id: str) -> tuple[str, float, str]:
+    """SVG de la pizarra con la MISMA orientación con la que la guarda el editor.
+
+    El editor deduce la orientación de `pitchType`: `full` = campo entero apaisado
+    (1050×680), `half` = medio campo (680×525) y cualquier otro valor (quarter/custom)
+    = campo entero vertical (680×1050). Sin pitchType se trata como `full`.
+    """
+    from app.services.svg_renderer import prepare_board_snapshot, render_abp_diagram_svg
+
+    g = dict(grafico) if isinstance(grafico, dict) else {}
+    raw = g.get("pitchType")
+    kind = "half" if raw == "half" else ("full" if raw in (None, "", "full") else "vertical")
+    snap = prepare_board_snapshot({**g, "pitchType": "half" if kind == "half" else "full"}) or {}
+    snap["pitchType"] = "half" if kind == "half" else "full"
+    svg = render_abp_diagram_svg(
+        snap, width="100%", height="100%", diagram_id=diagram_id, horizontal_full=(kind == "full"),
+    )
+    return svg, _viewbox_ratio(svg), kind
+
+
+def _board_tarea(tarea: dict, diagram_id: str, large_id: str = "") -> dict:
+    """Pizarra de una tarea: foto real del editor; si no hay (o es el raster inventado),
+    SVG desde grafico_data con el mismo renderer y orientación del editor.
+    Devuelve siempre algo dibujable y su proporción real (`ratio` = ancho/alto)."""
     grafico = parse_grafico(tarea.get("grafico_data"))
     img = ""
     raw = grafico.get("preview") or ""
@@ -1774,21 +1833,59 @@ def _board_tarea(tarea: dict, diagram_id: str, large_id: str = "") -> dict:
             cand = _url_to_data_uri(gu) if gu.startswith("http") else gu
             if isinstance(cand, str) and cand.startswith("data:image") and not is_poisoned_preview(cand):
                 img = cand
-    svg, svg_large, kind = "", "", "half"
-    if not img:
-        base = grafico or {"pitchType": "half"}
+    svg, svg_large, kind, ratio = "", "", "full", 1050 / 680
+    if img:
+        ratio = _img_ratio(img)
+    else:
         try:
-            svg, kind = render_diagram_for_pdf(base, diagram_id=diagram_id)
-            kind = kind or "half"
+            svg, ratio, kind = _svg_pizarra(grafico, diagram_id)
+            svg_large = _svg_pizarra(grafico, large_id or diagram_id + "L")[0]
         except Exception:
-            svg = ""
-        try:
-            svg_large = render_diagram_svg(grafico or None, diagram_id=large_id or diagram_id + "L") or ""
-        except Exception:
-            svg_large = ""
-    elif isinstance(grafico, dict):
-        kind = "full" if grafico.get("pitchType") == "full" else "half"
-    return {"img": img, "svg": svg, "svg_large": svg_large, "kind": kind}
+            svg = svg_large = ""
+    return {"img": img, "svg": svg, "svg_large": svg_large, "kind": kind, "ratio": ratio}
+
+
+def _encaja(board: dict, w: float, h: float) -> dict:
+    """Caja (mm) donde cabe la pizarra entera, centrada, sin deformarla ni recortarla:
+    las verticales ajustan al alto de la celda y las apaisadas al ancho."""
+    ratio = board.get("ratio") or (1050 / 680)
+    w, h = max(w, 1.0), max(h, 1.0)
+    if w / h > ratio:
+        bh, bw = h, h * ratio
+    else:
+        bw, bh = w, w / ratio
+    return {"w": round(bw, 2), "h": round(bh, 2), "top": round((h - bh) / 2, 2)}
+
+
+def _asistentes(asistencia_roster: Optional[list]) -> dict:
+    """Asistentes: todos cuentan como presentes salvo bajas, margen y fisio.
+
+    Prioridad si alguien está en varios: baja > fisio > margen."""
+    grupos = {"bajas": [], "fisio": [], "margen": []}
+    total = 0
+    for p in asistencia_roster or []:
+        total += 1
+        tipos = p.get("tipos") or []
+        ap = (p.get("apellidos") or "").strip()
+        item = {
+            "dorsal": p.get("dorsal") if p.get("dorsal") not in (None, "") else "",
+            "nombre": ap.split()[0] if ap else (p.get("nombre") or "").strip(),
+        }
+        if p.get("sort_key") == "ausente":
+            grupos["bajas"].append(item)
+        elif "fisio" in tipos:
+            grupos["fisio"].append(item)
+        elif "margen" in tipos:
+            grupos["margen"].append(item)
+    fuera = sum(len(v) for v in grupos.values())
+    ancho = 30.0 + sum(14 + 14.5 * len(v) for v in grupos.values() if v)
+    return {
+        **grupos,
+        "total": total,
+        "en_sesion": max(total - fuera, 0),
+        "hay": total > 0,
+        "lineas": max(1, int(-(-ancho // 270))),
+    }
 
 
 def _orden_fases(estructura) -> tuple[list[str], dict]:
@@ -1895,35 +1992,154 @@ def _card_partido(bloque: dict, orden: int) -> dict:
     }
 
 
-def _roster_grupos(asistencia_roster: Optional[list]) -> list[dict]:
-    roster = asistencia_roster or []
-    defs = (
-        ("sesion", "Sesión", lambda p: "sesion" in (p.get("tipos") or [])),
-        ("fisio", "Fisio", lambda p: "fisio" in (p.get("tipos") or [])),
-        ("margen", "Margen", lambda p: "margen" in (p.get("tipos") or [])),
-        ("ausente", "Ausentes", lambda p: p.get("sort_key") == "ausente"),
-    )
-    out = []
-    for clave, label, pred in defs:
-        players = []
-        for p in roster:
-            if not pred(p):
-                continue
-            ap = (p.get("apellidos") or "").strip()
-            nom = (p.get("nombre") or "").strip()
-            players.append({
-                "dorsal": p.get("dorsal") if p.get("dorsal") not in (None, "") else "",
-                "nombre": ap.split()[0] if ap else nom,
-                "motivo": (p.get("tipo_display") or "").replace("Ausente — ", "") if clave == "ausente" else "",
-                "fisio": clave in ("sesion", "margen") and "fisio" in (p.get("tipos") or []),
-            })
-        if players:
-            out.append({"clave": clave, "label": label, "players": players})
-    return out
+def _txt(v) -> str:
+    return " ".join(str(v).split()) if v not in (None, "") else ""
 
 
-def _alto_roster(grupos: list[dict], por_linea: int) -> float:
-    return sum(2 + 5.6 * max(1, -(-len(g["players"]) // por_linea)) for g in grupos)
+def _detalle_tarea(tarea: dict, ts: Optional[dict] = None, formation_html: str = "") -> dict:
+    """Ficha COMPLETA de la tarea (todo lo guardado en `tareas`) para el extendido.
+
+    Devuelve `datos` (filas de cifras) y `secciones` agrupadas; solo lo que tiene contenido."""
+    from app.services.sesion_labels import FASES_JUEGO
+
+    def lst(key):
+        return _lineas(tarea.get(key))
+
+    datos: list[tuple[str, str]] = []
+
+    def dato(label, valor):
+        if valor not in (None, "", 0, "0"):
+            datos.append((label, str(valor)))
+
+    dur = (ts or {}).get("duracion_override") or tarea.get("duracion_total")
+    dato("Duración", f"{dur}'" if dur else "")
+    ns = tarea.get("num_series")
+    if ns:
+        dato("Series", f"{ns}" + (f" × {tarea['duracion_serie']}'" if tarea.get("duracion_serie") else ""))
+    dato("Descanso", format_descanso(tarea.get("tiempo_descanso")))
+    if tarea.get("num_jugadores_min"):
+        mx = tarea.get("num_jugadores_max")
+        j = f"{tarea['num_jugadores_min']}" + (f"–{mx}" if mx and mx != tarea["num_jugadores_min"] else "")
+        if tarea.get("num_porteros"):
+            j += f" + {tarea['num_porteros']} POR"
+        dato("Jugadores", j)
+    if tarea.get("espacio_largo") and tarea.get("espacio_ancho"):
+        try:
+            esp = f"{int(float(tarea['espacio_largo']))}×{int(float(tarea['espacio_ancho']))} m"
+        except (TypeError, ValueError):
+            esp = ""
+        forma = _txt(tarea.get("espacio_forma"))
+        dato("Espacio", esp + (f" · {forma}" if forma and forma.lower() != "rectangular" else ""))
+    dato("m² por jugador", tarea.get("m2_por_jugador"))
+    dato("Estructura", _txt(tarea.get("estructura_equipos")))
+    dato("Densidad", str(tarea.get("densidad") or "").title())
+    if tarea.get("nivel_cognitivo"):
+        dato("Nivel cognitivo", f"{tarea['nivel_cognitivo']}/3")
+    if tarea.get("dificultad"):
+        dato("Dificultad", f"{tarea['dificultad']}/5")
+    if tarea.get("exigencia"):
+        dato("Exigencia", f"{tarea['exigencia']}/5")
+    if tarea.get("complejidad_go") or tarea.get("complejidad_pes"):
+        dato("SIATE GO / PES", f"{tarea.get('complejidad_go') or '–'} / {tarea.get('complejidad_pes') or '–'}")
+    dato("Modalidad", str(tarea.get("modalidad") or "").replace("_", " ").title())
+    dato("Esfuerzo", _txt(tarea.get("tipo_esfuerzo")))
+    dato("Trabajo : descanso", _txt(tarea.get("ratio_trabajo_descanso")))
+    if tarea.get("fc_esperada_min") and tarea.get("fc_esperada_max"):
+        dato("FC esperada", f"{tarea['fc_esperada_min']}–{tarea['fc_esperada_max']} ppm")
+
+    secciones: list[dict] = []
+
+    def seccion(titulo, items):
+        items = [i for i in items if i]
+        if items:
+            secciones.append({"titulo": titulo, "items": items})
+
+    def fila(label, valor):
+        v = _txt(valor)
+        return {"k": "fila", "label": label, "valor": v} if v else None
+
+    def texto(label, valor):
+        v = str(valor).strip() if valor not in (None, "") else ""
+        return {"k": "texto", "label": label, "valor": v} if v else None
+
+    def lista(label, items):
+        items = [i for i in items if i]
+        return {"k": "lista", "label": label, "items": items} if items else None
+
+    fj = tarea.get("fase_juego")
+    seccion("Objetivos y situación de juego", [
+        fila("Fase de juego", FASES_JUEGO.get(str(fj), str(fj or "").replace("_", " ").title())),
+        fila("Principio táctico", tarea.get("principio_tactico")),
+        fila("Subprincipio", tarea.get("subprincipio_tactico")),
+        fila("Intención táctica", tarea.get("intencion_tactica")),
+        fila("Acción técnica", tarea.get("accion_tecnica")),
+        fila("Situación táctica", tarea.get("situacion_tactica")),
+        texto("Objetivo físico", tarea.get("objetivo_fisico")),
+        texto("Objetivo psicológico", tarea.get("objetivo_psicologico")),
+        lista("Objetivos tácticos", [x.replace("_", " ") for x in lst("objetivos_tacticos")]),
+        lista("Objetivos técnicos", [x.replace("_", " ") for x in lst("objetivos_tecnicos")]),
+        lista("Orientaciones físicas", [x.replace("_", " ") for x in lst("orientaciones_fisicas")]),
+        lista("Etiquetas físicas", [x.replace("_", " ") for x in lst("etiquetas_fisicas")]),
+    ])
+
+    desarrollo = str(tarea.get("desarrollo") or "").strip()
+    descripcion = str(tarea.get("descripcion") or "").strip()
+    seccion("Descripción", [
+        texto("Desarrollo", desarrollo or descripcion),
+        texto("Descripción", descripcion if (desarrollo and descripcion and descripcion != desarrollo) else ""),
+        texto("Cómo inicia", tarea.get("como_inicia")),
+        texto("Cómo finaliza", tarea.get("como_finaliza")),
+        texto("Forma de puntuar", tarea.get("forma_puntuar")),
+        texto("Posición del entrenador", tarea.get("posicion_entrenador")),
+    ])
+
+    reglas_items = [lista(f"Normas de provocación · {lab}", items) for lab, items in _normas_grupos(tarea)]
+    seccion("Reglas y consignas", reglas_items + [
+        texto("Regla que aumenta la exigencia", tarea.get("complejidad")),
+        lista("Consignas ofensivas", lst("consignas_ofensivas")),
+        lista("Consignas defensivas", lst("consignas_defensivas")),
+        lista("Errores comunes", lst("errores_comunes")),
+    ])
+
+    normas_low = {x.lower() for x in _normas_planas(tarea)}
+    seccion("Variantes y progresiones", [
+        lista("Variantes", [x for x in lst("variantes") if x.lower() not in normas_low]),
+        lista("Progresiones", lst("progresiones")),
+        lista("Regresiones", lst("regresiones")),
+    ])
+
+    sr = tarea.get("series_repeticiones")
+    sr_txt = ""
+    if isinstance(sr, dict):
+        bits = []
+        if sr.get("series"):
+            bits.append(f"{sr['series']} series")
+        if sr.get("repeticiones"):
+            bits.append(f"{sr['repeticiones']} repeticiones")
+        if sr.get("descanso_seg"):
+            bits.append(f"descanso {sr['descanso_seg']} s")
+        if sr.get("porcentaje_rm"):
+            bits.append(f"{sr['porcentaje_rm']} % RM")
+        sr_txt = " · ".join(bits)
+    seccion("Organización", [
+        {"k": "html", "label": "Equipos", "valor": formation_html} if formation_html else None,
+        fila("Material", " · ".join(material_de_tareas([tarea.get("material")]))),
+        fila("Equipamiento", " · ".join(lst("equipamiento"))),
+        fila("Grupo muscular", " · ".join(lst("grupo_muscular"))),
+        fila("Contracción", str(tarea.get("tipo_contraccion") or "").replace("_", " ")),
+        fila("Zona del cuerpo", str(tarea.get("zona_cuerpo") or "").replace("_", " ")),
+        fila("Objetivo de gimnasio", str(tarea.get("objetivo_gym") or "").replace("_", " ")),
+        fila("Series y repeticiones", sr_txt),
+        texto("Protocolo de progresión", tarea.get("protocolo_progresion")),
+        fila("Etiquetas", " · ".join(lst("tags"))),
+        fila("Vídeo", tarea.get("video_url")),
+    ])
+
+    seccion("Notas", [
+        texto("Anotaciones", tarea.get("anotaciones")),
+        texto("Notas de la sesión", (ts or {}).get("notas")),
+    ])
+    return {"datos": datos, "secciones": secciones}
 
 
 def _layout_rejilla(n: int, avail_h: float, ancho: float) -> dict:
@@ -2092,7 +2308,9 @@ async def generate_sesion_pdf_reducido(
         comp_h = min(56.0, max(h_lane, h_marg, 20.0) + 3)
 
     objetivo = bool((sesion_data.get("objetivo_principal") or "").strip())
-    avail = 190 - 25 - (7 if objetivo else 0) - (7 if datos["material"] else 0) - comp_h - 4
+    asis = _asistentes(asistencia_roster)
+    strip_h = (5.8 * asis["lineas"] + 1.4) if asis["hay"] else 0
+    avail = 190 - 25 - strip_h - (7 if objetivo else 0) - (7 if datos["material"] else 0) - comp_h - 4
     lay = _layout_rejilla(len(tareas), avail, 281)
     fs = 10.0 if lay["cell_w"] > 120 else (8.4 if lay["cell_w"] > 75 else 7.2)
     board_h = round(min(lay["cell_h"] * 0.52, lay["cell_w"] * 0.74, 90), 1)
@@ -2103,6 +2321,8 @@ async def generate_sesion_pdf_reducido(
     for c in tareas:
         _recorta_card(c, lineas, cpl, max_normas=5)
     lay.update(board_h=board_h, text_h=round(text_h, 1), fs=fs)
+    for c in tareas:
+        c["box"] = _encaja(c["board"], lay["cell_w"] - 3.6, board_h)
     filas = [tareas[i * lay["cols"]:(i + 1) * lay["cols"]] for i in range(lay["rows"])]
     filas = [f + [None] * (lay["cols"] - len(f)) for f in filas if f]
 
@@ -2110,6 +2330,7 @@ async def generate_sesion_pdf_reducido(
     ctx.update(
         filas=filas, layout=lay, material=datos["material"], duracion_total=datos["duracion"],
         lanes=lanes, margen=margen, comp_h=round(comp_h, 1), n_tareas=len(tareas),
+        asis=asis, strip_h=round(strip_h, 1),
     )
 
     def _render() -> bytes:
@@ -2182,17 +2403,24 @@ async def generate_sesion_pdf_plegado(
                 lineas -= 1
             cpl = max(10, int((dims["text_w"] - 1) / (fs_mm * 0.54)))
             _recorta_card(card, lineas, cpl, max_normas=4 if k == 1 else (2 if k == 2 else 1))
+            card["box"] = _encaja(card["board"], dims["board_w"], dims["board_h"])
             bloques.append({"card": card, **{kk: (round(v, 1) if isinstance(v, float) else v) for kk, v in dims.items()}})
         pos += k
         paneles.append({"tipo": "tareas", "bloques": bloques, "k": k})
     paneles.append({"tipo": "cierre"})
 
     filas = [paneles[i * cols:(i + 1) * cols] for i in range(2)]
+    asis = _asistentes(asistencia_roster)
+    asis_p = {**asis, **{k: asis[k][:8] for k in ("bajas", "fisio", "margen")},
+              "extra": {k: max(len(asis[k]) - 8, 0) for k in ("bajas", "fisio", "margen")}}
+    n_fich = sum(len(asis_p[k]) + 1 for k in ("bajas", "fisio", "margen") if asis_p[k])
+    strip_p = (9.0 + 5.4 * -(-n_fich // (2 if cols == 4 else 4))) if asis["hay"] else 0
+    n_idx = max(2, 8 - int(-(-strip_p // 3.7)))
     ctx = _contexto_sesion_comun(sesion_data, organizacion, lugar, microciclo_nombre, _logo_pdf(organizacion))
     ctx.update(
         filas=filas, cols=cols, total=total, panel_w=round(panel_w, 1), material=datos["material"],
         duracion_total=datos["duracion"], lanes=datos["lanes"], margen=datos["margen"],
-        indice=tareas[:8], n_tareas=n, roster_grupos=_roster_grupos(asistencia_roster),
+        indice=tareas[:n_idx], n_tareas=n, asis=asis_p,
     )
 
     def _render() -> bytes:

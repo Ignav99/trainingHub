@@ -1,0 +1,35 @@
+{# Asistentes (Cal, papel): todos cuentan como presentes salvo bajas, margen y fisio.
+   Franja fina: «18 en sesión · Bajas ⓵ ⓶ · Margen … · Fisio …». Estado escrito + forma de la ficha:
+   baja = ficha tachada, margen = ficha discontinua, fisio = ficha con aro del club.
+   Uso: {% from "_sesion/asistentes.html" import franja, bloque %} {{ franja(asis, strip_h) }} #}
+{% macro estilos() -%}
+<style>
+.as { overflow: hidden; line-height: 5.8mm; font-size: 7.6pt; border-bottom: .25mm solid var(--c-borde); white-space: normal; }
+.as .as-n { margin-right: 4mm; white-space: nowrap; }
+.as .as-n b { font-weight: 800; font-size: 8.6pt; }
+.as .as-g { margin-right: 4mm; white-space: nowrap; }
+.as .c-rotulo, .asb .c-rotulo { margin-right: 1.2mm; }
+.as-j { display: inline-block; white-space: nowrap; margin-right: 2mm; }
+.as-f { width: 4.4mm; height: 4.4mm; line-height: 3.6mm; font-size: 5.8pt; vertical-align: middle; margin-right: .7mm; }
+.as-f.as-fisio { border-color: var(--c-club); border-width: .55mm; color: var(--c-club); }
+.asb { margin-top: 1.2mm; padding-top: 1mm; border-top: .25mm solid var(--c-borde); font-size: 7pt; }
+
+.asb .as-n b { font-weight: 800; font-size: 8pt; }
+.asb { line-height: 5.2mm; }
+.asb .as-g { margin-right: 2.4mm; }
+</style>
+{%- endmacro %}
+
+{% macro fichas(asis) -%}
+{% for clave, label, cls in [('bajas', 'Bajas', 'c-ficha-baja'), ('margen', 'Margen', 'c-ficha-duda'), ('fisio', 'Fisio', 'as-fisio')] %}
+{% if asis[clave] %}<span class="as-g"><span class="c-rotulo">{{ label }}</span>{% for p in asis[clave] %}<span class="as-j"><span class="c-ficha as-f {{ cls }}">{{ p.dorsal }}</span>{{ p.nombre }}</span>{% endfor %}{% if asis.extra and asis.extra[clave] %}<span class="c-suave"> +{{ asis.extra[clave] }}</span>{% endif %}</span>{% if not asis.compacto %}{% endif %}{% endif %}
+{% endfor %}
+{%- endmacro %}
+
+{% macro franja(asis, strip_h) -%}
+{% if asis.hay %}{{ estilos() }}<div class="as" style="height:{{ strip_h }}mm"><span class="as-n"><b>{{ asis.en_sesion }}</b> en sesión</span>{{ fichas(asis) }}</div>{% endif %}
+{%- endmacro %}
+
+{% macro bloque(asis) -%}
+{% if asis.hay %}{{ estilos() }}<div class="asb"><span class="as-n"><b>{{ asis.en_sesion }}</b> en sesión</span>{{ fichas(asis) }}</div>{% endif %}
+{%- endmacro %}

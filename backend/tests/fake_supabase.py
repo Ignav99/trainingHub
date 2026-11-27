@@ -27,6 +27,16 @@ class _Query:
         self.filters.append(lambda r: r.get(col) in vals)
         return self
 
+    def filter(self, col, op, val):
+        """Solo ``col->>clave`` con eq (filtro por campo JSON)."""
+        assert op == "eq"
+        if "->>" in col:
+            base, clave = col.split("->>", 1)
+            self.filters.append(lambda r: (r.get(base) or {}).get(clave) == val)
+        else:
+            self.filters.append(lambda r: r.get(col) == val)
+        return self
+
     def gt(self, col, val):
         self.filters.append(lambda r: r.get(col) is not None and r.get(col) > val)
         return self

@@ -9,6 +9,7 @@ import {
   CornerDownRight,
   Link2,
   Loader2,
+  MapPin,
   MessageSquare,
   Pencil,
   Pin,
@@ -28,6 +29,7 @@ import { MentionTextarea, draftDesde, serializar, type MentionDraft } from './Me
 import { ReplyComposer } from './PostComposer'
 import { fechaHora, hace, nombreVisible, plazo, ROL_LABEL, TIPOS } from './tablero-utils'
 import { refrescarTablero } from './useTablero'
+import { hrefPin } from '@/lib/pins/ancla'
 
 const RESPUESTAS_VISIBLES = 2
 
@@ -205,7 +207,7 @@ export const StaffThreadCard = forwardRef<
   const meta = TIPOS[hilo.tipo]
   const Icon = meta.icon
   const esMio = hilo.autor?.id === meId
-  const cerrable = hilo.tipo === 'tarea' || hilo.tipo === 'pregunta'
+  const cerrable = hilo.tipo === 'tarea' || hilo.tipo === 'pregunta' || Boolean(hilo.ancla)
   const resuelta = hilo.estado === 'resuelta'
   const limite = plazo(hilo.fecha_limite)
   const ocultas = verTodas ? 0 : Math.max(0, hilo.respuestas.length - RESPUESTAS_VISIBLES)
@@ -217,7 +219,7 @@ export const StaffThreadCard = forwardRef<
     correr(
       'estado',
       () => tableroApi.update(equipoId, hilo.id, { estado: resuelta ? 'abierta' : 'resuelta' }),
-      resuelta ? 'Reabierta' : hilo.tipo === 'tarea' ? 'Tarea completada' : 'Pregunta resuelta'
+      resuelta ? 'Reabierta' : hilo.tipo === 'tarea' ? 'Tarea completada' : hilo.tipo === 'pregunta' ? 'Pregunta resuelta' : 'Comentario resuelto'
     )
 
   return (
@@ -307,6 +309,18 @@ export const StaffThreadCard = forwardRef<
               meId={meId}
               className={cn('mt-1.5', resuelta && hilo.tipo === 'tarea' && 'text-muted-foreground line-through decoration-muted-foreground/50')}
             />
+          )}
+
+          {hilo.ancla && (
+            <div className="mt-2">
+              <Link
+                href={hrefPin(hilo.ancla, hilo.id)}
+                className="inline-flex items-center gap-1.5 rounded-md border bg-muted/40 px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <MapPin className="h-3.5 w-3.5 shrink-0" />
+                <span>Ver en la página</span>
+              </Link>
+            </div>
           )}
 
           {mostrarEnlace && hilo.entidad_titulo && (

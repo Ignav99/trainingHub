@@ -20,12 +20,6 @@ import {
   usePartidosListCollapsed,
 } from '@/components/partidos/PartidosListCollapse'
 import type { Convocatoria, Partido, PaginatedResponse, EstadisticaPartido } from '@/types'
-import dynamic from 'next/dynamic'
-
-const StaffThreadPanel = dynamic(
-  () => import('@/components/tablero/StaffThreadPanel').then((m) => m.StaffThreadPanel),
-  { ssr: false }
-)
 
 export default function PartidosPage() {
   const { equipoActivo } = useEquipoStore()
@@ -209,11 +203,6 @@ export default function PartidosPage() {
             onSetTab={setTab}
             onDeleteSuccess={handleDeleteSuccess}
           />
-          {selectedId && (
-            <div className="mt-8">
-              <StaffThreadPanel entidadTipo="partido" entidadId={selectedId} />
-            </div>
-          )}
         </div>
       </div>
     </div>

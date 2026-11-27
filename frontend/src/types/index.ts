@@ -1452,6 +1452,8 @@ export interface StaffPost {
   entidad_id: string | null
   entidad_titulo: string | null
   entidad_href: string | null
+  /** Punto de la página donde está anclado (comentarios anclados); null si es del tablero. */
+  ancla?: import('@/lib/pins/ancla').Ancla | null
   fijado: boolean
   editado_at: string | null
   created_at: string
