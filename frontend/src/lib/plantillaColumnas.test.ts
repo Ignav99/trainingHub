@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   fusionarSanciones,
   lecturaSancion,
+  textoCumple,
   minutosPorPartido,
   perfilJugador,
   presencias,
@@ -78,10 +79,18 @@ describe('sanción y wellness', () => {
   })
 
   it('distingue cumple, libre y sin actas', () => {
-    assert.equal(lecturaSancion('activo', { restantes: 2 }, true).lectura, 'cumple')
-    assert.equal(lecturaSancion('sancionado', undefined, false).lectura, 'cumple')
-    assert.equal(lecturaSancion('activo', undefined, true).lectura, 'libre')
-    assert.equal(lecturaSancion('activo', undefined, false).lectura, 'sin-datos')
+    assert.equal(lecturaSancion({ restantes: 2 }, true).lectura, 'cumple')
+    assert.equal(lecturaSancion({ restantes: 2 }, true).restantes, 2)
+    assert.equal(lecturaSancion(undefined, true).lectura, 'libre')
+    assert.equal(lecturaSancion(undefined, false).lectura, 'sin-datos')
+  })
+
+  it('en tarjetas solo se escribe cumple', () => {
+    assert.equal(textoCumple('cumple', 1), 'cumple')
+    assert.equal(textoCumple('cumple', 3), 'cumple 3')
+    assert.equal(textoCumple('cumple'), 'cumple')
+    assert.equal(textoCumple('libre'), null)
+    assert.equal(textoCumple('sin-datos'), null)
   })
 
   it('prefiere la media de 7 días', () => {

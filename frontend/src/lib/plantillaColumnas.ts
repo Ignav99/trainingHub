@@ -95,16 +95,21 @@ export function fusionarSanciones(listas: FilaSancion[][]): Record<string, Sanci
 
 export type LecturaSancion = 'cumple' | 'libre' | 'sin-datos'
 
+/** Cumple solo si el acta lo deja sancionado. El estado de la ficha no decide esto. */
 export function lecturaSancion(
-  estadoManual: string | undefined,
   oficial: SancionOficial | undefined,
   actasCargadas: boolean,
 ): { lectura: LecturaSancion; restantes?: number } {
-  if (oficial || estadoManual === 'sancionado') {
-    return { lectura: 'cumple', restantes: oficial?.restantes }
-  }
+  if (oficial) return { lectura: 'cumple', restantes: oficial.restantes }
   if (actasCargadas) return { lectura: 'libre' }
   return { lectura: 'sin-datos' }
+}
+
+/** Texto de la celda de tarjetas. Solo se escribe cuando cumple; libre no se nombra. */
+export function textoCumple(lectura: LecturaSancion, restantes?: number): string | null {
+  if (lectura !== 'cumple') return null
+  if (restantes != null && restantes > 1) return `cumple ${restantes}`
+  return 'cumple'
 }
 
 /** Titular / suplente de la convocatoria. Sin ninguna de las dos, no hay ratio. */

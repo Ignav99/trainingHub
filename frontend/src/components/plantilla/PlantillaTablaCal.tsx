@@ -25,6 +25,7 @@ import type { JugadorResumenConvocatorias } from '@/lib/api/convocatorias'
 import {
   lecturaSancion,
   minutosPorPartido,
+  textoCumple,
   perfilJugador,
   presencias,
   rindeEnPartidos,
@@ -307,7 +308,7 @@ export function PlantillaTablaCal({
 
   const cab = 'h-9 px-2 text-xs font-semibold text-muted-foreground [font-stretch:75%]'
   const cifra = 'px-2 text-right tabular-nums'
-  const columnas = 17
+  const columnas = 16
 
   return (
     <div className="space-y-3">
@@ -321,20 +322,19 @@ export function PlantillaTablaCal({
         </p>
       )}
       <div className="cal-linea overflow-x-auto bg-card">
-        <table className="w-full min-w-[1280px] border-collapse text-sm">
+        <table className="w-full min-w-[1200px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-border">
               <th scope="col" className={`${cab} text-left`}>Jugador</th>
               <th scope="col" className={`${cab} text-left`}>Pos.</th>
               <th scope="col" className={`${cab} text-left`}>Estado</th>
-              <th scope="col" className={`${cab} text-left`} title="Si cumple sanción de competición">Sanción</th>
               <th scope="col" className={`${cab} text-right`}>Edad</th>
               <th scope="col" className={`${cab} text-right`}>Min.</th>
               <th scope="col" className={`${cab} text-right`} title="Minutos por partido jugado">Min/p</th>
               <th scope="col" className={`${cab} text-right`} title="Titularidades / suplencias. Convocado y no titular cuenta, aunque no juegue">T/S</th>
               <th scope="col" className={`${cab} text-right`}>Gol</th>
               <th scope="col" className={`${cab} text-right`}>Ast</th>
-              <th scope="col" className={`${cab} text-right`}>Tarj.</th>
+              <th scope="col" className={`${cab} text-right`} title="Amarillas, rojas, apercibido y si cumple sanción">Tarj.</th>
               <th scope="col" className={`${cab} text-left`}>Racha</th>
               <th scope="col" className={`${cab} text-left`} title="Cómo rinde en los partidos, media de las últimas notas">Rinde</th>
               <th scope="col" className={`${cab} text-left`} title="De qué lado destaca, o la media si va parejo">Perfil</th>
@@ -365,9 +365,10 @@ export function PlantillaTablaCal({
                 const amarillas = resumen?.amarillas ?? carga?.tarjetas_amarillas ?? 0
                 const rojas = resumen?.rojas ?? carga?.tarjetas_rojas ?? 0
                 const racha = resumen?.racha ?? []
-                const apercibido = est.tipo !== 'sancionado' && esApercibido(amarillas)
+                const sancion = lecturaSancion(sancionMap?.[j.id], sancionMap !== null)
+                const cumple = textoCumple(sancion.lectura, sancion.restantes)
+                const apercibido = !cumple && est.tipo !== 'sancionado' && esApercibido(amarillas)
                 const alerta = cargaAlerta(carga?.nivel_carga)
-                const sancion = lecturaSancion(j.estado, sancionMap?.[j.id], sancionMap !== null)
                 const perfil = perfilJugador(j)
                 const rinde = rindeEnPartidos(resumen?.rendimiento_reciente, resumen?.rendimiento_partidos ?? 0)
                 const well = wellnessVisible(wellnessMap[j.id])
@@ -430,24 +431,6 @@ export function PlantillaTablaCal({
                         <EstadoMarca est={est} />
                       )}
                     </td>
-                    <td className="px-2">
-                      {sancion.lectura === 'cumple' ? (
-                        <span
-                          className="font-semibold text-destructive"
-                          title={
-                            sancion.restantes && sancion.restantes > 1
-                              ? `Le quedan ${sancion.restantes} partidos`
-                              : 'Cumple sanción'
-                          }
-                        >
-                          cumple{sancion.restantes && sancion.restantes > 1 ? ` ${sancion.restantes}` : ''}
-                        </span>
-                      ) : sancion.lectura === 'libre' ? (
-                        <span className="text-muted-foreground">libre</span>
-                      ) : (
-                        <span className="text-muted-foreground" title="Sin actas de la competición">–</span>
-                      )}
-                    </td>
                     <td className={cifra}>{num(j.edad)}</td>
                     <td className={cifra}>{resumen?.minutos_totales ?? 0}</td>
                     <td className={cifra}>
@@ -470,7 +453,7 @@ export function PlantillaTablaCal({
                       {asistencias > 0 ? asistencias : <span className="text-muted-foreground">–</span>}
                     </td>
                     <td className={cifra}>
-                      {amarillas === 0 && rojas === 0 ? (
+                      {amarillas === 0 && rojas === 0 && !cumple ? (
                         <span className="text-muted-foreground">–</span>
                       ) : (
                         <span className="inline-flex items-center justify-end gap-3">
@@ -484,6 +467,18 @@ export function PlantillaTablaCal({
                               <Tarjeta color="bg-warning" cantidad={amarillas} etiqueta={amarillas === 1 ? 'amarilla' : 'amarillas'} />
                             ))}
                           {rojas > 0 && <Tarjeta color="bg-destructive" cantidad={rojas} etiqueta={rojas === 1 ? 'roja' : 'rojas'} />}
+                          {cumple && (
+                            <span
+                              className="text-xs font-semibold text-destructive [font-stretch:75%]"
+                              title={
+                                sancion.restantes && sancion.restantes > 1
+                                  ? `Le quedan ${sancion.restantes} partidos`
+                                  : 'Cumple sanción'
+                              }
+                            >
+                              {cumple}
+                            </span>
+                          )}
                         </span>
                       )}
                     </td>
