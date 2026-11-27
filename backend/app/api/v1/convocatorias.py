@@ -114,8 +114,8 @@ def list_convocatorias_jugador(
 ):
     """Historial de convocatorias de un jugador con estadísticas acumuladas.
 
-    El listado incluye todos los partidos (para consultar amistosos).
-    Las estadísticas agregadas respetan el ámbito (competición por defecto).
+    El listado y las cifras siguen el ámbito (competición por defecto):
+    en competición no entran los amistosos.
     """
     supabase = get_supabase()
     ambito_n = normalize_ambito(ambito)
@@ -161,7 +161,7 @@ def list_convocatorias_jugador(
         "ambito": ambito_n,
     }
 
-    return {"data": convocatorias, "estadisticas": stats}
+    return {"data": para_stats, "estadisticas": stats}
 
 
 @router.get("/equipo/{equipo_id}/resumen", response_model=ResumenEquipoConvocatoriasResponse)
