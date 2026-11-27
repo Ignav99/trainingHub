@@ -789,6 +789,7 @@ def mi_equipo_tarjetas(
         _get_sanciones_oficiales,
         _match_rival_name,
     )
+    from app.services.rfef_nombres import emparejar_jugador_rfef
 
     supabase = get_supabase()
 
@@ -828,35 +829,8 @@ def mi_equipo_tarjetas(
 
             plantilla = jugadores_res.data or []
 
-            # Build lookup: "APELLIDOS, NOMBRE" -> jugador record
-            # RFEF format is typically "APELLIDOS, NOMBRE" all caps
-            plantilla_lookup: dict[str, dict] = {}
-            for j in plantilla:
-                nombre = (j.get("nombre") or "").strip()
-                apellidos = (j.get("apellidos") or "").strip()
-                # Try "APELLIDOS, NOMBRE" format (RFEF style)
-                rfef_key = f"{apellidos}, {nombre}".upper()
-                plantilla_lookup[rfef_key] = j
-                # Also try lowercase variations
-                plantilla_lookup[f"{apellidos}, {nombre}".lower()] = j
-                # Try just apellidos for partial matching
-                if apellidos:
-                    plantilla_lookup[apellidos.upper()] = j
-
             for jugador in result.get("jugadores", []):
-                rfef_nombre = jugador["nombre"]
-                # Exact match
-                matched = plantilla_lookup.get(rfef_nombre.upper())
-                if not matched:
-                    matched = plantilla_lookup.get(rfef_nombre.lower())
-                if not matched:
-                    # Fuzzy: check if RFEF name starts with any apellidos
-                    rfef_upper = rfef_nombre.upper()
-                    for j in plantilla:
-                        apellidos = (j.get("apellidos") or "").strip().upper()
-                        if apellidos and rfef_upper.startswith(apellidos):
-                            matched = j
-                            break
+                matched = emparejar_jugador_rfef(jugador["nombre"], plantilla)
 
                 if matched:
                     jugador["jugador_id"] = matched["id"]

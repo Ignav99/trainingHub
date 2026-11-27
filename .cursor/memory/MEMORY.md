@@ -1,7 +1,7 @@
 # TrainingHub — estado actual
 
 ## Plantilla, tarjetas y cumple (27 nov 2026)
-La columna Sanción desaparece. En Tarj. se queda el recuento, la palabra apercibido y, si el acta lo deja sancionado, la palabra cumple (y el número de partidos si queda más de uno). Libre no se escribe. El estado de la ficha no pone «cumple».
+Estado es una sola columna estrecha: el visto, las tarjetas que lleva y, si el acta lo sanciona, la palabra cumple. Apercibido va ahí también. Tarj. ya no existe. El acta «FRANCO GUERRA, FRANCISCO MANUEL» se empareja con Francisco Franco por apellido y nombre de pila, no por el prefijo del apellido.
 
 ## Historial del jugador (27 nov 2026)
 En Estadísticas del jugador, Competición, Amistosos y Conjunta filtran también el historial de partidos. Antes las cifras seguían el ámbito y la tabla seguía enseñando los amistosos. El listado de `/convocatorias/jugador/{id}` devuelve solo el ámbito pedido.
