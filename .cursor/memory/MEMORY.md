@@ -1,5 +1,8 @@
 # TrainingHub — estado actual
 
+## Historial del jugador (27 nov 2026)
+En Estadísticas del jugador, Competición, Amistosos y Conjunta filtran también el historial de partidos. Antes las cifras seguían el ámbito y la tabla seguía enseñando los amistosos. El listado de `/convocatorias/jugador/{id}` devuelve solo el ámbito pedido.
+
 ## Plantilla, tabla (27 nov 2026, rama cursor/plantilla-tabla-9a4e)
 La tabla de plantilla ya no lleva TEC/TAC/FIS/MEN/Media. Una columna Perfil: «top», «top técnico» (o táctico, físico, mental) si un eje se separa 1,5 puntos y llega a 7, o la media si va parejo. El que puede jugar es un visto, sin la palabra disponible. Sanción: cumple / libre según actas de la competición del equipo (y el estado manual sancionado). Rinde: alto/bien/justo/bajo con la media de las últimas 5 notas de partido con minutos; hace falta más de una nota. Wellness: media de 7 días, o el último. Carga igual. Gol y Ast solo si tienen. Lógica en `frontend/src/lib/plantillaColumnas.ts`. Resumen de equipo ahora manda `rendimiento_reciente`, `suplencias` (entró y jugó sin ser titular) y `partidos_jugados`. La tabla añade Min/p (minutos por partido) y T/S (titular/suplente).
 

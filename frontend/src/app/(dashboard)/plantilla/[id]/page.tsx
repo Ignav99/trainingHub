@@ -53,7 +53,7 @@ import { wellnessApi } from '@/lib/api/wellness'
 import { convocatoriasApi } from '@/lib/api/convocatorias'
 import { nutricionApi } from '@/lib/api/nutricion'
 import { entrenamientosMargenApi } from '@/lib/api/entrenamientosMargen'
-import { AMBITO_COMPETICION, enAmbito, esAmistoso, type PartidoAmbito } from '@/lib/partidoAmbito'
+import { AMBITO_AMISTOSOS, AMBITO_COMPETICION, AMBITO_TODOS, enAmbito, esAmistoso, type PartidoAmbito } from '@/lib/partidoAmbito'
 import { apiKey, apiFetcher } from '@/lib/swr'
 import type { RegistroMedico, CargaDiaria, CargaJugador, WellnessEntry, Convocatoria, ConvocatoriasJugadorStats, NutricionOverview, SuplementacionJugador, EntrenamientoMargenHistory } from '@/types'
 import { FASES_RECUPERACION } from '@/types'
@@ -1687,7 +1687,7 @@ function PlayerStatsTab({ jugadorId }: { jugadorId: string }) {
     )
   }
 
-  if (!stats || convocatorias.length === 0) {
+  if (!stats) {
     return (
       <Card>
         <CardContent className="p-8 text-center">
@@ -1730,7 +1730,11 @@ function PlayerStatsTab({ jugadorId }: { jugadorId: string }) {
     <div className="space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-muted-foreground">
-          Las cifras siguen el ámbito. El historial lista todos los partidos, incluidos amistosos.
+          {ambito === AMBITO_AMISTOSOS
+            ? 'Solo amistosos.'
+            : ambito === AMBITO_TODOS
+              ? 'Competición y amistosos.'
+              : 'Solo liga, copa y torneo.'}
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <AmbitoToggle value={ambito} onChange={setAmbito} />
@@ -1901,6 +1905,15 @@ function PlayerStatsTab({ jugadorId }: { jugadorId: string }) {
           <CardTitle className="text-sm">Historial de partidos</CardTitle>
         </CardHeader>
         <CardContent>
+          {convocatoriasAmbito.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              {ambito === AMBITO_AMISTOSOS
+                ? 'Ningún amistoso en el historial.'
+                : ambito === AMBITO_TODOS
+                  ? 'Sin partidos en el historial.'
+                  : 'Ningún partido de competición.'}
+            </p>
+          ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -1918,7 +1931,7 @@ function PlayerStatsTab({ jugadorId }: { jugadorId: string }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {convocatorias.map((c) => {
+                {convocatoriasAmbito.map((c) => {
                   const p = c.partidos
                   const resultado = p?.resultado ? RESULTADO_BADGE[p.resultado] : null
                   const score = p?.goles_favor != null && p?.goles_contra != null
@@ -1992,6 +2005,7 @@ function PlayerStatsTab({ jugadorId }: { jugadorId: string }) {
               </tbody>
             </table>
           </div>
+          )}
         </CardContent>
       </Card>
     </div>
