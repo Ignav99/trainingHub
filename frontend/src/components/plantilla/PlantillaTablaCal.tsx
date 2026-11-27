@@ -145,6 +145,23 @@ export function detalleEstado(j: Jugador): string | undefined {
   return partes.length > 0 ? partes.join(' · ') : undefined
 }
 
+function tituloEstado(
+  j: Jugador,
+  texto: string,
+  amarillas: number,
+  rojas: number,
+  cumple: string | null,
+  apercibido: boolean,
+  restantes?: number,
+): string {
+  const partes = [texto === 'disponible' ? 'Puede jugar' : detalleEstado(j) || texto]
+  if (amarillas > 0) partes.push(amarillas === 1 ? '1 amarilla' : `${amarillas} amarillas`)
+  if (rojas > 0) partes.push(rojas === 1 ? '1 roja' : `${rojas} rojas`)
+  if (apercibido) partes.push('apercibido')
+  if (cumple) partes.push(restantes && restantes > 1 ? `Le quedan ${restantes} partidos` : 'Cumple sanción')
+  return partes.filter(Boolean).join(' · ')
+}
+
 function Tarjeta({ color, cantidad, etiqueta, className }: { color: 'bg-warning' | 'bg-destructive' | 'bg-orange-500'; cantidad: number; etiqueta: string; className?: string }) {
   return (
     <span className={`inline-flex items-center gap-1 ${className ?? ''}`} title={`${cantidad} ${etiqueta}`}>
@@ -308,7 +325,7 @@ export function PlantillaTablaCal({
 
   const cab = 'h-9 px-2 text-xs font-semibold text-muted-foreground [font-stretch:75%]'
   const cifra = 'px-2 text-right tabular-nums'
-  const columnas = 16
+  const columnas = 15
 
   return (
     <div className="space-y-3">
@@ -322,19 +339,18 @@ export function PlantillaTablaCal({
         </p>
       )}
       <div className="cal-linea overflow-x-auto bg-card">
-        <table className="w-full min-w-[1200px] border-collapse text-sm">
+        <table className="w-full min-w-[1080px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-border">
               <th scope="col" className={`${cab} text-left`}>Jugador</th>
               <th scope="col" className={`${cab} text-left`}>Pos.</th>
-              <th scope="col" className={`${cab} text-left`}>Estado</th>
+              <th scope="col" className={`${cab} w-px whitespace-nowrap text-left`} title="Disponibilidad, tarjetas que lleva y si cumple sanción">Estado</th>
               <th scope="col" className={`${cab} text-right`}>Edad</th>
               <th scope="col" className={`${cab} text-right`}>Min.</th>
               <th scope="col" className={`${cab} text-right`} title="Minutos por partido jugado">Min/p</th>
               <th scope="col" className={`${cab} text-right`} title="Titularidades / suplencias. Convocado y no titular cuenta, aunque no juegue">T/S</th>
               <th scope="col" className={`${cab} text-right`}>Gol</th>
               <th scope="col" className={`${cab} text-right`}>Ast</th>
-              <th scope="col" className={`${cab} text-right`} title="Amarillas, rojas, apercibido y si cumple sanción">Tarj.</th>
               <th scope="col" className={`${cab} text-left`}>Racha</th>
               <th scope="col" className={`${cab} text-left`} title="Cómo rinde en los partidos, media de las últimas notas">Rinde</th>
               <th scope="col" className={`${cab} text-left`} title="De qué lado destaca, o la media si va parejo">Perfil</th>
@@ -422,14 +438,39 @@ export function PlantillaTablaCal({
                         {j.posicion_principal}
                       </span>
                     </td>
-                    <td className="px-2" title={est.texto === 'disponible' ? 'Puede jugar' : detalleEstado(j)}>
-                      {est.texto === 'disponible' ? (
-                        <Estado tipo="disponible">
-                          <span className="sr-only">puede jugar</span>
-                        </Estado>
-                      ) : (
-                        <EstadoMarca est={est} />
-                      )}
+                    <td className="w-px whitespace-nowrap px-2" title={tituloEstado(j, est.texto, amarillas, rojas, cumple, apercibido, sancion.restantes)}>
+                      <span className="inline-flex items-center gap-1.5">
+                        {est.texto === 'disponible' ? (
+                          <Estado tipo="disponible" className="shrink-0 px-0.5">
+                            <span className="sr-only">puede jugar</span>
+                          </Estado>
+                        ) : (
+                          <EstadoMarca est={est} />
+                        )}
+                        {amarillas > 0 && (
+                          <Tarjeta
+                            color={apercibido ? 'bg-orange-500' : 'bg-warning'}
+                            cantidad={amarillas}
+                            etiqueta={amarillas === 1 ? 'amarilla' : 'amarillas'}
+                            className={apercibido ? 'font-semibold text-orange-600' : undefined}
+                          />
+                        )}
+                        {rojas > 0 && (
+                          <Tarjeta
+                            color="bg-destructive"
+                            cantidad={rojas}
+                            etiqueta={rojas === 1 ? 'roja' : 'rojas'}
+                          />
+                        )}
+                        {apercibido && (
+                          <span className="text-xs font-semibold text-orange-600 [font-stretch:75%]">apercibido</span>
+                        )}
+                        {cumple && (
+                          <span className="text-xs font-semibold text-destructive [font-stretch:75%]">
+                            {cumple}
+                          </span>
+                        )}
+                      </span>
                     </td>
                     <td className={cifra}>{num(j.edad)}</td>
                     <td className={cifra}>{resumen?.minutos_totales ?? 0}</td>
@@ -451,36 +492,6 @@ export function PlantillaTablaCal({
                     </td>
                     <td className={cifra}>
                       {asistencias > 0 ? asistencias : <span className="text-muted-foreground">–</span>}
-                    </td>
-                    <td className={cifra}>
-                      {amarillas === 0 && rojas === 0 && !cumple ? (
-                        <span className="text-muted-foreground">–</span>
-                      ) : (
-                        <span className="inline-flex items-center justify-end gap-3">
-                          {amarillas > 0 &&
-                            (apercibido ? (
-                              <span className="inline-flex items-center gap-2 font-semibold text-orange-600">
-                                <Tarjeta color="bg-orange-500" cantidad={amarillas} etiqueta="amarillas" />
-                                <span className="text-xs [font-stretch:75%]">apercibido</span>
-                              </span>
-                            ) : (
-                              <Tarjeta color="bg-warning" cantidad={amarillas} etiqueta={amarillas === 1 ? 'amarilla' : 'amarillas'} />
-                            ))}
-                          {rojas > 0 && <Tarjeta color="bg-destructive" cantidad={rojas} etiqueta={rojas === 1 ? 'roja' : 'rojas'} />}
-                          {cumple && (
-                            <span
-                              className="text-xs font-semibold text-destructive [font-stretch:75%]"
-                              title={
-                                sancion.restantes && sancion.restantes > 1
-                                  ? `Le quedan ${sancion.restantes} partidos`
-                                  : 'Cumple sanción'
-                              }
-                            >
-                              {cumple}
-                            </span>
-                          )}
-                        </span>
-                      )}
                     </td>
                     <td className="px-2">
                       {racha.length > 0 ? <FormGuide racha={racha} /> : <span className="text-muted-foreground">–</span>}
